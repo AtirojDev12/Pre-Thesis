@@ -1,0 +1,38 @@
+{
+  "ProductName": "Demo 13th RoH",
+  "ProductId": "07bbfed3b75240b5b38e84d68254b388",
+  "ProductVersion": "0.0.1",
+  "imported": true,
+  "Clients": [
+    {
+      "Value": {
+        "ClientId": "xyza78912TBOfkETghF38IeONZDhUuWi",
+        "ClientSecret": "75XCBdNxPPaGxndq8a/zSffM6JlitfaC5Garb4J+DCg",
+        "EncryptionKey": "248B49FA9E9B32DA1117A8F103B75DCAB8A9334572A52B1D3F4CC8C13A5C1017"
+      },
+      "Name": "Client"
+    }
+  ],
+  "Environments": {
+    "Deployments": [
+      {
+        "Value": {
+          "SandboxId": {
+            "Value": "abac98efd8eb4f6c972cda3b1ecd3e18"
+          },
+          "DeploymentId": "8cf5cba52c764ae3a99c4532de069244"
+        },
+        "Name": "Deployment"
+      }
+    ],
+    "Sandboxes": [
+      {
+        "Value": {
+          "Value": "abac98efd8eb4f6c972cda3b1ecd3e18"
+        },
+        "Name": "Sandbox"
+      }
+    ]
+  },
+  "schemaVersion": "1.0"
+}
