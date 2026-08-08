@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2006c7a2843279e4598781ed39185dd0, type: 3}
   m_Name: EosApiKey
   m_EditorClassIdentifier: Assembly-CSharp::EosApiKey
-  epicProductName: MyApplication
-  epicProductVersion: 1.0
-  epicProductId: 
-  epicSandboxId: 
-  epicDeploymentId: 
-  epicClientId: 
-  epicClientSecret: 
+  epicProductName: Demo 13th RoH
+  epicProductVersion: 0.0.1
+  epicProductId: 07bbfed3b75240b5b38e84d68254b388
+  epicSandboxId: abac98efd8eb4f6c972cda3b1ecd3e18
+  epicDeploymentId: 8cf5cba52c764ae3a99c4532de069244
+  epicClientId: xyza78912TBOfkETghF38IeONZDhUuWi
+  epicClientSecret: 75XCBdNxPPaGxndq8a/zSffM6JlitfaC5Garb4J+DCg
