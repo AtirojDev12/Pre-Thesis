@@ -108,4 +108,71 @@ public static class SaveManager
         Current.currency -= amount;
         return true;
     }
+
+    public static void AddConsumable(string itemID, int amount)
+    {
+        var item = Current.consumables.Find(x => x.itemID == itemID);
+        if (item != null)
+        {
+            item.quantity += amount;
+        }
+        else
+        {
+            Current.consumables.Add(new ConsumableItemData(itemID, amount));
+        }
+    }
+
+    public static bool ConsumeItem(string itemID, int amount = 1)
+    {
+        var item = Current.consumables.Find(x => x.itemID == itemID);
+        if (item != null && item.quantity >= amount)
+        {
+            item.quantity -= amount;
+            if (item.quantity <= 0)
+            {
+                Current.consumables.Remove(item);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public static int GetConsumableQuantity(string itemID)
+    {
+        var item = Current.consumables.Find(x => x.itemID == itemID);
+        return item != null ? item.quantity : 0;
+    }
+
+    public static bool AddPermanentItem(string itemID)
+    {
+        var item = Current.permanentItems.Find(x => x.itemID == itemID);
+        if (item != null)
+        {
+            if (item.isOwned) return false;
+            item.isOwned = true;
+            return true;
+        }
+        else
+        {
+            Current.permanentItems.Add(new PermanentItemData(itemID, true));
+            return true;
+        }
+    }
+
+    public static bool RemovePermanentItem(string itemID)
+    {
+        var item = Current.permanentItems.Find(x => x.itemID == itemID);
+        if (item != null && item.isOwned)
+        {
+            Current.permanentItems.Remove(item);
+            return true;
+        }
+        return false;
+    }
+
+    public static bool HasPermanentItem(string itemID)
+    {
+        var item = Current.permanentItems.Find(x => x.itemID == itemID);
+        return item != null && item.isOwned;
+    }
 }

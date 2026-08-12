@@ -16,6 +16,40 @@ public class SaveTester : MonoBehaviour
         Debug.Log("Spend สำเร็จ: " + success + " | Currency ตอนนี้: " + SaveManager.Current.currency);
     }
 
+    [ContextMenu("Add Medkit (Consumable)")]
+    private void TestAddConsumable()
+    {
+        SaveManager.AddConsumable("medkit", 2);
+        Debug.Log("Added 2 Medkits. Total: " + SaveManager.GetConsumableQuantity("medkit"));
+    }
+
+    [ContextMenu("Use Medkit (Consumable)")]
+    private void TestUseConsumable()
+    {
+        bool success = SaveManager.ConsumeItem("medkit", 1);
+        Debug.Log("Used 1 Medkit: " + success + " | Total now: " + SaveManager.GetConsumableQuantity("medkit"));
+    }
+
+    [ContextMenu("Buy Flashlight (Permanent)")]
+    private void TestAddPermanent()
+    {
+        bool success = SaveManager.AddPermanentItem("flashlight");
+        Debug.Log("Bought Flashlight (Success: " + success + "). Owned: " + SaveManager.HasPermanentItem("flashlight"));
+    }
+
+    [ContextMenu("Drop Flashlight (Permanent)")]
+    private void TestDropPermanent()
+    {
+        bool success = SaveManager.RemovePermanentItem("flashlight");
+        Debug.Log("Dropped Flashlight (Success: " + success + "). Owned: " + SaveManager.HasPermanentItem("flashlight"));
+    }
+
+    [ContextMenu("Check Flashlight")]
+    private void TestCheckPermanent()
+    {
+        Debug.Log("Has Flashlight: " + SaveManager.HasPermanentItem("flashlight"));
+    }
+
     [ContextMenu("Save To Disk")]
     private void TestSave()
     {
