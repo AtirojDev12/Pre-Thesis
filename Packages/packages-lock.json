@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "com.playeveryware.eos": {
-      "version": "file:C:/Users/uSeR/Desktop/Mr.k/EOS Integration Kit UNITY 6/com.playeveryware.eos-6.1.1.tgz",
+      "version": "file:../Local Package/com.playeveryware.eos-6.1.1.tgz",
       "depth": 0,
       "source": "local-tarball",
       "dependencies": {
