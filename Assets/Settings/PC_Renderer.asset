@@ -68,7 +68,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e643c00e8c3ccf94c9ea2aad43481d66, type: 3}
   m_Name: RetroHorrorFilterFeature
   m_EditorClassIdentifier: Assembly-CSharp::RetroHorrorFilterFeature
-  m_Active: 0
+  m_Active: 1
   settings:
     enabled: 1
     pixelBlockSize: 2.5
