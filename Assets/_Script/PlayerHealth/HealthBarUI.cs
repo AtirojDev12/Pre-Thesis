@@ -1,49 +1,124 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro; // ถ้าไม่ได้ใช้ TextMeshPro ให้ลบ using นี้ และลบส่วน healthText ด้านล่างออก
 
 /// <summary>
 /// สคริปต์แสดงหลอดเลือด (Health Bar) บน UI
+///
+/// This belongs on the SCENE UI Canvas, not on the player prefab. A prefab that
+/// gets spawned at runtime cannot hold a reference to a scene object, so the old
+/// arrangement (HealthBarUI sitting on Player.prefab with an empty PlayerHealth
+/// slot) could never work in a real match. Instead this binds itself to
+/// whichever player belongs to THIS machine, as soon as that player spawns.
+///
 /// วิธีใช้:
 /// 1) สร้าง UI > Slider ใน Canvas (คลิกขวาใน Hierarchy > UI > Slider)
 /// 2) ลบ Handle ของ Slider ออกได้ถ้าไม่ต้องการให้ลากได้ (เอาไว้โชว์อย่างเดียว)
-/// 3) ใส่สคริปต์นี้ไว้ที่ Slider (หรือ GameObject ไหนก็ได้ที่จัดการ UI)
-/// 4) ลาก Slider component และ PlayerHealth (จากตัวผู้เล่น) มาใส่ในช่องด้านล่าง
-/// 5) (ถ้ามี) ลาก Text (TMP) มาใส่ช่อง Health Text เพื่อโชว์ตัวเลข เช่น 80/100
+/// 3) ใส่สคริปต์นี้ไว้ที่ Canvas หรือ Slider
+/// 4) ลาก Slider / Fill / Text (TMP) มาใส่ในช่องด้านล่าง
+/// 5) ไม่ต้องลาก PlayerHealth -- สคริปต์จะหาผู้เล่นของเครื่องนี้เองตอนเกิด
 /// </summary>
 public class HealthBarUI : MonoBehaviour
 {
     [Header("อ้างอิงถึงระบบเลือดของผู้เล่น")]
+    [Tooltip("Leave EMPTY in a real match -- it binds to the local player automatically. Only set this to pin the bar to one specific player in a test scene.")]
     [SerializeField] private PlayerHealth playerHealth;
 
     [Header("UI Elements")]
     [SerializeField] private Slider healthSlider;
-    [SerializeField] private TMP_Text healthText; // optional, ลบได้ถ้าไม่ใช้
+    [SerializeField] private TMP_Text healthText;
 
     [Header("สีของหลอดเลือด (optional)")]
     [SerializeField] private Image fillImage;
     [SerializeField] private Gradient healthGradient; // เขียว -> เหลือง -> แดง
 
+    [Tooltip("Hide the bar while no local player exists (e.g. in the lobby, or before spawn).")]
+    [SerializeField] private bool hideWhenUnbound = true;
+
+    [Tooltip("Optional: a CHILD object holding the bar visuals. Leave empty and the bar fades itself with a CanvasGroup instead. Do not point this at the object this script is on.")]
+    [SerializeField] private GameObject barRoot;
+
+    private PlayerHealth _bound;
+    private bool _manuallyAssigned;
+    private CanvasGroup _fadeGroup;
+
+    private void Awake()
+    {
+        _manuallyAssigned = playerHealth != null;
+
+        if (barRoot == gameObject)
+        {
+            Debug.LogWarning(
+                "[HealthBarUI] Bar Root points at this same GameObject. Clearing it -- deactivating ourselves would " +
+                "stop this script listening for the local player and the bar would never reappear. Fading instead.", this);
+            barRoot = null;
+        }
+    }
+
     private void OnEnable()
     {
-        if (playerHealth != null)
+        if (_manuallyAssigned)
         {
-            playerHealth.OnHealthChanged.AddListener(UpdateHealthBar);
-            // ตั้งค่าเริ่มต้นทันทีตอนเปิดฉาก
-            UpdateHealthBar(playerHealth.CurrentHealth, playerHealth.MaxHealth);
+            Bind(playerHealth);
+            return;
         }
-        else
-        {
-            Debug.LogWarning("[HealthBarUI] ยังไม่ได้ลาก PlayerHealth มาใส่ใน Inspector");
-        }
+
+        PlayerHealth.LocalInstanceChanged += Bind;
+        Bind(PlayerHealth.LocalInstance);
     }
 
     private void OnDisable()
     {
-        if (playerHealth != null)
+        if (!_manuallyAssigned) PlayerHealth.LocalInstanceChanged -= Bind;
+        Unbind();
+    }
+
+    private void Bind(PlayerHealth health)
+    {
+        if (_bound == health) return;
+
+        Unbind();
+        _bound = health;
+
+        if (_bound == null)
         {
-            playerHealth.OnHealthChanged.RemoveListener(UpdateHealthBar);
+            SetVisible(false);
+            return;
         }
+
+        SetVisible(true);
+
+        _bound.OnHealthChanged.AddListener(UpdateHealthBar);
+        UpdateHealthBar(_bound.CurrentHealth, _bound.MaxHealth);
+    }
+
+    /// <summary>
+    /// Deliberately never calls SetActive(false) on this GameObject. Doing so
+    /// would fire OnDisable, unsubscribe us from LocalInstanceChanged, and the
+    /// bar would stay hidden forever once the player finally spawned.
+    /// </summary>
+    private void SetVisible(bool visible)
+    {
+        if (!hideWhenUnbound) return;
+
+        if (barRoot != null)
+        {
+            barRoot.SetActive(visible);
+            return;
+        }
+
+        if (_fadeGroup == null && !TryGetComponent(out _fadeGroup))
+            _fadeGroup = gameObject.AddComponent<CanvasGroup>();
+
+        _fadeGroup.alpha = visible ? 1f : 0f;
+        _fadeGroup.blocksRaycasts = visible;
+    }
+
+    private void Unbind()
+    {
+        if (_bound == null) return;
+        _bound.OnHealthChanged.RemoveListener(UpdateHealthBar);
+        _bound = null;
     }
 
     private void UpdateHealthBar(float current, float max)
@@ -61,7 +136,7 @@ public class HealthBarUI : MonoBehaviour
 
         if (fillImage != null && healthGradient != null)
         {
-            float ratio = max > 0 ? current / max : 0f;
+            float ratio = max > 0f ? current / max : 0f;
             fillImage.color = healthGradient.Evaluate(ratio);
         }
     }
