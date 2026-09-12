@@ -28,6 +28,11 @@ public class HealthBarUI : MonoBehaviour
     [SerializeField] private Slider healthSlider;
     [SerializeField] private TMP_Text healthText;
 
+    [Header("Downed State UI")]
+    [SerializeField] private GameObject downedPanel;
+    [SerializeField] private TMP_Text downedTimerText;
+    [SerializeField] private TMP_Text downedStatusText;
+
     [Header("สีของหลอดเลือด (optional)")]
     [SerializeField] private Image fillImage;
     [SerializeField] private Gradient healthGradient; // เขียว -> เหลือง -> แดง
@@ -89,7 +94,12 @@ public class HealthBarUI : MonoBehaviour
         SetVisible(true);
 
         _bound.OnHealthChanged.AddListener(UpdateHealthBar);
+        _bound.OnDowned.AddListener(ShowDownedState);
+        _bound.OnDownedTimerChanged.AddListener(UpdateDownedTimer);
+        _bound.OnDeath.AddListener(HideDownedState);
+
         UpdateHealthBar(_bound.CurrentHealth, _bound.MaxHealth);
+        UpdateDownedState();
     }
 
     /// <summary>
@@ -118,6 +128,9 @@ public class HealthBarUI : MonoBehaviour
     {
         if (_bound == null) return;
         _bound.OnHealthChanged.RemoveListener(UpdateHealthBar);
+        _bound.OnDowned.RemoveListener(ShowDownedState);
+        _bound.OnDownedTimerChanged.RemoveListener(UpdateDownedTimer);
+        _bound.OnDeath.RemoveListener(HideDownedState);
         _bound = null;
     }
 
@@ -138,6 +151,40 @@ public class HealthBarUI : MonoBehaviour
         {
             float ratio = max > 0f ? current / max : 0f;
             fillImage.color = healthGradient.Evaluate(ratio);
+        }
+    }
+
+    private void UpdateDownedState()
+    {
+        if (_bound == null) return;
+
+        if (_bound.IsDowned)
+        {
+            ShowDownedState();
+            UpdateDownedTimer(_bound.DownedTimer);
+        }
+        else
+        {
+            HideDownedState();
+        }
+    }
+
+    private void ShowDownedState()
+    {
+        if (downedPanel != null) downedPanel.SetActive(true);
+        if (downedStatusText != null) downedStatusText.text = "DOWNED";
+    }
+
+    private void HideDownedState()
+    {
+        if (downedPanel != null) downedPanel.SetActive(false);
+    }
+
+    private void UpdateDownedTimer(float remainingTime)
+    {
+        if (downedTimerText != null)
+        {
+            downedTimerText.text = $"{Mathf.Ceil(remainingTime)}s";
         }
     }
 }
