@@ -692,6 +692,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DamageOnCollision
   damageAmount: 10
   destroyOnHit: 0
+  requirePlayerTag: 0
 --- !u!65 &1377300479
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -975,6 +976,7 @@ MonoBehaviour:
   playerPrefab: {fileID: 3873886348749462617, guid: 1dd82c6745240c446a2b82004c20a793, type: 3}
   spawnPoint: {fileID: 1526364530}
   logWhenSpawning: 1
+  activateSceneNetworkObjects: 1
 --- !u!4 &1526364530
 Transform:
   m_ObjectHideFlags: 0

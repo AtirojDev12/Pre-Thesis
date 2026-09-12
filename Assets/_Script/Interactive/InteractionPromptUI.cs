@@ -21,10 +21,20 @@ public class InteractionPromptUI : MonoBehaviour
     private Transform _followTarget;
     private Canvas _canvas;
     private string _currentText;
+    private bool _followsTargetInWorld;
 
     private void Awake()
     {
         _canvas = GetComponent<Canvas>();
+
+        // Only a World Space canvas can be moved to sit on top of the object.
+        // On a Screen Space canvas Unity drives the RectTransform itself, so
+        // writing position/rotation below would be silently discarded -- the
+        // prompt just stays wherever the canvas puts it. That is a perfectly
+        // good look for a first-person prompt (most games put it at screen
+        // centre), so this supports both instead of demanding one.
+        _followsTargetInWorld = _canvas != null && _canvas.renderMode == RenderMode.WorldSpace;
+
         Hide();
     }
 
@@ -58,7 +68,7 @@ public class InteractionPromptUI : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (_followTarget == null) return;
+        if (!_followsTargetInWorld || _followTarget == null) return;
 
         // Resolved lazily rather than in Awake: in a networked match the local
         // player's camera doesn't exist yet when this object wakes up, and

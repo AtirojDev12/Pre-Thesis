@@ -24,6 +24,9 @@ public class DamageOnCollision : MonoBehaviour
     [Tooltip("ถ้าเปิดไว้ วัตถุนี้จะถูกทำลายหลังชนผู้เล่นครั้งเดียว (เหมาะกับกับดักแบบใช้ครั้งเดียว)")]
     [SerializeField] private bool destroyOnHit = false;
 
+    [Tooltip("Also require the 'Player' tag on top of having a PlayerHealth. Off by default: a prefab spawned at runtime carries whatever tag the PREFAB has, and that is easy to leave as Untagged, which silently stops all damage.")]
+    [SerializeField] private bool requirePlayerTag = false;
+
     // ---------- Collider ปกติ (ไม่ติ๊ก Is Trigger) ----------
     private void OnCollisionEnter(Collision collision) => TryDealDamage(collision.gameObject);
 
@@ -38,16 +41,15 @@ public class DamageOnCollision : MonoBehaviour
         // Server-only, or a solo scene with no networking running at all.
         if (!NetworkMode.IsOffline && !NetworkServer.active) return;
 
-        if (!other.CompareTag("Player")) return;
+        if (requirePlayerTag && !other.CompareTag("Player")) return;
 
-        // GetComponentInParent, not GetComponent: the collider that touched us
-        // is often a child of the player root that owns PlayerHealth.
+        // Identify the player by the component that actually matters, not by a
+        // tag. GetComponentInParent, not GetComponent: the collider that touched
+        // us is often a child of the player root that owns PlayerHealth.
+        // Returning silently here is deliberate -- floors, walls and props touch
+        // traps constantly and none of them are bugs worth logging.
         PlayerHealth playerHealth = other.GetComponentInParent<PlayerHealth>();
-        if (playerHealth == null)
-        {
-            Debug.LogWarning("[DamageOnCollision] ผู้เล่นไม่มีสคริปต์ PlayerHealth ติดอยู่", other);
-            return;
-        }
+        if (playerHealth == null) return;
 
         playerHealth.TakeDamage(damageAmount);
 
