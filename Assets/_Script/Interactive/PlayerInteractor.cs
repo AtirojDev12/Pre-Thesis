@@ -74,7 +74,10 @@ public class PlayerInteractor : NetworkBehaviour
         if (promptUI != null) return;
 
         promptUI = GetComponentInChildren<InteractionPromptUI>(true);
-        if (promptUI == null) promptUI = FindFirstObjectByType<InteractionPromptUI>(FindObjectsInactive.Include);
+        // FindAnyObjectByType, not FindFirstObjectByType: the "First" variant is
+        // deprecated in Unity 6.5 because it depends on instance-ID ordering,
+        // and we only need one, whichever it is.
+        if (promptUI == null) promptUI = FindAnyObjectByType<InteractionPromptUI>(FindObjectsInactive.Include);
 
         if (promptUI == null)
             Debug.LogWarning("[PlayerInteractor] No InteractionPromptUI found -- interactions will still work, but no prompt will be shown.", this);

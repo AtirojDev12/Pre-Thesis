@@ -1,5 +1,6 @@
 using UnityEngine;
 using Mirror;
+using EpicTransport;
 using Epic.OnlineServices;
 using Epic.OnlineServices.Lobby;
 using System.Collections.Generic;
@@ -27,6 +28,9 @@ public class LobbyController : EOSLobby
     // of which succeeds independently and leaves an orphaned lobby behind.
     private bool isCreateRoomInFlight = false;
     private bool isFindRoomsInFlight = false;
+
+    // Set by Button_QuickJoinFirstRoom so the next search result auto-joins.
+    private bool _joinFirstRoomWhenFound = false;
 
     /// <summary>
     /// Raised when CreateRoom rejects a RoomConfig before ever contacting EOS
@@ -105,8 +109,29 @@ public class LobbyController : EOSLobby
     /// CreateLobby(...) directly, so every room always goes through the same
     /// validation and the same set of lobby attributes.
     /// </summary>
+    /// <summary>
+    /// EOS logs in asynchronously after startup, and until it finishes there is
+    /// no valid ProductUserId to create or search lobbies with. Calling anyway
+    /// fails deep inside the SDK with a bare "InvalidUser", which says nothing
+    /// about the real cause -- so refuse early with a message that does.
+    /// </summary>
+    private bool IsEosReady(string action)
+    {
+        if (EOSSDKComponent.Initialized) return true;
+
+        string reason = EOSSDKComponent.IsConnecting
+            ? "ยังเชื่อมต่อ EOS ไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ (EOS login still in progress)"
+            : "ยังไม่ได้ล็อกอิน EOS (EOS is not logged in)";
+
+        Debug.LogWarning($"[LobbyController] {action}ไม่ได้: {reason}", this);
+        RoomValidationFailed?.Invoke(reason);
+        return false;
+    }
+
     public void CreateRoom(RoomConfig config)
     {
+        if (!IsEosReady("สร้างห้อง")) return;
+
         if (isCreateRoomInFlight)
         {
             Debug.LogWarning("กำลังสร้างห้องอยู่ กรุณารอสักครู่ก่อนกดซ้ำ (a create request is already in flight)");
@@ -142,9 +167,34 @@ public class LobbyController : EOSLobby
 
     public void Button_FindRooms()
     {
+        _joinFirstRoomWhenFound = false;
+        StartFindRooms();
+    }
+
+    /// <summary>
+    /// Temporary test helper: search, then immediately join whatever comes back
+    /// first. Wire a button to this to prove two clients can actually connect
+    /// before the real room browser UI exists. Delete it once the browser lists
+    /// rooms with their own Join buttons.
+    /// </summary>
+    public void Button_QuickJoinFirstRoom()
+    {
+        _joinFirstRoomWhenFound = true;
+        StartFindRooms();
+    }
+
+    private void StartFindRooms()
+    {
+        if (!IsEosReady("ค้นหาห้อง"))
+        {
+            _joinFirstRoomWhenFound = false;
+            return;
+        }
+
         if (isFindRoomsInFlight)
         {
             Debug.LogWarning("กำลังค้นหาห้องอยู่ กรุณารอสักครู่ก่อนกดซ้ำ (a search is already in flight)");
+            _joinFirstRoomWhenFound = false;
             return;
         }
 
@@ -206,6 +256,18 @@ public class LobbyController : EOSLobby
         }
 
         RoomsFound?.Invoke(entries);
+
+        if (!_joinFirstRoomWhenFound) return;
+        _joinFirstRoomWhenFound = false;
+
+        if (entries.Count == 0)
+        {
+            Debug.LogWarning("[LobbyController] ไม่เจอห้องให้เข้า (no rooms found to quick-join).", this);
+            return;
+        }
+
+        Debug.Log($"[LobbyController] Quick-join: เข้าห้องแรกที่เจอ (map={entries[0].mapID}, players={entries[0].currentPlayers}/{entries[0].maxPlayers}).", this);
+        JoinRoom(entries[0]);
     }
 
     private void OnFindLobbiesFailed(string errorMessage)

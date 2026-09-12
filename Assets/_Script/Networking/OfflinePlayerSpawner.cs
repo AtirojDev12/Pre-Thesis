@@ -67,8 +67,10 @@ public class OfflinePlayerSpawner : MonoBehaviour
             }
         }
 
-        // Don't add a second player if the scene already has one.
-        if (FindFirstObjectByType<PlayerHealth>(FindObjectsInactive.Include) != null)
+        // Don't add a second player if the scene already has one. FindAny rather
+        // than FindFirst: the "First" variant is deprecated in Unity 6.5 for
+        // depending on instance-ID ordering, and this is only a null check.
+        if (FindAnyObjectByType<PlayerHealth>(FindObjectsInactive.Include) != null)
         {
             if (logWhenSpawning)
                 Debug.Log("[OfflinePlayerSpawner] A player already exists in this scene, so none was spawned.", this);

@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "com.playeveryware.eos": "file:../Local Package/com.playeveryware.eos-6.1.1.tgz",
     "com.unity.ai.navigation": "2.0.14",
     "com.unity.collab-proxy": "2.13.5",
     "com.unity.ide.rider": "3.0.38",
