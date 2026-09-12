@@ -23,10 +23,12 @@ public class PlayerMovement : NetworkBehaviour
 
     private Rigidbody rb;
     private Vector3 movement;
+    private PlayerHealth playerHealth;
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        playerHealth = GetComponent<PlayerHealth>();
 
         if (playerCamera == null)
         {
@@ -50,6 +52,13 @@ public class PlayerMovement : NetworkBehaviour
     private void Update()
     {
         if (!NetworkMode.IsLocalController(this))
+        {
+            movement = Vector3.zero;
+            return;
+        }
+
+        // Disable movement when downed or dead
+        if (playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead))
         {
             movement = Vector3.zero;
             return;

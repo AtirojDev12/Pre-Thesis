@@ -24,17 +24,28 @@ public class PlayerHealth : NetworkBehaviour
 
     [SyncVar(hook = nameof(OnDeadSynced))] [SerializeField] private bool isDead;
 
+    [SyncVar(hook = nameof(OnDownedSynced))] [SerializeField] private bool isDowned;
+
     [Header("การป้องกันโดนดาเมจรัว (กันชนแล้วเลือดหมดทันที)")]
     [SerializeField] private float invincibilityDuration = 0.5f;
+
+    [Header("ระบบล้ม (Downed State)")]
+    [SerializeField] private float downedDuration = 30f;
+    [SerializeField] private float timerSyncInterval = 0.1f;
+    [SyncVar] [SerializeField] private float downedTimer;
 
     // Server-only clock. Comparing a timestamp removes the need for an Update()
     // that would otherwise run once per player per client, every frame.
     private float _invincibleUntil;
+    private float _downedStartTime;
+    private float _lastTimerSyncTime;
 
     [Header("Events (ผูกกับ UI หรือ effect อื่นๆ ได้)")]
     public UnityEvent<float, float> OnHealthChanged; // (currentHealth, maxHealth)
     public UnityEvent OnDamaged;
     public UnityEvent OnDeath;
+    public UnityEvent OnDowned;
+    public UnityEvent<float> OnDownedTimerChanged; // (remainingTime)
 
     /// <summary>
     /// The PlayerHealth belonging to the player at THIS machine, or null before
@@ -50,6 +61,8 @@ public class PlayerHealth : NetworkBehaviour
     public float CurrentHealth => currentHealth;
     public float MaxHealth => maxHealth;
     public bool IsDead => isDead;
+    public bool IsDowned => isDowned;
+    public float DownedTimer => downedTimer;
     private bool IsInvincible => Time.time < _invincibleUntil;
 
     // Statics survive between Play sessions when Unity 6's domain reload is
@@ -65,6 +78,8 @@ public class PlayerHealth : NetworkBehaviour
     {
         currentHealth = maxHealth;
         isDead = false;
+        isDowned = false;
+        downedTimer = 0f;
     }
 
     private void Start()
@@ -75,6 +90,8 @@ public class PlayerHealth : NetworkBehaviour
         {
             currentHealth = maxHealth;
             isDead = false;
+            isDowned = false;
+            downedTimer = 0f;
             SetLocalInstance(this);
             RaiseHealthChanged(currentHealth);
         }
@@ -93,6 +110,40 @@ public class PlayerHealth : NetworkBehaviour
         // Late joiners must draw the health this player actually has, not the
         // prefab default.
         RaiseHealthChanged(currentHealth);
+    }
+
+    private void Update()
+    {
+        // Only server/host should update the downed timer
+        if (!NetworkMode.HasServerAuthority(this)) return;
+
+        if (isDowned && !isDead)
+        {
+            downedTimer = downedDuration - (Time.time - _downedStartTime);
+
+            if (downedTimer <= 0f)
+            {
+                downedTimer = 0f;
+                ServerDie();
+            }
+            else
+            {
+                // Sync timer to clients at intervals to avoid network spam
+                if (Time.time - _lastTimerSyncTime >= timerSyncInterval)
+                {
+                    _lastTimerSyncTime = Time.time;
+
+                    if (NetworkMode.IsOffline)
+                    {
+                        OnDownedTimerChanged?.Invoke(downedTimer);
+                    }
+                    else
+                    {
+                        RpcUpdateDownedTimer(downedTimer);
+                    }
+                }
+            }
+        }
     }
 
     private void OnDestroy()
@@ -120,7 +171,7 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
-        if (isDead || amount <= 0f || IsInvincible) return;
+        if (isDead || isDowned || amount <= 0f || IsInvincible) return;
 
         currentHealth = Mathf.Clamp(currentHealth - amount, 0f, maxHealth);
         _invincibleUntil = Time.time + invincibilityDuration;
@@ -134,7 +185,28 @@ public class PlayerHealth : NetworkBehaviour
 
         Debug.Log($"[PlayerHealth] โดนดาเมจ {amount} คะแนน เหลือเลือด {currentHealth}/{maxHealth}");
 
-        if (currentHealth <= 0f) ServerDie();
+        if (currentHealth <= 0f) ServerDowned();
+    }
+
+    private void ServerDowned()
+    {
+        isDowned = true;
+        _downedStartTime = Time.time;
+        downedTimer = downedDuration;
+        _lastTimerSyncTime = Time.time;
+        Debug.Log($"[PlayerHealth] ผู้เล่นล้มแล้ว ({name}) เริ่มนับถอยหลัง {downedDuration} วินาที");
+
+        RaiseDowned();
+
+        if (NetworkMode.IsOffline)
+        {
+            OnDownedTimerChanged?.Invoke(downedTimer);
+        }
+        else
+        {
+            RpcDowned();
+            RpcUpdateDownedTimer(downedTimer);
+        }
     }
 
     /// <summary>SERVER-SIDE ONLY.</summary>
@@ -149,15 +221,59 @@ public class PlayerHealth : NetworkBehaviour
 
         if (isDead || amount <= 0f) return;
 
+        // If downed, healing revives the player
+        if (isDowned)
+        {
+            Revive(amount);
+            return;
+        }
+
         currentHealth = Mathf.Clamp(currentHealth + amount, 0f, maxHealth);
         RaiseHealthChanged(currentHealth);
 
         Debug.Log($"[PlayerHealth] ฮีลเลือด {amount} คะแนน เลือดตอนนี้ {currentHealth}/{maxHealth}");
     }
 
+    /// <summary>SERVER-SIDE ONLY. Revive player from downed state.</summary>
+    public void Revive(float healAmount = 0f)
+    {
+        if (!NetworkMode.HasServerAuthority(this))
+        {
+            Debug.LogWarning(
+                $"[PlayerHealth] Revive was called on '{name}' from a machine with no server authority and was ignored.", this);
+            return;
+        }
+
+        if (!isDowned || isDead) return;
+
+        isDowned = false;
+        downedTimer = 0f;
+        currentHealth = Mathf.Clamp(healAmount > 0f ? healAmount : maxHealth * 0.3f, 1f, maxHealth);
+
+        Debug.Log($"[PlayerHealth] ผู้เล่นถูกคืนชีพ ({name}) เลือด {currentHealth}/{maxHealth}");
+
+        RaiseHealthChanged(currentHealth);
+
+        if (NetworkMode.IsOffline)
+        {
+            // Offline mode handled
+        }
+        else
+        {
+            RpcRevived();
+        }
+    }
+
+    [ClientRpc] private void RpcRevived()
+    {
+        // Client-side revive effects can be added here
+    }
+
     private void ServerDie()
     {
         isDead = true;
+        isDowned = false;
+        downedTimer = 0f;
         Debug.Log($"[PlayerHealth] ผู้เล่นตายแล้ว ({name})");
 
         // Clients learn about the death from the isDead SyncVar hook. The hook
@@ -178,6 +294,8 @@ public class PlayerHealth : NetworkBehaviour
     }
 
     [ClientRpc] private void RpcDamaged() => RaiseDamaged();
+    [ClientRpc] private void RpcDowned() => RaiseDowned();
+    [ClientRpc] private void RpcUpdateDownedTimer(float timer) => OnDownedTimerChanged?.Invoke(timer);
 
     /// <summary>
     /// Runs ONLY on the machine that owns this player. SaveManager.Current is
@@ -206,6 +324,11 @@ public class PlayerHealth : NetworkBehaviour
         if (newValue) RaiseDeath();
     }
 
+    private void OnDownedSynced(bool oldValue, bool newValue)
+    {
+        if (newValue) RaiseDowned();
+    }
+
     /// <summary>
     /// Idempotent on purpose: on a host the value can arrive both from the
     /// server-side call and from the client path, and firing UI events twice for
@@ -221,4 +344,6 @@ public class PlayerHealth : NetworkBehaviour
     private void RaiseDamaged() => OnDamaged?.Invoke();
 
     private void RaiseDeath() => OnDeath?.Invoke();
+
+    private void RaiseDowned() => OnDowned?.Invoke();
 }
