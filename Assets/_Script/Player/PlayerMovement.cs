@@ -15,20 +15,41 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(Rigidbody))]
 public class PlayerMovement : NetworkBehaviour
 {
+    private static readonly int SpeedParameter = Animator.StringToHash("Speed");
+    private static readonly int IsDownedParameter = Animator.StringToHash("IsDowned");
+    private static readonly int IsDeadParameter = Animator.StringToHash("IsDead");
+
     [Header("Movement")]
     public float moveSpeed = 5f;
 
     [Header("Camera")]
     public Transform playerCamera;
 
+    [Header("Animation")]
+    [Tooltip("Animator using the Player controller. Leave empty to find it automatically on this player.")]
+    [SerializeField] private Animator playerAnimator;
+
+    [Tooltip("How quickly Idle and Walking blend together.")]
+    [Min(0f)] [SerializeField] private float animationDampTime = 0.1f;
+
     private Rigidbody rb;
     private Vector3 movement;
     private PlayerHealth playerHealth;
+    private Vector3 lastObservedPosition;
+    private bool hasObservedPosition;
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
         playerHealth = GetComponent<PlayerHealth>();
+        lastObservedPosition = transform.position;
+        hasObservedPosition = true;
+
+        if (playerAnimator == null)
+            playerAnimator = GetComponent<Animator>();
+
+        if (playerAnimator == null)
+            playerAnimator = GetComponentInChildren<Animator>(true);
 
         if (playerCamera == null)
         {
@@ -51,9 +72,18 @@ public class PlayerMovement : NetworkBehaviour
 
     private void Update()
     {
+        bool isDowned = playerHealth != null && playerHealth.IsDowned;
+        bool isDead = playerHealth != null && playerHealth.IsDead;
+        if (playerAnimator != null)
+        {
+            playerAnimator.SetBool(IsDownedParameter, isDowned);
+            playerAnimator.SetBool(IsDeadParameter, isDead);
+        }
+
         if (!NetworkMode.IsLocalController(this))
         {
             movement = Vector3.zero;
+            UpdateRemoteWalkingAnimation(isDowned || isDead);
             return;
         }
 
@@ -61,10 +91,16 @@ public class PlayerMovement : NetworkBehaviour
         if (playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead))
         {
             movement = Vector3.zero;
+            UpdateWalkingAnimation();
             return;
         }
 
-        if (Keyboard.current == null || playerCamera == null) return;
+        if (Keyboard.current == null || playerCamera == null)
+        {
+            movement = Vector3.zero;
+            UpdateWalkingAnimation();
+            return;
+        }
 
         // รับ Input
         float horizontal = 0f;
@@ -94,6 +130,47 @@ public class PlayerMovement : NetworkBehaviour
 
         // ป้องกันเดินเฉียงเร็วเกินไป
         movement = Vector3.ClampMagnitude(movement, 1f);
+
+        UpdateWalkingAnimation();
+    }
+
+    private void UpdateWalkingAnimation()
+    {
+        SetAnimationSpeed(movement.magnitude);
+    }
+
+    private void UpdateRemoteWalkingAnimation(bool isIncapacitated)
+    {
+        Vector3 currentPosition = transform.position;
+
+        if (!hasObservedPosition || Time.deltaTime <= 0f)
+        {
+            lastObservedPosition = currentPosition;
+            hasObservedPosition = true;
+            SetAnimationSpeed(0f);
+            return;
+        }
+
+        Vector3 displacement = currentPosition - lastObservedPosition;
+        displacement.y = 0f;
+        lastObservedPosition = currentPosition;
+
+        float normalizedSpeed = isIncapacitated || moveSpeed <= 0f
+            ? 0f
+            : Mathf.Clamp01(displacement.magnitude / (Time.deltaTime * moveSpeed));
+
+        SetAnimationSpeed(normalizedSpeed);
+    }
+
+    private void SetAnimationSpeed(float speed)
+    {
+        if (playerAnimator == null) return;
+
+        playerAnimator.SetFloat(
+            SpeedParameter,
+            speed,
+            animationDampTime,
+            Time.deltaTime);
     }
 
     private void FixedUpdate()

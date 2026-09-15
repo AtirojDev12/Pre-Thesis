@@ -77,7 +77,7 @@ MonoBehaviour:
     chromaticAberration: 0.6
     vignetteIntensity: 0.5
     vignetteSmoothness: 0.4
-    grainIntensity: 0.08
+    grainIntensity: 0
     grainSize: 2
     flickerIntensity: 0.05
     desaturation: 0.3

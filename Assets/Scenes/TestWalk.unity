@@ -554,17 +554,45 @@ PrefabInstance:
       propertyPath: healthGradient.m_ColorSpace
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2339680580406811036, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2339680580406811036, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2339680580406811036, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -40.6
+      objectReference: {fileID: 0}
     - target: {fileID: 2827467697239770247, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0.5
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 2827467697239770247, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
       propertyPath: m_AnchorMin.y
-      value: 0.5
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2827467697239770247, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 2827467697239770247, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 2827467697239770247, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 2827467697239770247, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 208
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2827467697239770247, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7933708090886523710, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
       propertyPath: m_Name
@@ -1013,6 +1041,7 @@ MonoBehaviour:
   spawnPoint: {fileID: 1526364530}
   logWhenSpawning: 1
   activateSceneNetworkObjects: 1
+  framesToWatchForDisable: 10
 --- !u!4 &1526364530
 Transform:
   m_ObjectHideFlags: 0

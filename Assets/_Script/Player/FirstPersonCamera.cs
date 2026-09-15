@@ -28,9 +28,15 @@ public class FirstPersonCamera : MonoBehaviour
     public float minLookAngle = -80f;
     public float maxLookAngle = 80f;
 
+    [Tooltip("How far the camera may turn left/right while downed without rotating the body on the floor.")]
+    [Range(0f, 180f)] public float downedHorizontalLookLimit = 80f;
+
     private float verticalRotation = 0f;
+    private float downedHorizontalRotation;
     private NetworkIdentity _ownerIdentity;
+    private PlayerHealth _playerHealth;
     private bool _initialised;
+    private bool _wasIncapacitated;
 
     // No NetworkIdentity in the parents means this isn't a networked player at
     // all (a camera rig dropped straight into a test scene), so it belongs to
@@ -41,6 +47,7 @@ public class FirstPersonCamera : MonoBehaviour
     private void Awake()
     {
         _ownerIdentity = GetComponentInParent<NetworkIdentity>();
+        _playerHealth = GetComponentInParent<PlayerHealth>();
     }
 
     private void Start()
@@ -109,6 +116,39 @@ public class FirstPersonCamera : MonoBehaviour
         // มองขึ้น / ลง
         verticalRotation -= mouseY;
         verticalRotation = Mathf.Clamp(verticalRotation, minLookAngle, maxLookAngle);
+
+        bool isIncapacitated = _playerHealth != null
+            && (_playerHealth.IsDowned || _playerHealth.IsDead);
+
+        if (isIncapacitated)
+        {
+            // While the character is lying down, rotate only the camera pivot.
+            // Rotating playerBody here would spin the whole fallen model across
+            // the floor whenever the local player looks left or right.
+            downedHorizontalRotation += mouseX;
+            downedHorizontalRotation = Mathf.Clamp(
+                downedHorizontalRotation,
+                -downedHorizontalLookLimit,
+                downedHorizontalLookLimit);
+
+            transform.localRotation = Quaternion.Euler(
+                verticalRotation,
+                downedHorizontalRotation,
+                0f);
+
+            _wasIncapacitated = true;
+            return;
+        }
+
+        // Preserve the direction the player was looking when revived, then
+        // return the camera pivot to its normal pitch-only rotation.
+        if (_wasIncapacitated)
+        {
+            playerBody.Rotate(Vector3.up * downedHorizontalRotation);
+            downedHorizontalRotation = 0f;
+            _wasIncapacitated = false;
+        }
+
         transform.localRotation = Quaternion.Euler(verticalRotation, 0f, 0f);
 
         // หันซ้าย / ขวา
