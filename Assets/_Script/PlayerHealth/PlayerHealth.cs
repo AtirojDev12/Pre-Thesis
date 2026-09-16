@@ -264,6 +264,38 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// SERVER-SIDE ONLY. Kills this player outright, skipping the downed state.
+    ///
+    /// Two rules in the GDD need this and cannot use TakeDamage: a Jump Scare is
+    /// instant death rather than a knockdown, and anyone still inside the map at
+    /// 07:00 with the ghost unresolved is counted dead. TakeDamage would only put
+    /// them down and start a revive timer that nobody can answer.
+    ///
+    /// Goes through the same ServerDie() path as running out of downed time, so
+    /// the death consequences (no money, items lost) are identical however you
+    /// died.
+    /// </summary>
+    public void ServerKill(string reason = null)
+    {
+        if (!NetworkMode.HasServerAuthority(this))
+        {
+            Debug.LogWarning(
+                $"[PlayerHealth] ServerKill was called on '{name}' from a machine with no server authority and was ignored. " +
+                "Death must be decided on the server.", this);
+            return;
+        }
+
+        if (isDead) return;
+
+        currentHealth = 0f;
+        RaiseHealthChanged(currentHealth);
+
+        Debug.Log($"[PlayerHealth] ผู้เล่นถูกฆ่าทันที ({name}){(string.IsNullOrEmpty(reason) ? "" : $" — {reason}")}");
+
+        ServerDie();
+    }
+
     [ClientRpc] private void RpcRevived()
     {
         // Client-side revive effects can be added here
