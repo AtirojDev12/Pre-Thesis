@@ -13,8 +13,10 @@ MonoBehaviour:
   m_Name: Difficulty_Normal
   m_EditorClassIdentifier: Assembly-CSharp::DifficultyProfile
   level: 1
-  baseTasksToOpenExits: 20
+  zonesRequiredToClear: 4
+  flatExtraTasksPerZone: 0
   extraTasksPerAdditionalPlayer: 4
+  maxExtraTasksPerZone: 4
   roundLengthMinutes: 15
   sanityDrainMultiplier: 1
   randomGhostCount: 3
