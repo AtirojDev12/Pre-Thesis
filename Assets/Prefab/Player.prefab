@@ -43,12 +43,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7fd8f6fc5e193aa4681dff72185e5fae, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonCamera
   playerBody: {fileID: 6826038590600976497}
   mouseSensitivity: 0.1
   minLookAngle: -80
   maxLookAngle: 80
+  downedHorizontalLookLimit: 80
 --- !u!1 &2808686165840420855
 GameObject:
   m_ObjectHideFlags: 0
@@ -200,6 +201,7 @@ GameObject:
   - component: {fileID: 1763800779827109418}
   - component: {fileID: 8516979305989066281}
   - component: {fileID: 8438448549005625101}
+  - component: {fileID: 6123076420129374501}
   - component: {fileID: 1447016046547223186}
   - component: {fileID: 2048010285176511286}
   - component: {fileID: 3946688187242594844}
@@ -352,9 +354,32 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0
   moveSpeed: 5
+  sprintSpeed: 8
   playerCamera: {fileID: 443704085783855534}
   playerAnimator: {fileID: 0}
   animationDampTime: 0.1
+  stabilizeRunningHips: 1
+  runningHipStability: 1
+--- !u!114 &6123076420129374501
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3873886348749462617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 491780cf223f486d80d29a0ff644662a, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerStamina
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  maxStamina: 500
+  sprintDrainPerSecond: 25
+  recoveryPerSecond: 20
+  recoveryDelay: 1
+  staminaRequiredAfterExhaustion: 5
 --- !u!114 &1447016046547223186
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -13,14 +13,19 @@ using UnityEngine.InputSystem;
 /// it only if position-cheating ever becomes a concern for this game.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(PlayerStamina))]
 public class PlayerMovement : NetworkBehaviour
 {
     private static readonly int SpeedParameter = Animator.StringToHash("Speed");
+    private static readonly int IsSprintingParameter = Animator.StringToHash("IsSprinting");
     private static readonly int IsDownedParameter = Animator.StringToHash("IsDowned");
     private static readonly int IsDeadParameter = Animator.StringToHash("IsDead");
 
     [Header("Movement")]
     public float moveSpeed = 5f;
+
+    [Tooltip("Movement speed while holding Left Shift and stamina is available.")]
+    [Min(0f)] public float sprintSpeed = 8f;
 
     [Header("Camera")]
     public Transform playerCamera;
@@ -32,9 +37,20 @@ public class PlayerMovement : NetworkBehaviour
     [Tooltip("How quickly Idle and Walking blend together.")]
     [Min(0f)] [SerializeField] private float animationDampTime = 0.1f;
 
+    [Header("Running Pose Stabilization")]
+    [Tooltip("Removes lateral/root drift authored into the Running clip while preserving vertical bounce and limb motion.")]
+    [SerializeField] private bool stabilizeRunningHips = true;
+
+    [Tooltip("0 keeps the animation's original hip drift; 1 keeps the model centred while running.")]
+    [Range(0f, 1f)] [SerializeField] private float runningHipStability = 1f;
+
     private Rigidbody rb;
     private Vector3 movement;
     private PlayerHealth playerHealth;
+    private PlayerStamina playerStamina;
+    private bool isSprinting;
+    private Transform hips;
+    private Vector3 hipsRestLocalPosition;
     private Vector3 lastObservedPosition;
     private bool hasObservedPosition;
 
@@ -42,6 +58,7 @@ public class PlayerMovement : NetworkBehaviour
     {
         rb = GetComponent<Rigidbody>();
         playerHealth = GetComponent<PlayerHealth>();
+        playerStamina = GetComponent<PlayerStamina>();
         lastObservedPosition = transform.position;
         hasObservedPosition = true;
 
@@ -50,6 +67,8 @@ public class PlayerMovement : NetworkBehaviour
 
         if (playerAnimator == null)
             playerAnimator = GetComponentInChildren<Animator>(true);
+
+        CacheRunningPoseReference();
 
         if (playerCamera == null)
         {
@@ -91,6 +110,9 @@ public class PlayerMovement : NetworkBehaviour
         if (playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead))
         {
             movement = Vector3.zero;
+            SetSprinting(playerStamina != null
+                ? playerStamina.UpdateSprint(false, Time.deltaTime)
+                : false);
             UpdateWalkingAnimation();
             return;
         }
@@ -98,6 +120,9 @@ public class PlayerMovement : NetworkBehaviour
         if (Keyboard.current == null || playerCamera == null)
         {
             movement = Vector3.zero;
+            SetSprinting(playerStamina != null
+                ? playerStamina.UpdateSprint(false, Time.deltaTime)
+                : false);
             UpdateWalkingAnimation();
             return;
         }
@@ -131,6 +156,12 @@ public class PlayerMovement : NetworkBehaviour
         // ป้องกันเดินเฉียงเร็วเกินไป
         movement = Vector3.ClampMagnitude(movement, 1f);
 
+        bool wantsToSprint = movement.sqrMagnitude > 0.01f &&
+                             Keyboard.current.leftShiftKey.isPressed;
+        SetSprinting(playerStamina != null
+            ? playerStamina.UpdateSprint(wantsToSprint, Time.deltaTime)
+            : wantsToSprint);
+
         UpdateWalkingAnimation();
     }
 
@@ -155,11 +186,22 @@ public class PlayerMovement : NetworkBehaviour
         displacement.y = 0f;
         lastObservedPosition = currentPosition;
 
+        float actualSpeed = displacement.magnitude / Time.deltaTime;
         float normalizedSpeed = isIncapacitated || moveSpeed <= 0f
             ? 0f
-            : Mathf.Clamp01(displacement.magnitude / (Time.deltaTime * moveSpeed));
+            : Mathf.Clamp01(actualSpeed / moveSpeed);
+
+        float sprintThreshold = (moveSpeed + sprintSpeed) * 0.5f;
+        SetSprinting(!isIncapacitated && actualSpeed > sprintThreshold);
 
         SetAnimationSpeed(normalizedSpeed);
+    }
+
+    private void SetSprinting(bool value)
+    {
+        isSprinting = value;
+        if (playerAnimator != null)
+            playerAnimator.SetBool(IsSprintingParameter, isSprinting);
     }
 
     private void SetAnimationSpeed(float speed)
@@ -173,11 +215,42 @@ public class PlayerMovement : NetworkBehaviour
             Time.deltaTime);
     }
 
+    private void CacheRunningPoseReference()
+    {
+        if (playerAnimator == null || !playerAnimator.isHuman) return;
+
+        hips = playerAnimator.GetBoneTransform(HumanBodyBones.Hips);
+        if (hips != null) hipsRestLocalPosition = hips.localPosition;
+    }
+
+    private void LateUpdate()
+    {
+        if (!stabilizeRunningHips || !isSprinting || runningHipStability <= 0f) return;
+
+        if (hips == null)
+        {
+            CacheRunningPoseReference();
+            if (hips == null) return;
+        }
+
+        // Mixamo clips often contain a small X/Z translation on the Hips bone.
+        // With root motion disabled that movement does not steer the Rigidbody,
+        // but it still shifts the entire rendered skeleton left/right. Keep the
+        // animated Y value (the useful running bounce) and only remove planar
+        // drift, so feet and limbs retain their original motion.
+        Vector3 animatedPosition = hips.localPosition;
+        hips.localPosition = new Vector3(
+            Mathf.Lerp(animatedPosition.x, hipsRestLocalPosition.x, runningHipStability),
+            animatedPosition.y,
+            Mathf.Lerp(animatedPosition.z, hipsRestLocalPosition.z, runningHipStability));
+    }
+
     private void FixedUpdate()
     {
         if (!NetworkMode.IsLocalController(this)) return;
         if (rb == null || rb.isKinematic) return;
 
-        rb.MovePosition(rb.position + movement * moveSpeed * Time.fixedDeltaTime);
+        float currentSpeed = isSprinting ? sprintSpeed : moveSpeed;
+        rb.MovePosition(rb.position + movement * currentSpeed * Time.fixedDeltaTime);
     }
 }
