@@ -43,13 +43,23 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7fd8f6fc5e193aa4681dff72185e5fae, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonCamera
   playerBody: {fileID: 6826038590600976497}
+  cameraLocalPosition: {x: 0, y: 0.81, z: 0.05}
   mouseSensitivity: 0.1
   minLookAngle: -80
   maxLookAngle: 80
   downedHorizontalLookLimit: 80
+  walkBobAmplitude: 0.008
+  walkBobSpeed: 7
+  sprintSwayAmplitude: 0.015
+  sprintSwaySpeed: 8.5
+  motionLerpSpeed: 10
+  defaultFOV: 60
+  sprintFOV: 75
+  fovLerpSpeed: 8
+  firstPersonArmRenderers: []
 --- !u!1 &2808686165840420855
 GameObject:
   m_ObjectHideFlags: 0
@@ -115,7 +125,7 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
+  near clip plane: 0.05
   far clip plane: 1000
   field of view: 60
   orthographic: 0
@@ -123,7 +133,7 @@ Camera:
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 4294967231
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 8400000, guid: 2df7ca65e4c2c234faa48728e1e5cbd2, type: 2}
   m_TargetDisplay: 0
@@ -356,7 +366,7 @@ MonoBehaviour:
   moveSpeed: 5
   sprintSpeed: 8
   playerCamera: {fileID: 443704085783855534}
-  playerAnimator: {fileID: 0}
+  playerAnimator: {fileID: -2365669203378768568}
   animationDampTime: 0.1
   stabilizeRunningHips: 1
   runningHipStability: 1
@@ -370,7 +380,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 491780cf223f486d80d29a0ff644662a, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerStamina
   syncDirection: 0
   syncMode: 0

@@ -48,3 +48,13 @@ public interface IInteractable
     /// </summary>
     Transform GetTransform();
 }
+
+/// <summary>
+/// Optional local-only visual feedback for an interactable currently under the
+/// player's interaction ray. UI controls and world objects can implement this
+/// without coupling PlayerInteractor to their concrete component types.
+/// </summary>
+public interface IInteractionHighlight
+{
+    void SetHighlighted(bool highlighted);
+}

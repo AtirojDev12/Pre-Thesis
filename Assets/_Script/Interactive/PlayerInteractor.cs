@@ -210,8 +210,8 @@ public class PlayerInteractor : NetworkBehaviour
 
     private void SetHighlight(IInteractable target, bool state)
     {
-        if (target is InteractableBase baseInteractable)
-            baseInteractable.SetHighlighted(state);
+        if (target is IInteractionHighlight highlightable)
+            highlightable.SetHighlighted(state);
     }
 
     private void OnDisable()
