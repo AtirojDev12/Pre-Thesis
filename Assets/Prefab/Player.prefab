@@ -43,7 +43,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7fd8f6fc5e193aa4681dff72185e5fae, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonCamera
   playerBody: {fileID: 6826038590600976497}
   cameraLocalPosition: {x: 0, y: 0.81, z: 0.05}
@@ -366,7 +366,7 @@ MonoBehaviour:
   moveSpeed: 5
   sprintSpeed: 8
   playerCamera: {fileID: 443704085783855534}
-  playerAnimator: {fileID: 0}
+  playerAnimator: {fileID: -2365669203378768568}
   animationDampTime: 0.1
   stabilizeRunningHips: 1
   runningHipStability: 1
@@ -380,7 +380,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 491780cf223f486d80d29a0ff644662a, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerStamina
   syncDirection: 0
   syncMode: 0

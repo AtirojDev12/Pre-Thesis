@@ -214,7 +214,9 @@ public class FirstPersonCamera : MonoBehaviour
         bool isIncapacitated = playerHealth != null
             && (playerHealth.IsDowned || playerHealth.IsDead);
 
-        if (Mouse.current != null && playerBody != null)
+        // The popcorn maker can temporarily release the cursor for direct
+        // world-space UI clicks. Do not rotate the camera while using it.
+        if (Mouse.current != null && playerBody != null && Cursor.lockState == CursorLockMode.Locked)
         {
             Vector2 mouseDelta = Mouse.current.delta.ReadValue();
             float mouseX = mouseDelta.x * mouseSensitivity;
