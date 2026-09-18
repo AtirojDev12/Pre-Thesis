@@ -20,7 +20,7 @@ public class PlayerInteractor : NetworkBehaviour
     [SerializeField] private Transform rayOrigin;
     [SerializeField] private float interactionRange = 3f;
 
-    [Tooltip("Set this to a dedicated 'Interactable' layer. Leaving it as Everything lets the ray hit the player's own collider and block interaction.")]
+    [Tooltip("Layers that can block interaction. This player's own colliders are ignored automatically.")]
     [SerializeField] private LayerMask interactableLayers = ~0;
 
     [Header("Input")]
@@ -35,6 +35,8 @@ public class PlayerInteractor : NetworkBehaviour
     [SerializeField] private float serverRangeTolerance = 1.5f;
 
     private IInteractable _currentTarget;
+    private readonly RaycastHit[] _raycastHits = new RaycastHit[16];
+    private PlayerHealth _health;
 
     // Tracked so the prompt UI is only touched when something actually changed.
     // Assigning TMP text every frame forces a mesh rebuild for no reason.
@@ -43,6 +45,7 @@ public class PlayerInteractor : NetworkBehaviour
 
     private void Awake()
     {
+        _health = GetComponent<PlayerHealth>();
         if (rayOrigin == null)
         {
             // Deliberately NOT Camera.main: in a 6-player match every client
@@ -144,16 +147,35 @@ public class PlayerInteractor : NetworkBehaviour
     /// </summary>
     private IInteractable RaycastForInteractable()
     {
-        Ray ray = new Ray(rayOrigin.position, rayOrigin.forward);
+        return GetInteractableAlongRay(new Ray(rayOrigin.position, rayOrigin.forward));
+    }
 
-        if (Physics.Raycast(ray, out RaycastHit hitInfo, interactionRange, interactableLayers))
+    /// <summary>Shared range/occlusion check for crosshair input and world-space UI clicks.</summary>
+    public IInteractable GetInteractableAlongRay(Ray ray)
+    {
+        if (_health != null && (_health.IsDead || _health.IsDowned)) return null;
+        RaycastHit[] hits = _raycastHits;
+        int count = Physics.RaycastNonAlloc(ray, hits, interactionRange, interactableLayers, QueryTriggerInteraction.Ignore);
+        if (count == hits.Length)
         {
-            IInteractable interactable = hitInfo.collider.GetComponentInParent<IInteractable>();
-            if (interactable != null && interactable.CanInteract())
-                return interactable;
+            // NonAlloc does not guarantee which hits it keeps when full.
+            hits = Physics.RaycastAll(ray, interactionRange, interactableLayers, QueryTriggerInteraction.Ignore);
+            count = hits.Length;
         }
 
-        return null;
+        Collider closest = null;
+        float closestDistance = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            Collider candidate = hits[i].collider;
+            if (candidate == null || candidate.transform.IsChildOf(transform)) continue;
+            if (hits[i].distance >= closestDistance) continue;
+            closest = candidate;
+            closestDistance = hits[i].distance;
+        }
+
+        IInteractable interactable = closest != null ? closest.GetComponentInParent<IInteractable>() : null;
+        return interactable != null && interactable.CanInteract() ? interactable : null;
     }
 
     private void RequestInteract(IInteractable target)
@@ -210,6 +232,8 @@ public class PlayerInteractor : NetworkBehaviour
 
     private void SetHighlight(IInteractable target, bool state)
     {
+        // Interface references do not use Unity's destroyed-object null check.
+        if (target is Object unityObject && unityObject == null) return;
         if (target is IInteractionHighlight highlightable)
             highlightable.SetHighlighted(state);
     }

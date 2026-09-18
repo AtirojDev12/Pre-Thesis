@@ -4,7 +4,9 @@
 
 - Move/look with the existing player controls.
 - Aim at a flavor, the Make button, or the waiting customer and press **E**.
+- With the cursor locked, left-click activates the machine button under the crosshair.
 - Alternatively, press **Tab** to release the mouse and click the world-space machine buttons. Press **Tab** again to resume FPS look.
+- Both mouse and E interactions require a clear path within the player's interaction range.
 - The selected flavor keeps a gold outline, including while hovering **Make** and after making popcorn. Selecting another flavor moves the outline.
 - Aim at a waiting human or ghost within the player's interaction range (3m by default). **[E] Submit order** appears above that customer; it disappears when looking away, moving out of range, or after submission.
 
@@ -46,3 +48,7 @@ The **Held Popcorn Prefab**, **Held Popcorn Position**, and **Held Popcorn Rotat
 6. Submit the wrong flavor to a human (no score or damage) and a ghost (no score, 10 damage). Both consume the item and advance the customer queue.
 
 This scene remains a local/offline prototype; its customers, selection, and inventory are not network replicated.
+
+## Automated scene checks
+
+Run `Tests/Popcorn/Run-PopcornChecks.ps1 -UnityPath '<path to Unity.exe>'` from PowerShell with the project's Unity version installed. The runner copies the project into ignored `.utmp/popcorn-regression`, opens the actual Z1 scene there, and drives virtual mouse/keyboard device state through the UI input module and player interactor. It checks raycast targeting, locked/unlocked clicks, held items, selection, range/occlusion, customer prompts, scoring, and the next customer cycle. It freezes locomotion and places the player at standing height for deterministic targeting. Results and the Unity log remain in that isolated directory.

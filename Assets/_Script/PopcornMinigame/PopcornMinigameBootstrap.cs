@@ -142,7 +142,15 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
             inputModule = eventSystem.gameObject.AddComponent<InputSystemUIInputModule>();
 
         inputModule.enabled = true;
-        inputModule.AssignDefaultActions();
+        if (inputModule.point == null || inputModule.point.action == null ||
+            inputModule.leftClick == null || inputModule.leftClick.action == null)
+            inputModule.AssignDefaultActions();
+
+        // The FPS camera locks the cursor. The default OutsideScreen setting
+        // moves UI pointer events to (-1, -1), making visible buttons unclickable.
+        inputModule.cursorLockBehavior = InputSystemUIInputModule.CursorLockBehavior.ScreenCenter;
+        foreach (BaseInputModule otherModule in eventSystem.GetComponents<BaseInputModule>())
+            if (otherModule != inputModule) otherModule.enabled = false;
     }
 
     private static Transform FindSceneObject(string objectName)
@@ -156,13 +164,13 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
 
     private static IEnumerator DisableAuthoringCameraAfterPlayerSpawns()
     {
-        yield return null;
-        PlayerHealth player = FindAnyObjectByType<PlayerHealth>();
-        if (player == null) yield break;
+        // Player creation may take more than one frame, especially on a client.
+        while (PlayerHealth.LocalInstance == null) yield return null;
+        PlayerHealth player = PlayerHealth.LocalInstance;
 
         foreach (Camera camera in FindObjectsByType<Camera>(FindObjectsInactive.Exclude))
         {
-            if (!camera.transform.IsChildOf(player.transform))
+            if (!camera.transform.IsChildOf(player.transform) && camera.GetComponentInParent<PlayerHealth>() == null)
             {
                 AudioListener listener = camera.GetComponent<AudioListener>();
                 if (listener != null) listener.enabled = false;
@@ -184,6 +192,20 @@ public sealed class ItemHoldingSystem : MonoBehaviour
     private GameObject heldVisual;
     private Vector3 heldPosition;
     private Vector3 heldRotation;
+    private PlayerHealth itemOwner;
+
+    private void OnEnable() => PlayerHealth.LocalInstanceChanged += OnPlayerChanged;
+
+    private void OnDisable()
+    {
+        PlayerHealth.LocalInstanceChanged -= OnPlayerChanged;
+        Consume();
+    }
+
+    private void OnPlayerChanged(PlayerHealth player)
+    {
+        if (HasItem && player != itemOwner) Consume();
+    }
 
     public void Configure(GameObject prefab, Vector3 position, Vector3 rotation)
     {
@@ -233,7 +255,7 @@ public sealed class ItemHoldingSystem : MonoBehaviour
     {
         PlayerHealth player = PlayerHealth.LocalInstance;
         Camera camera = player != null ? player.GetComponentInChildren<Camera>() : null;
-        if (flavor == PopcornFlavor.None || heldPrefab == null || camera == null)
+        if (flavor == PopcornFlavor.None || heldPrefab == null || camera == null || player.IsDead || player.IsDowned)
         {
             Debug.LogWarning("[PopcornMinigame] Cannot make popcorn: assign Held Popcorn Prefab and wait for the local player camera.", this);
             return false;
@@ -263,6 +285,7 @@ public sealed class ItemHoldingSystem : MonoBehaviour
             renderer.SetPropertyBlock(properties);
 
         HeldFlavor = flavor;
+        itemOwner = player;
         HasItem = true;
         if (heldItemText != null) heldItemText.text = $"{UiFactory.FlavorName(flavor)}\nPOPCORN";
         if (heldItemPanel != null) heldItemPanel.SetActive(HasItem);
@@ -273,6 +296,7 @@ public sealed class ItemHoldingSystem : MonoBehaviour
     {
         PopcornFlavor result = HeldFlavor;
         HeldFlavor = PopcornFlavor.None;
+        itemOwner = null;
         HasItem = false;
         ClearVisual();
         if (heldItemPanel != null) heldItemPanel.SetActive(false);
@@ -317,9 +341,13 @@ public sealed class CounterSlot : MonoBehaviour
         customerObject.transform.localScale = new Vector3(0.75f, 1f, 0.75f);
 
         Renderer renderer = customerObject.GetComponent<Renderer>();
-        renderer.material.color = type == PopcornCustomerType.Ghost
+        Color customerColor = type == PopcornCustomerType.Ghost
             ? new Color(0.35f, 0.95f, 1f, 0.78f)
             : new Color(1f, 0.68f, 0.25f, 1f);
+        MaterialPropertyBlock properties = new MaterialPropertyBlock();
+        properties.SetColor("_BaseColor", customerColor);
+        properties.SetColor("_Color", customerColor);
+        renderer.SetPropertyBlock(properties);
 
         ActiveCustomer = customerObject.AddComponent<PopcornCustomer>();
         ActiveCustomer.Configure(manager, this, type, order, waitPosition, exitPosition);
@@ -646,7 +674,7 @@ public sealed class PopcornGameManager : MonoBehaviour
 
 /// <summary>Lets the same world-space UI Button respond to mouse clicks or the existing E interaction ray.</summary>
 public sealed class WorldButtonInteractable : MonoBehaviour, IInteractable, IInteractionHighlight,
-    IPointerEnterHandler, IPointerExitHandler
+    IPointerEnterHandler, IPointerExitHandler, ICanvasRaycastFilter
 {
     private Button button;
     private string prompt;
@@ -688,7 +716,17 @@ public sealed class WorldButtonInteractable : MonoBehaviour, IInteractable, IInt
     }
 
     public string GetInteractionPrompt() => prompt;
-    public bool CanInteract() => button != null && button.IsInteractable();
+    public bool CanInteract() => isActiveAndEnabled && button != null && button.IsActive() && button.IsInteractable();
+    public bool IsRaycastLocationValid(Vector2 screenPoint, Camera eventCamera)
+    {
+        PlayerHealth player = PlayerHealth.LocalInstance;
+        if (player == null || player.IsDead || player.IsDowned || eventCamera == null || !CanInteract()) return false;
+        PlayerInteractor interactor = player.GetComponent<PlayerInteractor>();
+        if (interactor == null) return false;
+        Ray ray = eventCamera.ScreenPointToRay(screenPoint);
+        ray.origin = eventCamera.transform.position;
+        return ReferenceEquals(interactor.GetInteractableAlongRay(ray), this);
+    }
     public void Interact(GameObject interactor)
     {
         if (CanInteract()) button.onClick.Invoke();
@@ -715,6 +753,13 @@ public sealed class WorldButtonInteractable : MonoBehaviour, IInteractable, IInt
 
     public void OnPointerExit(PointerEventData eventData)
     {
+        pointerHighlighted = false;
+        RefreshHighlight();
+    }
+
+    private void OnDisable()
+    {
+        gazeHighlighted = false;
         pointerHighlighted = false;
         RefreshHighlight();
     }
@@ -769,6 +814,7 @@ internal static class UiFactory
         GameObject panel = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         panel.transform.SetParent(parent, false);
         panel.GetComponent<Image>().color = color;
+        panel.GetComponent<Image>().raycastTarget = false;
         return panel;
     }
 
@@ -793,7 +839,7 @@ internal static class UiFactory
         GameObject buttonObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
         buttonObject.transform.SetParent(parent, false);
         Image image = buttonObject.GetComponent<Image>();
-        image.color = color;
+        image.color = Color.white;
         Button button = buttonObject.GetComponent<Button>();
         button.targetGraphic = image;
         ColorBlock colors = button.colors;

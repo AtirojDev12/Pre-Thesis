@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
 /// Keeps one gameplay HUD alive across scene loads (MainMenu -> map -> back to
@@ -31,6 +32,11 @@ public class PersistentHUD : MonoBehaviour
 
     private void Awake()
     {
+        // Health, stamina, prompts and the crosshair only display information.
+        // Their overlay graphics must not eat clicks intended for world-space controls.
+        foreach (Graphic graphic in GetComponentsInChildren<Graphic>(true))
+            graphic.raycastTarget = false;
+
         if (_instance != null && _instance != this)
         {
             // A second copy arrived, almost always because the prefab is also

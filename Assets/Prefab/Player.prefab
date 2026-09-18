@@ -410,7 +410,7 @@ MonoBehaviour:
   interactableLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  interactKey: 101
+  interactKey: 19
   promptUI: {fileID: 0}
   serverRangeTolerance: 1.5
 --- !u!114 &2048010285176511286
