@@ -40,39 +40,43 @@ public class DifficultyProfile : ScriptableObject
     // =======================================================================
     //  OBJECTIVES
     // =======================================================================
-    // A map holds far more tasks than any team will finish. Every zone has
-    // Rules; only main zones carry Tasks, and a main zone carries several
-    // (the ticket booth alone: sell 3 to customers, sell 5 to ghosts, plus the
-    // popcorn and drink tasks that share the counter).
+    // Every zone in the map has RULES. Only the six quest zones also carry
+    // TASKS, and a quest zone's task is a cumulative target rather than a
+    // checklist — the ticket booth is finished when the sales total is reached,
+    // not when some list is ticked off.
     //
     // TWO SEPARATE COUNTERS. Do not merge them.
     //
-    //   ZONES completed  -> survival. Whether the team may leave at all.
+    //   ZONES completed  -> survival. ALL of them, on every difficulty.
     //   TASKS completed  -> money.    Paid PER PLAYER, for their own work.
     //
-    // A task is one-shot: "sell three tickets" is one task, not three. Six quest
-    // zones exist, each holding a handful of tasks, and a zone is complete only
-    // when every task in it is done.
+    // Difficulty does NOT change how many zones the team owes. It changes two
+    // other things: how many rules are in force, and how much work sits inside
+    // each zone. Everything in this section is one of those two.
     //
-    // Counting survival in zones rather than tasks is what keeps the map
-    // buildable — a six-player Hard round needs four finished rooms, not eighty
-    // finished chores — and it makes the objective something players can say out
-    // loud. It also gives the zone-completion sound a precise meaning: every
-    // chime the team hears across the cinema is one of the rooms they need.
+    // The zones are a DEADLINE, not a key. The exits open at 06:00 and only at
+    // 06:00, so finishing every zone at 02:00 still leaves the team locked in
+    // until dawn. What finishing buys is the right to walk out when dawn comes.
     //
-    // Method 1 is "finish the minimum BEFORE the gate opens" — the gate opens at
-    // 06:00 and only at 06:00, so this is a DEADLINE the team races, never a
-    // door it unlocks. A team that finishes every zone on the map at 02:00 is
-    // still locked in until dawn.
-    //
-    // The deadline has teeth in both directions. Meeting it early buys nothing
-    // except the right to leave; MISSING it means nobody may cross a gate, and
-    // Method 2 is the team's only survival. A life-or-death threshold, not a
-    // bonus objective.
+    // Failing to finish splits two ways at 06:00, and MatchPhase documents both:
+    // with two or more players dead the night simply refuses to end (Overtime);
+    // with fewer, everyone is sealed in to hunt the Ghost Key (LockedIn).
 
-    [Header("Objectives")]
-    [Tooltip("How many quest ZONES the team must FULLY complete before 06:00. The cinema has six (ticket & snack counter, housekeeping, projection room, ticket check, staff room, electrical room), so this is a fraction of the map, not a task count.\n\nEasy 2 / Normal 3 / Hard 4 of 6.\n\nA zone counts only when every task in it is done. Half a zone is worth nothing toward survival — though its finished tasks are still money — so choosing which zones to take is a commitment the team has to live with.\n\nThis does NOT scale with player count. More players do not mean more zones; they mean the zones get bigger (see below). The map's shape stays the same, so the team can always say 'we need three' and mean it.\n\nThis is the survival condition, not a score. Missing it seals the team in: at 06:00 nobody may cross a gate, and Method 2 — dealing with the main ghost — becomes the only way anyone lives. Fail both and everyone inside dies.")]
-    [Min(1)] public int zonesRequiredToClear = 3;
+    // NOTE: there is deliberately NO "zones required" field any more.
+    //
+    // EVERY quest zone must be finished, on every difficulty. Changing the
+    // difficulty does not change how many zones the team owes — it changes how
+    // many RULES apply and how much WORK each zone holds. That is the whole
+    // shape of the difficulty curve now, and putting a zone count back here
+    // would quietly reintroduce a second, contradictory answer.
+    //
+    // MatchDirector learns the zone total from the zones themselves as they
+    // register, so a map with eight quest zones needs no change here.
+
+    [Header("Objectives — work per zone")]
+
+    [Tooltip("How many of the map's THIRTEEN place rules (กฎสถานที่) are in force. Place rules apply inside EVERY zone of the map, quest zones and rule-only zones alike — they are what the game is named after.\n\nEasy 0, Normal 0, Hard = a random subset of this size drawn from the thirteen, 13 Rules = 13.\n\nThese are separate from a zone's own rules. A zone's rules come from the zone; these come from the map and are layered on top, so on Hard a player has to hold both in their head at once.\n\nRandomising WHICH rules appear on Hard is what stops players memorising one correct routine: the cinema is the same building every night, but the laws it runs on are not.")]
+    [Range(0, 13)] public int placeRuleCount = 0;
 
     [Tooltip("Extra tasks added to EVERY quest zone on this difficulty, regardless of team size.\n\nThis is how a tier makes the work itself heavier rather than just more dangerous. A room that holds four tasks on Easy can hold six on Hard — same room, more to do in it.\n\nIt is the ONLY task lever that reaches a solo player: extraTasksPerAdditionalPlayer is zero at one player by definition, so without this a lone player faces identical zone contents on Easy and on Hard, and only the ghosts and the drain differ.\n\nSuggested: Easy 0, Normal 1, Hard 2. Tune from playtests.")]
     [Min(0)] public int flatExtraTasksPerZone = 0;
@@ -172,11 +176,18 @@ public class DifficultyProfile : ScriptableObject
     {
         // A silent balance mistake here costs a whole playtest, so surface it
         // while the designer is still looking at the asset.
-        if (zonesRequiredToClear > QuestZonesInCinema)
+        if (level == DifficultyLevel.ThirteenRules && placeRuleCount != 13)
         {
             Debug.LogWarning(
-                $"[{name}] zonesRequiredToClear is {zonesRequiredToClear}, but the cinema only has " +
-                $"{QuestZonesInCinema} quest zones. This round is unwinnable — nobody can ever cross a gate.", this);
+                $"[{name}] is the ThirteenRules tier but placeRuleCount is {placeRuleCount}. " +
+                "That mode is defined by having all thirteen in force at once — set it to 13.", this);
+        }
+
+        if ((level == DifficultyLevel.Easy || level == DifficultyLevel.Normal) && placeRuleCount != 0)
+        {
+            Debug.LogWarning(
+                $"[{name}] is {level} but has {placeRuleCount} place rules. Easy and Normal carry " +
+                "zone rules only — place rules start at Hard.", this);
         }
 
         if (maxExtraTasksPerZone == 0 && extraTasksPerAdditionalPlayer > 0)

@@ -90,6 +90,32 @@ public class MatchDirector : NetworkBehaviour
     /// </summary>
     private const float DownedDurationInGameHours = 1f;
 
+    /// <summary>
+    /// Dead players needed at 06:00 for the night to refuse to end (Overtime)
+    /// instead of sealing everyone in (LockedIn).
+    ///
+    /// Yes, a struggling team benefits from a second death — that is the
+    /// intended decision, not an exploit, and the DOWNED TIMER is what keeps it
+    /// honest. A player must be downed for a full in-game hour before they
+    /// actually die, so to have a second death by 06:00 the team has to give
+    /// someone up at 05:00, with a sixth of the night still to play, and then
+    /// deliberately not revive them.
+    ///
+    /// That means the choice has to be made BEFORE the team knows for certain
+    /// it will fail: split up and gamble that everyone finishes, or spend one
+    /// life so the rest get unlimited time. Decide too late and the option is
+    /// simply gone. It also costs that player's money, their items, and their
+    /// hands for the last stretch.
+    ///
+    /// THE CONSTRAINT THIS RELIES ON: instant death must stay rare and must not
+    /// be available near the deadline. Instant death comes only from rules, so
+    /// any rule that kills outright must be restricted to early in the night
+    /// (design's current line is before 04:00). An instant-death rule that can
+    /// fire at 05:50 turns a costly gamble into a button, and the decision above
+    /// collapses. Do not add one without talking to design first.
+    /// </summary>
+    private const int OvertimeDeathThreshold = 2;
+
     // ---- Replicated round state -------------------------------------------
     // Everything below is written by the SERVER only (or locally when offline).
     // Clients read these to draw the HUD and nothing else.
@@ -98,7 +124,17 @@ public class MatchDirector : NetworkBehaviour
     [SyncVar] private DifficultyLevel syncedDifficulty = DifficultyLevel.Normal;
 
     [SyncVar(hook = nameof(OnZonesChanged))] private int zonesCompleted;
-    [SyncVar(hook = nameof(OnZonesChanged))] private int zonesRequired = 3;
+    [SyncVar(hook = nameof(OnZonesChanged))] private int zonesRequired;
+
+    /// <summary>
+    /// Seconds elapsed since the main clock froze at 06:00. Zero outside
+    /// Overtime. This is the second clock: it only ever counts UP, it has no
+    /// target, and the ghosts read it to decide how hard to hunt.
+    /// </summary>
+    [SyncVar] private float overtimeSeconds;
+
+    /// <summary>How many of the map's thirteen place rules are in force tonight. Resolved from the profile.</summary>
+    [SyncVar] private int placeRuleCount;
 
     [SyncVar(hook = nameof(OnPhaseChanged))] private MatchPhase phase = MatchPhase.Night;
 
@@ -150,6 +186,17 @@ public class MatchDirector : NetworkBehaviour
     private readonly HashSet<string> completedZones = new HashSet<string>();
 
     /// <summary>
+    /// Every quest zone that exists in this map, registered by the zone itself
+    /// on spawn. The team owes ALL of them on every difficulty, so the total
+    /// comes from the map rather than from a number on the difficulty asset —
+    /// a map with eight quest zones needs no code change.
+    /// </summary>
+    private readonly HashSet<string> registeredZones = new HashSet<string>();
+
+    /// <summary>netIds of players confirmed inside the real secret room. Only these survive a LockedIn ending.</summary>
+    private readonly HashSet<uint> playersInSecretRoom = new HashSet<uint>();
+
+    /// <summary>
     /// Tasks each player finished, for the per-player payout. The GDD pays a
     /// player for THEIR OWN completions, so this is deliberately separate from
     /// the zone counter — zones decide survival, these decide money, and one
@@ -190,6 +237,19 @@ public class MatchDirector : NetworkBehaviour
     public DifficultyLevel Difficulty => syncedDifficulty;
     public int ZonesCompleted => zonesCompleted;
     public int ZonesRequired => zonesRequired;
+    public float OvertimeSeconds => overtimeSeconds;
+    public int PlaceRuleCount => placeRuleCount;
+
+    /// <summary>
+    /// How hard the ghosts should be hunting, 0 at 06:00 and rising without
+    /// limit while Overtime runs. Ghost AI multiplies its aggression by this.
+    ///
+    /// Deliberately unbounded here rather than clamped: whether escalation
+    /// plateaus into "survivable if careful" or keeps climbing into a certain
+    /// death is a design decision, and it belongs in the ghost AI where it can
+    /// be tuned per ghost, not hidden in a clamp in the match clock.
+    /// </summary>
+    public float EscalationLevel => overtimeSeconds / Mathf.Max(1f, SecondsPerInGameHour);
     public float SecondsRemaining => secondsRemaining;
     public float PhaseLengthSeconds => phaseLengthSeconds;
     public float SanityDrainMultiplier => sanityDrainMultiplier;
@@ -221,7 +281,7 @@ public class MatchDirector : NetworkBehaviour
     /// Whether the TEAM's combined completed tasks have reached the minimum.
     /// One shared total across all players, not a per-player count.
     /// </summary>
-    public bool MinimumMet => zonesCompleted >= zonesRequired;
+    public bool MinimumMet => zonesRequired > 0 && zonesCompleted >= zonesRequired;
 
     /// <summary>
     /// Whether anybody may actually cross a gate. BOTH conditions, and they are
@@ -264,6 +324,15 @@ public class MatchDirector : NetworkBehaviour
     /// everyone still inside. That is intended — it is what makes the minimum
     /// the thing players are actually afraid of.
     /// </summary>
+    /// <summary>
+    /// NOT IN THE PRE-THESIS DEMO. Method 2 — dealing with the map's main ghost
+    /// — is deferred to the full thesis build; the demo's failure path is the
+    /// Ghost Key and the secret room instead.
+    ///
+    /// The code below is kept rather than deleted because the design is decided
+    /// and only the scope was cut. Nothing in the demo should call
+    /// ServerReportGhostBanished, and if something does it will log an error.
+    /// </summary>
     public bool RitualPermitted => MinimumMet;
 
     /// <summary>0 at the start of the current phase, 1 when its timer runs out.</summary>
@@ -298,7 +367,17 @@ public class MatchDirector : NetworkBehaviour
                 break;
 
             case MatchPhase.Escape:
+            case MatchPhase.LockedIn:
                 absolute = EndHour + PhaseProgress01 * EscapeWindowInGameHours;
+                break;
+
+            case MatchPhase.Overtime:
+                // Frozen at 06:00, on purpose. The HUD keeps reading 06:00 while
+                // the night refuses to move, and that stuck clock IS the
+                // message — do not add the overtime seconds here, and do not put
+                // the second clock on screen either. The players should feel the
+                // ghosts getting worse, not watch a number tell them so.
+                absolute = EndHour;
                 break;
 
             default:
@@ -390,8 +469,8 @@ public class MatchDirector : NetworkBehaviour
 
         if (profile != null)
         {
-            zonesRequired = profile.zonesRequiredToClear;
             extraTasksThisRound = profile.ExtraTasksFor(playerCount);
+            placeRuleCount = profile.placeRuleCount;
             nightLengthSeconds = profile.RoundLengthSeconds;
             sanityDrainMultiplier = profile.sanityDrainMultiplier;
         }
@@ -399,8 +478,8 @@ public class MatchDirector : NetworkBehaviour
         {
             // No profile assigned. Keep the round playable rather than dividing by
             // zero, but make it obvious in the console that balancing is missing.
-            zonesRequired = 3;
             extraTasksThisRound = 0;
+            placeRuleCount = 0;
             nightLengthSeconds = 15f * 60f;
             sanityDrainMultiplier = 1f;
 
@@ -422,7 +501,10 @@ public class MatchDirector : NetworkBehaviour
             : 0;
 
         zonesCompleted = 0;
+        zonesRequired = registeredZones.Count;
+        overtimeSeconds = 0f;
         completedZones.Clear();
+        playersInSecretRoom.Clear();
         tasksPerPlayer.Clear();
         escapedCount = 0;
         ghostBanished = false;
@@ -446,7 +528,8 @@ public class MatchDirector : NetworkBehaviour
 
             Debug.Log(
                 $"[MatchDirector] Round configured — map={syncedMapID}, difficulty={syncedDifficulty}, " +
-                $"players={playerCount}, zonesToClear={zonesRequired}, extraTasks=+{extraTasksThisRound}, " +
+                $"players={playerCount}, zones={zonesRequired} (all required), extraTasks=+{extraTasksThisRound}, " +
+                $"placeRules={placeRuleCount}, " +
                 $"night={nightLengthSeconds / 60f:F1} min ({StartHour:00}:00 → {EndHour:00}:00, " +
                 $"{SecondsPerInGameHour:F0}s per in-game hour), " +
                 $"escapeWindow={EscapeWindowInGameHours * SecondsPerInGameHour:F0}s, " +
@@ -535,6 +618,24 @@ public class MatchDirector : NetworkBehaviour
             EvaluateRoundEnd();
 
             if (phase == MatchPhase.Ended) return;
+        }
+
+        if (phase == MatchPhase.Overtime)
+        {
+            // The second clock. Counts UP, has no target, and never ends the
+            // phase — only finishing the last zone does that. The main clock is
+            // deliberately left frozen where it stopped, so the HUD keeps
+            // reading 06:00 while the night refuses to move.
+            overtimeSeconds += Time.deltaTime;
+
+            syncAccumulator += Time.deltaTime;
+            if (syncAccumulator >= ClockSyncInterval)
+            {
+                syncAccumulator = 0f;
+                if (NetworkServer.active) RpcSyncOvertime(overtimeSeconds);
+            }
+
+            return;
         }
 
         secondsRemaining -= Time.deltaTime;
@@ -663,10 +764,25 @@ public class MatchDirector : NetworkBehaviour
                 continue;
             }
 
-            // Still inside, still alive, ghost unresolved, and the clock has run
-            // out. The GDD is unambiguous: they are dead.
+            if (phase == MatchPhase.LockedIn)
+            {
+                // The locked-in hour decides survival by location, not by the
+                // gates: inside the real secret room you live, anywhere else in
+                // the building you do not.
+                if (playersInSecretRoom.Contains(id))
+                {
+                    outcomes[id] = PlayerOutcome.SurvivedTheGhost;
+                    continue;
+                }
+
+                outcomes[id] = PlayerOutcome.Dead;
+                health.ServerKill("not inside the secret room when the locked-in hour ended");
+                continue;
+            }
+
+            // Still inside, still alive, and the clock has run out.
             outcomes[id] = PlayerOutcome.Dead;
-            health.ServerKill("still inside at 07:00 with the ghost unresolved");
+            health.ServerKill("still inside when the round ended");
         }
     }
 
@@ -675,19 +791,63 @@ public class MatchDirector : NetworkBehaviour
         switch (phase)
         {
             case MatchPhase.Night:
-                // 06:00. The doors unlock — and they unlock whether the team met
-                // the minimum or not, because the clock is the only thing that
-                // has ever opened them. A team that is short simply walks out
-                // without clearing the stage.
-                EnterPhase(MatchPhase.Escape, EscapeWindowInGameHours * SecondsPerInGameHour);
+                // 06:00 arrives. Three different things can happen, and which
+                // one is decided here and nowhere else.
+                if (MinimumMet)
+                {
+                    // Every zone finished. Dawn comes, the doors open.
+                    EnterPhase(MatchPhase.Escape, EscapeWindowInGameHours * SecondsPerInGameHour);
+
+                    if (logRoundSetup)
+                        Debug.Log($"[MatchDirector] 06:00 — all {zonesRequired} zones done. Gates open for {secondsRemaining:F0}s.", this);
+                }
+                else if (DeadPlayerCount() >= OvertimeDeathThreshold)
+                {
+                    // The night refuses to end. The main clock freezes at 06:00
+                    // and a second clock starts counting up instead — no target,
+                    // no deadline, just a rising cost to every extra minute as
+                    // the ghosts hunt harder. Finishing the zones is what starts
+                    // the real clock again.
+                    EnterPhase(MatchPhase.Overtime, 0f);
+
+                    if (logRoundSetup)
+                    {
+                        Debug.Log(
+                            $"[MatchDirector] 06:00 — {zonesCompleted}/{zonesRequired} zones with " +
+                            $"{DeadPlayerCount()} dead. The clock stops. Overtime begins; no deadline, rising escalation.", this);
+                    }
+                }
+                else
+                {
+                    // Sealed in. One in-game hour to find the Ghost Key and the
+                    // one secret room that is really open tonight.
+                    EnterPhase(MatchPhase.LockedIn, EscapeWindowInGameHours * SecondsPerInGameHour);
+
+                    if (logRoundSetup)
+                    {
+                        Debug.Log(
+                            $"[MatchDirector] 06:00 — {zonesCompleted}/{zonesRequired} zones, only {DeadPlayerCount()} dead. " +
+                            $"Everyone is locked in for {secondsRemaining:F0}s. Ghost Key or death.", this);
+                    }
+                }
+                break;
+
+            case MatchPhase.Overtime:
+                // Overtime has no timer, so nothing should ever advance it on a
+                // clock. It leaves only through ServerReportZoneCompleted
+                // finishing the last zone. Reaching here means the clock ticked
+                // when it should not have.
+                Debug.LogError("[MatchDirector] Overtime advanced on a timer. Overtime has no deadline — this is a bug in the clock.", this);
+                break;
+
+            case MatchPhase.LockedIn:
+                // The hour is up. Anyone not inside the secret room dies, and
+                // ResolveRemainingPlayers does the killing.
+                ResolveRemainingPlayers();
+                EnterPhase(MatchPhase.Ended, 0f);
 
                 if (logRoundSetup)
-                {
-                    Debug.Log(MinimumMet
-                        ? $"[MatchDirector] 06:00 — gates passable for {secondsRemaining:F0}s ({zonesCompleted}/{zonesRequired} zones)."
-                        : $"[MatchDirector] 06:00 — minimum MISSED ({zonesCompleted}/{zonesRequired} zones). " +
-                          $"Nobody can cross a gate. {secondsRemaining:F0}s to deal with the ghost or die.", this);
-                }
+                    Debug.Log($"[MatchDirector] Locked-in hour over. {playersInSecretRoom.Count} reached the secret room.", this);
                 break;
 
             case MatchPhase.Escape:
@@ -714,6 +874,31 @@ public class MatchDirector : NetworkBehaviour
         // Host already holds the authoritative value; only remote clients need it.
         if (isServer) return;
         secondsRemaining = remaining;
+    }
+
+    [ClientRpc]
+    private void RpcSyncOvertime(float elapsed)
+    {
+        if (isServer) return;
+        overtimeSeconds = elapsed;
+    }
+
+    /// <summary>
+    /// How many players are dead right now. Drives the 06:00 branch, so it is
+    /// evaluated at that instant and never cached — a death at 05:59 counts.
+    /// </summary>
+    private int DeadPlayerCount()
+    {
+        RefreshPlayerRoster();
+
+        int dead = 0;
+        for (int i = 0; i < trackedPlayers.Count; i++)
+        {
+            PlayerHealth health = trackedPlayers[i];
+            if (health != null && health.IsDead) dead++;
+        }
+
+        return dead;
     }
 
     // ---- Progress: two separate counters ------------------------------------
@@ -808,14 +993,72 @@ public class MatchDirector : NetworkBehaviour
         {
             MinimumReached?.Invoke();
 
-            if (logRoundSetup)
+            if (phase == MatchPhase.Overtime)
+            {
+                // The last zone is done, so dawn is finally allowed to arrive.
+                // The main clock starts again exactly where it froze and the
+                // doors open — the release the overtime dread was building to.
+                if (logRoundSetup)
+                {
+                    Debug.Log(
+                        $"[MatchDirector] Last zone finished after {overtimeSeconds:F0}s of overtime. " +
+                        "The clock starts again — gates open.", this);
+                }
+
+                EnterPhase(MatchPhase.Escape, EscapeWindowInGameHours * SecondsPerInGameHour);
+            }
+            else if (logRoundSetup)
             {
                 Debug.Log(
-                    "[MatchDirector] Zone minimum reached — the team can now leave at dawn. " +
+                    "[MatchDirector] Every zone is done — the team can leave at dawn. " +
                     "The exits stay LOCKED until 06:00; further tasks are money.", this);
             }
         }
     }
+
+    /// <summary>
+    /// Called by each quest zone as it comes up, so MatchDirector knows how many
+    /// zones the team owes. EVERY registered zone must be finished — there is no
+    /// difficulty that asks for a subset.
+    ///
+    /// Registration rather than a number on the difficulty asset means a map
+    /// with eight quest zones works with no code or asset change, and a zone
+    /// that fails to spawn cannot silently lower the requirement without the
+    /// log below saying so.
+    /// </summary>
+    public void ServerRegisterZone(string zoneID)
+    {
+        if (!NetworkMode.HasServerAuthority(this)) return;
+
+        if (string.IsNullOrEmpty(zoneID))
+        {
+            Debug.LogError("[MatchDirector] ServerRegisterZone was called with no zoneID — ignored.", this);
+            return;
+        }
+
+        if (!registeredZones.Add(zoneID)) return;
+
+        zonesRequired = registeredZones.Count;
+        ZoneProgressChanged?.Invoke(zonesCompleted, zonesRequired);
+
+        if (logRoundSetup)
+            Debug.Log($"[MatchDirector] Zone '{zoneID}' registered — {zonesRequired} zones in this map.", this);
+    }
+
+    /// <summary>
+    /// Called when a player enters or leaves the real secret room during
+    /// LockedIn. Only players inside when the hour ends survive.
+    /// </summary>
+    public void ServerSetPlayerInSecretRoom(NetworkIdentity player, bool inside)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || player == null) return;
+
+        if (inside) playersInSecretRoom.Add(player.netId);
+        else playersInSecretRoom.Remove(player.netId);
+    }
+
+    public bool IsInSecretRoom(NetworkIdentity player) =>
+        player != null && playersInSecretRoom.Contains(player.netId);
 
     /// <summary>Whether a zone has already been counted. For zone UI and the quest system.</summary>
     public bool IsZoneComplete(string zoneID) => !string.IsNullOrEmpty(zoneID) && completedZones.Contains(zoneID);
