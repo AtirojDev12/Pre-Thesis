@@ -1,14 +1,39 @@
+using Mirror;
 using UnityEngine;
 using UnityEngine.AI; // เรียกใช้งานระบบ NavMesh ของ Unity เพื่อควบคุมการเดินหลบสิ่งกีดขวาง
 
-// กำหนดให้เป็น abstract class (คลาสแม่) เพื่อให้ผีตัวอื่นๆ นำโครงสร้างนี้ไปสืบทอดใช้งานต่อ
-public abstract class Enemy_Abstract_Class : MonoBehaviour
+/// <summary>
+/// คลาสแม่ของผีทุกตัว — โครงสร้าง AI ที่ผีตัวอื่นสืบทอดไปใช้ต่อ
+///
+/// WHAT CHANGED FOR MULTIPLAYER
+/// ----------------------------
+/// The AI now runs on the SERVER ONLY. Every client holds a copy of the ghost,
+/// but only the server decides where it walks and who it is chasing; a
+/// NetworkTransform on the prefab replicates the result. Without that, six
+/// machines would each run their own copy of this AI, each pick a different
+/// target, and the ghost would be standing somewhere different on every screen.
+///
+/// Targeting no longer caches one player at Start. It asks PlayerRegistry every
+/// check for the nearest player it can actually see, so a six-player team gets
+/// a ghost that switches to whoever steps into view — and a player who spawns
+/// late is not invisible to it forever.
+///
+/// OFFLINE STILL WORKS. Every network guard goes through NetworkMode, so
+/// pressing Play in a test scene with no host runs the whole AI locally exactly
+/// as before. That is deliberate — the enemy test scenes must not need a host.
+/// </summary>
+[RequireComponent(typeof(NetworkIdentity))]
+public abstract class Enemy_Abstract_Class : NetworkBehaviour
 {
     // กำหนดกลุ่มสถานะ (State) ของผี: ลาดตระเวน, ไล่ล่า, ค้นหา, โดนดึงความสนใจจากเสียง
     public enum EnemyState { Patrol, Chase, Search, Distracted }
-    
+
     [Header("AI State")]
-    // [SerializeField] ทำให้เราเห็นและเปลี่ยนสถานะของผีลองทดสอบในหน้าต่าง Inspector ได้
+    /// <summary>
+    /// Replicated so clients can drive animation and audio from it. The SERVER
+    /// writes it; a client that changes its own copy changes nothing real.
+    /// </summary>
+    [SyncVar(hook = nameof(OnStateChanged))]
     [SerializeField] protected EnemyState currentState = EnemyState.Patrol;
 
     [Header("Movement Settings")]
@@ -17,141 +42,186 @@ public abstract class Enemy_Abstract_Class : MonoBehaviour
     protected NavMeshAgent agent;                       // ตัวควบคุมการเคลื่อนที่บน NavMesh
 
     [Header("Detection Settings")]
-    [SerializeField] protected float viewDistance = 10f;    // ระยะสายตาของผี (มองเห็นไกลแค่ไหน)
-    [SerializeField] protected float viewAngle = 45f;       // องศากรอบสายตาของผี (มุมมองกว้างแคบแค่ไหน)
+    [SerializeField] protected float viewDistance = 10f;    // ระยะสายตาของผี
+    [SerializeField] protected float viewAngle = 45f;       // องศากรอบสายตาของผี
     [SerializeField] protected float hearingRadius = 8f;    // ระยะรัศมีการได้ยินเสียงของผู้เล่น
-    [SerializeField] protected LayerMask playerLayer;       // เลเยอร์ที่ระบุว่าเป็นตัวผู้เล่น (Player)
-    [SerializeField] protected LayerMask obstacleLayer;     // เลเยอร์ของกำแพงหรือสิ่งกีดขวาง (เอาไว้เช็คการบังสายตา)
+    [SerializeField] protected LayerMask playerLayer;       // เลเยอร์ของผู้เล่น
+    [SerializeField] protected LayerMask obstacleLayer;     // เลเยอร์กำแพง/สิ่งกีดขวาง
 
-    protected Transform playerTransform;     // ตัวเก็บพิกัดตำแหน่งของผู้เล่น
-    protected bool isPlayerDetected = false; // ตัวแปรเช็คว่าขณะนี้ผีเจอผู้เล่นแล้วหรือยัง
+    /// <summary>
+    /// The player this ghost is currently after. Server-side truth. It is
+    /// re-chosen on every check rather than cached once, because in a six-player
+    /// match "the player" is not a fixed thing.
+    /// </summary>
+    protected PlayerHealth targetPlayer;
 
-    // Awake ทำงานเป็นอันดับแรกสุดเมื่อ Object ถูกสร้างขึ้นมา
+    /// <summary>Convenience for subclasses written against the old single-target field.</summary>
+    protected Transform playerTransform => targetPlayer != null ? targetPlayer.transform : null;
+
+    protected bool isPlayerDetected = false;
+
+    /// <summary>
+    /// True on the machine allowed to run AI: the server, or anybody when there
+    /// is no server at all (offline test scene).
+    /// </summary>
+    protected bool HasAiAuthority => NetworkMode.HasServerAuthority(this);
+
     protected virtual void Awake()
     {
-        // ดึงคอมโพเนนต์ NavMeshAgent จากตัวผีมาเก็บไว้ในตัวแปร agent
         agent = GetComponent<NavMeshAgent>();
     }
 
-    // Start ทำงานครั้งแรกก่อนเริ่มเฟรมแรกของเกม
     protected virtual void Start()
     {
-        // ค้นหา GameObject ในฉากที่มี Tag ชื่อ "Player"
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null) 
-        {
-            // ถ้าเจอผู้เล่น ให้เก็บพิกัด Transform ของผู้เล่นไว้ใช้งาน
-            playerTransform = player.transform;
-        }
+        // Deliberately NOT looking the player up here. See PlayerRegistry for
+        // why a one-shot lookup is the wrong shape. Targeting happens per check.
+
+        // A ghost on a client is a puppet: its NavMeshAgent must not fight the
+        // positions arriving from the server, the same way a remote player's
+        // rigidbody is made kinematic.
+        if (!HasAiAuthority && agent != null) agent.enabled = false;
     }
 
-    // Update ทำงานซ้ำๆ ทุกๆ เฟรมของเกม
     protected virtual void Update()
     {
-        // สั่งให้ระบบเช็คสายตาและการรับรู้ผู้เล่นรันทำงานตลอดเวลาในทุกเฟรม
+        // Clients run no AI at all. They see the ghost move because the
+        // NetworkTransform on the prefab is replicating the server's result.
+        if (!HasAiAuthority) return;
+
         CheckForPlayer();
-        
-        // สั่งให้ระบบสลับพฤติกรรมการเคลื่อนที่ทำงานตามสถานะปัจจุบัน
         SwitchStateBehavior();
     }
 
-    // --- LOGIC การตรวจจับ (ผีทุกตัวจะใช้การมองเห็นและการได้ยินแบบเดียวกันนี้เป็นฐาน) ---
+    // --- LOGIC การตรวจจับ ---
+
+    /// <summary>
+    /// Picks the nearest player this ghost can actually see, and chases them.
+    ///
+    /// The old version tested one cached player. This tests every living player
+    /// and takes the closest one with line of sight, so a team cannot park five
+    /// people in front of a ghost that is only looking at the sixth.
+    /// </summary>
     protected virtual void CheckForPlayer()
     {
-        // ถ้าหาตัวผู้เล่นในฉากไม่เจอ ไม่ต้องทำคำสั่งด้านล่างต่อ
-        if (playerTransform == null) return;
+        PlayerHealth seen = PlayerRegistry.ClosestVisibleTo(transform.position, viewDistance, CanSee);
 
-        // คำนวณระยะห่างระหว่างตัวผีกับตัวผู้เล่น ณ ปัจจุบัน
-        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
-
-        // [ส่วนที่ 1: ตรวจสอบการมองเห็น (Vision)]
-        // ถ้าผู้เล่นอยู่ในระยะสายตาของผี
-        if (distanceToPlayer <= viewDistance)
+        if (seen != null)
         {
-            // หาเวกเตอร์ทิศทางชี้จากผีไปหาผู้เล่น
-            Vector3 directionToPlayer = (playerTransform.position - transform.position).normalized;
-            
-            // เช็คว่าทิศทางของผู้เล่นอยู่ในกรอบองศาหน้าสายตาของผีหรือไม่
-            if (Vector3.Angle(transform.forward, directionToPlayer) < viewAngle)
-            {
-                // ยิงลำแสง Raycast ออกไปจากตัวผีตามทิศทางผู้เล่น เพื่อเช็คว่าติดสิ่งกีดขวาง (เช่น กำแพง) ไหม
-                if (!Physics.Raycast(transform.position, directionToPlayer, distanceToPlayer, obstacleLayer))
-                {
-                    // ถ้าไม่ติดอะไรเลย แสดงว่าผีเห็นตัวผู้เล่นจะๆ ให้เข้าฟังก์ชัน OnPlayerSpotted
-                    OnPlayerSpotted();
-                    return; // จบฟังก์ชันทันที
-                }
-            }
+            targetPlayer = seen;
+            OnPlayerSpotted();
+            return;
         }
 
-        // [ส่วนที่ 2: ตรวจสอบกรณีคลาดสายตา]
-        // ถ้าสถานะปัจจุบันคือไล่ล่าอยู่ แต่ผู้เล่นหนีห่างออกไปเกินระยะสายตาแล้ว
-        if (currentState == EnemyState.Chase && distanceToPlayer > viewDistance)
+        // Nobody visible. If we were chasing, we have just lost them.
+        if (currentState == EnemyState.Chase)
         {
-            // ให้เข้าฟังก์ชันคลาดสายตา
-            OnPlayerLost();
+            // Give up only once they are genuinely out of range, not merely
+            // behind a pillar for one frame.
+            bool targetStillClose = targetPlayer != null
+                && !targetPlayer.IsDead
+                && Vector3.Distance(transform.position, targetPlayer.transform.position) <= viewDistance;
+
+            if (!targetStillClose) OnPlayerLost();
         }
     }
 
-    // ฟังก์ชันรับสัญญาณเสียงภายนอก (เมื่อผู้เล่นทำของตก หรือวิ่งใกล้ๆ)
+    /// <summary>
+    /// Vision test for one candidate: inside the view cone and not behind a wall.
+    /// Pulled out of CheckForPlayer so PlayerRegistry can apply it while picking
+    /// the nearest, instead of us testing only whoever happened to be cached.
+    /// </summary>
+    protected virtual bool CanSee(PlayerHealth candidate)
+    {
+        if (candidate == null) return false;
+
+        Vector3 toPlayer = candidate.transform.position - transform.position;
+        float distance = toPlayer.magnitude;
+        if (distance > viewDistance) return false;
+
+        Vector3 direction = toPlayer / Mathf.Max(0.0001f, distance);
+        if (Vector3.Angle(transform.forward, direction) >= viewAngle) return false;
+
+        return !Physics.Raycast(transform.position, direction, distance, obstacleLayer);
+    }
+
+    /// <summary>
+    /// ฟังก์ชันรับสัญญาณเสียงภายนอก. SERVER ONLY — a client reporting a noise it
+    /// made must do it through a Command on the player, not by calling this.
+    /// </summary>
     public virtual void HearSound(Vector3 soundPosition, float soundIntensity)
     {
-        // คำนวณระยะห่างระหว่างตัวผีกับจุดกำเนิดเสียง
+        if (!HasAiAuthority) return;
+        if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
+
         float distanceToSound = Vector3.Distance(transform.position, soundPosition);
-        
-        // ถ้าระยะห่างน้อยกว่ารัศมีการได้ยิน (คูณกับความดังของเสียง)
+
         if (distanceToSound <= hearingRadius * soundIntensity)
         {
-            // สั่งให้ผีเดินไปยังตำแหน่งที่เกิดเสียงนั้นทันที
             agent.SetDestination(soundPosition);
-            // สลับสถานะเป็นโดนดึงความสนใจ เพื่อให้ผีเดินไปตรวจตรงจุดนั้น
             currentState = EnemyState.Distracted;
         }
     }
 
-    // --- ABSTRACT METHODS (ฟังก์ชันบังคับให้สคริปต์ลูก เช่น ผีนางรำ ผีปอบ ไปเขียนโค้ดเองภายหลัง) ---
-    protected abstract void PatrolBehavior(); // วิธีการเดินตรวจตรา (เช่น เดินตามจุด, เดินสุ่ม)
-    protected abstract void ChaseBehavior();  // วิธีการวิ่งไล่ผู้เล่น (เช่น วิ่งตรงๆ, อ้อมดักหน้า)
-    protected abstract void SearchBehavior(); // วิธีการเดินตามหาเมื่อคลาดสายตา
-    public abstract void TriggerJumpscare();  // วิธีการฆ่าหรือหลอนผู้เล่นเมื่อประชิดตัวได้
+    // --- ABSTRACT METHODS (คลาสลูกไปเขียนเอง) ---
+    protected abstract void PatrolBehavior();
+    protected abstract void ChaseBehavior();
+    protected abstract void SearchBehavior();
 
-    // --- STATE MANAGER (ระบบควบคุมและแบ่งงานตามสถานะ) ---
+    /// <summary>
+    /// SERVER ONLY. Implementations decide what happens to <paramref name="victim"/> —
+    /// damage, instant death, a scare — and must send any visual to that one
+    /// player with a TargetRpc, never a broadcast.
+    ///
+    /// Takes the victim explicitly: with six players in the map, "the player"
+    /// is not a thing, and a jumpscare that plays on everyone's screen at once
+    /// is a bug the old single-player version could not express.
+    /// </summary>
+    public abstract void TriggerJumpscare(PlayerHealth victim);
+
+    // --- STATE MANAGER ---
     private void SwitchStateBehavior()
     {
-        // เช็คว่าสถานะปัจจุบันคืออะไร แล้วสั่งงานให้สอดคล้อง
+        if (agent == null || !agent.isActiveAndEnabled) return;
+
         switch (currentState)
         {
             case EnemyState.Patrol:
-                agent.speed = patrolSpeed; // ปรับความเร็ว NavMesh เป็นเดินปกติ
-                PatrolBehavior();          // เรียกใช้พฤติกรรมเดินลาดตระเวนที่เขียนไว้ในคลาสลูก
+                agent.speed = patrolSpeed;
+                PatrolBehavior();
                 break;
-                
+
             case EnemyState.Chase:
-                agent.speed = chaseSpeed;  // ปรับความเร็ว NavMesh เป็นวิ่งเร็ว
-                ChaseBehavior();           // เรียกใช้พฤติกรรมไล่ล่าที่เขียนไว้ในคลาสลูก
+                agent.speed = chaseSpeed;
+                ChaseBehavior();
                 break;
-                
+
             case EnemyState.Search:
-                SearchBehavior();          // เรียกใช้พฤติกรรมตามหาที่เขียนไว้ในคลาสลูก
+                SearchBehavior();
                 break;
         }
     }
 
-    // ฟังก์ชันที่จะทำงานอัตโนมัติเมื่อผีส่องเห็นผู้เล่น
     protected virtual void OnPlayerSpotted()
     {
-        // ถ้าก่อนหน้านี้ไม่ได้อยู่ในโหมดไล่ล่า
+        isPlayerDetected = true;
+
         if (currentState != EnemyState.Chase)
         {
-            currentState = EnemyState.Chase; // สลับโหมดเป็นไล่ล่าทันที
-            Debug.Log("ผีเห็นผู้เล่นแล้ว! เริ่มไล่ล่า!"); // แสดงข้อความแจ้งเตือนในหน้าต่าง Console
+            currentState = EnemyState.Chase;
+            Debug.Log($"[{name}] เห็นผู้เล่นแล้ว! เริ่มไล่ล่า ({targetPlayer?.name}).", this);
         }
     }
 
-    // ฟังก์ชันที่จะทำงานอัตโนมัติเมื่อผู้เล่นวิ่งหลุดสายตาไปได้
     protected virtual void OnPlayerLost()
     {
-        currentState = EnemyState.Search; // สลับโหมดเป็นเดินตามหาบริเวณรอบๆ
-        Debug.Log("ผู้เล่นคลาดสายตา ผีกำลังเดินหาแถวนี้..."); // แสดงข้อความแจ้งเตือนในหน้าต่าง Console
+        isPlayerDetected = false;
+        currentState = EnemyState.Search;
+        Debug.Log($"[{name}] ผู้เล่นคลาดสายตา กำลังเดินหาแถวนี้...", this);
     }
+
+    /// <summary>
+    /// Runs on remote clients when the server changes state. Override it to
+    /// drive animation or audio; do NOT put AI decisions here.
+    /// </summary>
+    protected virtual void OnStateChanged(EnemyState oldState, EnemyState newState) { }
 }

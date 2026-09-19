@@ -1,80 +1,80 @@
+using Mirror;
 using UnityEngine;
-// เพิ่มการเรียกใช้งานระบบ Input System ใหม่
-using UnityEngine.InputSystem; 
+using UnityEngine.InputSystem;
 
-public class LightController : MonoBehaviour
+/// <summary>
+/// ปุ่ม L สำหรับเปิด-ปิดไฟ
+///
+/// PUT THIS ON THE PLAYER PREFAB, NOT IN THE SCENE.
+///
+/// Why it moved: this reads the keyboard, and in a match every machine has a
+/// keyboard. A scene copy runs Update on all six clients, so one person
+/// pressing L used to flip the lights on their screen only — and because
+/// TimedGhost hunts by movement in the dark and by sight in the light, the
+/// ghost would then be running a different mode on every machine.
+///
+/// Now: only the local player reads input, the press travels to the server as a
+/// Command, and GhostManager flips its replicated light state for everybody.
+///
+/// The lights themselves are configured ONCE on GhostManager. This component no
+/// longer owns a light array — two lists of lights is two answers to the same
+/// question, and they drift.
+/// </summary>
+public class LightController : NetworkBehaviour
 {
-    // ช่องสำหรับลากแสงไฟ (Light) หลายๆ ดวงมาใส่ใน Unity Inspector
-    [SerializeField] private Light[] sceneLights;
+    [Header("Input")]
+    [Tooltip("Key that toggles the lights. Only the local player's press counts.")]
+    [SerializeField] private Key toggleKey = Key.L;
 
-    // ตัวแปรเก็บสถานะปัจจุบันว่าไฟเปิดหรือปิดอยู่
-    private bool isLightOn = true;
-
-    void Update()
+    private void Update()
     {
-        // ใช้ระบบ Input System ใหม่: ตรวจสอบว่าปุ่ม L บนคีย์บอร์ดถูกกดในเฟรมนี้ไหม
-        if (Keyboard.current != null && Keyboard.current.lKey.wasPressedThisFrame)
-        {
-            ToggleLights();
-        }
+        // Offline sandbox has no local-player concept, so let the keyboard work.
+        // In a match, only the player that belongs to THIS machine may read it,
+        // or one keypress would fire once per player copy on this client.
+        if (!NetworkMode.IsOffline && !isLocalPlayer) return;
+
+        if (Keyboard.current == null) return;
+        if (!Keyboard.current[toggleKey].wasPressedThisFrame) return;
+
+        RequestToggle();
     }
 
-    // ฟังก์ชันสำหรับสลับสถานะเปิด-ปิดไฟทั้งหมดในรายการ
-    public void ToggleLights()
+    private void RequestToggle()
     {
-        isLightOn = !isLightOn;
-
-        foreach (Light light in sceneLights)
+        if (GhostManager.Instance == null)
         {
-            if (light != null)
-            {
-                light.enabled = isLightOn;
-            }
+            Debug.LogWarning("[LightController] No GhostManager in this scene — nothing owns the lights.", this);
+            return;
         }
 
-        // 💡 [เพิ่มโค้ดใหม่] ส่งค่าสถานะไฟ (true/false) ไปอัปเดตที่ GhostManager 💡
-        GhostManager manager = FindObjectOfType<GhostManager>();
-        if (manager != null)
+        if (NetworkMode.IsOffline)
         {
-            manager.PlayerToggleLights(isLightOn);
+            GhostManager.Instance.PlayerToggleLights(!GhostManager.Instance.areLightsOnCurrently);
+            return;
         }
+
+        CmdToggleLights();
     }
 
-    public void TurnOffAllLights()
+    /// <summary>
+    /// The switch press, sent to the server. The server decides — a client that
+    /// could set the light state directly could also sit in permanent daylight
+    /// and never be hunted in the dark.
+    /// </summary>
+    [Command]
+    private void CmdToggleLights()
     {
-        isLightOn = false;
-        foreach (Light light in sceneLights)
-        {
-            if (light != null)
-            {
-                light.enabled = false;
-            }
-        }
-
-        // 💡 [เพิ่มโค้ดใหม่] ส่งสัญญาณบอก GhostManager ว่าไฟดับหมดแล้ว 💡
-        GhostManager manager = FindObjectOfType<GhostManager>();
-        if (manager != null)
-        {
-            manager.PlayerToggleLights(false);
-        }
+        if (GhostManager.Instance == null) return;
+        GhostManager.Instance.PlayerToggleLights(!GhostManager.Instance.areLightsOnCurrently);
     }
 
-    public void TurnOnAllLights()
+    /// <summary>
+    /// SERVER ONLY. For rules and scripted events — "turn off the lights and go
+    /// to the Staff room" is a Ticket Zone rule that needs this.
+    /// </summary>
+    public static void ServerSetLights(bool on)
     {
-        isLightOn = true;
-        foreach (Light light in sceneLights)
-        {
-            if (light != null)
-            {
-                light.enabled = true;
-            }
-        }
-
-        // 💡 [เพิ่มโค้ดใหม่] ส่งสัญญาณบอก GhostManager ว่าไฟเปิดหมดแล้ว 💡
-        GhostManager manager = FindObjectOfType<GhostManager>();
-        if (manager != null)
-        {
-            manager.PlayerToggleLights(true);
-        }
+        if (GhostManager.Instance == null) return;
+        GhostManager.Instance.PlayerToggleLights(on);
     }
 }

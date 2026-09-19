@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: Difficulty_Easy
   m_EditorClassIdentifier: Assembly-CSharp::DifficultyProfile
   level: 0
-  zonesRequiredToClear: 3
+  placeRuleCount: 0
   flatExtraTasksPerZone: 0
-  extraTasksPerAdditionalPlayer: 4
+  extraTasksPerAdditionalPlayer: 1
   maxExtraTasksPerZone: 4
-  roundLengthMinutes: 10
+  roundLengthMinutes: 15
   sanityDrainMultiplier: 0.5
   randomGhostCount: 2

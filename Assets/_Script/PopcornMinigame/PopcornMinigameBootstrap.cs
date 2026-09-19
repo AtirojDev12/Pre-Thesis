@@ -556,6 +556,26 @@ public sealed class PopcornGameManager : MonoBehaviour
         if (makerCanvas != null) makerCanvas.worldCamera = localCamera;
     }
 
+    private void OnEnable()
+    {
+        PopcornNetSync sync = PopcornNetSync.Instance;
+        if (sync == null) return;
+
+        sync.OrderChanged += OnSyncOrderChanged;
+        sync.ScoreChanged += OnSyncScoreChanged;
+        sync.LocalServeResult += OnSyncServeResult;
+    }
+
+    private void OnDisable()
+    {
+        PopcornNetSync sync = PopcornNetSync.Instance;
+        if (sync == null) return;
+
+        sync.OrderChanged -= OnSyncOrderChanged;
+        sync.ScoreChanged -= OnSyncScoreChanged;
+        sync.LocalServeResult -= OnSyncServeResult;
+    }
+
     private void OnDestroy()
     {
         PlayerHealth.LocalInstanceChanged -= BindWorldUiCamera;
@@ -599,13 +619,73 @@ public sealed class PopcornGameManager : MonoBehaviour
         yield return new WaitForSeconds(delay);
         if (counterSlot.IsOccupied) yield break;
 
+        // MULTIPLAYER: the SERVER picks who walks in and what they want, so all
+        // six machines show the same customer. Only the server runs this half;
+        // clients build their local customer from the replicated order when
+        // PopcornNetSync raises OrderChanged.
+        if (PopcornNetSync.Instance != null && !NetworkMode.HasServerAuthority(PopcornNetSync.Instance))
+            yield break;
+
+        if (PopcornNetSync.Instance != null)
+        {
+            PopcornNetSync.Instance.ServerSeatCustomer();
+            SeatCustomerFromSync();
+            yield break;
+        }
+
+        // No net sync in the scene (a pure sandbox test): behave as before.
         PopcornCustomerType type = Random.value < 0.5f ? PopcornCustomerType.Human : PopcornCustomerType.Ghost;
         PopcornFlavor order = type == PopcornCustomerType.Ghost
             ? PopcornFlavor.Ghost
             : (Random.value < 0.5f ? PopcornFlavor.Cheese : PopcornFlavor.BBQ);
 
         counterSlot.Occupy(this, type, order);
+        TaskTimer.Begin(TimerKey);
         orderText.text = $"{type.ToString().ToUpperInvariant()} ORDER\n{UiFactory.FlavorName(order).ToUpperInvariant()} POPCORN";
+    }
+
+    /// <summary>
+    /// Key for the task stopwatch. Lives here rather than only on PopcornNetSync
+    /// so the timer records whether or not the scene has the net-sync component
+    /// — the first version only hooked the networked path and silently measured
+    /// nothing in a plain test scene.
+    /// </summary>
+    private string TimerKey => PopcornNetSync.Instance != null ? PopcornNetSync.Instance.ZoneID : "popcorn_local";
+
+    /// <summary>
+    /// Builds this machine's copy of the customer from the replicated order.
+    /// The visual is local on purpose: an NPC that walks to a counter and stands
+    /// there does not need a NetworkIdentity, and spawning one per client keeps
+    /// the customer prefab out of NetworkManager.spawnPrefabs.
+    /// </summary>
+    private void SeatCustomerFromSync()
+    {
+        PopcornNetSync sync = PopcornNetSync.Instance;
+        if (sync == null || !sync.CustomerWaiting) return;
+        if (counterSlot.IsOccupied) return;
+
+        counterSlot.Occupy(this, sync.CurrentCustomerType, sync.CurrentOrder);
+        TaskTimer.Begin(TimerKey);
+        orderText.text = $"{sync.CurrentCustomerType.ToString().ToUpperInvariant()} ORDER\n{UiFactory.FlavorName(sync.CurrentOrder).ToUpperInvariant()} POPCORN";
+    }
+
+    private void OnSyncOrderChanged()
+    {
+        PopcornNetSync sync = PopcornNetSync.Instance;
+        if (sync == null) return;
+
+        if (sync.CustomerWaiting) SeatCustomerFromSync();
+    }
+
+    private void OnSyncScoreChanged(int newScore, int target)
+    {
+        score = newScore;
+        if (scoreText != null) scoreText.text = $"SCORE: {newScore} / {target}";
+    }
+
+    private void OnSyncServeResult(bool correct, string message)
+    {
+        ShowFeedback(message, correct ? new Color(0.22f, 1f, 0.35f) : new Color(1f, 0.2f, 0.18f));
     }
 
     public void CustomerReady(PopcornCustomer customer)
@@ -623,6 +703,24 @@ public sealed class PopcornGameManager : MonoBehaviour
         }
 
         PopcornFlavor served = holder.Consume();
+
+        PlayerHealth server = interactor != null ? interactor.GetComponentInParent<PlayerHealth>() : PlayerHealth.LocalInstance;
+        TaskTimer.Complete(TimerKey, TimerKey, server != null ? server.name : "player", served == customer.Order);
+
+        // MULTIPLAYER: this machine no longer decides whether the order was
+        // right. It reports what the player handed over and the SERVER answers
+        // — scoring here would give six players six different scores, and would
+        // let a modified client hand itself zone progress that now decides
+        // whether the team survives the night.
+        if (PopcornNetSync.Instance != null)
+        {
+            PopcornNetSync.Instance.RequestServe(served);
+            orderText.text = "ORDER COMPLETE";
+            customer.BeginLeaving();
+            return;
+        }
+
+        // No net sync present (pure sandbox): original local behaviour.
         bool correct = served == customer.Order;
 
         if (correct)
@@ -630,19 +728,16 @@ public sealed class PopcornGameManager : MonoBehaviour
             score++;
             scoreText.text = $"SCORE: {score}";
             ShowFeedback("Correct!  +1 Point", new Color(0.22f, 1f, 0.35f));
-            Debug.Log("[PopcornMinigame] +1 Point");
         }
         else
         {
             ShowFeedback("Incorrect", new Color(1f, 0.2f, 0.18f));
-            Debug.Log($"[PopcornMinigame] Incorrect order: served {served}, requested {customer.Order}.");
 
             if (customer.CustomerType == PopcornCustomerType.Ghost)
             {
                 PlayerHealth health = interactor != null ? interactor.GetComponentInParent<PlayerHealth>() : PlayerHealth.LocalInstance;
                 if (health == null) health = PlayerHealth.LocalInstance;
                 if (health != null) health.TakeDamage(10f);
-                else Debug.LogWarning("[PopcornMinigame] Ghost order failed, but no PlayerHealth was found to receive 10 damage.");
             }
         }
 
