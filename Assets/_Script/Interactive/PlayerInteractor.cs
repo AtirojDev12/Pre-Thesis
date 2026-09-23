@@ -180,9 +180,8 @@ public class PlayerInteractor : NetworkBehaviour
 
     private void RequestInteract(IInteractable target)
     {
-        // Movie UI uses the same world controls as popcorn, with its own validated command.
-        if (target is WorldButtonInteractable &&
-            target.GetTransform().GetComponentInParent<TicketMinigame>() != null)
+        // World UI selects local inventory; minigame serving routes its own server command.
+        if (target is WorldButtonInteractable || target is PopcornCustomer)
         {
             target.Interact(gameObject);
             return;

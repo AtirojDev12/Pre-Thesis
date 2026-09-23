@@ -125,7 +125,17 @@ public static class PopcornRegressionRunner
             previous.gameObject.SetActive(false);
             Object.Destroy(previous.gameObject);
         }
-        slot.Occupy(manager, type, order);
+        // When the authored scene includes net sync, deterministic fixtures must
+        // change the authoritative order too, not only replace its local visual.
+        var sync = PopcornNetSync.Instance;
+        if (sync != null)
+        {
+            typeof(PopcornNetSync).GetField("currentCustomerType", Private).SetValue(sync, type);
+            typeof(PopcornNetSync).GetField("currentOrder", Private).SetValue(sync, order);
+            typeof(PopcornNetSync).GetField("customerWaiting", Private).SetValue(sync, true);
+            Call(manager, "OnSyncOrderChanged");
+        }
+        else slot.Occupy(manager, type, order);
     }
     // Editor callbacks otherwise update the editor's separate device state in batch mode.
     static void UpdateInput()

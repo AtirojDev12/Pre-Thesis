@@ -52,7 +52,7 @@ MonoBehaviour:
   editorAutoStart: 0
   sendRate: 60
   offlineScene: Assets/Scenes/MainMenu.unity
-  onlineScene: Assets/Scenes/GamePlay.unity
+  onlineScene: Assets/Scenes/Map/Cinema_GamePlay.unity
   offlineSceneLoadDelay: 0
   transport: {fileID: 8389901566596097399}
   networkAddress: localhost

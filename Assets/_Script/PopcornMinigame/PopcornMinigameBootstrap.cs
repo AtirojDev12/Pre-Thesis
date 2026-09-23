@@ -31,6 +31,9 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [Header("Scene objects")]
     [SerializeField] private string cashierObjectName = "Cashier (1)";
     [SerializeField] private string popcornMakerObjectName = "Popcorn Maker (1)";
+    [Tooltip("Optional direct references for maps with repeated object names.")]
+    [SerializeField] private Transform cashierObject;
+    [SerializeField] private Transform popcornMakerObject;
 
     [Header("Held popcorn")]
     [SerializeField] private GameObject heldPopcornPrefab;
@@ -50,14 +53,16 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [SerializeField] private Transform customerWaitPoint;
     [Tooltip("The destination used after the order is resolved.")]
     [SerializeField] private Transform customerExitPoint;
+    [SerializeField] private Transform[] customerApproachPath = new Transform[0];
+    [SerializeField] private Transform[] customerDeparturePath = new Transform[0];
     [SerializeField, Min(0f)] private float delayBetweenCustomers = 2f;
 
     private void Awake()
     {
         EnsureEventSystem();
 
-        Transform cashier = FindSceneObject(cashierObjectName);
-        Transform maker = FindSceneObject(popcornMakerObjectName);
+        Transform cashier = cashierObject != null ? cashierObject : FindSceneObject(cashierObjectName);
+        Transform maker = popcornMakerObject != null ? popcornMakerObject : FindSceneObject(popcornMakerObjectName);
         if (cashier == null || maker == null || !HasAllAnchors())
         {
             Debug.LogError(
@@ -72,6 +77,7 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         PopcornGameManager manager = gameObject.AddComponent<PopcornGameManager>();
 
         counterSlot.Configure(customerSpawnPoint.position, customerWaitPoint.position, customerExitPoint.position);
+        counterSlot.ConfigureRoute(customerApproachPath, customerDeparturePath, customerWaitPoint.rotation);
         holder.Configure(heldPopcornPrefab, heldPopcornPosition, heldPopcornRotation);
         holder.BuildUi();
         manager.Configure(holder, counterSlot, cashier, maker, cashierUiAnchor, popcornMakerUiAnchor,
@@ -96,16 +102,22 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         DrawRoutePoint(customerWaitPoint, Color.yellow, 0.32f);
         DrawRoutePoint(customerExitPoint, new Color(1f, 0.35f, 0.2f), 0.28f);
 
-        if (customerSpawnPoint != null && customerWaitPoint != null)
+        DrawCustomerPath(customerSpawnPoint, customerApproachPath, customerWaitPoint, Color.cyan);
+        DrawCustomerPath(customerWaitPoint, customerDeparturePath, customerExitPoint, new Color(1f, 0.45f, 0.15f));
+    }
+
+    private static void DrawCustomerPath(Transform start, Transform[] path, Transform end, Color color)
+    {
+        Gizmos.color = color;
+        Transform previous = start;
+        foreach (Transform point in path)
         {
-            Gizmos.color = Color.cyan;
-            Gizmos.DrawLine(customerSpawnPoint.position, customerWaitPoint.position);
+            if (point == null) continue;
+            DrawRoutePoint(point, color, 0.2f);
+            if (previous != null) Gizmos.DrawLine(previous.position, point.position);
+            previous = point;
         }
-        if (customerWaitPoint != null && customerExitPoint != null)
-        {
-            Gizmos.color = new Color(1f, 0.45f, 0.15f);
-            Gizmos.DrawLine(customerWaitPoint.position, customerExitPoint.position);
-        }
+        if (previous != null && end != null) Gizmos.DrawLine(previous.position, end.position);
     }
 
     private static void DrawUiAnchor(Transform anchor, Color color, Vector3 size)
@@ -323,6 +335,16 @@ public sealed class CounterSlot : MonoBehaviour
     private Vector3 spawnPosition;
     private Vector3 waitPosition;
     private Vector3 exitPosition;
+    private Transform[] approachPath = new Transform[0];
+    private Transform[] departurePath = new Transform[0];
+    private Quaternion facing = Quaternion.identity;
+
+    public void ConfigureRoute(Transform[] approach, Transform[] departure, Quaternion waitFacing)
+    {
+        approachPath = approach;
+        departurePath = departure;
+        facing = waitFacing;
+    }
 
     public void Configure(Vector3 spawn, Vector3 wait, Vector3 exit)
     {
@@ -351,6 +373,7 @@ public sealed class CounterSlot : MonoBehaviour
 
         ActiveCustomer = customerObject.AddComponent<PopcornCustomer>();
         ActiveCustomer.Configure(manager, this, type, order, waitPosition, exitPosition);
+        ActiveCustomer.ConfigureRoute(approachPath, departurePath, facing);
         return ActiveCustomer;
     }
 
@@ -375,6 +398,17 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
     private Collider interactionCollider;
     private Canvas submitPrompt;
     private const float MoveSpeed = 2.2f;
+    private Transform[] approachPath = new Transform[0];
+    private Transform[] departurePath = new Transform[0];
+    private Quaternion waitFacing = Quaternion.identity;
+    private int waypoint;
+
+    public void ConfigureRoute(Transform[] approach, Transform[] departure, Quaternion facing)
+    {
+        approachPath = approach;
+        departurePath = departure;
+        waitFacing = facing;
+    }
 
     public void Configure(PopcornGameManager owner, CounterSlot ownerSlot, PopcornCustomerType type,
         PopcornFlavor order, Vector3 wait, Vector3 exit)
@@ -429,6 +463,9 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
         if (state == CustomerState.Waiting) return;
 
         Vector3 target = state == CustomerState.WalkingIn ? waitPosition : exitPosition;
+        Transform[] path = state == CustomerState.WalkingIn ? approachPath : departurePath;
+        while (waypoint < path.Length && path[waypoint] == null) waypoint++;
+        if (waypoint < path.Length) target = path[waypoint].position;
         transform.position = Vector3.MoveTowards(transform.position, target, MoveSpeed * Time.deltaTime);
         Vector3 flatDirection = target - transform.position;
         flatDirection.y = 0f;
@@ -436,14 +473,14 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
             transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(flatDirection), 8f * Time.deltaTime);
 
         if ((transform.position - target).sqrMagnitude > 0.01f) return;
+        if (waypoint < path.Length) { waypoint++; return; }
 
         if (state == CustomerState.WalkingIn)
         {
             state = CustomerState.Waiting;
             interactionCollider.enabled = true;
-            // Customers wait on the negative-Z/Y-BOT side and face the player
-            // across the counter on positive Z.
-            transform.rotation = Quaternion.LookRotation(Vector3.forward);
+            // The authored wait anchor determines which side of this map's counter to face.
+            transform.rotation = waitFacing;
             manager.CustomerReady(this);
         }
         else
@@ -456,9 +493,11 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
 
     public void BeginLeaving()
     {
+        if (state == CustomerState.WalkingOut) return;
         SetHighlighted(false);
         interactionCollider.enabled = false;
         state = CustomerState.WalkingOut;
+        waypoint = 0;
     }
 
     // The customer owns its world prompt; avoid also showing a duplicate at the crosshair.
@@ -487,6 +526,7 @@ public sealed class PopcornGameManager : MonoBehaviour
     private Coroutine feedbackRoutine;
     private Canvas cashierCanvas;
     private Canvas makerCanvas;
+    private PopcornNetSync boundSync;
     private readonly Dictionary<PopcornFlavor, WorldButtonInteractable> flavorButtons = new Dictionary<PopcornFlavor, WorldButtonInteractable>();
 
     public void Configure(ItemHoldingSystem itemHolder, CounterSlot slot, Transform cashier, Transform maker,
@@ -556,24 +596,32 @@ public sealed class PopcornGameManager : MonoBehaviour
         if (makerCanvas != null) makerCanvas.worldCamera = localCamera;
     }
 
-    private void OnEnable()
+    private void Update()
     {
+        if (counterSlot == null) return;
         PopcornNetSync sync = PopcornNetSync.Instance;
+        if (boundSync == sync) return;
+        UnbindSync();
         if (sync == null) return;
-
+        boundSync = sync;
         sync.OrderChanged += OnSyncOrderChanged;
         sync.ScoreChanged += OnSyncScoreChanged;
         sync.LocalServeResult += OnSyncServeResult;
+        OnSyncScoreChanged(sync.Score, sync.OrdersToComplete);
+        OnSyncOrderChanged();
     }
 
-    private void OnDisable()
-    {
-        PopcornNetSync sync = PopcornNetSync.Instance;
-        if (sync == null) return;
+    private void OnDisable() => UnbindSync();
 
-        sync.OrderChanged -= OnSyncOrderChanged;
-        sync.ScoreChanged -= OnSyncScoreChanged;
-        sync.LocalServeResult -= OnSyncServeResult;
+    private void UnbindSync()
+    {
+        if (boundSync != null)
+        {
+            boundSync.OrderChanged -= OnSyncOrderChanged;
+            boundSync.ScoreChanged -= OnSyncScoreChanged;
+            boundSync.LocalServeResult -= OnSyncServeResult;
+        }
+        boundSync = null;
     }
 
     private void OnDestroy()
@@ -661,7 +709,7 @@ public sealed class PopcornGameManager : MonoBehaviour
     private void SeatCustomerFromSync()
     {
         PopcornNetSync sync = PopcornNetSync.Instance;
-        if (sync == null || !sync.CustomerWaiting) return;
+        if (sync == null || !sync.CustomerWaiting || sync.CurrentOrder == PopcornFlavor.None) return;
         if (counterSlot.IsOccupied) return;
 
         counterSlot.Occupy(this, sync.CurrentCustomerType, sync.CurrentOrder);
@@ -675,6 +723,11 @@ public sealed class PopcornGameManager : MonoBehaviour
         if (sync == null) return;
 
         if (sync.CustomerWaiting) SeatCustomerFromSync();
+        else if (counterSlot.ActiveCustomer != null)
+        {
+            orderText.text = "ORDER COMPLETE";
+            counterSlot.ActiveCustomer.BeginLeaving();
+        }
     }
 
     private void OnSyncScoreChanged(int newScore, int target)
@@ -715,8 +768,6 @@ public sealed class PopcornGameManager : MonoBehaviour
         if (PopcornNetSync.Instance != null)
         {
             PopcornNetSync.Instance.RequestServe(served);
-            orderText.text = "ORDER COMPLETE";
-            customer.BeginLeaving();
             return;
         }
 
@@ -891,7 +942,14 @@ internal static class UiFactory
         GameObject canvasObject = new GameObject(name, typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
         canvasObject.transform.SetParent(physicalParent, true);
         canvasObject.transform.SetPositionAndRotation(placement.position, placement.rotation);
-        canvasObject.transform.localScale = Vector3.one * 0.001f;
+        // Authored ProBuilder props often have non-uniform scale. Keep UI pixels
+        // at a consistent world size instead of stretching them with the mesh.
+        canvasObject.transform.localScale = Vector3.one;
+        Vector3 inheritedScale = canvasObject.transform.lossyScale;
+        canvasObject.transform.localScale = new Vector3(
+            0.001f / Mathf.Max(0.0001f, Mathf.Abs(inheritedScale.x)),
+            0.001f / Mathf.Max(0.0001f, Mathf.Abs(inheritedScale.y)),
+            0.001f / Mathf.Max(0.0001f, Mathf.Abs(inheritedScale.z)));
 
         RectTransform rect = canvasObject.GetComponent<RectTransform>();
         rect.sizeDelta = size;
