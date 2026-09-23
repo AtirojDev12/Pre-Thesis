@@ -180,6 +180,19 @@ public class PlayerInteractor : NetworkBehaviour
 
     private void RequestInteract(IInteractable target)
     {
+        // Movie UI uses the same world controls as popcorn, with its own validated command.
+        if (target is WorldButtonInteractable &&
+            target.GetTransform().GetComponentInParent<TicketMinigame>() != null)
+        {
+            target.Interact(gameObject);
+            return;
+        }
+        // Ticket buttons route through their shared server-authoritative counter.
+        if (target is TicketSellButton ticketButton)
+        {
+            ticketButton.Interact(gameObject);
+            return;
+        }
         if (NetworkMode.IsOffline)
         {
             // Solo test scene: no server to ask, so run it directly.
