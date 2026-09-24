@@ -192,8 +192,14 @@ public class ExitPoint : NetworkBehaviour
         else AudioSource.PlayClipAtPoint(exitFullCue, transform.position);
     }
 
-    private void OnValidate()
+    // Mirror's NetworkBehaviour declares OnValidate as protected virtual and uses
+    // it to wire up the NetworkIdentity link. Declaring a private one here HID it,
+    // so Mirror's own validation silently stopped running. Override it and call
+    // base first.
+    protected override void OnValidate()
     {
+        base.OnValidate();
+
         if (capacity != 2)
         {
             Debug.LogWarning(

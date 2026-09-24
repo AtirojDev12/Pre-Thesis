@@ -92,7 +92,7 @@ public class DifficultyProfile : ScriptableObject
     // =======================================================================
 
     [Header("Clock")]
-    [Tooltip("How long the whole night lasts in REAL minutes. Easy = 10, Normal = 15, Hard = 20.\n\nHarder means LONGER, not shorter. The round length is not a time limit to race — it is how long the team has to stay inside the haunted building. A harder night is a bigger night: more tasks to clear before the exits unlock, more ghosts loose in the cinema, and more real minutes of exposure to both. Ten minutes on Easy is mercy; twenty on Hard is the punishment.\n\nThe night is always 00:00 -> 06:00, six in-game hours, on every map and every difficulty. So this value alone sets the pace of the clock — 15 minutes over six hours is the GDD's 150 real seconds per in-game hour.\n\nAuthored in minutes on purpose: the designer thinks in 'a 15-minute round', not in 'seconds per in-game hour'. MatchDirector derives the per-hour rate from this.\n\nRaise the task counts above whenever this goes up, or the extra minutes become dead time instead of pressure.")]
+    [Tooltip("How long the whole night lasts in REAL minutes.\n\nTEAM DECISION (24 Sep 2026): 15 minutes on EVERY tier. Do not vary this per difficulty. Difficulty is carried by rules, ghosts, sanity drain and task load, not by round length.\n\nThe night is always 00:00 -> 06:00, six in-game hours, on every map and every difficulty. 15 minutes over six hours is the GDD's 150 real seconds per in-game hour, so the downed timer and the escape window are both 150s on every tier.\n\nAuthored in minutes on purpose: the designer thinks in 'a 15-minute round', not in 'seconds per in-game hour'. MatchDirector derives the per-hour rate from this.")]
     [Min(1f)] public float roundLengthMinutes = 15f;
 
     // =======================================================================
@@ -115,9 +115,8 @@ public class DifficultyProfile : ScriptableObject
     //
     // No knob is needed because the derived value already self-balances:
     //
-    //   Easy   10 min -> 100s per in-game hour -> a 100s revive window
-    //   Normal 15 min -> 150s                  -> 150s
-    //   Hard   20 min -> 200s                  -> 200s
+    //   Every tier: 15 min -> 150s per in-game hour -> a 150s revive window
+    //   (team decision 24 Sep 2026: the round length is 15 min on all tiers)
     //
     // The ESCAPE WINDOW after 06:00 is one in-game hour too, so those two
     // numbers are always identical. If a teammate goes down during the escape,

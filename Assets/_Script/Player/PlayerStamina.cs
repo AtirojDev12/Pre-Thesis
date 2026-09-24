@@ -120,8 +120,12 @@ public class PlayerStamina : NetworkBehaviour
         if (LocalInstance == this) SetLocalInstance(null);
     }
 
-    private void OnValidate()
+    // Must override, not hide: Mirror's NetworkBehaviour.OnValidate is virtual and
+    // does its own setup work.
+    protected override void OnValidate()
     {
+        base.OnValidate();
+
         maxStamina = Mathf.Max(1f, maxStamina);
         staminaRequiredAfterExhaustion = Mathf.Clamp(staminaRequiredAfterExhaustion, 0f, maxStamina);
     }

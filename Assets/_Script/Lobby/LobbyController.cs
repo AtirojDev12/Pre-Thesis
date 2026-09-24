@@ -5,8 +5,51 @@ using Epic.OnlineServices;
 using Epic.OnlineServices.Lobby;
 using System.Collections.Generic;
 
+/// <summary>
+/// The EOS side of rooms: create, search, join and leave EOS lobbies, and hand
+/// the connection over to Mirror. The UI never talks to EOS directly — it calls
+/// CreateRoom / FindRooms / JoinRoom / QuickJoin / LeaveRoom here and listens
+/// to the events below.
+///
+/// Lives on the NetworkManager prefab, next to RoHRoomManager and
+/// RoomPasswordAuthenticator.
+/// </summary>
 public class LobbyController : EOSLobby
 {
+    private static LobbyController instance;
+
+    /// <summary>
+    /// The live controller (the one on the running NetworkManager).
+    ///
+    /// Self-healing on purpose: when a session ends Mirror hands the
+    /// NetworkManager back to the MainMenu scene, which destroys it and loads a
+    /// fresh copy. Depending on the order Unity runs the old OnDestroy and the
+    /// new Awake, the cached reference can briefly go null — so if it is null,
+    /// look it up again from NetworkManager.singleton.
+    /// </summary>
+    public static LobbyController Instance
+    {
+        get
+        {
+            if (instance != null) return instance;
+
+            if (NetworkManager.singleton != null &&
+                NetworkManager.singleton.TryGetComponent(out LobbyController onManager))
+            {
+                instance = onManager;
+            }
+            else
+            {
+                instance = FindAnyObjectByType<LobbyController>();
+            }
+
+            return instance;
+        }
+    }
+
+    /// <summary>True once EOS has logged in and rooms can be created or searched.</summary>
+    public static bool EosReady => EOSSDKComponent.Initialized;
+
     // Assign this in the Inspector if LobbyController lives on a different
     // GameObject than NetworkManager (e.g. a dedicated "EOS_Manager" object).
     // Falls back to GetComponent(same object) below for the case where they
@@ -15,41 +58,70 @@ public class LobbyController : EOSLobby
     // moment StartHost()/StartClient() ran, with no clue why.
     [SerializeField] private NetworkManager netManager;
 
-    // Kept server-side only; never sent as an EOS lobby attribute (those are
-    // always Public-visible in this wrapper, and even LobbyAttributeVisibility.Private
-    // only means "visible to the client that set it" -- not "visible to lobby
-    // members". A real client-facing password check happens after Mirror
-    // connects, e.g. via a NetworkAuthenticator, not through EOS attributes.
+    // Kept host-side only; never sent as an EOS lobby attribute (those are
+    // readable by anyone browsing lobbies). RoomPasswordAuthenticator checks it
+    // over Mirror after the joining player connects.
     private string pendingRoomPassword = string.Empty;
 
-    // Guards against a second CreateRoom/FindRooms firing while one is still
-    // waiting on EOS -- without this, mashing the button (or a slow network)
-    // sends multiple CreateLobby requests before the first one resolves, each
-    // of which succeeds independently and leaves an orphaned lobby behind.
+    // The config of the room being created, kept until EOS confirms it.
+    private RoomConfig pendingConfig;
+
+    // Guards against a second request firing while one is still waiting on
+    // EOS -- without this, mashing a button sends several CreateLobby requests
+    // and each one succeeds, leaving orphaned lobbies behind.
     private bool isCreateRoomInFlight = false;
     private bool isFindRoomsInFlight = false;
+    private bool isJoinInFlight = false;
+    private bool isLeaveInFlight = false;
 
-    // Set by Button_QuickJoinFirstRoom so the next search result auto-joins.
+    // Set by QuickJoin so the next search result auto-joins.
     private bool _joinFirstRoomWhenFound = false;
 
     /// <summary>
+    /// The room this player is in right now (map, difficulty, limit, private).
+    /// Set on create and on join, cleared on leave. The password is never kept
+    /// here. The waiting lobby screen reads this to show room info.
+    /// </summary>
+    public RoomConfig CurrentRoom { get; private set; }
+
+    /// <summary>True while a create / search / join is waiting on EOS. The UI disables its buttons.</summary>
+    public bool IsBusy => isCreateRoomInFlight || isFindRoomsInFlight || isJoinInFlight;
+
+    /// <summary>
     /// Raised when CreateRoom rejects a RoomConfig before ever contacting EOS
-    /// (e.g. a private room with no password). This is deliberately separate
-    /// from CreateLobbyFailed: that event lives on the base EOSLobby class and
-    /// only fires for an actual EOS-side failure once a request is in flight --
-    /// C# does not let a subclass raise an event it merely inherited, only the
-    /// declaring class can. A future UI controller should listen to both this
-    /// and CreateLobbyFailed to cover every way room creation can fail.
+    /// (e.g. a private room with no password). Kept for older listeners —
+    /// new UI should listen to OperationFailed, which also covers this.
     /// </summary>
     public event System.Action<string> RoomValidationFailed;
+
+    /// <summary>Any create / search / join failure, as one short sentence for the player.</summary>
+    public event System.Action<string> OperationFailed;
+
+    /// <summary>Progress text for the UI: "Creating room...", "Searching...", "Joining...".</summary>
+    public event System.Action<string> StatusChanged;
 
     /// <summary>
     /// Raised every time a FindLobbies() search completes, with each result
     /// already parsed into a RoomListEntry (map, difficulty, current/max
-    /// players, locked). A room browser UI should subscribe to this instead of
-    /// FindLobbiesSucceeded -- it never needs to touch LobbyDetails directly.
+    /// players, locked, in progress).
     /// </summary>
     public event System.Action<List<RoomListEntry>> RoomsFound;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => instance = null;
+
+    private void Awake()
+    {
+        // Only the first one claims the slot. When the MainMenu scene loads
+        // again, its copy of the NetworkManager prefab is a duplicate that
+        // Mirror destroys; it must not steal (and then null) the live instance.
+        if (instance == null) instance = this;
+    }
+
+    private void OnDestroy()
+    {
+        if (instance == this) instance = null;
+    }
 
     public override void Start()
     {
@@ -75,6 +147,8 @@ public class LobbyController : EOSLobby
         JoinLobbyFailed += OnJoinLobbyFailed;
         FindLobbiesSucceeded += OnFindLobbiesSuccess;
         FindLobbiesFailed += OnFindLobbiesFailed;
+        LeaveLobbySucceeded += OnLeaveLobbySuccess;
+        LeaveLobbyFailed += OnLeaveLobbyFailed;
     }
 
     private void OnDisable()
@@ -85,30 +159,18 @@ public class LobbyController : EOSLobby
         JoinLobbyFailed -= OnJoinLobbyFailed;
         FindLobbiesSucceeded -= OnFindLobbiesSuccess;
         FindLobbiesFailed -= OnFindLobbiesFailed;
+        LeaveLobbySucceeded -= OnLeaveLobbySuccess;
+        LeaveLobbyFailed -= OnLeaveLobbyFailed;
     }
 
-    /// <summary>
-    /// Zero-argument entry point for wiring directly to a UI Button's OnClick --
-    /// use this until the team locks the actual Room Creation layout. It just
-    /// calls CreateRoom with RoomConfig's defaults (the one demo map, Normal
-    /// difficulty, max players, public/no password). Once there's a real panel
-    /// with a difficulty dropdown / player-count slider / privacy toggle, wire
-    /// the button to a UI controller that builds a real RoomConfig from those
-    /// controls and calls CreateRoom(config) instead -- swap the wiring, not
-    /// this method, so nothing here needs to change.
-    /// </summary>
-    public void Button_CreateRoom()
-    {
-        CreateRoom(new RoomConfig());
-    }
+    // ---- Old test-button entry points (still wired in older scenes) ---------
 
-    /// <summary>
-    /// Host-side entry point for the Room Creation screen once one exists. A
-    /// RoomCreationUIController would read the panel's UI fields, build a
-    /// RoomConfig from them, and call this -- it should never call
-    /// CreateLobby(...) directly, so every room always goes through the same
-    /// validation and the same set of lobby attributes.
-    /// </summary>
+    public void Button_CreateRoom() => CreateRoom(new RoomConfig());
+    public void Button_FindRooms() => FindRooms();
+    public void Button_QuickJoinFirstRoom() => QuickJoin();
+
+    // ---- Create --------------------------------------------------------------
+
     /// <summary>
     /// EOS logs in asynchronously after startup, and until it finishes there is
     /// no valid ProductUserId to create or search lobbies with. Calling anyway
@@ -120,28 +182,38 @@ public class LobbyController : EOSLobby
         if (EOSSDKComponent.Initialized) return true;
 
         string reason = EOSSDKComponent.IsConnecting
-            ? "ยังเชื่อมต่อ EOS ไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่ (EOS login still in progress)"
-            : "ยังไม่ได้ล็อกอิน EOS (EOS is not logged in)";
+            ? "Still connecting to Epic Online Services. Try again in a moment."
+            : "Not logged in to Epic Online Services.";
 
-        Debug.LogWarning($"[LobbyController] {action}ไม่ได้: {reason}", this);
-        RoomValidationFailed?.Invoke(reason);
+        Debug.LogWarning($"[LobbyController] {action} refused: {reason}", this);
+        Fail(reason);
         return false;
     }
 
+    /// <summary>
+    /// The only way a room is created. The UI builds a RoomConfig from its
+    /// controls and calls this; it never calls CreateLobby directly, so every
+    /// room goes through the same validation and the same attributes.
+    /// </summary>
     public void CreateRoom(RoomConfig config)
     {
-        if (!IsEosReady("สร้างห้อง")) return;
+        if (!IsEosReady("Create room")) return;
 
-        if (isCreateRoomInFlight)
+        if (isCreateRoomInFlight || isJoinInFlight)
         {
-            Debug.LogWarning("กำลังสร้างห้องอยู่ กรุณารอสักครู่ก่อนกดซ้ำ (a create request is already in flight)");
+            Debug.LogWarning("[LobbyController] A request is already in flight.");
             return;
         }
 
-        if (!config.Validate(out string error))
+        string error = null;
+        if (config == null) error = "No room settings.";
+        else if (!config.Validate(out string validationError)) error = validationError;
+
+        if (error != null)
         {
-            Debug.LogWarning("สร้างห้องไม่ได้: " + error);
+            Debug.LogWarning("[LobbyController] Create room refused: " + error);
             RoomValidationFailed?.Invoke(error);
+            Fail(error);
             return;
         }
 
@@ -151,33 +223,65 @@ public class LobbyController : EOSLobby
             new AttributeData { Key = LobbyKeys.Difficulty,  Value = config.difficulty.ToString() },
             new AttributeData { Key = LobbyKeys.PlayerLimit, Value = config.playerLimit },
             new AttributeData { Key = LobbyKeys.HasPassword, Value = config.isPrivate },
+            new AttributeData { Key = LobbyKeys.InProgress,  Value = false },
         };
 
-        // NOTE: both public and private rooms use Publicadvertised here, so
-        // FindLobbies() can list both -- privacy is enforced by the password
-        // gate after Mirror connects, not by EOS visibility. See the message
-        // in chat about the Inviteonly alternative if you'd rather private
-        // rooms not appear in the browser at all.
+        // Both public and private rooms are Publicadvertised, so the browser
+        // can list both. Privacy is enforced by RoomPasswordAuthenticator after
+        // Mirror connects, not by EOS visibility.
         pendingRoomPassword = config.isPrivate ? config.password : string.Empty;
+        pendingConfig = config;
+
+        // The match reads difficulty/limit from here when it starts.
+        MatchState.SetPendingConfig(config);
+
+        RoomPasswordAuthenticator.ServerPassword = pendingRoomPassword;
+        RoomPasswordAuthenticator.ClientPassword = pendingRoomPassword;
 
         isCreateRoomInFlight = true;
-        Debug.Log($"กำลังส่งคำสั่งสร้างห้อง... (map={config.mapID}, difficulty={config.difficulty}, players={config.playerLimit}, private={config.isPrivate})");
+        StatusChanged?.Invoke("Creating room...");
+        Debug.Log($"[LobbyController] Creating room (map={config.mapID}, difficulty={config.difficulty}, players={config.playerLimit}, private={config.isPrivate})");
         CreateLobby((uint)config.playerLimit, LobbyPermissionLevel.Publicadvertised, false, attributes);
     }
 
-    public void Button_FindRooms()
+    private void OnCreateLobbySuccess(List<Attribute> attributes)
+    {
+        isCreateRoomInFlight = false;
+        Debug.Log("[LobbyController] Room created. Starting Mirror host.");
+
+        RoomConfig config = pendingConfig ?? new RoomConfig();
+        CurrentRoom = PublicCopy(config);
+        RoHRoomManager.LastDisconnectReason = null;
+
+        if (netManager is RoHRoomManager room) room.SetRoomPlayerLimit(config.playerLimit);
+
+        StatusChanged?.Invoke("Opening lobby...");
+        netManager.StartHost();
+    }
+
+    private void OnCreateLobbyFailed(string errorMessage)
+    {
+        isCreateRoomInFlight = false;
+        pendingConfig = null;
+        MatchState.Clear();
+        RoomPasswordAuthenticator.ServerPassword = string.Empty;
+        Debug.LogError("[LobbyController] Create room failed: " + errorMessage);
+        Fail("Could not create the room. Please try again.");
+    }
+
+    // ---- Search --------------------------------------------------------------
+
+    public void FindRooms()
     {
         _joinFirstRoomWhenFound = false;
         StartFindRooms();
     }
 
     /// <summary>
-    /// Temporary test helper: search, then immediately join whatever comes back
-    /// first. Wire a button to this to prove two clients can actually connect
-    /// before the real room browser UI exists. Delete it once the browser lists
-    /// rooms with their own Join buttons.
+    /// Search, then join the first room that is public, not full and not
+    /// mid-match. Private rooms are skipped: there is no password to give.
     /// </summary>
-    public void Button_QuickJoinFirstRoom()
+    public void QuickJoin()
     {
         _joinFirstRoomWhenFound = true;
         StartFindRooms();
@@ -185,7 +289,7 @@ public class LobbyController : EOSLobby
 
     private void StartFindRooms()
     {
-        if (!IsEosReady("ค้นหาห้อง"))
+        if (!IsEosReady("Find rooms"))
         {
             _joinFirstRoomWhenFound = false;
             return;
@@ -193,61 +297,19 @@ public class LobbyController : EOSLobby
 
         if (isFindRoomsInFlight)
         {
-            Debug.LogWarning("กำลังค้นหาห้องอยู่ กรุณารอสักครู่ก่อนกดซ้ำ (a search is already in flight)");
-            _joinFirstRoomWhenFound = false;
+            Debug.LogWarning("[LobbyController] A search is already in flight.");
             return;
         }
 
         isFindRoomsInFlight = true;
-        Debug.Log("กำลังค้นหาห้อง...");
+        StatusChanged?.Invoke("Searching for rooms...");
         FindLobbies();
-    }
-
-    /// <summary>
-    /// Call this when the player picks a row in the room browser. Wraps the
-    /// inherited JoinLobby so UI code only ever deals with RoomListEntry, never
-    /// LobbyDetails or the EOS attribute API.
-    /// </summary>
-    public void JoinRoom(RoomListEntry entry)
-    {
-        JoinLobby(entry.details);
-    }
-
-    private void OnCreateLobbySuccess(List<Attribute> attributes)
-    {
-        isCreateRoomInFlight = false;
-        Debug.Log("เปิดห้องสำเร็จ! สั่ง Mirror เริ่มโฮสต์เกม");
-        // TODO: once Mirror's authenticator is wired up (next step), hand it
-        // pendingRoomPassword here so it can challenge joining clients.
-        netManager.StartHost();
-    }
-
-    private void OnCreateLobbyFailed(string errorMessage)
-    {
-        isCreateRoomInFlight = false;
-        Debug.LogError("สร้างห้องล้มเหลว: " + errorMessage);
-        // TODO: surface this on the Room Creation UI (e.g. an inline error
-        // label) instead of only logging it -- right now a failed create
-        // leaves the player staring at a screen that did nothing.
-    }
-
-    private void OnJoinLobbySuccess(List<Attribute> attributes)
-    {
-        Debug.Log("เข้าห้องสำเร็จ! กำลังดึง PUID เพื่อเชื่อมต่อ...");
-        netManager.networkAddress = attributes.Find((x) => x.Data.Key == hostAddressKey).Data.Value.AsUtf8;
-        netManager.StartClient();
-    }
-
-    private void OnJoinLobbyFailed(string errorMessage)
-    {
-        Debug.LogError("เข้าห้องล้มเหลว: " + errorMessage);
-        // TODO: surface this on the Room Browser UI instead of only logging.
     }
 
     private void OnFindLobbiesSuccess(List<LobbyDetails> lobbiesFound)
     {
         isFindRoomsInFlight = false;
-        Debug.Log($"เจอห้องทั้งหมด {lobbiesFound.Count} ห้อง");
+        Debug.Log($"[LobbyController] Found {lobbiesFound.Count} room(s).");
 
         var entries = new List<RoomListEntry>(lobbiesFound.Count);
         foreach (LobbyDetails details in lobbiesFound)
@@ -260,21 +322,135 @@ public class LobbyController : EOSLobby
         if (!_joinFirstRoomWhenFound) return;
         _joinFirstRoomWhenFound = false;
 
-        if (entries.Count == 0)
+        RoomListEntry target = entries.Find(e => !e.isLocked && e.IsJoinable);
+        if (target == null)
         {
-            Debug.LogWarning("[LobbyController] ไม่เจอห้องให้เข้า (no rooms found to quick-join).", this);
+            Fail("No open public rooms right now. Try creating one.");
             return;
         }
 
-        Debug.Log($"[LobbyController] Quick-join: เข้าห้องแรกที่เจอ (map={entries[0].mapID}, players={entries[0].currentPlayers}/{entries[0].maxPlayers}).", this);
-        JoinRoom(entries[0]);
+        JoinRoom(target, null);
     }
 
     private void OnFindLobbiesFailed(string errorMessage)
     {
         isFindRoomsInFlight = false;
-        Debug.LogError("ค้นหาห้องล้มเหลว: " + errorMessage);
+        _joinFirstRoomWhenFound = false;
+        Debug.LogError("[LobbyController] Find rooms failed: " + errorMessage);
+        Fail("Could not search for rooms. Please try again.");
     }
+
+    // ---- Join ----------------------------------------------------------------
+
+    /// <summary>
+    /// Join a room picked in the browser. For a locked room, pass the password
+    /// the player typed; the host checks it after Mirror connects.
+    /// </summary>
+    public void JoinRoom(RoomListEntry entry, string password = null)
+    {
+        if (entry == null) return;
+        if (!IsEosReady("Join room")) return;
+        if (isJoinInFlight || isCreateRoomInFlight) return;
+
+        if (entry.inProgress) { Fail("That match has already started."); return; }
+        if (entry.IsFull) { Fail("That room is full."); return; }
+        if (entry.isLocked && string.IsNullOrEmpty(password)) { Fail("This room needs a password."); return; }
+
+        RoomPasswordAuthenticator.ClientPassword = password ?? string.Empty;
+        CurrentRoom = new RoomConfig
+        {
+            mapID = entry.mapID,
+            difficulty = entry.difficulty,
+            playerLimit = entry.maxPlayers,
+            isPrivate = entry.isLocked,
+        };
+
+        isJoinInFlight = true;
+        StatusChanged?.Invoke("Joining room...");
+        JoinLobby(entry.details);
+    }
+
+    private void OnJoinLobbySuccess(List<Attribute> attributes)
+    {
+        isJoinInFlight = false;
+
+        // FindIndex, not Find: it works the same whether this SDK version's
+        // Attribute is a struct or a class, and "not found" is explicit.
+        int hostIndex = attributes.FindIndex((x) => x.Data.Key == hostAddressKey);
+        string address = hostIndex >= 0 ? (string)attributes[hostIndex].Data.Value.AsUtf8 : null;
+        if (string.IsNullOrEmpty(address))
+        {
+            Debug.LogError("[LobbyController] Joined an EOS lobby with no host address.");
+            Fail("That room is broken. Try another one.");
+            LeaveRoom();
+            return;
+        }
+
+        RoHRoomManager.LastDisconnectReason = null;
+        StatusChanged?.Invoke("Connecting to host...");
+        netManager.networkAddress = address;
+        netManager.StartClient();
+    }
+
+    private void OnJoinLobbyFailed(string errorMessage)
+    {
+        isJoinInFlight = false;
+        CurrentRoom = null;
+        RoomPasswordAuthenticator.ClientPassword = string.Empty;
+        Debug.LogError("[LobbyController] Join room failed: " + errorMessage);
+        Fail("Could not join the room. It may have closed.");
+    }
+
+    // ---- Leave / in-progress -------------------------------------------------
+
+    /// <summary>
+    /// Leave (or, as host, close) the EOS lobby. Safe to call more than once and
+    /// when not in a lobby. RoHRoomManager calls this whenever the Mirror
+    /// session stops, so rooms never linger in the browser.
+    /// </summary>
+    public void LeaveRoom()
+    {
+        CurrentRoom = null;
+        pendingConfig = null;
+        RoomPasswordAuthenticator.ServerPassword = string.Empty;
+        RoomPasswordAuthenticator.ClientPassword = string.Empty;
+
+        if (!ConnectedToLobby || isLeaveInFlight) return;
+
+        isLeaveInFlight = true;
+        LeaveLobby();
+    }
+
+    private void OnLeaveLobbySuccess() => isLeaveInFlight = false;
+
+    private void OnLeaveLobbyFailed(string errorMessage)
+    {
+        isLeaveInFlight = false;
+        Debug.LogWarning("[LobbyController] Leave lobby failed: " + errorMessage);
+    }
+
+    /// <summary>Host only: flag the room as mid-match so the browser greys it out.</summary>
+    public void MarkRoomInProgress(bool inProgress)
+    {
+        if (!ConnectedToLobby) return;
+        UpdateLobbyAttribute(LobbyKeys.InProgress, inProgress);
+    }
+
+    // ---- Helpers -------------------------------------------------------------
+
+    private void Fail(string message)
+    {
+        OperationFailed?.Invoke(message);
+    }
+
+    private static RoomConfig PublicCopy(RoomConfig source) => new RoomConfig
+    {
+        mapID = source.mapID,
+        difficulty = source.difficulty,
+        playerLimit = source.playerLimit,
+        isPrivate = source.isPrivate,
+        password = string.Empty,
+    };
 
     /// <summary>
     /// Turns one raw search result into the plain data a room browser row
@@ -297,11 +473,7 @@ public class LobbyController : EOSLobby
 
         entry.maxPlayers = TryReadIntAttribute(details, LobbyKeys.PlayerLimit, RoomConfig.MaxPlayers);
         entry.isLocked = TryReadBoolAttribute(details, LobbyKeys.HasPassword, false);
-
-        // NOTE: this call has no existing precedent elsewhere in EOSLobby.cs to
-        // copy the exact calling convention from (unlike the attribute reads
-        // above, which mirror JoinLobby/FindLobbies exactly). If Unity throws
-        // CS1620 on this line, add `ref` before the options argument.
+        entry.inProgress = TryReadBoolAttribute(details, LobbyKeys.InProgress, false);
         entry.currentPlayers = (int)details.GetMemberCount(new LobbyDetailsGetMemberCountOptions { });
 
         return entry;

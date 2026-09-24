@@ -28,7 +28,46 @@ public class PersistentHUD : MonoBehaviour
     // turned off, which would otherwise leave a reference to a destroyed HUD
     // and cause the real one to delete itself on the next run.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => _instance = null;
+    private static void ResetStatics()
+    {
+        _instance = null;
+        hiddenRequests = 0;
+    }
+
+    // ---- Hiding while a menu is open -----------------------------------------
+    //
+    // The main menu and the waiting lobby are full-screen menus; the crosshair
+    // and bars should not draw over them. Each menu calls PushHidden when it
+    // opens and PopHidden when it closes. A counter (not a bool) so the order
+    // two screens open and close in during a scene change can never leave the
+    // HUD stuck hidden or shown.
+
+    private static int hiddenRequests;
+
+    public static void PushHidden()
+    {
+        hiddenRequests++;
+        ApplyVisibility();
+    }
+
+    public static void PopHidden()
+    {
+        hiddenRequests = Mathf.Max(0, hiddenRequests - 1);
+        ApplyVisibility();
+    }
+
+    private static void ApplyVisibility()
+    {
+        if (_instance == null) return;
+
+        // CanvasGroup rather than Canvas.enabled: it also covers nested canvases.
+        CanvasGroup group = _instance.GetComponent<CanvasGroup>();
+        if (group == null) group = _instance.gameObject.AddComponent<CanvasGroup>();
+
+        group.alpha = hiddenRequests > 0 ? 0f : 1f;
+        group.blocksRaycasts = false;
+        group.interactable = false;
+    }
 
     private void Awake()
     {
@@ -47,6 +86,7 @@ public class PersistentHUD : MonoBehaviour
         }
 
         _instance = this;
+        ApplyVisibility();
 
         if (!surviveSceneLoads) return;
 

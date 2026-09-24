@@ -682,7 +682,7 @@ public class MatchDirector : NetworkBehaviour
         else
         {
             // Offline sandbox: there are no connections, but there is a player.
-            trackedPlayers.AddRange(FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None));
+            trackedPlayers.AddRange(FindObjectsByType<PlayerHealth>());
         }
 
         if (trackedPlayers.Count > 0) hasSeenAnyPlayer = true;
