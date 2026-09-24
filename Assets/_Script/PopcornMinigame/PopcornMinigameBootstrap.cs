@@ -441,13 +441,7 @@ public sealed class CounterSlot : MonoBehaviour
         customerObject.transform.localScale = new Vector3(0.75f, 1f, 0.75f);
 
         Renderer renderer = customerObject.GetComponent<Renderer>();
-        Color customerColor = type == PopcornCustomerType.Ghost
-            ? new Color(0.35f, 0.95f, 1f, 0.78f)
-            : new Color(1f, 0.68f, 0.25f, 1f);
-        MaterialPropertyBlock properties = new MaterialPropertyBlock();
-        properties.SetColor("_BaseColor", customerColor);
-        properties.SetColor("_Color", customerColor);
-        renderer.SetPropertyBlock(properties);
+        CustomerAppearance.Apply(renderer, type == PopcornCustomerType.Ghost);
 
         ActiveCustomer = customerObject.AddComponent<PopcornCustomer>();
         ActiveCustomer.Configure(manager, this, type, order, waitPosition, exitPosition);

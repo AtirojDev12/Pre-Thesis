@@ -23,3 +23,7 @@ Do not add another EOS or NetworkManager instance to Cinema: the connected insta
 
 `Run-CinemaChecks.ps1` runs an isolated offline test and a local KCP host test. It checks scene references, navigation/access, interaction rays, minigame serving/exit routes, player spawning, ghost spawning, and replicated light control.
 The host test validates Mirror gameplay without logging into EOS; it does not verify an internet session or a separate remote client.
+
+## Exported customer regression
+
+`Run-CustomerBuildChecks.ps1` builds an isolated Windows player, then runs host and offline checks. The host starts before loading Cinema, so ticket UI initialization runs while the scene network identity is still inactive—the ordering that previously threw in `TicketMinigame.VisibleState` in exported builds. Both queues must naturally reach their waiting positions. The test also verifies that both customer renderers use the included URP material and samples rendered pixels to detect invisible or magenta bodies. Test files, logs, and screenshots are written under `.utmp/customer-build`; the normal game build is not replaced.
