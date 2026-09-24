@@ -132,7 +132,7 @@ public static class PlayerRegistry
 
         // Offline sandbox, or a client asking for something cosmetic. There are
         // no connections, but there is a player in the scene.
-        cache.AddRange(Object.FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None));
+        cache.AddRange(Object.FindObjectsByType<PlayerHealth>());
     }
 
     // Statics survive between Play sessions when Unity 6's domain reload is

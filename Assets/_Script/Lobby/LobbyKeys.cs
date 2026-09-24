@@ -20,4 +20,9 @@ public static class LobbyKeys
     // Mirror NetworkAuthenticator challenge that runs after StartClient(),
     // never read back off lobby search results.
     public const string HasPassword = "HasPassword";
+
+    // Set to true by the host when the match starts. The browser shows such
+    // rooms as "In game" and greys out Join; Mirror would refuse the join
+    // anyway, this just stops people trying.
+    public const string InProgress = "InProgress";
 }

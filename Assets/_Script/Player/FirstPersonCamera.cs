@@ -219,8 +219,12 @@ public class FirstPersonCamera : MonoBehaviour
         if (Mouse.current != null && playerBody != null && Cursor.lockState == CursorLockMode.Locked)
         {
             Vector2 mouseDelta = Mouse.current.delta.ReadValue();
-            float mouseX = mouseDelta.x * mouseSensitivity;
-            float mouseY = mouseDelta.y * mouseSensitivity;
+            // GameSettings.MouseSensitivityScale is the player's own setting
+            // (Settings menu). It multiplies the designer's value, so tuning
+            // mouseSensitivity on the prefab still works.
+            float sensitivity = mouseSensitivity * GameSettings.MouseSensitivityScale;
+            float mouseX = mouseDelta.x * sensitivity;
+            float mouseY = mouseDelta.y * sensitivity;
 
             verticalRotation = Mathf.Clamp(
                 verticalRotation - mouseY,

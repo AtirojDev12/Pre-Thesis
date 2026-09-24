@@ -118,9 +118,13 @@ public class PopcornNetSync : NetworkBehaviour
         if (Instance == this) Instance = null;
     }
 
-#if UNITY_EDITOR
-    private void OnValidate()
+    // Override rather than hide: Mirror's NetworkBehaviour.OnValidate is protected
+    // virtual, and a private one here stopped Mirror's own validation from running.
+    protected override void OnValidate()
     {
+        base.OnValidate();
+
+#if UNITY_EDITOR
         // The mistake this catches cost a playtest: sharing an object with the
         // bootstrap means Mirror disables the bootstrap too, and the minigame
         // silently never starts.
@@ -132,8 +136,8 @@ public class PopcornNetSync : NetworkBehaviour
                 "switched off and no customers will ever appear. Move PopcornNetSync and its NetworkIdentity " +
                 "to their own empty GameObject.", this);
         }
-    }
 #endif
+    }
 
     private void Start()
     {

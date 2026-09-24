@@ -13,6 +13,12 @@ public class RoomListEntry
     public int currentPlayers;
     public int maxPlayers;
     public bool isLocked;
+    public bool inProgress;
+
+    public bool IsFull => currentPlayers >= maxPlayers;
+
+    /// <summary>Open for anyone to walk into: not full, not mid-match. Locked rooms still count — they just ask for a password.</summary>
+    public bool IsJoinable => !IsFull && !inProgress;
 
     // Kept so a "Join" button on this row can call LobbyController.JoinRoom(entry)
     // without the UI code ever needing to know what a LobbyDetails is.

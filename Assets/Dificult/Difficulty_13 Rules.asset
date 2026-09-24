@@ -16,7 +16,7 @@ MonoBehaviour:
   placeRuleCount: 13
   flatExtraTasksPerZone: 4
   extraTasksPerAdditionalPlayer: 4
-  maxExtraTasksPerZone: 4
+  maxExtraTasksPerZone: 6
   roundLengthMinutes: 15
   sanityDrainMultiplier: 2
   randomGhostCount: 4
