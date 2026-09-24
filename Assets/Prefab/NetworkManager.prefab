@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 3928998406822785421}
   - component: {fileID: 8389901566596097399}
   - component: {fileID: 8298206815139140560}
+  - component: {fileID: 6669292265234215093}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -43,7 +44,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 9043109119286180476}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8aab4c8111b7c411b9b92cf3dbc5bd4e, type: 3}
+  m_Script: {fileID: 11500000, guid: 72aabffea68abd448926d813f1fba185, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Mirror::Mirror.NetworkManager
   dontDestroyOnLoad: 1
@@ -52,14 +53,14 @@ MonoBehaviour:
   editorAutoStart: 0
   sendRate: 60
   offlineScene: Assets/Scenes/MainMenu.unity
-  onlineScene: Assets/Scenes/Map/Cinema_GamePlay.unity
+  onlineScene: Assets/Scenes/Lobby.unity
   offlineSceneLoadDelay: 0
   transport: {fileID: 8389901566596097399}
   networkAddress: localhost
   maxConnections: 6
   disconnectInactiveConnections: 0
   disconnectInactiveTimeout: 60
-  authenticator: {fileID: 0}
+  authenticator: {fileID: 6669292265234215093}
   playerPrefab: {fileID: 3873886348749462617, guid: 1dd82c6745240c446a2b82004c20a793, type: 3}
   autoCreatePlayer: 1
   playerSpawnMethod: 1
@@ -80,6 +81,14 @@ MonoBehaviour:
   evaluationMethod: 0
   evaluationInterval: 3
   timeInterpolationGui: 0
+  showRoomGUI: 0
+  minPlayers: 1
+  roomPlayerPrefab: {fileID: 8354308075726856716, guid: 96367036f59150841a133d2756b00ec2, type: 3}
+  RoomScene: Assets/Scenes/Lobby.unity
+  GameplayScene: Assets/Scenes/Map/Cinema_GamePlay.unity
+  _allPlayersReady: 0
+  clientIndex: 0
+  roomPlayerLimit: 6
 --- !u!114 &8389901566596097399
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -112,3 +121,22 @@ MonoBehaviour:
   AttributeKeys:
   - lobby_name
   netManager: {fileID: 3928998406822785421}
+--- !u!114 &6669292265234215093
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9043109119286180476}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eab6a17e6dd4aff4e87d3e6555ed5903, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RoomPasswordAuthenticator
+  OnServerAuthenticated:
+    m_PersistentCalls:
+      m_Calls: []
+  OnClientAuthenticated:
+    m_PersistentCalls:
+      m_Calls: []
+  rejectDelay: 0.5

@@ -205,9 +205,12 @@ public class LobbyController : EOSLobby
             return;
         }
 
-        if (config == null || !config.Validate(out string error))
+        string error = null;
+        if (config == null) error = "No room settings.";
+        else if (!config.Validate(out string validationError)) error = validationError;
+
+        if (error != null)
         {
-            error = config == null ? "No room settings." : error;
             Debug.LogWarning("[LobbyController] Create room refused: " + error);
             RoomValidationFailed?.Invoke(error);
             Fail(error);

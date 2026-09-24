@@ -581,16 +581,26 @@ public static class MainMenuBuilder
 
     private static void EnsureCamera(Scene scene)
     {
+        // Menu scenes must never show the default sky behind the UI. Existing
+        // cameras are switched to plain black too, not only new ones.
+        bool found = false;
         foreach (GameObject root in scene.GetRootGameObjects())
         {
-            if (root.GetComponentInChildren<Camera>(true) != null) return;
+            foreach (Camera existing in root.GetComponentsInChildren<Camera>(true))
+            {
+                existing.clearFlags = CameraClearFlags.SolidColor;
+                existing.backgroundColor = Color.black;
+                EditorUtility.SetDirty(existing);
+                found = true;
+            }
         }
+        if (found) return;
 
         var go = new GameObject("Main Camera");
         go.tag = "MainCamera";
         Camera cam = go.AddComponent<Camera>();
         cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = BgColor;
+        cam.backgroundColor = Color.black;
         go.AddComponent<AudioListener>();
     }
 
