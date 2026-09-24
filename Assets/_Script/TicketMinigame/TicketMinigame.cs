@@ -50,6 +50,12 @@ public sealed class TicketMinigame : MonoBehaviour
     [SerializeField] private string ghostRequest = "One ghost ticket, please!";
     [SerializeField] private Vector3 bubbleOffset = new Vector3(0, 1.2f, 0);
     [SerializeField] private Transform scoreAnchor;
+    [Header("Zone quest")]
+    [Tooltip("The Ticket Zone's shared sales total. Tickets, popcorn and drinks all count toward ONE target, so a correct ticket sale adds to the popcorn counter's score. Leave empty to use the one in the scene (PopcornNetSync.Instance).")]
+    [SerializeField] private PopcornNetSync zoneCounter;
+
+    // Used only when no PopcornNetSync exists (offline sandbox without the popcorn stand).
+    private const string FallbackZoneID = "zone_ticket_counter";
 
     private TicketCustomerState state;
     private float delay;
@@ -67,6 +73,10 @@ public sealed class TicketMinigame : MonoBehaviour
     private WorldButtonInteractable[] movieHighlights;
 
     public TicketCustomerState State => state;
+    private PopcornNetSync ZoneCounter => zoneCounter != null ? zoneCounter : PopcornNetSync.Instance;
+    private string ZoneID => ZoneCounter != null ? ZoneCounter.ZoneID : FallbackZoneID;
+    // Separate key from the popcorn stand's, so the two open tasks never overwrite each other.
+    private string TimerKey => ZoneID + "/tickets";
     public TicketCustomerState VisibleState => !NetworkMode.IsOffline && networkSync != null
         && networkSync.isClient ? networkSync.State : state;
     public bool CanChooseMovie => isActiveAndEnabled && VisibleState.stage == TicketCustomerStage.Waiting;
@@ -131,7 +141,12 @@ public sealed class TicketMinigame : MonoBehaviour
         if ((state.position - target.position).sqrMagnitude > 0.000001f) return;
         if (waypoint < path.Length) { waypoint++; return; }
         state.stage = arriving ? TicketCustomerStage.Waiting : TicketCustomerStage.BetweenCustomers;
-        if (arriving) state.rotation = counterPoint.rotation;
+        if (arriving)
+        {
+            state.rotation = counterPoint.rotation;
+            // Server/offline only (Advance never runs on a remote client), same as Complete below.
+            TaskTimer.Begin(TimerKey);
+        }
         else delay = delayBetweenCustomers;
     }
 
@@ -163,6 +178,23 @@ public sealed class TicketMinigame : MonoBehaviour
         state.movieIndex = movieIndex;
         state.hasMovie = true;
         if (networkSync != null && networkSync.isServer) networkSync.Publish(state);
+    }
+
+    /// <summary>
+    /// Server/offline only. A correct ticket counts toward the Ticket Zone's shared
+    /// total (pays the seller + may finish the zone). Without a counter in the
+    /// scene it still pays the seller through MatchDirector.
+    /// </summary>
+    private void ReportSale(PlayerHealth seller)
+    {
+        PopcornNetSync counter = ZoneCounter;
+        if (counter != null)
+        {
+            counter.ServerAddZoneProgress(seller);
+            return;
+        }
+        if (MatchDirector.Instance != null && seller != null)
+            MatchDirector.Instance.ServerReportTaskCompleted(seller.netIdentity, FallbackZoneID);
     }
 
     private void BuildMoviePanel()
@@ -216,8 +248,13 @@ public sealed class TicketMinigame : MonoBehaviour
             player == null || player.IsDead || player.IsDowned) return;
         Transform button = ghostTicket ? ghostButton.transform : humanButton.transform;
         if (Vector3.Distance(player.transform.position, button.position) > serverInteractionDistance) return;
-        if (ghostTicket == state.ghost && state.movieIndex == state.requestedMovieIndex)
+        bool correct = ghostTicket == state.ghost && state.movieIndex == state.requestedMovieIndex;
+        TaskTimer.Complete(TimerKey, ZoneID, player.name, correct);
+        if (correct)
+        {
             state.score += Mathf.Max(1, pointsPerSale);
+            ReportSale(player);
+        }
         else if (state.ghost) player.TakeDamage(wrongGhostDamage);
         state.stage = TicketCustomerStage.WalkingOut;
         state.hasMovie = false;

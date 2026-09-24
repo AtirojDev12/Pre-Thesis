@@ -54,7 +54,7 @@ public class PopcornNetSync : NetworkBehaviour
     [SerializeField] private string zoneID = "zone_ticket_counter";
 
     [Header("Quest target")]
-    [Tooltip("Correct orders needed before this zone counts as complete. A zone quest is a cumulative target — 'sell until the total is reached' — not a checklist.")]
+    [Tooltip("Correct sales needed before this zone counts as complete — popcorn, drinks AND tickets together (TicketMinigame adds to this same total). A zone quest is a cumulative target — 'sell until the total is reached' — not a checklist.")]
     [Min(1)] [SerializeField] private int ordersToComplete = 5;
 
     [Header("Punishment")]
@@ -239,17 +239,7 @@ public class PopcornNetSync : NetworkBehaviour
 
         if (correct)
         {
-            score++;
-
-            // Tasks pay the player who did them; zones decide survival. Both
-            // counters live on MatchDirector and are deliberately separate.
-            if (MatchDirector.Instance != null && health != null)
-                MatchDirector.Instance.ServerReportTaskCompleted(health.netIdentity, zoneID);
-
-            if (ZoneComplete && MatchDirector.Instance != null)
-                MatchDirector.Instance.ServerReportZoneCompleted(zoneID);
-
-            ScoreChanged?.Invoke(score, ordersToComplete);
+            ServerAddZoneProgress(health);
             SendResult(sender, true, "Correct!  +1 Point");
         }
         else
@@ -263,6 +253,32 @@ public class PopcornNetSync : NetworkBehaviour
         }
 
         ServerClearCustomer();
+    }
+
+    /// <summary>
+    /// SERVER ONLY. One correct sale anywhere in the Ticket Zone — popcorn,
+    /// drinks OR tickets. The zone quest is one shared sales total ("sell until
+    /// the total is reached"), so the ticket booth adds to this same counter
+    /// instead of keeping its own. Pays the seller and, when the total is
+    /// reached, reports the zone to MatchDirector exactly once (MatchDirector
+    /// ignores a repeat).
+    /// </summary>
+    public void ServerAddZoneProgress(PlayerHealth seller)
+    {
+        if (!HasAuthority) return;
+
+        score++;
+
+        // Tasks pay the player who did them; zones decide survival. Both
+        // counters live on MatchDirector and are deliberately separate.
+        if (MatchDirector.Instance != null && seller != null)
+            MatchDirector.Instance.ServerReportTaskCompleted(seller.netIdentity, zoneID);
+
+        if (ZoneComplete && MatchDirector.Instance != null)
+            MatchDirector.Instance.ServerReportZoneCompleted(zoneID);
+
+        // Hooks do not fire on the machine that made the change.
+        ScoreChanged?.Invoke(score, ordersToComplete);
     }
 
     private void SendResult(NetworkConnectionToClient target, bool correct, string message)

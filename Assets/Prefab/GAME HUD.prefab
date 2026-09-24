@@ -140,7 +140,7 @@ MonoBehaviour:
     m_NumColorKeys: 2
     m_NumAlphaKeys: 2
   hideWhenUnbound: 1
-  barRoot: {fileID: 366378720420553349}
+  barRoot: {fileID: 0}
 --- !u!1 &600000000000000001
 GameObject:
   m_ObjectHideFlags: 0

@@ -106,6 +106,23 @@ public class DifficultyProfile : ScriptableObject
     [Tooltip("How many ghosts the server draws AT RANDOM from the map's random pool.\n\nThis number does NOT include the map's guaranteed ghosts. Those live on the map's MapGhostRoster asset and appear on every difficulty, because they are part of what that cinema IS — remove them on Easy and Easy becomes a different building. Difficulty only decides how many unknowns get added on top.\n\nSo a map with 2 guaranteed ghosts running a profile with randomGhostCount = 3 spawns 5 ghosts: the 2 the players can learn, plus 3 they cannot predict.")]
     [Min(0)] public int randomGhostCount = 2;
 
+    // =======================================================================
+    //  GHOST CYCLE (GhostManager)
+    // =======================================================================
+    // GhostManager's lights-flicker -> countdown -> ghost -> despawn loop.
+    // Defaults are the old hard-coded Normal values. Placeholder numbers per
+    // tier until Game Design tunes them.
+
+    [Header("Ghost cycle (GhostManager)")]
+    [Tooltip("Seconds between the end of one ghost visit and the lights starting to flicker for the next. Lower = more visits per night.\n\nSuggested: Easy 90, Normal 60, Hard 45, 13 Rules 35.")]
+    [Min(5f)] public float ghostSpawnIntervalSeconds = 60f;
+
+    [Tooltip("Warning time after the flicker before the ghost appears. Lower = less time to hide.\n\nSuggested: Easy 12, Normal 10, Hard 7, 13 Rules 5.")]
+    [Min(0f)] public float ghostWarningSeconds = 10f;
+
+    [Tooltip("How long the ghost stays in the building each visit.\n\nSuggested: Easy 12, Normal 15, Hard 20, 13 Rules 25.")]
+    [Min(1f)] public float ghostActiveSeconds = 15f;
+
     // NOTE: there is deliberately no downed-duration knob here. A downed player
     // survives exactly ONE in-game hour on every difficulty — a rule of the
     // world, not a balance value — so it lives as a constant on MatchDirector

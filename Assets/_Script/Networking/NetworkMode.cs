@@ -19,8 +19,24 @@ using Mirror;
 /// </summary>
 public static class NetworkMode
 {
+    // Statics survive between Play sessions when domain reload is disabled.
+    [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => SessionEnding = false;
+
+    /// <summary>
+    /// True from the moment the player leaves a session until the main menu has
+    /// loaded. Set by RoHRoomManager.LeaveSession.
+    ///
+    /// Why: Mirror stops the server first and loads the menu a few frames
+    /// later. In those frames the match scene is still running, and without
+    /// this flag every script would see "no server, no client" and switch to
+    /// its solo-test code path on half-destroyed objects. While this is true,
+    /// nothing counts as offline, so all gameplay code simply goes idle.
+    /// </summary>
+    public static bool SessionEnding { get; set; }
+
     /// <summary>No Mirror server and no Mirror client running in this process.</summary>
-    public static bool IsOffline => !NetworkServer.active && !NetworkClient.active;
+    public static bool IsOffline => !SessionEnding && !NetworkServer.active && !NetworkClient.active;
 
     /// <summary>
     /// May this machine mutate authoritative state (health, door open/closed,

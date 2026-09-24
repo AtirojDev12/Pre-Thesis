@@ -20,3 +20,6 @@ MonoBehaviour:
   roundLengthMinutes: 15
   sanityDrainMultiplier: 0.5
   randomGhostCount: 2
+  ghostSpawnIntervalSeconds: 90
+  ghostWarningSeconds: 12
+  ghostActiveSeconds: 12

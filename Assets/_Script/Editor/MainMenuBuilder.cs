@@ -225,7 +225,7 @@ public static class MainMenuBuilder
         EnsureEventSystem(scene);
 
         RectTransform canvas = CreateCanvas(LobbyRootName);
-        Stretch(AddImage(NewRect("Background", canvas), BgColor).rectTransform);
+        Stretch(AddFullScreenImage(NewRect("Background", canvas), BgColor).rectTransform);
 
         RectTransform card = Card(canvas, "Lobby Card", new Vector2(1000, 840));
 
@@ -282,7 +282,7 @@ public static class MainMenuBuilder
         EnsureEventSystem(scene);
 
         RectTransform canvas = CreateCanvas(MenuRootName);
-        Stretch(AddImage(NewRect("Background", canvas), BgColor).rectTransform);
+        Stretch(AddFullScreenImage(NewRect("Background", canvas), BgColor).rectTransform);
 
         // ---- Main panel: title + five buttons, left side --------------------
         RectTransform main = NewRect("Main Panel", canvas);
@@ -322,14 +322,14 @@ public static class MainMenuBuilder
         // ---- Busy overlay (above panels) -------------------------------------
         RectTransform busy = NewRect("Busy Overlay", canvas);
         Stretch(busy);
-        AddImage(busy, DimColor);
+        AddFullScreenImage(busy, DimColor);
         TMP_Text busyText = Label(busy, "Busy Text", "Please wait...", 34, TextColor, TextAlignmentOptions.Center, 60);
         Stretch((RectTransform)busyText.transform);
 
         // ---- Message popup (top) ---------------------------------------------
         RectTransform popup = NewRect("Message Popup", canvas);
         Stretch(popup);
-        AddImage(popup, DimColor);
+        AddFullScreenImage(popup, DimColor);
         RectTransform popupCard = Card(popup, "Message Card", new Vector2(680, 320));
         TMP_Text messageText = Label(popupCard, "Message", "Message", 28, TextColor, TextAlignmentOptions.Center, 150, flexibleHeight: 1);
         RectTransform popupButtons = ButtonRow(popupCard, "Buttons");
@@ -512,7 +512,8 @@ public static class MainMenuBuilder
         Slider ambient = MakeSlider(right, "Ambient Slider");
 
         RectTransform buttons = ButtonRow(card, "Buttons");
-        Button back = MakeButton(buttons, "Back Button", "Back", true);
+        Button back = MakeButton(buttons, "Back Button", "Back", false);
+        Button apply = MakeButton(buttons, "Apply Button", "Apply", true);
 
         SettingsPanel panel = card.gameObject.AddComponent<SettingsPanel>();
         Wire(panel,
@@ -524,7 +525,7 @@ public static class MainMenuBuilder
             ("musicSlider", music), ("musicText", musicText),
             ("sfxSlider", sfx), ("sfxText", sfxText),
             ("ambientSlider", ambient), ("ambientText", ambientText),
-            ("backButton", back));
+            ("applyButton", apply), ("backButton", back));
         return panel;
     }
 
@@ -562,6 +563,8 @@ public static class MainMenuBuilder
         {
             BuildPauseMenuPrefab(log);
             RebuildMainMenuSettings(log);
+            FixFullScreenLayers(LobbyScenePath, LobbyRootName, log, "Background");
+            FixFullScreenLayers(MainMenuScenePath, MenuRootName, log, "Background", "Busy Overlay", "Message Popup");
             AssetDatabase.SaveAssets();
         }
         catch (System.Exception e)
@@ -609,6 +612,42 @@ public static class MainMenuBuilder
         log.AppendLine("- MainMenu: Settings panel rebuilt (general + sound). Nothing else in the menu was touched.");
     }
 
+    /// <summary>
+    /// Scenes built before the fix have full-screen layers using the rounded
+    /// sprite (soft, see-through edges). Make them plain rectangles that fill
+    /// the whole canvas. Only the named direct children of the root are touched.
+    /// </summary>
+    private static void FixFullScreenLayers(string scenePath, string rootName, StringBuilder log, params string[] layerNames)
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath) == null) return;
+
+        Scene scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+        GameObject root = null;
+        foreach (GameObject candidate in scene.GetRootGameObjects())
+        {
+            if (candidate.name == rootName) root = candidate;
+        }
+        if (root == null) return;
+
+        int fixedCount = 0;
+        foreach (string layerName in layerNames)
+        {
+            Transform layer = root.transform.Find(layerName);
+            if (layer == null || !layer.TryGetComponent(out Image image)) continue;
+
+            image.sprite = null;
+            image.type = UnityEngine.UI.Image.Type.Simple;
+            Stretch((RectTransform)layer);   // exact screen size, no manual resize needed
+            EditorUtility.SetDirty(image);
+            fixedCount++;
+        }
+
+        if (fixedCount == 0) return;
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        log.AppendLine($"- {System.IO.Path.GetFileNameWithoutExtension(scenePath)}: {fixedCount} full-screen layer(s) now cover the screen edge to edge.");
+    }
+
     private static void BuildPauseMenuPrefab(StringBuilder log)
     {
         EnsureFolder(PauseMenuFolder);
@@ -626,7 +665,7 @@ public static class MainMenuBuilder
 
             RectTransform dim = NewRect("Dim", content);
             Stretch(dim);
-            AddImage(dim, new Color(0f, 0f, 0f, 0.6f));
+            AddFullScreenImage(dim, new Color(0f, 0f, 0f, 0.6f));
 
             RectTransform pause = Card(content, "Pause Panel", new Vector2(620, 580));
             Label(pause, "Title", "Paused", 52, AccentColor, TextAlignmentOptions.Center, 70);
@@ -639,7 +678,7 @@ public static class MainMenuBuilder
 
             RectTransform confirm = NewRect("Confirm Popup", content);
             Stretch(confirm);
-            AddImage(confirm, DimColor);
+            AddFullScreenImage(confirm, DimColor);
             RectTransform confirmCard = Card(confirm, "Confirm Card", new Vector2(720, 340));
             TMP_Text confirmText = Label(confirmCard, "Message", "Leave the match?", 28, TextColor, TextAlignmentOptions.Center, 150, flexibleHeight: 1);
             RectTransform confirmButtons = ButtonRow(confirmCard, "Buttons");
@@ -913,6 +952,20 @@ public static class MainMenuBuilder
         Image image = rt.gameObject.AddComponent<Image>();
         image.sprite = uiRes.background;
         image.type = UnityEngine.UI.Image.Type.Sliced;
+        image.color = color;
+        return image;
+    }
+
+    /// <summary>
+    /// For layers that must cover the whole screen (backgrounds, dims, popups).
+    /// No sprite: the rounded UI sprite has soft transparent edges, which is
+    /// what left the thin uncovered border around the screen.
+    /// </summary>
+    private static Image AddFullScreenImage(RectTransform rt, Color color)
+    {
+        Image image = rt.gameObject.AddComponent<Image>();
+        image.sprite = null;
+        image.type = UnityEngine.UI.Image.Type.Simple;
         image.color = color;
         return image;
     }

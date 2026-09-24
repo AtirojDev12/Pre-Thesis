@@ -47,10 +47,20 @@ public class GhostManager : NetworkBehaviour
     [SerializeField] private Light[] allLights;
 
     [Header("Timing Settings")]
+    [Tooltip("FALLBACK only. In a match these come from the room's DifficultyProfile (via MatchDirector). Used when there is no MatchDirector, e.g. an enemy test scene.")]
     [SerializeField] private float spawnInterval = 60f;
     [SerializeField] private float flickerDuration = 3f;
+    [Tooltip("FALLBACK only — see Spawn Interval.")]
     [SerializeField] private float countdownDuration = 10f;
+    [Tooltip("FALLBACK only — see Spawn Interval.")]
     [SerializeField] private float ghostDuration = 15f;
+
+    // What the cycle actually uses. Start as the Inspector fallbacks, replaced
+    // once by the difficulty profile when the round is configured. Server only.
+    private float activeSpawnInterval;
+    private float activeCountdown;
+    private float activeGhostDuration;
+    private bool difficultyApplied;
 
     private float timer = 0f;
     private bool isGhostActive = false;
@@ -89,6 +99,9 @@ public class GhostManager : NetworkBehaviour
     private void Start()
     {
         timer = 0f;
+        activeSpawnInterval = spawnInterval;
+        activeCountdown = countdownDuration;
+        activeGhostDuration = ghostDuration;
         ApplyLights(true);
 
         if (HasAuthority) lightsOn = true;
@@ -99,11 +112,17 @@ public class GhostManager : NetworkBehaviour
         // Clients never run the spawn cycle. They receive the ghost and the
         // light state from the server.
         if (!HasAuthority) return;
+
+        // Polled rather than read once in Start: MatchDirector configures the
+        // round in OnStartServer, which can land after our Start. The profile
+        // never changes mid-round, so this stops checking once it has it.
+        if (!difficultyApplied) TryApplyDifficulty();
+
         if (isGhostActive || isSequenceRunning) return;
 
         timer += Time.deltaTime;
 
-        if (timer >= (spawnInterval - flickerDuration))
+        if (timer >= (activeSpawnInterval - flickerDuration))
             StartCoroutine(GhostArrivalSequence());
     }
 
@@ -123,7 +142,7 @@ public class GhostManager : NetworkBehaviour
 
         SetLights(true);
 
-        yield return new WaitForSeconds(countdownDuration);
+        yield return new WaitForSeconds(activeCountdown);
 
         SpawnGhost();
     }
@@ -135,7 +154,7 @@ public class GhostManager : NetworkBehaviour
         if (ghostPrefab == null || spawnPoint == null)
         {
             Debug.LogWarning("[GhostManager] No ghost prefab or spawn point assigned — nothing spawned.", this);
-            Invoke(nameof(DespawnGhost), ghostDuration);
+            Invoke(nameof(DespawnGhost), activeGhostDuration);
             return;
         }
 
@@ -149,7 +168,26 @@ public class GhostManager : NetworkBehaviour
         if (currentGhostInstance.TryGetComponent(out TimedGhost ghostScript))
             ghostScript.isSceneLightOn = lightsOn;
 
-        Invoke(nameof(DespawnGhost), ghostDuration);
+        Invoke(nameof(DespawnGhost), activeGhostDuration);
+    }
+
+    /// <summary>
+    /// SERVER / OFFLINE. Takes the ghost timing from the room's difficulty.
+    /// Without a MatchDirector in the scene the Inspector values stay in use.
+    /// </summary>
+    private void TryApplyDifficulty()
+    {
+        MatchDirector director = MatchDirector.Instance;
+        DifficultyProfile profile = director != null ? director.ActiveProfile : null;
+        if (profile == null) return;
+
+        activeSpawnInterval = Mathf.Max(flickerDuration + 1f, profile.ghostSpawnIntervalSeconds);
+        activeCountdown = Mathf.Max(0f, profile.ghostWarningSeconds);
+        activeGhostDuration = Mathf.Max(1f, profile.ghostActiveSeconds);
+        difficultyApplied = true;
+
+        Debug.Log($"[GhostManager] {profile.level}: ghost every {activeSpawnInterval:F0}s, " +
+                  $"{activeCountdown:F0}s warning, stays {activeGhostDuration:F0}s.", this);
     }
 
     private void DespawnGhost()

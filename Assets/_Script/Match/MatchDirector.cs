@@ -390,6 +390,14 @@ public class MatchDirector : NetworkBehaviour
     }
 
     /// <summary>
+    /// Tonight's resolved difficulty profile. SERVER / OFFLINE ONLY — returns
+    /// null on a remote client, and null until the round is configured.
+    /// Server systems (GhostManager) read their tuning from here so the
+    /// profile is resolved in one place only.
+    /// </summary>
+    public DifficultyProfile ActiveProfile => NetworkMode.HasServerAuthority(this) ? activeProfile : null;
+
+    /// <summary>
     /// Tonight's ghost list, guaranteed first then the random draw. Returns an
     /// empty list on a client — only the server may know the roster.
     /// </summary>

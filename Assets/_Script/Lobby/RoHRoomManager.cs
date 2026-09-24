@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// The project's NetworkManager. Adds a WAITING LOBBY in front of the match.
@@ -63,6 +64,36 @@ public class RoHRoomManager : NetworkRoomManager
     {
         LastDisconnectReason = null;
         leftOnPurpose = false;
+
+        SceneManager.sceneLoaded -= ClearSessionEndingOnMenu;
+        SceneManager.sceneLoaded += ClearSessionEndingOnMenu;
+    }
+
+    // The session is fully over once a scene loads with no server and no client
+    // (the main menu). From then on offline test code may run again.
+    private static void ClearSessionEndingOnMenu(Scene scene, LoadSceneMode mode)
+    {
+        if (!NetworkMode.SessionEnding) return;
+        if (NetworkServer.active || NetworkClient.active) return;
+
+        NetworkMode.SessionEnding = false;
+    }
+
+    // Every way a session can end (Leave button, host closed, kicked, lost
+    // connection) goes through OnStopServer / OnStopClient, so the flag is
+    // set there and not only in LeaveSession.
+    private void BeginSessionEnd()
+    {
+        NetworkMode.SessionEnding = true;
+
+        // StopWithoutMenu hides offlineScene while stopping; the menu WILL load.
+        if (!string.IsNullOrEmpty(heldMenuScene)) return;
+
+        // No scene will load if there is no offline scene, or we are already
+        // in it (a join that failed from the main menu). Clear the flag now or
+        // it would never be cleared.
+        if (string.IsNullOrWhiteSpace(offlineScene) || Utils.IsSceneActive(offlineScene))
+            NetworkMode.SessionEnding = false;
     }
 
     /// <summary>Called by LobbyController just before StartHost.</summary>
@@ -75,6 +106,7 @@ public class RoHRoomManager : NetworkRoomManager
 
     public override void OnRoomStartHost()
     {
+        NetworkMode.SessionEnding = false;
         // Mirror's built-in lobby GUI is debug-only; ours replaces it.
         showRoomGUI = false;
     }
@@ -141,6 +173,7 @@ public class RoHRoomManager : NetworkRoomManager
 
     public override void OnRoomStopServer()
     {
+        BeginSessionEnd();
         if (LobbyController.Instance != null) LobbyController.Instance.LeaveRoom();
     }
 
@@ -149,6 +182,7 @@ public class RoHRoomManager : NetworkRoomManager
     public override void OnRoomStartClient()
     {
         leftOnPurpose = false;
+        NetworkMode.SessionEnding = false;
     }
 
     public override void OnRoomClientDisconnect()
@@ -163,6 +197,7 @@ public class RoHRoomManager : NetworkRoomManager
 
     public override void OnRoomStopClient()
     {
+        BeginSessionEnd();
         // A client leaving the Mirror session must also leave the EOS lobby,
         // otherwise EOS still counts them and the room shows as fuller than it is.
         // (On the host, OnRoomStopServer already handles it; LeaveRoom is idempotent.)
@@ -183,11 +218,46 @@ public class RoHRoomManager : NetworkRoomManager
     }
 
     /// <summary>Leave the room from any role: host shuts the room, a client just leaves.</summary>
+    // Set only while StopWithoutMenu runs.
+    private string heldMenuScene;
+
+    /// <summary>
+    /// Stops the session like LeaveSession, but does NOT let Mirror start
+    /// loading the main menu in the same frame. Returns the menu scene; the
+    /// caller loads it a couple of frames later. Splitting "tear down the
+    /// match" and "load the menu" into different frames avoids the Unity
+    /// Editor freeze on host leave.
+    /// </summary>
+    public string StopWithoutMenu()
+    {
+        leftOnPurpose = true;
+        BeginSessionEnd();
+
+        string menu = offlineScene;
+        heldMenuScene = menu;
+        offlineScene = string.Empty;   // Mirror skips its own scene change
+        try
+        {
+            if (NetworkServer.active && NetworkClient.isConnected) StopHost();
+            else if (NetworkClient.active) StopClient();
+            else if (NetworkServer.active) StopServer();
+        }
+        finally
+        {
+            offlineScene = menu;
+            heldMenuScene = null;
+        }
+        return menu;
+    }
+
     public void LeaveSession()
     {
         leftOnPurpose = true;
+        BeginSessionEnd();
+
         if (NetworkServer.active && NetworkClient.isConnected) StopHost();
         else if (NetworkClient.active) StopClient();
         else if (NetworkServer.active) StopServer();
+
     }
 }

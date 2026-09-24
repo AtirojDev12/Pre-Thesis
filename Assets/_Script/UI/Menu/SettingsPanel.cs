@@ -9,9 +9,12 @@ using UnityEngine.UI;
 ///   General: player name, mouse sensitivity, brightness, fullscreen, resolution
 ///   Sound:   master, music, SFX, ambient
 ///
-/// Every change applies immediately (GameSettings raises Changed and the game
-/// reacts). Back saves to disk and raises BackRequested; in the main menu it
-/// also returns to the main panel.
+/// Nothing changes until APPLY is pressed. Moving a slider only edits a
+/// pending copy (the labels show the pending value). Apply writes every value
+/// to GameSettings, which raises Changed so the game reacts, then saves to
+/// disk. Back closes without applying: pending edits are thrown away and the
+/// panel shows the saved values next time it opens.
+///
 /// Values live in GameSettings (PlayerPrefs), not in the encrypted save.
 /// </summary>
 [DisallowMultipleComponent]
@@ -39,56 +42,82 @@ public class SettingsPanel : MonoBehaviour
     [SerializeField] private Slider ambientSlider;
     [SerializeField] private TMP_Text ambientText;
 
+    [Header("Buttons")]
+    [SerializeField] private Button applyButton;
     [SerializeField] private Button backButton;
 
-    /// <summary>Raised when Back is pressed (after saving). The pause menu listens to this.</summary>
+    /// <summary>Raised when Back is pressed. The pause menu listens to this.</summary>
     public event System.Action BackRequested;
 
     private readonly List<Vector2Int> resolutions = new List<Vector2Int>();
 
+    // Snapshot of the saved values when the panel opened (or after Apply).
+    // Used to grey out Apply when nothing has changed.
+    private string savedName;
+    private float savedSensitivity, savedBrightness, savedMaster, savedMusic, savedSfx, savedAmbient;
+    private bool savedFullscreen;
+    private int savedResolutionIndex;
+
     private void Awake()
     {
         nameField.characterLimit = RoHRoomPlayer.MaxNameLength;
-        nameField.onEndEdit.AddListener(OnNameEdited);
+        nameField.onValueChanged.AddListener(_ => RefreshApplyButton());
 
-        SetupSlider(sensitivitySlider, GameSettings.MinSensitivity, GameSettings.MaxSensitivity,
-            v => { GameSettings.MouseSensitivityScale = v; RefreshLabels(); });
-        SetupSlider(brightnessSlider, 0f, 1f, v => { GameSettings.Brightness = v; RefreshLabels(); });
+        SetupSlider(sensitivitySlider, GameSettings.MinSensitivity, GameSettings.MaxSensitivity);
+        SetupSlider(brightnessSlider, 0f, 1f);
+        SetupSlider(volumeSlider, 0f, 1f);
+        SetupSlider(musicSlider, 0f, 1f);
+        SetupSlider(sfxSlider, 0f, 1f);
+        SetupSlider(ambientSlider, 0f, 1f);
 
-        SetupSlider(volumeSlider, 0f, 1f, v => { GameSettings.MasterVolume = v; RefreshLabels(); });
-        SetupSlider(musicSlider, 0f, 1f, v => { GameSettings.MusicVolume = v; RefreshLabels(); });
-        SetupSlider(sfxSlider, 0f, 1f, v => { GameSettings.SfxVolume = v; RefreshLabels(); });
-        SetupSlider(ambientSlider, 0f, 1f, v => { GameSettings.AmbientVolume = v; RefreshLabels(); });
+        fullscreenToggle.onValueChanged.AddListener(_ => RefreshApplyButton());
+        resolutionDropdown.onValueChanged.AddListener(_ => RefreshApplyButton());
 
-        fullscreenToggle.onValueChanged.AddListener(on => GameSettings.Fullscreen = on);
-        resolutionDropdown.onValueChanged.AddListener(OnResolutionChanged);
+        if (applyButton != null) applyButton.onClick.AddListener(Apply);
+        else Debug.LogWarning("[SettingsPanel] No Apply button assigned. Run Tools > Pre-Thesis > Rebuild Settings + Pause Menu.", this);
 
         backButton.onClick.AddListener(Back);
 
         BuildResolutionList();
     }
 
-    private static void SetupSlider(Slider slider, float min, float max, UnityEngine.Events.UnityAction<float> onChange)
+    private void SetupSlider(Slider slider, float min, float max)
     {
         if (slider == null) return;
         slider.minValue = min;
         slider.maxValue = max;
         slider.wholeNumbers = false;
-        slider.onValueChanged.AddListener(onChange);
+        slider.onValueChanged.AddListener(_ => { RefreshLabels(); RefreshApplyButton(); });
     }
 
-    private void OnEnable()
+    // Every time the panel opens it shows the SAVED values, so edits that were
+    // never applied are gone.
+    private void OnEnable() => LoadSavedValues();
+
+    private void LoadSavedValues()
     {
-        nameField.SetTextWithoutNotify(GameSettings.PlayerName);
-        SetSilently(sensitivitySlider, GameSettings.MouseSensitivityScale);
-        SetSilently(brightnessSlider, GameSettings.Brightness);
-        SetSilently(volumeSlider, GameSettings.MasterVolume);
-        SetSilently(musicSlider, GameSettings.MusicVolume);
-        SetSilently(sfxSlider, GameSettings.SfxVolume);
-        SetSilently(ambientSlider, GameSettings.AmbientVolume);
-        fullscreenToggle.SetIsOnWithoutNotify(GameSettings.Fullscreen);
-        SelectSavedResolution();
+        savedName = GameSettings.PlayerName;
+        savedSensitivity = GameSettings.MouseSensitivityScale;
+        savedBrightness = GameSettings.Brightness;
+        savedMaster = GameSettings.MasterVolume;
+        savedMusic = GameSettings.MusicVolume;
+        savedSfx = GameSettings.SfxVolume;
+        savedAmbient = GameSettings.AmbientVolume;
+        savedFullscreen = GameSettings.Fullscreen;
+        savedResolutionIndex = Mathf.Max(0, resolutions.IndexOf(GameSettings.SavedResolution));
+
+        nameField.SetTextWithoutNotify(savedName);
+        SetSilently(sensitivitySlider, savedSensitivity);
+        SetSilently(brightnessSlider, savedBrightness);
+        SetSilently(volumeSlider, savedMaster);
+        SetSilently(musicSlider, savedMusic);
+        SetSilently(sfxSlider, savedSfx);
+        SetSilently(ambientSlider, savedAmbient);
+        fullscreenToggle.SetIsOnWithoutNotify(savedFullscreen);
+        resolutionDropdown.SetValueWithoutNotify(savedResolutionIndex);
+
         RefreshLabels();
+        RefreshApplyButton();
     }
 
     private static void SetSilently(Slider slider, float value)
@@ -96,19 +125,64 @@ public class SettingsPanel : MonoBehaviour
         if (slider != null) slider.SetValueWithoutNotify(value);
     }
 
-    private void OnNameEdited(string value)
-    {
-        string clean = RoHRoomPlayer.SanitizeName(value);
-        if (string.IsNullOrEmpty(clean))
-        {
-            // Empty names are refused: put the old one back.
-            nameField.SetTextWithoutNotify(GameSettings.PlayerName);
-            return;
-        }
+    // ---- Apply / Back --------------------------------------------------------
 
-        GameSettings.PlayerName = clean;
-        nameField.SetTextWithoutNotify(clean);
+    private void Apply()
+    {
+        // Empty names are refused: keep the old one.
+        string clean = RoHRoomPlayer.SanitizeName(nameField.text);
+        if (!string.IsNullOrEmpty(clean)) GameSettings.PlayerName = clean;
+
+        if (sensitivitySlider != null) GameSettings.MouseSensitivityScale = sensitivitySlider.value;
+        if (brightnessSlider != null) GameSettings.Brightness = brightnessSlider.value;
+        if (volumeSlider != null) GameSettings.MasterVolume = volumeSlider.value;
+        if (musicSlider != null) GameSettings.MusicVolume = musicSlider.value;
+        if (sfxSlider != null) GameSettings.SfxVolume = sfxSlider.value;
+        if (ambientSlider != null) GameSettings.AmbientVolume = ambientSlider.value;
+
+        // Screen changes are the slow ones: only touch them if they changed.
+        if (fullscreenToggle.isOn != savedFullscreen) GameSettings.Fullscreen = fullscreenToggle.isOn;
+
+        int index = resolutionDropdown.value;
+        if (index != savedResolutionIndex && index >= 0 && index < resolutions.Count)
+            GameSettings.SetResolution(resolutions[index].x, resolutions[index].y);
+
+        GameSettings.Save();
+
+        // The applied values are the new "saved" ones (also puts a refused
+        // empty name back in the field).
+        LoadSavedValues();
     }
+
+    private void Back()
+    {
+        // Not applied = not kept. OnEnable reloads the saved values next time.
+        BackRequested?.Invoke();
+        if (menu != null) menu.ShowMain();
+    }
+
+    private bool HasPendingChanges()
+    {
+        if (nameField.text != savedName) return true;
+        if (Changed(sensitivitySlider, savedSensitivity)) return true;
+        if (Changed(brightnessSlider, savedBrightness)) return true;
+        if (Changed(volumeSlider, savedMaster)) return true;
+        if (Changed(musicSlider, savedMusic)) return true;
+        if (Changed(sfxSlider, savedSfx)) return true;
+        if (Changed(ambientSlider, savedAmbient)) return true;
+        if (fullscreenToggle.isOn != savedFullscreen) return true;
+        return resolutionDropdown.value != savedResolutionIndex;
+    }
+
+    private static bool Changed(Slider slider, float saved) =>
+        slider != null && !Mathf.Approximately(slider.value, saved);
+
+    private void RefreshApplyButton()
+    {
+        if (applyButton != null) applyButton.interactable = HasPendingChanges();
+    }
+
+    // ---- Labels ----------------------------------------------------------------
 
     private void RefreshLabels()
     {
@@ -134,6 +208,8 @@ public class SettingsPanel : MonoBehaviour
         label.text = $"{name}: {Mathf.RoundToInt(slider.value * 100f)}%";
     }
 
+    // ---- Resolution list -------------------------------------------------------
+
     private void BuildResolutionList()
     {
         resolutions.Clear();
@@ -152,28 +228,5 @@ public class SettingsPanel : MonoBehaviour
 
         resolutionDropdown.ClearOptions();
         resolutionDropdown.AddOptions(labels);
-    }
-
-    private void SelectSavedResolution()
-    {
-        Vector2Int saved = GameSettings.SavedResolution;
-        int index = resolutions.IndexOf(saved);
-        resolutionDropdown.SetValueWithoutNotify(index >= 0 ? index : 0);
-    }
-
-    private void OnResolutionChanged(int index)
-    {
-        if (index < 0 || index >= resolutions.Count) return;
-        GameSettings.SetResolution(resolutions[index].x, resolutions[index].y);
-    }
-
-    private void Back()
-    {
-        // Commit a name that was typed but never "submitted".
-        OnNameEdited(nameField.text);
-        GameSettings.Save();
-
-        BackRequested?.Invoke();
-        if (menu != null) menu.ShowMain();
     }
 }
