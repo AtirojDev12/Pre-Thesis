@@ -160,9 +160,7 @@ public class PopcornNetSync : NetworkBehaviour
 
         PopcornCustomerType type = Random.value < 0.5f ? PopcornCustomerType.Human : PopcornCustomerType.Ghost;
 
-        PopcornFlavor order = type == PopcornCustomerType.Ghost
-            ? PopcornFlavor.Ghost
-            : (Random.value < 0.5f ? PopcornFlavor.Cheese : PopcornFlavor.BBQ);
+        PopcornFlavor order = PopcornRecipe.RandomOrder();
 
         currentCustomerType = type;
         currentOrder = order;
@@ -190,25 +188,25 @@ public class PopcornNetSync : NetworkBehaviour
     /// Routes to the server, which is the only thing allowed to decide whether
     /// the order was right.
     /// </summary>
-    public void RequestServe(PopcornFlavor heldFlavor)
+    public void RequestServe(PopcornFlavor heldFlavor, bool ghostMixed = false)
     {
         if (NetworkMode.IsOffline)
         {
-            ServerResolveServe(heldFlavor, PlayerHealth.LocalInstance, null);
+            ServerResolveServe(heldFlavor, ghostMixed, PlayerHealth.LocalInstance, null);
             return;
         }
 
-        CmdServe(heldFlavor);
+        CmdServe(heldFlavor, ghostMixed);
     }
 
     [Command(requiresAuthority = false)]
-    private void CmdServe(PopcornFlavor heldFlavor, NetworkConnectionToClient sender = null)
+    private void CmdServe(PopcornFlavor heldFlavor, bool ghostMixed, NetworkConnectionToClient sender = null)
     {
         PlayerHealth health = sender != null && sender.identity != null
             ? sender.identity.GetComponent<PlayerHealth>()
             : null;
 
-        ServerResolveServe(heldFlavor, health, sender);
+        ServerResolveServe(heldFlavor, ghostMixed, health, sender);
     }
 
     /// <summary>
@@ -221,7 +219,7 @@ public class PopcornNetSync : NetworkBehaviour
     /// order-faking ever matters, the fix is a server-side inventory, not a
     /// check bolted on here.
     /// </summary>
-    private void ServerResolveServe(PopcornFlavor heldFlavor, PlayerHealth health, NetworkConnectionToClient sender)
+    private void ServerResolveServe(PopcornFlavor heldFlavor, bool ghostMixed, PlayerHealth health, NetworkConnectionToClient sender)
     {
         if (!HasAuthority) return;
 
@@ -231,13 +229,13 @@ public class PopcornNetSync : NetworkBehaviour
             return;
         }
 
-        if (heldFlavor == PopcornFlavor.None)
+        if (!PopcornRecipe.IsOrder(heldFlavor))
         {
-            SendResult(sender, false, "Make popcorn first");
+            SendResult(sender, false, "Fill a bucket or cup first");
             return;
         }
 
-        bool correct = heldFlavor == currentOrder;
+        bool correct = PopcornRecipe.Matches(heldFlavor, ghostMixed, currentOrder, currentCustomerType);
 
         if (correct)
         {

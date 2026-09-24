@@ -1,54 +1,31 @@
-# Popcorn Minigame (Z1_Gameplay)
+# Popcorn and drinks — Cinema_GamePlay
 
-## Playtest controls
+## Player loop
 
-- Move/look with the existing player controls.
-- Aim at a flavor, the Make button, or the waiting customer and press **E**.
-- With the cursor locked, left-click activates the machine button under the crosshair.
-- Alternatively, press **Tab** to release the mouse and click the world-space machine buttons. Press **Tab** again to resume FPS look.
-- Both mouse and E interactions require a clear path within the player's interaction range.
-- The selected flavor keeps a gold outline, including while hovering **Make** and after making popcorn. Selecting another flavor moves the outline.
-- Aim at a waiting human or ghost within the player's interaction range (3m by default). **[E] Submit order** appears above that customer; it disappears when looking away, moving out of range, or after submission.
+1. Check the **Cashier UI Anchor** display for the customer type and order.
+2. Aim at **BucketSpwan** and press **E** for an empty popcorn bucket, or **PaperBottleSpwan** for an empty cup.
+3. Hold **E** while aiming at **Cheese**, **BBQ**, or **Papica** (Paprika) to scoop popcorn, or either water dispenser nozzle (**Cube (4)** / **Cube (10)**) to fill water. Both take **3 seconds**. Releasing E, looking away, walking out of range, or an obstruction cancels preparation and resets progress.
+4. For a **ghost customer**, press **E** at **GhostFavor** after filling. This adds ghost seasoning without changing the base popcorn flavor or water order. Human orders require no ghost seasoning.
+5. Aim at the waiting customer and press **E** to serve.
 
-## Current rules
+**R** discards the held container/item so the player can recover from choosing the wrong one. One item can be held at a time. Empty containers cannot be served, mixed, or silently replaced. Filled items cannot be refilled. Held props attach to the local player's hand view and cannot block interaction rays.
 
-- Human customers request either Cheese or BBQ.
-- Ghost customers request Ghost Flavor.
-- Select a flavor, then press **Make** to spawn the popcorn prefab in the player's left-hand view and update the HUD. Selecting a flavor alone does not make an item.
-- Making another portion replaces the held item. Submitting consumes both its inventory entry and visible prefab.
-- A correct exact match awards one point.
-- A wrong human order awards no point and deals no damage.
-- A wrong ghost order deals 10 damage.
-- Every submitted item is consumed and the customer leaves after either result.
+## Results
 
-The `CounterSlot` owns occupancy separately from `PopcornCustomer`, so more slots or a queue can be added later. `PopcornFlavor` is currently a single enum value; it can be replaced by a set/recipe when flavor mixing is introduced.
+Both human and ghost customers can order Cheese, BBQ, Paprika, or water. Correct orders still award one point; wrong human orders award nothing; wrong ghost orders still apply the configured damage (10 by default). A submitted filled item is consumed and the customer leaves after either outcome. The existing zone target, task rewards, and match win/loss flow are unchanged.
 
-## Adjusting placement in Z1_Gameplay
+`PopcornRecipe` shares recipe matching between local play and `PopcornNetSync`. The server still resolves score and punishment. Container preparation remains per-client inventory, as in the original prototype; this change does not introduce server-validated inventory or remote held-prop replication.
 
-Expand **Popcorn Minigame Systems** in the Hierarchy and move/rotate these child objects with the normal Unity transform tools:
+## Scene setup
 
-- **Player Spawn Point** — offline player's starting position and facing.
-- **Cashier UI Anchor** — order/score display position and facing.
-- **Popcorn Maker UI Anchor** — flavor/Make controls position and facing.
-- **Customer Spawn Point** — beginning of the customer route.
-- **Customer Wait Point** — occupied position at the counter.
-- **Customer Exit Point** — destination after serving.
+The **Popcorn Minigame Systems** component in `Cinema_GamePlay` explicitly references all eight station objects and the authored empty bucket, empty cup, water, and ghost-water prefabs. This avoids accidentally binding other objects named Cube (4). Station objects need enabled, non-trigger colliders. Existing scene names and materials are preserved.
 
-Colored scene gizmos preview both UI rectangles and the customer route. These are placement markers only and are not visible during gameplay.
+The Cashier UI Anchor shows customer type, base item, and ghost requirement on separate lines. The Popcorn Maker UI Anchor now displays instructions. Instant Make buttons are retired. Preparation has a high-contrast progress bar, percentage, countdown, and cancellation feedback. Hovering a world interactable adds a white silhouette outline without changing its materials.
 
-The **Held Popcorn Prefab**, **Held Popcorn Position**, and **Held Popcorn Rotation** fields on **Popcorn Minigame Systems** control the camera-mounted bucket. `Assets/Prefab/HeldPopcorn.prefab` provides the default model; it can be replaced with an art prefab. Its colliders are disabled while held so it cannot block customer interaction. A failed creation preserves the previous held item and selection.
+Other scenes using `PopcornMinigameBootstrap` must assign the new station and container fields before using this loop. The older `Z1_Gameplay` layout predates these authored stations; the updated playable layout and regression target are **Cinema_GamePlay**.
 
-## Regression playtest
+## Verification
 
-1. Press Make without selecting a flavor: no item should appear.
-2. Select each flavor using E and mouse clicks. Look away and hover Make; the selected flavor should retain its gold outline.
-3. Make each flavor: exactly one bucket should appear at the lower left and the HUD should show the same flavor. Make again to check replacement.
-4. Aim at a waiting human and ghost. Check the prompt hides outside 3m, behind an obstacle, and when looking away.
-5. Submit empty-handed: the current order should remain active. Submit a matching flavor: the bucket disappears, score increases once, the customer leaves, and the next order arrives.
-6. Submit the wrong flavor to a human (no score or damage) and a ghost (no score, 10 damage). Both consume the item and advance the customer queue.
+Run `Tests/Popcorn/Run-PopcornChecks.ps1 -UnityPath '<Unity 6000.5.7f1 executable>'` in PowerShell. It copies the project into ignored `.utmp/popcorn-regression`, then checks the Cinema scene in an isolated editor. Tests cover station bindings/colliders, E pickup, correct container restrictions, three-second preparation, release/aim/occlusion cancellation, progress reset, ghost recipes, authored drink visuals, score/damage, repeat submissions, outlines, and local-player cleanup.
 
-This scene remains a local/offline prototype; its customers, selection, and inventory are not network replicated.
-
-## Automated scene checks
-
-Run `Tests/Popcorn/Run-PopcornChecks.ps1 -UnityPath '<path to Unity.exe>'` from PowerShell with the project's Unity version installed. The runner copies the project into ignored `.utmp/popcorn-regression`, opens the actual Z1 scene there, and drives virtual mouse/keyboard device state through the UI input module and player interactor. It checks raycast targeting, locked/unlocked clicks, held items, selection, range/occlusion, customer prompts, scoring, and the next customer cycle. It freezes locomotion and places the player at standing height for deterministic targeting. Results and the Unity log remain in that isolated directory.
+For a final manual playtest, walk through every station in the authored layout at the target display resolution, then test a host and a remote client serving the same queue. Adjust the scene UI anchors and held prop offsets in the Inspector if needed for the preferred camera framing.
