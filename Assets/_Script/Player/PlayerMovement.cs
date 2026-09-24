@@ -117,7 +117,8 @@ public class PlayerMovement : NetworkBehaviour
             return;
         }
 
-        if (Keyboard.current == null || playerCamera == null)
+        // GameplayInput.Blocked: the Esc menu is open, so W/A/S/D/Shift do nothing.
+        if (Keyboard.current == null || playerCamera == null || GameplayInput.Blocked)
         {
             movement = Vector3.zero;
             SetSprinting(playerStamina != null

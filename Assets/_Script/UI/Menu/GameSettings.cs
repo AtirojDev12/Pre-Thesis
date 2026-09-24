@@ -1,27 +1,52 @@
 using UnityEngine;
 
+/// <summary>Sound categories the player can turn up or down separately.</summary>
+public enum SoundCategory
+{
+    Music = 0,    // background music / score
+    Sfx = 1,      // footsteps, doors, task sounds, jumpscares
+    Ambient = 2,  // room tone, wind, hum, distant noises
+}
+
 /// <summary>
-/// Per-machine player settings: name, volume, mouse sensitivity, screen.
+/// Per-machine player settings: name, volumes, mouse sensitivity, brightness,
+/// screen.
 ///
 /// Stored in PlayerPrefs on purpose, NOT in the encrypted save. These belong to
 /// this PC (a laptop and a desktop want different resolutions), they are not
 /// progress, and there is nothing in them worth protecting. SaveManager.Current
 /// stays the single source of truth for game progress only.
 ///
-/// Applied once at startup before the first scene, so volume and screen mode
-/// are right even if the player never opens the Settings screen.
+/// Anything that depends on a setting (SoundCategoryVolume, BrightnessApplier)
+/// listens to <see cref="Changed"/>, so moving a slider updates the game live.
 /// </summary>
 public static class GameSettings
 {
     private const string KeyName = "settings.playerName";
     private const string KeyVolume = "settings.masterVolume";
+    private const string KeyMusic = "settings.musicVolume";
+    private const string KeySfx = "settings.sfxVolume";
+    private const string KeyAmbient = "settings.ambientVolume";
     private const string KeySensitivity = "settings.mouseSensitivity";
+    private const string KeyBrightness = "settings.brightness";
     private const string KeyFullscreen = "settings.fullscreen";
     private const string KeyResWidth = "settings.resWidth";
     private const string KeyResHeight = "settings.resHeight";
 
     public const float MinSensitivity = 0.1f;
     public const float MaxSensitivity = 3f;
+
+    /// <summary>Brightness is stored 0..1 (0.5 = unchanged) and mapped to this exposure range in EV.</summary>
+    public const float MinExposure = -1.5f;
+    public const float MaxExposure = 1.5f;
+
+    /// <summary>Raised whenever any setting changes. Listeners re-read what they need.</summary>
+    public static event System.Action Changed;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => Changed = null;
+
+    private static void NotifyChanged() => Changed?.Invoke();
 
     /// <summary>Shown to other players in the waiting lobby.</summary>
     public static string PlayerName
@@ -39,7 +64,9 @@ public static class GameSettings
         set => PlayerPrefs.SetString(KeyName, RoHRoomPlayer.SanitizeName(value));
     }
 
-    /// <summary>0..1, applied to AudioListener.volume.</summary>
+    // ---- Sound ---------------------------------------------------------------
+
+    /// <summary>0..1, applied to AudioListener.volume — scales every sound in the game.</summary>
     public static float MasterVolume
     {
         get => PlayerPrefs.GetFloat(KeyVolume, 1f);
@@ -48,8 +75,40 @@ public static class GameSettings
             float v = Mathf.Clamp01(value);
             PlayerPrefs.SetFloat(KeyVolume, v);
             AudioListener.volume = v;
+            NotifyChanged();
         }
     }
+
+    public static float MusicVolume
+    {
+        get => PlayerPrefs.GetFloat(KeyMusic, 1f);
+        set { PlayerPrefs.SetFloat(KeyMusic, Mathf.Clamp01(value)); NotifyChanged(); }
+    }
+
+    public static float SfxVolume
+    {
+        get => PlayerPrefs.GetFloat(KeySfx, 1f);
+        set { PlayerPrefs.SetFloat(KeySfx, Mathf.Clamp01(value)); NotifyChanged(); }
+    }
+
+    public static float AmbientVolume
+    {
+        get => PlayerPrefs.GetFloat(KeyAmbient, 1f);
+        set { PlayerPrefs.SetFloat(KeyAmbient, Mathf.Clamp01(value)); NotifyChanged(); }
+    }
+
+    /// <summary>The category slider value (0..1). Master is applied separately by AudioListener.</summary>
+    public static float GetVolume(SoundCategory category)
+    {
+        switch (category)
+        {
+            case SoundCategory.Music: return MusicVolume;
+            case SoundCategory.Ambient: return AmbientVolume;
+            default: return SfxVolume;
+        }
+    }
+
+    // ---- Controls / picture --------------------------------------------------
 
     /// <summary>
     /// Multiplier on FirstPersonCamera.mouseSensitivity. 1 = the designer's value.
@@ -58,8 +117,20 @@ public static class GameSettings
     public static float MouseSensitivityScale
     {
         get => PlayerPrefs.GetFloat(KeySensitivity, 1f);
-        set => PlayerPrefs.SetFloat(KeySensitivity, Mathf.Clamp(value, MinSensitivity, MaxSensitivity));
+        set { PlayerPrefs.SetFloat(KeySensitivity, Mathf.Clamp(value, MinSensitivity, MaxSensitivity)); NotifyChanged(); }
     }
+
+    /// <summary>0..1 slider value. 0.5 = as the artists lit it.</summary>
+    public static float Brightness
+    {
+        get => PlayerPrefs.GetFloat(KeyBrightness, 0.5f);
+        set { PlayerPrefs.SetFloat(KeyBrightness, Mathf.Clamp01(value)); NotifyChanged(); }
+    }
+
+    /// <summary>Brightness converted to post-exposure (EV) for the camera.</summary>
+    public static float BrightnessExposure => Mathf.Lerp(MinExposure, MaxExposure, Brightness);
+
+    // ---- Screen ----------------------------------------------------------------
 
     public static bool Fullscreen
     {
@@ -68,6 +139,7 @@ public static class GameSettings
         {
             PlayerPrefs.SetInt(KeyFullscreen, value ? 1 : 0);
             ApplyScreen();
+            NotifyChanged();
         }
     }
 
@@ -76,6 +148,7 @@ public static class GameSettings
         PlayerPrefs.SetInt(KeyResWidth, width);
         PlayerPrefs.SetInt(KeyResHeight, height);
         ApplyScreen();
+        NotifyChanged();
     }
 
     public static Vector2Int SavedResolution => new Vector2Int(

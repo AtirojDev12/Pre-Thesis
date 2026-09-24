@@ -105,6 +105,7 @@ public class PlayerInteractor : NetworkBehaviour
         UpdatePrompt();
 
         if (_currentTarget != null
+            && !GameplayInput.Blocked
             && Keyboard.current != null
             && Keyboard.current[interactKey].wasPressedThisFrame
             && _currentTarget.CanInteract())

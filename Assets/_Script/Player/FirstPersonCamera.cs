@@ -253,7 +253,7 @@ public class FirstPersonCamera : MonoBehaviour
         }
 
         isMoving = false;
-        if (!isIncapacitated && Keyboard.current != null)
+        if (!isIncapacitated && Keyboard.current != null && !GameplayInput.Blocked)
         {
             isMoving = Keyboard.current.wKey.isPressed
                 || Keyboard.current.aKey.isPressed

@@ -469,24 +469,47 @@ public static class MainMenuBuilder
         return panel;
     }
 
-    private static SettingsPanel BuildSettingsPanel(RectTransform canvas, MainMenuController menu)
+    /// <summary>
+    /// Two-column Settings card. Used by the main menu (menu set) and the Esc
+    /// pause menu (menu null — it listens to SettingsPanel.BackRequested).
+    /// </summary>
+    private static SettingsPanel BuildSettingsPanel(RectTransform parent, MainMenuController menu)
     {
-        RectTransform card = Card(canvas, "Settings Panel", new Vector2(760, 800));
+        RectTransform card = Card(parent, "Settings Panel", new Vector2(1180, 800));
         Label(card, "Title", "Settings", 44, AccentColor, TextAlignmentOptions.Center, 60);
 
-        Label(card, "Name Label", "Player name", 24, TextColor, TextAlignmentOptions.MidlineLeft, 30);
-        TMP_InputField name = MakeInput(card, "Name Field", "Your name");
+        RectTransform columns = NewRect("Columns", card);
+        Layout(columns, 0, 540, flexibleHeight: 1);
+        HorizontalLayoutGroup row = columns.gameObject.AddComponent<HorizontalLayoutGroup>();
+        ConfigureHorizontal(row, 48, new RectOffset(0, 0, 0, 0));
+        row.childAlignment = TextAnchor.UpperLeft;
+        row.childForceExpandWidth = true;
+        row.childForceExpandHeight = true;
 
-        TMP_Text volumeText = Label(card, "Volume Label", "Volume: 100%", 24, TextColor, TextAlignmentOptions.MidlineLeft, 30);
-        Slider volume = MakeSlider(card, "Volume Slider");
+        // ---- General -------------------------------------------------------
+        RectTransform left = Column(columns, "General");
+        Label(left, "Header", "General", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
+        Label(left, "Name Label", "Player name", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        TMP_InputField name = MakeInput(left, "Name Field", "Your name");
+        TMP_Text sensitivityText = Label(left, "Sensitivity Label", "Mouse sensitivity: 1.0x", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider sensitivity = MakeSlider(left, "Sensitivity Slider");
+        TMP_Text brightnessText = Label(left, "Brightness Label", "Brightness: default", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider brightness = MakeSlider(left, "Brightness Slider");
+        Toggle fullscreen = MakeToggle(left, "Fullscreen Toggle", "Fullscreen");
+        Label(left, "Resolution Label", "Resolution", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        TMP_Dropdown resolution = MakeDropdown(left, "Resolution Dropdown");
 
-        TMP_Text sensitivityText = Label(card, "Sensitivity Label", "Mouse sensitivity: 1.0x", 24, TextColor, TextAlignmentOptions.MidlineLeft, 30);
-        Slider sensitivity = MakeSlider(card, "Sensitivity Slider");
-
-        Toggle fullscreen = MakeToggle(card, "Fullscreen Toggle", "Fullscreen");
-
-        Label(card, "Resolution Label", "Resolution", 24, TextColor, TextAlignmentOptions.MidlineLeft, 30);
-        TMP_Dropdown resolution = MakeDropdown(card, "Resolution Dropdown");
+        // ---- Sound ---------------------------------------------------------
+        RectTransform right = Column(columns, "Sound");
+        Label(right, "Header", "Sound", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
+        TMP_Text volumeText = Label(right, "Master Label", "Master volume: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider volume = MakeSlider(right, "Master Slider");
+        TMP_Text musicText = Label(right, "Music Label", "Music: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider music = MakeSlider(right, "Music Slider");
+        TMP_Text sfxText = Label(right, "SFX Label", "Sound effects: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider sfx = MakeSlider(right, "SFX Slider");
+        TMP_Text ambientText = Label(right, "Ambient Label", "Ambient: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider ambient = MakeSlider(right, "Ambient Slider");
 
         RectTransform buttons = ButtonRow(card, "Buttons");
         Button back = MakeButton(buttons, "Back Button", "Back", true);
@@ -494,11 +517,198 @@ public static class MainMenuBuilder
         SettingsPanel panel = card.gameObject.AddComponent<SettingsPanel>();
         Wire(panel,
             ("menu", menu), ("nameField", name),
-            ("volumeSlider", volume), ("volumeText", volumeText),
             ("sensitivitySlider", sensitivity), ("sensitivityText", sensitivityText),
+            ("brightnessSlider", brightness), ("brightnessText", brightnessText),
             ("fullscreenToggle", fullscreen), ("resolutionDropdown", resolution),
+            ("volumeSlider", volume), ("volumeText", volumeText),
+            ("musicSlider", music), ("musicText", musicText),
+            ("sfxSlider", sfx), ("sfxText", sfxText),
+            ("ambientSlider", ambient), ("ambientText", ambientText),
             ("backButton", back));
         return panel;
+    }
+
+    private static RectTransform Column(Transform parent, string name)
+    {
+        RectTransform rt = NewRect(name, parent);
+        rt.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+        ConfigureVertical(rt.gameObject.AddComponent<VerticalLayoutGroup>(), 10, new RectOffset(0, 0, 0, 0));
+        return rt;
+    }
+
+    // =========================================================================
+    // Settings + Esc pause menu (does NOT touch the rest of the main menu)
+    // =========================================================================
+
+    private const string RebuildSettingsMenuPath = "Tools/Pre-Thesis/Rebuild Settings + Pause Menu";
+    private const string PauseMenuFolder = "Assets/Resources/UI";
+    private const string PauseMenuPrefabPath = PauseMenuFolder + "/PauseMenu.prefab";
+
+    [MenuItem(RebuildSettingsMenuPath)]
+    private static void RebuildSettingsAndPauseMenu()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            EditorUtility.DisplayDialog("Rebuild Settings + Pause Menu", "Stop Play mode first.", "OK");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+        LoadResources();
+        var log = new StringBuilder();
+
+        try
+        {
+            BuildPauseMenuPrefab(log);
+            RebuildMainMenuSettings(log);
+            AssetDatabase.SaveAssets();
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogException(e);
+            EditorUtility.DisplayDialog("Rebuild Settings + Pause Menu", "Stopped with an error. See the Console.\n\n" + e.Message, "OK");
+            return;
+        }
+
+        Debug.Log("[MainMenuBuilder] Settings + Pause Menu done.\n" + log);
+        EditorUtility.DisplayDialog("Settings + Pause Menu built", log.ToString(), "OK");
+    }
+
+    /// <summary>Replaces only "Main Menu UI/Settings Panel". Background and all other UI stay as they are.</summary>
+    private static void RebuildMainMenuSettings(StringBuilder log)
+    {
+        Scene scene = EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
+
+        GameObject root = null;
+        foreach (GameObject candidate in scene.GetRootGameObjects())
+        {
+            if (candidate.name == MenuRootName) root = candidate;
+        }
+
+        if (root == null)
+        {
+            log.AppendLine("! MainMenu has no 'Main Menu UI'. Run Build Main Menu + Lobby first.");
+            return;
+        }
+
+        MainMenuController menu = root.GetComponent<MainMenuController>();
+        Transform old = root.transform.Find("Settings Panel");
+        int sibling = old != null ? old.GetSiblingIndex() : -1;
+        if (old != null) Object.DestroyImmediate(old.gameObject);
+
+        SettingsPanel panel = BuildSettingsPanel((RectTransform)root.transform, menu);
+        if (sibling >= 0) panel.transform.SetSiblingIndex(sibling);
+        panel.gameObject.SetActive(false);
+        SetLayerRecursively(panel.gameObject, uiLayer);
+
+        if (menu != null) Wire(menu, ("settingsPanel", panel));
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        log.AppendLine("- MainMenu: Settings panel rebuilt (general + sound). Nothing else in the menu was touched.");
+    }
+
+    private static void BuildPauseMenuPrefab(StringBuilder log)
+    {
+        EnsureFolder(PauseMenuFolder);
+
+        // Build in a throw-away preview scene so the open scene is never dirtied.
+        Scene preview = EditorSceneManager.NewPreviewScene();
+        try
+        {
+            RectTransform canvas = CreateCanvas("PauseMenu");
+            SceneManager.MoveGameObjectToScene(canvas.gameObject, preview);
+            canvas.GetComponent<Canvas>().sortingOrder = 50;
+
+            RectTransform content = NewRect("Content", canvas);
+            Stretch(content);
+
+            RectTransform dim = NewRect("Dim", content);
+            Stretch(dim);
+            AddImage(dim, new Color(0f, 0f, 0f, 0.6f));
+
+            RectTransform pause = Card(content, "Pause Panel", new Vector2(620, 580));
+            Label(pause, "Title", "Paused", 52, AccentColor, TextAlignmentOptions.Center, 70);
+            Label(pause, "Hint", "Online match: the game keeps running while this menu is open.", 22, MutedColor, TextAlignmentOptions.Center, 60);
+            Button resume = MakeButton(pause, "Resume Button", "Resume", true);
+            Button settings = MakeButton(pause, "Settings Button", "Settings", false);
+            Button leave = MakeButton(pause, "Leave Button", "Leave match", false);
+
+            SettingsPanel settingsPanel = BuildSettingsPanel(content, null);
+
+            RectTransform confirm = NewRect("Confirm Popup", content);
+            Stretch(confirm);
+            AddImage(confirm, DimColor);
+            RectTransform confirmCard = Card(confirm, "Confirm Card", new Vector2(720, 340));
+            TMP_Text confirmText = Label(confirmCard, "Message", "Leave the match?", 28, TextColor, TextAlignmentOptions.Center, 150, flexibleHeight: 1);
+            RectTransform confirmButtons = ButtonRow(confirmCard, "Buttons");
+            Button cancel = MakeButton(confirmButtons, "Cancel Button", "Cancel", false);
+            Button confirmLeave = MakeButton(confirmButtons, "Leave Button", "Leave", true);
+
+            PauseMenuController controller = canvas.gameObject.AddComponent<PauseMenuController>();
+            Wire(controller,
+                ("content", content.gameObject), ("pausePanel", pause.gameObject), ("settingsPanel", settingsPanel),
+                ("resumeButton", resume), ("settingsButton", settings), ("leaveButton", leave),
+                ("leaveButtonText", ButtonText(leave)),
+                ("confirmPopup", confirm.gameObject), ("confirmText", confirmText),
+                ("confirmLeaveButton", confirmLeave), ("confirmCancelButton", cancel));
+
+            settingsPanel.gameObject.SetActive(false);
+            confirm.gameObject.SetActive(false);
+            content.gameObject.SetActive(false);
+            SetLayerRecursively(canvas.gameObject, uiLayer);
+
+            PrefabUtility.SaveAsPrefabAsset(canvas.gameObject, PauseMenuPrefabPath);
+            log.AppendLine("- Built " + PauseMenuPrefabPath + " (loads itself in every match, no scene changes)");
+        }
+        finally
+        {
+            EditorSceneManager.ClosePreviewScene(preview);
+        }
+    }
+
+    private static void EnsureFolder(string path)
+    {
+        if (AssetDatabase.IsValidFolder(path)) return;
+        string parent = System.IO.Path.GetDirectoryName(path).Replace('\\', '/');
+        EnsureFolder(parent);
+        AssetDatabase.CreateFolder(parent, System.IO.Path.GetFileName(path));
+    }
+
+    // =========================================================================
+    // Audio: tag AudioSources with a Settings category
+    // =========================================================================
+
+    [MenuItem("Tools/Pre-Thesis/Audio/Tag Selected As Music")]
+    private static void TagMusic() => TagSelected(SoundCategory.Music);
+
+    [MenuItem("Tools/Pre-Thesis/Audio/Tag Selected As SFX")]
+    private static void TagSfx() => TagSelected(SoundCategory.Sfx);
+
+    [MenuItem("Tools/Pre-Thesis/Audio/Tag Selected As Ambient")]
+    private static void TagAmbient() => TagSelected(SoundCategory.Ambient);
+
+    private static void TagSelected(SoundCategory category)
+    {
+        int count = 0;
+        foreach (GameObject go in Selection.gameObjects)
+        {
+            foreach (AudioSource source in go.GetComponentsInChildren<AudioSource>(true))
+            {
+                SoundCategoryVolume tag = source.GetComponent<SoundCategoryVolume>();
+                if (tag == null) tag = Undo.AddComponent<SoundCategoryVolume>(source.gameObject);
+
+                var so = new SerializedObject(tag);
+                so.FindProperty("category").enumValueIndex = (int)category;
+                so.ApplyModifiedProperties();
+                count++;
+            }
+        }
+
+        Debug.Log(count == 0
+            ? "[Audio] No AudioSource in the selection."
+            : $"[Audio] Tagged {count} AudioSource(s) as {category}. Save the scene/prefab.");
     }
 
     private static void DisableOldTestButtons(Scene scene, StringBuilder log)

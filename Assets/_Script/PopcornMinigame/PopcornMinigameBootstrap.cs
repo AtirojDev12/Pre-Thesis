@@ -926,6 +926,9 @@ public sealed class PopcornUiCursorController : MonoBehaviour
 {
     private void Update()
     {
+        // The Esc menu owns the cursor while it is open.
+        if (GameplayInput.Blocked) return;
+
         if (UnityEngine.InputSystem.Keyboard.current == null ||
             !UnityEngine.InputSystem.Keyboard.current.tabKey.wasPressedThisFrame) return;
 

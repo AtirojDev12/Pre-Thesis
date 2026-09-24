@@ -4,23 +4,45 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Settings: player name, master volume, mouse sensitivity, fullscreen and
-/// resolution. Changes apply immediately; Back saves them to disk.
+/// Settings screen, used in two places: the main menu and the Esc pause menu.
+///
+///   General: player name, mouse sensitivity, brightness, fullscreen, resolution
+///   Sound:   master, music, SFX, ambient
+///
+/// Every change applies immediately (GameSettings raises Changed and the game
+/// reacts). Back saves to disk and raises BackRequested; in the main menu it
+/// also returns to the main panel.
 /// Values live in GameSettings (PlayerPrefs), not in the encrypted save.
 /// </summary>
 [DisallowMultipleComponent]
 public class SettingsPanel : MonoBehaviour
 {
+    [Tooltip("Set only in the main menu. Leave empty in the pause menu.")]
     [SerializeField] private MainMenuController menu;
 
+    [Header("General")]
     [SerializeField] private TMP_InputField nameField;
-    [SerializeField] private Slider volumeSlider;
-    [SerializeField] private TMP_Text volumeText;
     [SerializeField] private Slider sensitivitySlider;
     [SerializeField] private TMP_Text sensitivityText;
+    [SerializeField] private Slider brightnessSlider;
+    [SerializeField] private TMP_Text brightnessText;
     [SerializeField] private Toggle fullscreenToggle;
     [SerializeField] private TMP_Dropdown resolutionDropdown;
+
+    [Header("Sound")]
+    [SerializeField] private Slider volumeSlider;
+    [SerializeField] private TMP_Text volumeText;
+    [SerializeField] private Slider musicSlider;
+    [SerializeField] private TMP_Text musicText;
+    [SerializeField] private Slider sfxSlider;
+    [SerializeField] private TMP_Text sfxText;
+    [SerializeField] private Slider ambientSlider;
+    [SerializeField] private TMP_Text ambientText;
+
     [SerializeField] private Button backButton;
+
+    /// <summary>Raised when Back is pressed (after saving). The pause menu listens to this.</summary>
+    public event System.Action BackRequested;
 
     private readonly List<Vector2Int> resolutions = new List<Vector2Int>();
 
@@ -29,13 +51,14 @@ public class SettingsPanel : MonoBehaviour
         nameField.characterLimit = RoHRoomPlayer.MaxNameLength;
         nameField.onEndEdit.AddListener(OnNameEdited);
 
-        volumeSlider.minValue = 0f;
-        volumeSlider.maxValue = 1f;
-        volumeSlider.onValueChanged.AddListener(OnVolumeChanged);
+        SetupSlider(sensitivitySlider, GameSettings.MinSensitivity, GameSettings.MaxSensitivity,
+            v => { GameSettings.MouseSensitivityScale = v; RefreshLabels(); });
+        SetupSlider(brightnessSlider, 0f, 1f, v => { GameSettings.Brightness = v; RefreshLabels(); });
 
-        sensitivitySlider.minValue = GameSettings.MinSensitivity;
-        sensitivitySlider.maxValue = GameSettings.MaxSensitivity;
-        sensitivitySlider.onValueChanged.AddListener(OnSensitivityChanged);
+        SetupSlider(volumeSlider, 0f, 1f, v => { GameSettings.MasterVolume = v; RefreshLabels(); });
+        SetupSlider(musicSlider, 0f, 1f, v => { GameSettings.MusicVolume = v; RefreshLabels(); });
+        SetupSlider(sfxSlider, 0f, 1f, v => { GameSettings.SfxVolume = v; RefreshLabels(); });
+        SetupSlider(ambientSlider, 0f, 1f, v => { GameSettings.AmbientVolume = v; RefreshLabels(); });
 
         fullscreenToggle.onValueChanged.AddListener(on => GameSettings.Fullscreen = on);
         resolutionDropdown.onValueChanged.AddListener(OnResolutionChanged);
@@ -45,14 +68,32 @@ public class SettingsPanel : MonoBehaviour
         BuildResolutionList();
     }
 
+    private static void SetupSlider(Slider slider, float min, float max, UnityEngine.Events.UnityAction<float> onChange)
+    {
+        if (slider == null) return;
+        slider.minValue = min;
+        slider.maxValue = max;
+        slider.wholeNumbers = false;
+        slider.onValueChanged.AddListener(onChange);
+    }
+
     private void OnEnable()
     {
         nameField.SetTextWithoutNotify(GameSettings.PlayerName);
-        volumeSlider.SetValueWithoutNotify(GameSettings.MasterVolume);
-        sensitivitySlider.SetValueWithoutNotify(GameSettings.MouseSensitivityScale);
+        SetSilently(sensitivitySlider, GameSettings.MouseSensitivityScale);
+        SetSilently(brightnessSlider, GameSettings.Brightness);
+        SetSilently(volumeSlider, GameSettings.MasterVolume);
+        SetSilently(musicSlider, GameSettings.MusicVolume);
+        SetSilently(sfxSlider, GameSettings.SfxVolume);
+        SetSilently(ambientSlider, GameSettings.AmbientVolume);
         fullscreenToggle.SetIsOnWithoutNotify(GameSettings.Fullscreen);
         SelectSavedResolution();
         RefreshLabels();
+    }
+
+    private static void SetSilently(Slider slider, float value)
+    {
+        if (slider != null) slider.SetValueWithoutNotify(value);
     }
 
     private void OnNameEdited(string value)
@@ -69,22 +110,28 @@ public class SettingsPanel : MonoBehaviour
         nameField.SetTextWithoutNotify(clean);
     }
 
-    private void OnVolumeChanged(float value)
-    {
-        GameSettings.MasterVolume = value;
-        RefreshLabels();
-    }
-
-    private void OnSensitivityChanged(float value)
-    {
-        GameSettings.MouseSensitivityScale = value;
-        RefreshLabels();
-    }
-
     private void RefreshLabels()
     {
-        volumeText.text = $"Volume: {Mathf.RoundToInt(volumeSlider.value * 100f)}%";
-        sensitivityText.text = $"Mouse sensitivity: {sensitivitySlider.value:0.0}x";
+        SetPercent(volumeText, "Master volume", volumeSlider);
+        SetPercent(musicText, "Music", musicSlider);
+        SetPercent(sfxText, "Sound effects", sfxSlider);
+        SetPercent(ambientText, "Ambient", ambientSlider);
+
+        if (sensitivityText != null && sensitivitySlider != null)
+            sensitivityText.text = $"Mouse sensitivity: {sensitivitySlider.value:0.0}x";
+
+        if (brightnessText != null && brightnessSlider != null)
+        {
+            // Middle = 0 (as lit). Shown as -100 .. +100 so "0" means default.
+            int offset = Mathf.RoundToInt((brightnessSlider.value - 0.5f) * 200f);
+            brightnessText.text = offset == 0 ? "Brightness: default" : $"Brightness: {offset:+0;-0}";
+        }
+    }
+
+    private static void SetPercent(TMP_Text label, string name, Slider slider)
+    {
+        if (label == null || slider == null) return;
+        label.text = $"{name}: {Mathf.RoundToInt(slider.value * 100f)}%";
     }
 
     private void BuildResolutionList()
@@ -125,6 +172,8 @@ public class SettingsPanel : MonoBehaviour
         // Commit a name that was typed but never "submitted".
         OnNameEdited(nameField.text);
         GameSettings.Save();
-        menu.ShowMain();
+
+        BackRequested?.Invoke();
+        if (menu != null) menu.ShowMain();
     }
 }
