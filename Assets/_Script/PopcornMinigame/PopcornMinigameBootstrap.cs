@@ -11,7 +11,9 @@ public enum PopcornFlavor
     None,
     Cheese,
     BBQ,
-    Ghost
+    Ghost, // Reserved for existing serialized scenes; seasoning is now a separate flag.
+    Paprika,
+    Drink
 }
 
 public enum PopcornCustomerType
@@ -34,6 +36,19 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [Tooltip("Optional direct references for maps with repeated object names.")]
     [SerializeField] private Transform cashierObject;
     [SerializeField] private Transform popcornMakerObject;
+
+    [Header("Preparation stations")]
+    [SerializeField] private Transform bucketSpawner;
+    [SerializeField] private Transform cupSpawner;
+    [SerializeField] private Transform cheeseStation;
+    [SerializeField] private Transform bbqStation;
+    [SerializeField] private Transform paprikaStation;
+    [SerializeField] private Transform ghostStation;
+    [SerializeField] private Transform[] waterDispensers = new Transform[0];
+    [SerializeField] private GameObject emptyBucketPrefab;
+    [SerializeField] private GameObject emptyCupPrefab;
+    [SerializeField] private GameObject filledCupPrefab;
+    [SerializeField] private GameObject ghostCupPrefab;
 
     [Header("Held popcorn")]
     [SerializeField] private GameObject heldPopcornPrefab;
@@ -79,7 +94,18 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         counterSlot.Configure(customerSpawnPoint.position, customerWaitPoint.position, customerExitPoint.position);
         counterSlot.ConfigureRoute(customerApproachPath, customerDeparturePath, customerWaitPoint.rotation);
         holder.Configure(heldPopcornPrefab, heldPopcornPosition, heldPopcornRotation);
+        holder.ConfigureContainers(emptyBucketPrefab, emptyCupPrefab, filledCupPrefab, ghostCupPrefab);
         holder.BuildUi();
+        PopcornPreparation preparation = gameObject.AddComponent<PopcornPreparation>();
+        preparation.Configure(holder);
+        preparation.AddStation(bucketSpawner, PopcornStationKind.Bucket);
+        preparation.AddStation(cupSpawner, PopcornStationKind.Cup);
+        preparation.AddStation(cheeseStation, PopcornStationKind.Scoop, PopcornFlavor.Cheese);
+        preparation.AddStation(bbqStation, PopcornStationKind.Scoop, PopcornFlavor.BBQ);
+        preparation.AddStation(paprikaStation, PopcornStationKind.Scoop, PopcornFlavor.Paprika);
+        preparation.AddStation(ghostStation, PopcornStationKind.Ghost);
+        foreach (Transform dispenser in waterDispensers)
+            preparation.AddStation(dispenser, PopcornStationKind.Water);
         manager.Configure(holder, counterSlot, cashier, maker, cashierUiAnchor, popcornMakerUiAnchor,
             delayBetweenCustomers);
 
@@ -197,6 +223,47 @@ public sealed class ItemHoldingSystem : MonoBehaviour
 {
     public bool HasItem { get; private set; }
     public PopcornFlavor HeldFlavor { get; private set; }
+    public bool IsCup { get; private set; }
+    public bool IsReady => HasItem && HeldFlavor != PopcornFlavor.None;
+    public bool GhostMixed { get; private set; }
+    private GameObject bucketPrefab, cupPrefab, waterPrefab, ghostWaterPrefab;
+
+    public void ConfigureContainers(GameObject bucket, GameObject cup, GameObject water, GameObject ghostWater)
+    {
+        bucketPrefab = bucket;
+        cupPrefab = cup;
+        waterPrefab = water;
+        ghostWaterPrefab = ghostWater;
+    }
+
+    public bool PickUp(bool cup)
+    {
+        if (HasItem || !ShowVisual(cup ? cupPrefab : bucketPrefab)) return false;
+        IsCup = cup;
+        HeldFlavor = PopcornFlavor.None;
+        GhostMixed = false;
+        HasItem = true;
+        RefreshLabel();
+        return true;
+    }
+
+    public bool MixGhost()
+    {
+        if (!IsReady || GhostMixed) return false;
+        if (IsCup && !ShowVisual(ghostWaterPrefab)) return false;
+        GhostMixed = true;
+        TintPopcorn();
+        RefreshLabel();
+        return true;
+    }
+
+    private void RefreshLabel()
+    {
+        if (heldItemText != null)
+            heldItemText.text = !IsReady ? (IsCup ? "EMPTY CUP\nFind water dispenser" : "EMPTY BUCKET\nChoose a flavor station")
+                : UiFactory.ItemName(HeldFlavor) + (GhostMixed ? "\n+ GHOST FLAVOR" : "\nReady - Ghosts need mix");
+        if (heldItemPanel != null) heldItemPanel.SetActive(HasItem);
+    }
 
     private GameObject heldItemPanel;
     private TMP_Text heldItemText;
@@ -245,18 +312,18 @@ public sealed class ItemHoldingSystem : MonoBehaviour
         panelRect.anchorMax = new Vector2(0f, 0.5f);
         panelRect.pivot = new Vector2(0f, 0.5f);
         panelRect.anchoredPosition = new Vector2(28f, -80f);
-        panelRect.sizeDelta = new Vector2(250f, 290f);
+        panelRect.sizeDelta = new Vector2(340f, 190f);
 
         TMP_Text handLabel = UiFactory.CreateText("Hand Label", heldItemPanel.transform, "LEFT HAND", 26f, Color.white);
         UiFactory.SetRect(handLabel.rectTransform, new Vector2(0.08f, 0.78f), new Vector2(0.92f, 0.96f));
 
-        TMP_Text bucketIcon = UiFactory.CreateText("Bucket Icon", heldItemPanel.transform, "POPCORN", 42f, new Color(1f, 0.78f, 0.18f));
+        TMP_Text bucketIcon = UiFactory.CreateText("Bucket Icon", heldItemPanel.transform, "HELD ITEM", 30f, new Color(1f, 0.78f, 0.18f));
         bucketIcon.alignment = TextAlignmentOptions.Center;
-        UiFactory.SetRect(bucketIcon.rectTransform, new Vector2(0.12f, 0.30f), new Vector2(0.88f, 0.76f));
+        UiFactory.SetRect(bucketIcon.rectTransform, new Vector2(0.08f, 0.55f), new Vector2(0.92f, 0.78f));
 
         heldItemText = UiFactory.CreateText("Held Flavor", heldItemPanel.transform, string.Empty, 30f, Color.white);
         heldItemText.alignment = TextAlignmentOptions.Center;
-        UiFactory.SetRect(heldItemText.rectTransform, new Vector2(0.05f, 0.06f), new Vector2(0.95f, 0.30f));
+        UiFactory.SetRect(heldItemText.rectTransform, new Vector2(0.06f, 0.08f), new Vector2(0.94f, 0.55f));
 
         heldItemPanel.SetActive(false);
         foreach (Graphic graphic in canvasObject.GetComponentsInChildren<Graphic>(true))
@@ -265,49 +332,60 @@ public sealed class ItemHoldingSystem : MonoBehaviour
 
     public bool Hold(PopcornFlavor flavor)
     {
+        if (!HasItem || IsReady || !PopcornRecipe.IsOrder(flavor) || IsCup != (flavor == PopcornFlavor.Drink)) return false;
+        if (!ShowVisual(IsCup ? waterPrefab : heldPrefab)) return false;
+        HeldFlavor = flavor;
+        TintPopcorn();
+        RefreshLabel();
+        return true;
+    }
+
+    private void TintPopcorn()
+    {
+        if (IsCup || heldVisual == null) return;
+        Color tint = GhostMixed ? new Color(0.35f, 0.95f, 1f) : HeldFlavor == PopcornFlavor.BBQ
+            ? new Color(0.65f, 0.24f, 0.09f) : HeldFlavor == PopcornFlavor.Paprika
+            ? new Color(1f, 0.35f, 0.12f) : new Color(1f, 0.8f, 0.2f);
+        MaterialPropertyBlock properties = new MaterialPropertyBlock();
+        properties.SetColor("_BaseColor", tint);
+        properties.SetColor("_Color", tint);
+        foreach (Renderer renderer in heldVisual.GetComponentsInChildren<Renderer>())
+            if (renderer.name.StartsWith("Popcorn ")) renderer.SetPropertyBlock(properties);
+    }
+
+    private bool ShowVisual(GameObject prefab)
+    {
         PlayerHealth player = PlayerHealth.LocalInstance;
         Camera camera = player != null ? player.GetComponentInChildren<Camera>() : null;
-        if (flavor == PopcornFlavor.None || heldPrefab == null || camera == null || player.IsDead || player.IsDowned)
-        {
-            Debug.LogWarning("[PopcornMinigame] Cannot make popcorn: assign Held Popcorn Prefab and wait for the local player camera.", this);
-            return false;
-        }
-
+        if (prefab == null || camera == null || player.IsDead || player.IsDowned) return false;
         ClearVisual();
-        heldVisual = Instantiate(heldPrefab, camera.transform, false);
-        heldVisual.name = $"Held {UiFactory.FlavorName(flavor)} Popcorn";
+        heldVisual = Instantiate(prefab, camera.transform, false);
+        heldVisual.name = "Held " + prefab.name;
         heldVisual.transform.localPosition = heldPosition;
         heldVisual.transform.localRotation = Quaternion.Euler(heldRotation);
-        // A held prop must never obstruct the interaction ray or collide with its owner.
         foreach (Transform child in heldVisual.GetComponentsInChildren<Transform>(true))
             child.gameObject.layer = LayerMask.NameToLayer("Ignore Raycast");
-        foreach (Collider collider in heldVisual.GetComponentsInChildren<Collider>(true))
-            collider.enabled = false;
+        foreach (Collider collider in heldVisual.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
         foreach (Rigidbody body in heldVisual.GetComponentsInChildren<Rigidbody>(true))
         {
             body.isKinematic = true;
             body.detectCollisions = false;
         }
-        Color tint = flavor == PopcornFlavor.Ghost ? new Color(0.25f, 0.9f, 1f)
-            : flavor == PopcornFlavor.BBQ ? new Color(0.8f, 0.28f, 0.12f) : new Color(1f, 0.75f, 0.15f);
-        MaterialPropertyBlock properties = new MaterialPropertyBlock();
-        properties.SetColor("_BaseColor", tint);
-        properties.SetColor("_Color", tint);
-        foreach (Renderer renderer in heldVisual.GetComponentsInChildren<Renderer>())
-            renderer.SetPropertyBlock(properties);
-
-        HeldFlavor = flavor;
         itemOwner = player;
-        HasItem = true;
-        if (heldItemText != null) heldItemText.text = $"{UiFactory.FlavorName(flavor)}\nPOPCORN";
-        if (heldItemPanel != null) heldItemPanel.SetActive(HasItem);
         return true;
+    }
+
+    private void Update()
+    {
+        if (HasItem && (itemOwner == null || itemOwner.IsDead || itemOwner.IsDowned)) Consume();
     }
 
     public PopcornFlavor Consume()
     {
         PopcornFlavor result = HeldFlavor;
         HeldFlavor = PopcornFlavor.None;
+        GhostMixed = false;
+        IsCup = false;
         itemOwner = null;
         HasItem = false;
         ClearVisual();
@@ -519,15 +597,12 @@ public sealed class PopcornGameManager : MonoBehaviour
     private TMP_Text orderText;
     private TMP_Text scoreText;
     private TMP_Text feedbackText;
-    private TMP_Text selectionText;
-    private PopcornFlavor selectedFlavor;
     private int score;
     private float delayBetweenCustomers;
     private Coroutine feedbackRoutine;
     private Canvas cashierCanvas;
     private Canvas makerCanvas;
     private PopcornNetSync boundSync;
-    private readonly Dictionary<PopcornFlavor, WorldButtonInteractable> flavorButtons = new Dictionary<PopcornFlavor, WorldButtonInteractable>();
 
     public void Configure(ItemHoldingSystem itemHolder, CounterSlot slot, Transform cashier, Transform maker,
         Transform cashierPlacement, Transform makerPlacement, float nextDelay)
@@ -545,12 +620,12 @@ public sealed class PopcornGameManager : MonoBehaviour
     private void BuildCashierScreen(Transform cashier, Transform placement)
     {
         cashierCanvas = UiFactory.CreateWorldCanvas("Order Screen (World Space)", cashier,
-            placement, new Vector2(720f, 520f));
+            placement, new Vector2(600f, 350f));
 
         GameObject panel = UiFactory.CreatePanel("Cashier Display", cashierCanvas.transform, new Color(0.025f, 0.08f, 0.085f, 0.97f));
         UiFactory.Stretch(panel.GetComponent<RectTransform>());
 
-        orderText = UiFactory.CreateText("Order Text", panel.transform, "WAITING FOR CUSTOMER...", 56f, new Color(0.8f, 1f, 0.9f));
+        orderText = UiFactory.CreateText("Order Text", panel.transform, "WAITING FOR CUSTOMER...", 44f, new Color(0.8f, 1f, 0.9f));
         orderText.alignment = TextAlignmentOptions.Center;
         UiFactory.SetRect(orderText.rectTransform, new Vector2(0.05f, 0.43f), new Vector2(0.95f, 0.94f));
 
@@ -571,22 +646,11 @@ public sealed class PopcornGameManager : MonoBehaviour
         GameObject panel = UiFactory.CreatePanel("Popcorn Maker Controls", makerCanvas.transform, new Color(0.09f, 0.045f, 0.015f, 0.97f));
         UiFactory.Stretch(panel.GetComponent<RectTransform>());
 
-        TMP_Text title = UiFactory.CreateText("Title", panel.transform, "POPCORN MAKER", 46f, new Color(1f, 0.8f, 0.22f));
-        title.alignment = TextAlignmentOptions.Center;
-        UiFactory.SetRect(title.rectTransform, new Vector2(0.05f, 0.87f), new Vector2(0.95f, 0.98f));
-
-        selectionText = UiFactory.CreateText("Selection", panel.transform, "SELECT ONE FLAVOR", 32f, Color.white);
-        selectionText.alignment = TextAlignmentOptions.Center;
-        UiFactory.SetRect(selectionText.rectTransform, new Vector2(0.05f, 0.76f), new Vector2(0.95f, 0.87f));
-
-        CreateFlavorButton(panel.transform, "CHEESE", PopcornFlavor.Cheese, new Vector2(0.08f, 0.58f), new Vector2(0.92f, 0.74f), new Color(0.95f, 0.62f, 0.08f));
-        CreateFlavorButton(panel.transform, "BBQ", PopcornFlavor.BBQ, new Vector2(0.08f, 0.39f), new Vector2(0.92f, 0.55f), new Color(0.65f, 0.18f, 0.08f));
-        CreateFlavorButton(panel.transform, "GHOST FLAVOR", PopcornFlavor.Ghost, new Vector2(0.08f, 0.20f), new Vector2(0.92f, 0.36f), new Color(0.15f, 0.65f, 0.75f));
-
-        Button makeButton = UiFactory.CreateButton("Make Button", panel.transform, "MAKE", new Color(0.16f, 0.68f, 0.25f));
-        UiFactory.SetRect(makeButton.GetComponent<RectTransform>(), new Vector2(0.08f, 0.035f), new Vector2(0.92f, 0.17f));
-        makeButton.onClick.AddListener(MakePopcorn);
-        WorldButtonInteractable.Attach(makeButton, "Make popcorn");
+        TMP_Text instructions = UiFactory.CreateText("Preparation Steps", panel.transform,
+            "PREPARE AN ORDER\n\n1  Pick up a bucket or cup\n\n2  Hold E at a flavor station\nor water dispenser - 3 seconds\n\n3  Ghost customer?\nPress E at Ghost Flavor\n\n4  Serve the waiting customer\n\nCheck the cashier for order details",
+            38f, Color.white);
+        instructions.alignment = TextAlignmentOptions.Center;
+        UiFactory.SetRect(instructions.rectTransform, new Vector2(0.06f, 0.05f), new Vector2(0.94f, 0.95f));
     }
 
     private void BindWorldUiCamera(PlayerHealth player)
@@ -629,39 +693,6 @@ public sealed class PopcornGameManager : MonoBehaviour
         PlayerHealth.LocalInstanceChanged -= BindWorldUiCamera;
     }
 
-    private void CreateFlavorButton(Transform parent, string label, PopcornFlavor flavor,
-        Vector2 anchorMin, Vector2 anchorMax, Color color)
-    {
-        Button button = UiFactory.CreateButton(label + " Button", parent, label, color);
-        UiFactory.SetRect(button.GetComponent<RectTransform>(), anchorMin, anchorMax);
-        button.onClick.AddListener(() => SelectFlavor(flavor));
-        flavorButtons.Add(flavor, WorldButtonInteractable.Attach(button, $"Select {UiFactory.FlavorName(flavor)}"));
-    }
-
-    private void SelectFlavor(PopcornFlavor flavor)
-    {
-        selectedFlavor = flavor;
-        foreach (var entry in flavorButtons)
-            entry.Value.SetSelected(entry.Key == flavor);
-        selectionText.text = $"SELECTED: {UiFactory.FlavorName(flavor).ToUpperInvariant()}";
-    }
-
-    private void MakePopcorn()
-    {
-        if (selectedFlavor == PopcornFlavor.None)
-        {
-            ShowFeedback("Select a flavor first", new Color(1f, 0.78f, 0.15f));
-            return;
-        }
-
-        if (!holder.Hold(selectedFlavor))
-        {
-            ShowFeedback("Cannot make popcorn yet", new Color(1f, 0.78f, 0.15f));
-            return;
-        }
-        ShowFeedback($"Made {UiFactory.FlavorName(selectedFlavor)}", new Color(0.65f, 0.9f, 1f));
-    }
-
     private IEnumerator SpawnNextCustomerAfter(float delay)
     {
         yield return new WaitForSeconds(delay);
@@ -683,13 +714,11 @@ public sealed class PopcornGameManager : MonoBehaviour
 
         // No net sync in the scene (a pure sandbox test): behave as before.
         PopcornCustomerType type = Random.value < 0.5f ? PopcornCustomerType.Human : PopcornCustomerType.Ghost;
-        PopcornFlavor order = type == PopcornCustomerType.Ghost
-            ? PopcornFlavor.Ghost
-            : (Random.value < 0.5f ? PopcornFlavor.Cheese : PopcornFlavor.BBQ);
+        PopcornFlavor order = PopcornRecipe.RandomOrder();
 
         counterSlot.Occupy(this, type, order);
         TaskTimer.Begin(TimerKey);
-        orderText.text = $"{type.ToString().ToUpperInvariant()} ORDER\n{UiFactory.FlavorName(order).ToUpperInvariant()} POPCORN";
+        orderText.text = PopcornRecipe.OrderLabel(type, order);
     }
 
     /// <summary>
@@ -714,7 +743,7 @@ public sealed class PopcornGameManager : MonoBehaviour
 
         counterSlot.Occupy(this, sync.CurrentCustomerType, sync.CurrentOrder);
         TaskTimer.Begin(TimerKey);
-        orderText.text = $"{sync.CurrentCustomerType.ToString().ToUpperInvariant()} ORDER\n{UiFactory.FlavorName(sync.CurrentOrder).ToUpperInvariant()} POPCORN";
+        orderText.text = PopcornRecipe.OrderLabel(sync.CurrentCustomerType, sync.CurrentOrder);
     }
 
     private void OnSyncOrderChanged()
@@ -743,22 +772,24 @@ public sealed class PopcornGameManager : MonoBehaviour
 
     public void CustomerReady(PopcornCustomer customer)
     {
-        orderText.text = $"{customer.CustomerType.ToString().ToUpperInvariant()} ORDER\n{UiFactory.FlavorName(customer.Order).ToUpperInvariant()} POPCORN";
+        orderText.text = PopcornRecipe.OrderLabel(customer.CustomerType, customer.Order);
     }
 
     public void TryServe(PopcornCustomer customer, GameObject interactor)
     {
         if (customer == null || customer != counterSlot.ActiveCustomer || !customer.CanInteract()) return;
-        if (!holder.HasItem)
+        if (!holder.IsReady)
         {
-            ShowFeedback("Make popcorn first", new Color(1f, 0.78f, 0.15f));
+            ShowFeedback("Pick up and fill a bucket or cup first", new Color(1f, 0.78f, 0.15f));
             return;
         }
 
+        bool ghostMixed = holder.GhostMixed;
         PopcornFlavor served = holder.Consume();
+        bool correct = PopcornRecipe.Matches(served, ghostMixed, customer.Order, customer.CustomerType);
 
         PlayerHealth server = interactor != null ? interactor.GetComponentInParent<PlayerHealth>() : PlayerHealth.LocalInstance;
-        TaskTimer.Complete(TimerKey, TimerKey, server != null ? server.name : "player", served == customer.Order);
+        TaskTimer.Complete(TimerKey, TimerKey, server != null ? server.name : "player", correct);
 
         // MULTIPLAYER: this machine no longer decides whether the order was
         // right. It reports what the player handed over and the SERVER answers
@@ -767,12 +798,12 @@ public sealed class PopcornGameManager : MonoBehaviour
         // whether the team survives the night.
         if (PopcornNetSync.Instance != null)
         {
-            PopcornNetSync.Instance.RequestServe(served);
+            PopcornNetSync.Instance.RequestServe(served, ghostMixed);
             return;
         }
 
         // No net sync present (pure sandbox): original local behaviour.
-        bool correct = served == customer.Order;
+
 
         if (correct)
         {
@@ -1013,6 +1044,8 @@ internal static class UiFactory
         Stretch(text.rectTransform);
         return button;
     }
+
+    public static string ItemName(PopcornFlavor flavor) => flavor == PopcornFlavor.Drink ? "WATER" : FlavorName(flavor).ToUpperInvariant() + " POPCORN";
 
     public static string FlavorName(PopcornFlavor flavor) => flavor == PopcornFlavor.Ghost ? "Ghost Flavor" : flavor.ToString();
 

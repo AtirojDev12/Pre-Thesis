@@ -182,7 +182,7 @@ public class PlayerInteractor : NetworkBehaviour
     private void RequestInteract(IInteractable target)
     {
         // World UI selects local inventory; minigame serving routes its own server command.
-        if (target is WorldButtonInteractable || target is PopcornCustomer)
+        if (target is WorldButtonInteractable || target is PopcornCustomer || target is PopcornStation)
         {
             target.Interact(gameObject);
             return;
@@ -249,6 +249,12 @@ public class PlayerInteractor : NetworkBehaviour
         if (target is Object unityObject && unityObject == null) return;
         if (target is IInteractionHighlight highlightable)
             highlightable.SetHighlighted(state);
+        if (target == null || target is WorldButtonInteractable) return;
+        Transform root = target.GetTransform();
+        if (root == null) return;
+        InteractionOutline outline = root.GetComponent<InteractionOutline>();
+        if (state && outline == null) outline = root.gameObject.AddComponent<InteractionOutline>();
+        if (outline != null) outline.SetVisible(state);
     }
 
     private void OnDisable()
