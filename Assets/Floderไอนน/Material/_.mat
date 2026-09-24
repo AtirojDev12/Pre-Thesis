@@ -21,6 +21,9 @@ Material:
     RenderType: Opaque
   disabledShaderPasses:
   - MOTIONVECTORS
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
         m_Texture: {fileID: 0}
