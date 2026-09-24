@@ -8,15 +8,26 @@ public sealed class TicketNetSync : NetworkBehaviour
     [SerializeField] private TicketMinigame minigame;
     [SyncVar] private TicketCustomerState state;
     public TicketCustomerState State => state;
+    // Scene identities are inactive in a player build until Mirror spawns them.
+    // NetworkBehaviour.isClient/isServer dereference netIdentity, which is not
+    // assigned until NetworkIdentity.Awake. The always-active counter can run first.
+    public bool IsClientReady => netIdentity != null && isClient;
+    public bool IsServerReady => netIdentity != null && isServer;
 
     public void Publish(TicketCustomerState value)
     {
-        if (isServer) state = value;
+        if (IsServerReady) state = value;
     }
 
-    public void RequestSale(bool ghostTicket, int round) => CmdSell(ghostTicket, round);
+    public void RequestSale(bool ghostTicket, int round)
+    {
+        if (IsClientReady) CmdSell(ghostTicket, round);
+    }
 
-    public void RequestMovie(int movieIndex, int round) => CmdSelectMovie(movieIndex, round);
+    public void RequestMovie(int movieIndex, int round)
+    {
+        if (IsClientReady) CmdSelectMovie(movieIndex, round);
+    }
 
     [Command(requiresAuthority = false)]
     private void CmdSelectMovie(int movieIndex, int round, NetworkConnectionToClient sender = null)

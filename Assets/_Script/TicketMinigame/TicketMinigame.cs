@@ -68,7 +68,7 @@ public sealed class TicketMinigame : MonoBehaviour
 
     public TicketCustomerState State => state;
     public TicketCustomerState VisibleState => !NetworkMode.IsOffline && networkSync != null
-        && networkSync.isClient ? networkSync.State : state;
+        && networkSync.IsClientReady ? networkSync.State : state;
     public bool CanChooseMovie => isActiveAndEnabled && VisibleState.stage == TicketCustomerStage.Waiting;
     public bool CanServe => CanChooseMovie && VisibleState.hasMovie;
 
@@ -97,8 +97,8 @@ public sealed class TicketMinigame : MonoBehaviour
             delay = delayBetweenCustomers;
             wasOnline = online;
         }
-        if (!online || (networkSync != null && networkSync.isServer)) Advance(Time.deltaTime);
-        if (online && networkSync != null && networkSync.isServer) networkSync.Publish(state);
+        if (!online || (networkSync != null && networkSync.IsServerReady)) Advance(Time.deltaTime);
+        if (online && networkSync != null && networkSync.IsServerReady) networkSync.Publish(state);
         DrawCustomer(VisibleState);
         RefreshMoviePanel();
     }
@@ -140,7 +140,7 @@ public sealed class TicketMinigame : MonoBehaviour
         if (!CanServe) return;
         if (NetworkMode.IsOffline)
             ResolveSale(ghostTicket, state.round, interactor != null ? interactor.GetComponent<PlayerHealth>() : null);
-        else if (networkSync != null && networkSync.isClient)
+        else if (networkSync != null && networkSync.IsClientReady)
             networkSync.RequestSale(ghostTicket, VisibleState.round);
     }
 
@@ -148,7 +148,7 @@ public sealed class TicketMinigame : MonoBehaviour
     {
         if (!CanChooseMovie) return;
         if (NetworkMode.IsOffline) ResolveMovie(movieIndex, state.round, PlayerHealth.LocalInstance);
-        else if (networkSync != null && networkSync.isClient)
+        else if (networkSync != null && networkSync.IsClientReady)
             networkSync.RequestMovie(movieIndex, VisibleState.round);
         RefreshMoviePanel();
     }
@@ -162,7 +162,7 @@ public sealed class TicketMinigame : MonoBehaviour
             Vector3.Distance(player.transform.position, movieUiAnchor.position) > serverInteractionDistance) return;
         state.movieIndex = movieIndex;
         state.hasMovie = true;
-        if (networkSync != null && networkSync.isServer) networkSync.Publish(state);
+        if (networkSync != null && networkSync.IsServerReady) networkSync.Publish(state);
     }
 
     private void BuildMoviePanel()
@@ -223,7 +223,7 @@ public sealed class TicketMinigame : MonoBehaviour
         state.hasMovie = false;
         waypoint = 0;
         if (bubble != null) bubble.enabled = false;
-        if (networkSync != null && networkSync.isServer) networkSync.Publish(state);
+        if (networkSync != null && networkSync.IsServerReady) networkSync.Publish(state);
     }
 
     private void DrawCustomer(TicketCustomerState visible)
@@ -247,11 +247,7 @@ public sealed class TicketMinigame : MonoBehaviour
             customer.name = visible.ghost ? "Ghost Ticket Customer" : "Human Ticket Customer";
             customer.transform.localScale = new Vector3(0.75f, 1, 0.75f);
             customer.GetComponent<Collider>().enabled = false;
-            Color color = visible.ghost ? new Color(0.35f, 0.95f, 1, 0.78f) : new Color(1, 0.68f, 0.25f, 1);
-            var properties = new MaterialPropertyBlock();
-            properties.SetColor("_BaseColor", color);
-            properties.SetColor("_Color", color);
-            customer.GetComponent<Renderer>().SetPropertyBlock(properties);
+            CustomerAppearance.Apply(customer.GetComponent<Renderer>(), visible.ghost);
             requestText = CreateDisplay("Ticket Request", customer.transform, new Vector2(440, 100), out bubble);
             requestText.text = (visible.ghost ? ghostRequest : humanRequest) +
                 "\nMovie: " + movies[visible.requestedMovieIndex];
