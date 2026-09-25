@@ -21,6 +21,7 @@ public sealed class VoicePlayback : MonoBehaviour
     private AudioSource proximity;
     private AudioSource radio;
     private AudioClip squelch;
+    private AudioSource clickSource; // separate: the voice filter would multiply the click away
     private bool radioOn;
 
     public VoiceStream Stream => stream;
@@ -34,15 +35,29 @@ public sealed class VoicePlayback : MonoBehaviour
         return playback;
     }
 
+    // One shared clip of constant 1.0: VoiceFilter multiplies it by the voice.
+    private static AudioClip onesClip;
+
+    private static AudioClip OnesClip()
+    {
+        if (onesClip != null) return onesClip;
+        int rate = AudioSettings.outputSampleRate;
+        var ones = new float[rate];
+        for (int i = 0; i < ones.Length; i++) ones[i] = 1f;
+        onesClip = AudioClip.Create("Voice Carrier (1.0)", rate, 1, rate, false);
+        onesClip.SetData(ones, 0);
+        return onesClip;
+    }
+
     private void Init(VoiceStream voice)
     {
         stream = voice;
-        int rate = Mathf.Max(8000, stream.SampleRate);
+        int rate = AudioSettings.outputSampleRate;
 
         // ---- Proximity (3D) ----
         proximity = gameObject.AddComponent<AudioSource>();
-        proximity.clip = AudioClip.Create("Voice Proximity", rate, 1, rate, true,
-            data => stream.Read(VoiceStream.Output.Proximity, data));
+        proximity.clip = OnesClip();
+        gameObject.AddComponent<VoiceFilter>().Init(stream, VoiceStream.Output.Proximity);
         proximity.loop = true;
         proximity.playOnAwake = false;
         proximity.dopplerLevel = 0f;
@@ -57,8 +72,9 @@ public sealed class VoicePlayback : MonoBehaviour
         var radioGo = new GameObject("Radio");
         radioGo.transform.SetParent(transform, false);
         radio = radioGo.AddComponent<AudioSource>();
-        radio.clip = AudioClip.Create("Voice Radio", rate, 1, rate, true,
-            data => stream.Read(VoiceStream.Output.Radio, data));
+        radio.clip = OnesClip();
+        // Order matters: the voice filter must come BEFORE the radio filters.
+        radioGo.AddComponent<VoiceFilter>().Init(stream, VoiceStream.Output.Radio);
         radio.loop = true;
         radio.playOnAwake = false;
         radio.spatialBlend = 0f;
@@ -69,6 +85,11 @@ public sealed class VoicePlayback : MonoBehaviour
         radio.Play();
 
         squelch = BuildSquelch(rate);
+        var clickGo = new GameObject("Radio Click");
+        clickGo.transform.SetParent(transform, false);
+        clickSource = clickGo.AddComponent<AudioSource>();
+        clickSource.playOnAwake = false;
+        clickSource.spatialBlend = 0f;
         SetSpatial(true);
     }
 
@@ -84,7 +105,7 @@ public sealed class VoicePlayback : MonoBehaviour
         if (on == radioOn) return;
         radioOn = on;
         stream.RadioEnabled = on;
-        if (radio != null && squelch != null) radio.PlayOneShot(squelch, 0.6f);
+        if (clickSource != null && squelch != null) clickSource.PlayOneShot(squelch, 0.6f);
     }
 
     /// <summary>Silence the body voice without destroying anything (e.g. talker not found yet).</summary>
@@ -123,8 +144,6 @@ public sealed class VoicePlayback : MonoBehaviour
     private void OnDestroy()
     {
         if (stream != null) stream.RadioEnabled = false;
-        if (proximity != null && proximity.clip != null) Destroy(proximity.clip);
-        if (radio != null && radio.clip != null) Destroy(radio.clip);
         if (squelch != null) Destroy(squelch);
     }
 }

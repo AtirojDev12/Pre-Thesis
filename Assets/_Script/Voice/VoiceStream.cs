@@ -1,9 +1,10 @@
 using System.Diagnostics;
 
 /// <summary>
-/// One remote player's voice, as it arrives from EOS.
+/// One remote player's voice, as it arrives from the network (the game's own
+/// Mirror voice, VoiceNetwork) or from EOS.
 ///
-/// EOS pushes 10 ms blocks of 16-bit PCM (possibly from its own audio thread);
+/// Blocks of 16-bit PCM arrive (EOS may push them from its own audio thread);
 /// Unity's AudioClip reader pulls float samples (from the audio thread). Two
 /// small jitter buffers sit in between, one per output:
 ///   - Proximity: the 3D voice from the player's body. Always fed.
@@ -37,6 +38,10 @@ public sealed class VoiceStream
 
     /// <summary>Loudness of the last block, 0..1 (peak). For a "talking" icon or, later, ghosts that hear you.</summary>
     public volatile float Level;
+
+    private long blocks;
+    /// <summary>How many audio blocks arrived (voice test overlay).</summary>
+    public long Blocks => System.Threading.Interlocked.Read(ref blocks);
 
     public VoiceStream(string participantId)
     {
@@ -81,21 +86,67 @@ public sealed class VoiceStream
             Level = peak;
         }
 
+        System.Threading.Interlocked.Increment(ref blocks);
+
         System.Threading.Interlocked.Exchange(ref lastWriteMs, clock.ElapsedMilliseconds);
     }
 
-    /// <summary>Unity audio side. Always fills the whole array (silence on underrun).</summary>
-    public void Read(Output output, float[] data)
+    private long lastRadioMs = -100000;
+    /// <summary>True while radio audio arrived in the last 300 ms (the talker is on the Walkie-Talkie).</summary>
+    public bool RadioRecently => clock.ElapsedMilliseconds - System.Threading.Interlocked.Read(ref lastRadioMs) < 300;
+
+    /// <summary>
+    /// Game-network side (VoiceNetwork, main thread). Mono samples with explicit
+    /// routing decided by the server: near enough to hear the body, and/or on
+    /// the radio.
+    /// </summary>
+    public void WriteMono(short[] samples, int count, int rate, bool toProximity, bool toRadio)
     {
+        if (samples == null || count <= 0 || rate <= 0) return;
+
+        lock (gate)
+        {
+            if (sampleRate != rate || proximity == null)
+            {
+                sampleRate = rate;
+                proximity = new Ring(rate);
+                radio = new Ring(rate);
+            }
+
+            float peak = 0f;
+            for (int i = 0; i < count; i++)
+            {
+                float sample = samples[i] / 32768f;
+                float abs = sample < 0f ? -sample : sample;
+                if (abs > peak) peak = abs;
+                if (toProximity) proximity.Push(sample);
+                if (toRadio) radio.Push(sample);
+            }
+            Level = peak;
+        }
+
+        long now = clock.ElapsedMilliseconds;
+        if (toRadio) System.Threading.Interlocked.Exchange(ref lastRadioMs, now);
+        System.Threading.Interlocked.Increment(ref blocks);
+        System.Threading.Interlocked.Exchange(ref lastWriteMs, now);
+    }
+
+    /// <summary>Unity audio side. Always fills the whole array (silence on underrun).</summary>
+    public void Read(Output output, float[] data) => Read(output, data, 0, data.Length);
+
+    /// <summary>Fills data[offset .. offset+count) (silence on underrun). Audio thread safe.</summary>
+    public void Read(Output output, float[] data, int offset, int count)
+    {
+        if (count <= 0) return;
         lock (gate)
         {
             Ring ring = output == Output.Radio ? radio : proximity;
             if (ring == null)
             {
-                System.Array.Clear(data, 0, data.Length);
+                System.Array.Clear(data, offset, count);
                 return;
             }
-            ring.Pop(data);
+            ring.Pop(data, offset, count);
         }
     }
 
@@ -122,9 +173,9 @@ public sealed class VoiceStream
         public Ring(int rate)
         {
             buffer = new float[rate];              // 1 s
-            startThreshold = rate * 60 / 1000;     // 60 ms
-            maxLatency = rate / 4;                 // 250 ms
-            trimTo = rate / 10;                    // 100 ms
+            startThreshold = rate * 80 / 1000;     // 80 ms: absorbs network + frame jitter
+            maxLatency = rate * 300 / 1000;        // 300 ms
+            trimTo = rate * 120 / 1000;            // 120 ms
         }
 
         public void Clear()
@@ -153,11 +204,11 @@ public sealed class VoiceStream
             }
         }
 
-        public void Pop(float[] data)
+        public void Pop(float[] data, int offset, int length)
         {
             if (!playing && count >= startThreshold) playing = true;
 
-            for (int i = 0; i < data.Length; i++)
+            for (int i = offset; i < offset + length; i++)
             {
                 if (playing && count > 0)
                 {

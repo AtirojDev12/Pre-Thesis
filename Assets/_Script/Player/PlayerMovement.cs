@@ -51,16 +51,19 @@ public class PlayerMovement : NetworkBehaviour
     private bool isSprinting;
     private Transform hips;
     private Vector3 hipsRestLocalPosition;
-    private Vector3 lastObservedPosition;
-    private bool hasObservedPosition;
+    // Replicate the owner's locomotion choice rather than guessing it from
+    // interpolated transforms, which can pause/catch up between snapshots.
+    [SyncVar] private bool animationMoving;
+    [SyncVar] private bool animationSprinting;
+    private bool sentAnimationState;
+    private bool lastSentMoving;
+    private bool lastSentSprinting;
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
         playerHealth = GetComponent<PlayerHealth>();
         playerStamina = GetComponent<PlayerStamina>();
-        lastObservedPosition = transform.position;
-        hasObservedPosition = true;
 
         if (playerAnimator == null)
             playerAnimator = GetComponent<Animator>();
@@ -87,6 +90,12 @@ public class PlayerMovement : NetworkBehaviour
         // rigidbody dynamic makes local physics fight the incoming positions and
         // produces jitter and phantom collisions.
         if (!isLocalPlayer && rb != null) rb.isKinematic = true;
+    }
+
+    public override void OnStartLocalPlayer()
+    {
+        base.OnStartLocalPlayer();
+        sentAnimationState = false;
     }
 
     private void Update()
@@ -169,33 +178,27 @@ public class PlayerMovement : NetworkBehaviour
     private void UpdateWalkingAnimation()
     {
         SetAnimationSpeed(movement.magnitude);
+        if (NetworkMode.IsOffline || !isLocalPlayer) return;
+        bool moving = movement.sqrMagnitude > 0.01f;
+        if (sentAnimationState && moving == lastSentMoving && isSprinting == lastSentSprinting) return;
+        sentAnimationState = true;
+        lastSentMoving = moving;
+        lastSentSprinting = isSprinting;
+        CmdSetAnimationState(moving, isSprinting);
+    }
+
+    [Command]
+    private void CmdSetAnimationState(bool moving, bool sprinting)
+    {
+        bool incapacitated = playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead);
+        animationMoving = moving && !incapacitated;
+        animationSprinting = sprinting && animationMoving;
     }
 
     private void UpdateRemoteWalkingAnimation(bool isIncapacitated)
     {
-        Vector3 currentPosition = transform.position;
-
-        if (!hasObservedPosition || Time.deltaTime <= 0f)
-        {
-            lastObservedPosition = currentPosition;
-            hasObservedPosition = true;
-            SetAnimationSpeed(0f);
-            return;
-        }
-
-        Vector3 displacement = currentPosition - lastObservedPosition;
-        displacement.y = 0f;
-        lastObservedPosition = currentPosition;
-
-        float actualSpeed = displacement.magnitude / Time.deltaTime;
-        float normalizedSpeed = isIncapacitated || moveSpeed <= 0f
-            ? 0f
-            : Mathf.Clamp01(actualSpeed / moveSpeed);
-
-        float sprintThreshold = (moveSpeed + sprintSpeed) * 0.5f;
-        SetSprinting(!isIncapacitated && actualSpeed > sprintThreshold);
-
-        SetAnimationSpeed(normalizedSpeed);
+        SetSprinting(!isIncapacitated && animationSprinting);
+        SetAnimationSpeed(!isIncapacitated && animationMoving ? 1f : 0f);
     }
 
     private void SetSprinting(bool value)

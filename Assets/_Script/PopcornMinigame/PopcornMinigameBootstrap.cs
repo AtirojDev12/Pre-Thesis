@@ -44,6 +44,8 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [SerializeField] private Transform bbqStation;
     [SerializeField] private Transform paprikaStation;
     [SerializeField] private Transform ghostStation;
+    [Tooltip("Optional GhostFavor relocation anchors. Empty uses the ticket booth; add anchors here for future random locations.")]
+    [SerializeField] private Transform[] ghostFavorRelocationPoints = new Transform[0];
     [SerializeField] private Transform[] waterDispensers = new Transform[0];
     [SerializeField] private GameObject emptyBucketPrefab;
     [SerializeField] private GameObject emptyCupPrefab;
@@ -104,6 +106,8 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         preparation.AddStation(bbqStation, PopcornStationKind.Scoop, PopcornFlavor.BBQ);
         preparation.AddStation(paprikaStation, PopcornStationKind.Scoop, PopcornFlavor.Paprika);
         preparation.AddStation(ghostStation, PopcornStationKind.Ghost);
+        if (ghostStation != null)
+            gameObject.AddComponent<GhostFavorRecovery>().Configure(ghostStation, ghostFavorRelocationPoints);
         foreach (Transform dispenser in waterDispensers)
             preparation.AddStation(dispenser, PopcornStationKind.Water);
         manager.Configure(holder, counterSlot, cashier, maker, cashierUiAnchor, popcornMakerUiAnchor,
@@ -249,6 +253,7 @@ public sealed class ItemHoldingSystem : MonoBehaviour
 
     public bool MixGhost()
     {
+        if (GhostFavorRecovery.Instance != null && !GhostFavorRecovery.Instance.IsHome) return false;
         if (!IsReady || GhostMixed) return false;
         if (IsCup && !ShowVisual(ghostWaterPrefab)) return false;
         GhostMixed = true;

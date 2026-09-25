@@ -25,6 +25,16 @@ public sealed class PopcornStation : MonoBehaviour, IInteractable
 
     public string GetInteractionPrompt()
     {
+        string label = Kind == PopcornStationKind.Ghost ? "Ghost Flavor" :
+            Kind == PopcornStationKind.Scoop ? UiFactory.FlavorName(Flavor) + " Popcorn" :
+            Kind == PopcornStationKind.Water ? "Water" : Kind.ToString();
+        if (GhostFavorRecovery.Instance != null && !GhostFavorRecovery.Instance.IsHome && Kind == PopcornStationKind.Ghost)
+            return GhostFavorRecovery.Instance.Prompt;
+        return label + "\n" + GetActionPrompt();
+    }
+
+    private string GetActionPrompt()
+    {
         if (preparation == null) return string.Empty;
         ItemHoldingSystem holder = preparation.Holder;
         if (Kind == PopcornStationKind.Bucket || Kind == PopcornStationKind.Cup)
