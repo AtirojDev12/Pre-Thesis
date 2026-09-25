@@ -19883,6 +19883,7 @@ MonoBehaviour:
   ghostRequest: One ghost ticket, please!
   bubbleOffset: {x: 0, y: 1.2, z: 0}
   scoreAnchor: {fileID: 1500277098}
+  zoneCounter: {fileID: 0}
 --- !u!1 &1119191667
 GameObject:
   m_ObjectHideFlags: 0
@@ -36272,6 +36273,80 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1 &1964439554
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1964439557}
+  - component: {fileID: 1964439556}
+  - component: {fileID: 1964439555}
+  m_Layer: 0
+  m_Name: MatchDirector
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1964439555
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1964439554}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b80ba2b653949d84488df41bf4ecd0c4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MatchDirector
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  difficultyProfiles:
+  - {fileID: 11400000, guid: 18778d1bfd508b6499253d213313d9ef, type: 2}
+  - {fileID: 11400000, guid: 3b7d7a758c1c3ed4ca6b0b6a13c066e9, type: 2}
+  - {fileID: 11400000, guid: 34b8ac4e8b8aff943aa0fd17c6e0733c, type: 2}
+  - {fileID: 11400000, guid: a59dd3cac6224e9478e48cc14634686a, type: 2}
+  fallbackProfile: {fileID: 11400000, guid: a59dd3cac6224e9478e48cc14634686a, type: 2}
+  ghostRosters:
+  - {fileID: 11400000, guid: b81a86ea70d23454b896ad139bb89627, type: 2}
+  logRoundSetup: 1
+--- !u!114 &1964439556
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1964439554}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mirror::Mirror.NetworkIdentity
+  sceneId: 510774278
+  _assetId: 0
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0
+--- !u!4 &1964439557
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1964439554}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1967236602
 GameObject:
   m_ObjectHideFlags: 0
@@ -38858,3 +38933,4 @@ SceneRoots:
   - {fileID: 993463013}
   - {fileID: 277291531}
   - {fileID: 2035827791}
+  - {fileID: 1964439557}

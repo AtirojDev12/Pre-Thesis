@@ -17,6 +17,21 @@ public class EOSLobby : MonoBehaviour {
     public const string hostAddressKey = "host_address";
 
     private string currentLobbyId = string.Empty;
+
+    /// <summary>13RoH: the EOS lobby we are in (empty when none). VoiceChatManager reads it.</summary>
+    public string CurrentLobbyId => ConnectedToLobby ? currentLobbyId : string.Empty;
+
+    /// <summary>
+    /// 13RoH: voice chat. Every lobby gets an EOS voice room. Manual audio output =
+    /// EOS does not play voices itself; VoiceChatManager receives each player's
+    /// voice separately and plays it in 3D from their body (or on the radio).
+    /// </summary>
+    public static LocalRTCOptions VoiceRtcOptions() => new LocalRTCOptions {
+        Flags = 0,
+        UseManualAudioInput = false,
+        UseManualAudioOutput = true,
+        AudioOutputStartsMuted = false
+    };
     private bool isLobbyOwner = false;
     private List<LobbyDetails> foundLobbies = new List<LobbyDetails>();
     private List<Attribute> lobbyData = new List<Attribute>();
@@ -112,6 +127,8 @@ public class EOSLobby : MonoBehaviour {
             PermissionLevel = permissionLevel,
             PresenceEnabled = presenceEnabled,
             BucketId = DefaultAttributeKey,
+            EnableRTCRoom = true,
+            LocalRTCOptions = VoiceRtcOptions(),
         }, null, (CreateLobbyCallbackInfo callback) => {
             List<Attribute> lobbyReturnData = new List<Attribute>();
 
@@ -222,7 +239,7 @@ public class EOSLobby : MonoBehaviour {
     /// <param name="presenceEnabled">Use Epic's overlay to display information to others.</param>
     public virtual void JoinLobby(LobbyDetails lobbyToJoin, string[] attributeKeys = null, bool presenceEnabled = false) {
         //join lobby
-        EOSSDKComponent.GetLobbyInterface().JoinLobby(new JoinLobbyOptions { LobbyDetailsHandle = lobbyToJoin, LocalUserId = EOSSDKComponent.LocalUserProductId, PresenceEnabled = presenceEnabled }, null, (JoinLobbyCallbackInfo callback) => {
+        EOSSDKComponent.GetLobbyInterface().JoinLobby(new JoinLobbyOptions { LobbyDetailsHandle = lobbyToJoin, LocalUserId = EOSSDKComponent.LocalUserProductId, PresenceEnabled = presenceEnabled, LocalRTCOptions = VoiceRtcOptions() }, null, (JoinLobbyCallbackInfo callback) => {
             //if the result was not a success, invoke an error event and return
             if (callback.ResultCode != Result.Success) {
                 JoinLobbyFailed?.Invoke("There was an error while joining a lobby. Error: " + callback.ResultCode);

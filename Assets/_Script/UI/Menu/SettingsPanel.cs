@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Utilities;
 using UnityEngine.UI;
 
 /// <summary>
@@ -8,6 +10,7 @@ using UnityEngine.UI;
 ///
 ///   General: player name, mouse sensitivity, brightness, fullscreen, resolution
 ///   Sound:   master, music, SFX, ambient
+///   Controls: Walkie-Talkie talk key + on/off key (rebindable, any key or mouse button)
 ///
 /// Nothing changes until APPLY is pressed. Moving a slider only edits a
 /// pending copy (the labels show the pending value). Apply writes every value
@@ -42,6 +45,10 @@ public class SettingsPanel : MonoBehaviour
     [SerializeField] private Slider ambientSlider;
     [SerializeField] private TMP_Text ambientText;
 
+    [Header("Controls (optional: rebuilt by Tools > Pre-Thesis > Rebuild Settings + Pause Menu)")]
+    [SerializeField] private Button walkieTalkButton;
+    [SerializeField] private Button walkiePowerButton;
+
     [Header("Buttons")]
     [SerializeField] private Button applyButton;
     [SerializeField] private Button backButton;
@@ -57,6 +64,16 @@ public class SettingsPanel : MonoBehaviour
     private float savedSensitivity, savedBrightness, savedMaster, savedMusic, savedSfx, savedAmbient;
     private bool savedFullscreen;
     private int savedResolutionIndex;
+    private string savedWalkieTalk, savedWalkiePower;
+
+    // Pending key bindings (control paths), written on Apply like everything else.
+    private string pendingWalkieTalk, pendingWalkiePower;
+
+    // Rebinding: which binding is waiting for a key (null = none).
+    private enum RebindTarget { None, WalkieTalk, WalkiePower }
+    private RebindTarget listening = RebindTarget.None;
+    private System.IDisposable rebindListener;
+    private float ignoreClicksUntil;
 
     private void Awake()
     {
@@ -78,6 +95,9 @@ public class SettingsPanel : MonoBehaviour
 
         backButton.onClick.AddListener(Back);
 
+        if (walkieTalkButton != null) walkieTalkButton.onClick.AddListener(() => StartRebind(RebindTarget.WalkieTalk));
+        if (walkiePowerButton != null) walkiePowerButton.onClick.AddListener(() => StartRebind(RebindTarget.WalkiePower));
+
         BuildResolutionList();
     }
 
@@ -94,6 +114,8 @@ public class SettingsPanel : MonoBehaviour
     // never applied are gone.
     private void OnEnable() => LoadSavedValues();
 
+    private void OnDisable() => StopRebind();
+
     private void LoadSavedValues()
     {
         savedName = GameSettings.PlayerName;
@@ -105,6 +127,9 @@ public class SettingsPanel : MonoBehaviour
         savedAmbient = GameSettings.AmbientVolume;
         savedFullscreen = GameSettings.Fullscreen;
         savedResolutionIndex = Mathf.Max(0, resolutions.IndexOf(GameSettings.SavedResolution));
+        savedWalkieTalk = pendingWalkieTalk = GameSettings.WalkieTalkBinding;
+        savedWalkiePower = pendingWalkiePower = GameSettings.WalkiePowerBinding;
+        StopRebind();
 
         nameField.SetTextWithoutNotify(savedName);
         SetSilently(sensitivitySlider, savedSensitivity);
@@ -147,6 +172,9 @@ public class SettingsPanel : MonoBehaviour
         if (index != savedResolutionIndex && index >= 0 && index < resolutions.Count)
             GameSettings.SetResolution(resolutions[index].x, resolutions[index].y);
 
+        if (pendingWalkieTalk != savedWalkieTalk) GameSettings.WalkieTalkBinding = pendingWalkieTalk;
+        if (pendingWalkiePower != savedWalkiePower) GameSettings.WalkiePowerBinding = pendingWalkiePower;
+
         GameSettings.Save();
 
         // The applied values are the new "saved" ones (also puts a refused
@@ -171,6 +199,7 @@ public class SettingsPanel : MonoBehaviour
         if (Changed(sfxSlider, savedSfx)) return true;
         if (Changed(ambientSlider, savedAmbient)) return true;
         if (fullscreenToggle.isOn != savedFullscreen) return true;
+        if (pendingWalkieTalk != savedWalkieTalk || pendingWalkiePower != savedWalkiePower) return true;
         return resolutionDropdown.value != savedResolutionIndex;
     }
 
@@ -194,6 +223,9 @@ public class SettingsPanel : MonoBehaviour
         if (sensitivityText != null && sensitivitySlider != null)
             sensitivityText.text = $"Mouse sensitivity: {sensitivitySlider.value:0.0}x";
 
+        SetBindingLabel(walkieTalkButton, "Walkie talk (hold)", pendingWalkieTalk, listening == RebindTarget.WalkieTalk);
+        SetBindingLabel(walkiePowerButton, "Walkie on / off", pendingWalkiePower, listening == RebindTarget.WalkiePower);
+
         if (brightnessText != null && brightnessSlider != null)
         {
             // Middle = 0 (as lit). Shown as -100 .. +100 so "0" means default.
@@ -206,6 +238,58 @@ public class SettingsPanel : MonoBehaviour
     {
         if (label == null || slider == null) return;
         label.text = $"{name}: {Mathf.RoundToInt(slider.value * 100f)}%";
+    }
+
+    // ---- Key rebinding ---------------------------------------------------------
+    // Click a binding button, then press any key or mouse button (Mouse0..4).
+    // Esc cancels. The new key is only pending until Apply, like every setting.
+
+    private void StartRebind(RebindTarget target)
+    {
+        // The mouse click that picked a new binding also "clicks" this button when
+        // it is released. Ignore that one so it does not start listening again.
+        if (Time.unscaledTime < ignoreClicksUntil) return;
+
+        StopRebind();
+        listening = target;
+        RefreshLabels();
+
+        rebindListener = InputSystem.onAnyButtonPress.CallOnce(control =>
+        {
+            rebindListener = null;
+            RebindTarget finished = listening;
+            listening = RebindTarget.None;
+            ignoreClicksUntil = Time.unscaledTime + 0.35f;
+
+            bool cancelled = control == null || control.path.EndsWith("/escape");
+            if (!cancelled)
+            {
+                if (finished == RebindTarget.WalkieTalk) pendingWalkieTalk = control.path;
+                else if (finished == RebindTarget.WalkiePower) pendingWalkiePower = control.path;
+            }
+
+            RefreshLabels();
+            RefreshApplyButton();
+        });
+    }
+
+    private void StopRebind()
+    {
+        rebindListener?.Dispose();
+        rebindListener = null;
+        if (listening == RebindTarget.None) return;
+        listening = RebindTarget.None;
+        RefreshLabels();
+    }
+
+    private static void SetBindingLabel(Button button, string action, string path, bool isListening)
+    {
+        if (button == null) return;
+        TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
+        if (label == null) return;
+        label.text = isListening
+            ? action + ": press a key or mouse button... (Esc = cancel)"
+            : action + ": " + BoundButton.DisplayName(path);
     }
 
     // ---- Resolution list -------------------------------------------------------

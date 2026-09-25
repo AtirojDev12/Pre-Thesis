@@ -78,6 +78,8 @@ namespace EpicTransport {
         public static Epic.OnlineServices.Friends.FriendsInterface GetFriendsInterface() => Instance.EOS.GetFriendsInterface();
         public static Epic.OnlineServices.Leaderboards.LeaderboardsInterface GetLeaderboardsInterface() => Instance.EOS.GetLeaderboardsInterface();
         public static Epic.OnlineServices.Lobby.LobbyInterface GetLobbyInterface() => Instance.EOS.GetLobbyInterface();
+        // 13RoH: voice chat (EOS RTC). Null if RTC is disabled on the platform.
+        public static Epic.OnlineServices.RTC.RTCInterface GetRTCInterface() => Instance.EOS.GetRTCInterface();
         public static Epic.OnlineServices.Metrics.MetricsInterface GetMetricsInterface() => Instance.EOS.GetMetricsInterface(); // Handled by the transport automatically, only use this interface if Mirror is not used for singleplayer
         public static Epic.OnlineServices.Mods.ModsInterface GetModsInterface() => Instance.EOS.GetModsInterface();
         public static Epic.OnlineServices.P2P.P2PInterface GetP2PInterface() => Instance.EOS.GetP2PInterface();
@@ -215,7 +217,9 @@ namespace EpicTransport {
                     ClientId = apiKeys.epicClientId,
                     ClientSecret = apiKeys.epicClientSecret
                 },
-                TickBudgetInMilliseconds = tickBudgetInMilliseconds
+                TickBudgetInMilliseconds = tickBudgetInMilliseconds,
+                // 13RoH: turns on EOS RTC (lobby voice chat). Null = RTC disabled.
+                RTCOptions = new RTCOptions()
             };
 
             EOS = PlatformInterface.Create(options);
@@ -394,4 +398,4 @@ namespace EpicTransport {
 #endif
         }
     }
-}
+}

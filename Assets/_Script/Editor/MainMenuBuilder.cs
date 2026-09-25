@@ -475,11 +475,11 @@ public static class MainMenuBuilder
     /// </summary>
     private static SettingsPanel BuildSettingsPanel(RectTransform parent, MainMenuController menu)
     {
-        RectTransform card = Card(parent, "Settings Panel", new Vector2(1180, 800));
+        RectTransform card = Card(parent, "Settings Panel", new Vector2(1180, 860));
         Label(card, "Title", "Settings", 44, AccentColor, TextAlignmentOptions.Center, 60);
 
         RectTransform columns = NewRect("Columns", card);
-        Layout(columns, 0, 540, flexibleHeight: 1);
+        Layout(columns, 0, 600, flexibleHeight: 1);
         HorizontalLayoutGroup row = columns.gameObject.AddComponent<HorizontalLayoutGroup>();
         ConfigureHorizontal(row, 48, new RectOffset(0, 0, 0, 0));
         row.childAlignment = TextAnchor.UpperLeft;
@@ -511,6 +511,13 @@ public static class MainMenuBuilder
         TMP_Text ambientText = Label(right, "Ambient Label", "Ambient: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
         Slider ambient = MakeSlider(right, "Ambient Slider");
 
+        // ---- Controls (under Sound) -----------------------------------------
+        Label(right, "Controls Header", "Controls", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
+        Button walkieTalk = MakeButton(right, "Walkie Talk Binding", "Walkie talk (hold): Left Button [Mouse]", false, 52f);
+        Button walkiePower = MakeButton(right, "Walkie Power Binding", "Walkie on / off: Right Button [Mouse]", false, 52f);
+        ButtonText(walkieTalk).fontSize = 20;
+        ButtonText(walkiePower).fontSize = 20;
+
         RectTransform buttons = ButtonRow(card, "Buttons");
         Button back = MakeButton(buttons, "Back Button", "Back", false);
         Button apply = MakeButton(buttons, "Apply Button", "Apply", true);
@@ -525,6 +532,7 @@ public static class MainMenuBuilder
             ("musicSlider", music), ("musicText", musicText),
             ("sfxSlider", sfx), ("sfxText", sfxText),
             ("ambientSlider", ambient), ("ambientText", ambientText),
+            ("walkieTalkButton", walkieTalk), ("walkiePowerButton", walkiePower),
             ("applyButton", apply), ("backButton", back));
         return panel;
     }
@@ -609,7 +617,7 @@ public static class MainMenuBuilder
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
-        log.AppendLine("- MainMenu: Settings panel rebuilt (general + sound). Nothing else in the menu was touched.");
+        log.AppendLine("- MainMenu: Settings panel rebuilt (general + sound + controls). Nothing else in the menu was touched.");
     }
 
     /// <summary>

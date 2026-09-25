@@ -32,6 +32,12 @@ public static class GameSettings
     private const string KeyFullscreen = "settings.fullscreen";
     private const string KeyResWidth = "settings.resWidth";
     private const string KeyResHeight = "settings.resHeight";
+    private const string KeyWalkieTalk = "settings.bind.walkieTalk";
+    private const string KeyWalkiePower = "settings.bind.walkiePower";
+
+    /// <summary>Default key bindings (Input System control paths).</summary>
+    public const string DefaultWalkieTalkBinding = "<Mouse>/leftButton";
+    public const string DefaultWalkiePowerBinding = "<Mouse>/rightButton";
 
     public const float MinSensitivity = 0.1f;
     public const float MaxSensitivity = 3f;
@@ -129,6 +135,24 @@ public static class GameSettings
 
     /// <summary>Brightness converted to post-exposure (EV) for the camera.</summary>
     public static float BrightnessExposure => Mathf.Lerp(MinExposure, MaxExposure, Brightness);
+
+    // ---- Key bindings ------------------------------------------------------------
+    // Stored as Input System control paths ("<Mouse>/leftButton", "/Keyboard/v").
+    // Read them through BoundButton, not InputSystem directly.
+
+    /// <summary>Hold to talk on the Walkie-Talkie (walkie in hand and switched on).</summary>
+    public static string WalkieTalkBinding
+    {
+        get => PlayerPrefs.GetString(KeyWalkieTalk, DefaultWalkieTalkBinding);
+        set { PlayerPrefs.SetString(KeyWalkieTalk, string.IsNullOrEmpty(value) ? DefaultWalkieTalkBinding : value); NotifyChanged(); }
+    }
+
+    /// <summary>Press to switch the Walkie-Talkie in your hand on / off.</summary>
+    public static string WalkiePowerBinding
+    {
+        get => PlayerPrefs.GetString(KeyWalkiePower, DefaultWalkiePowerBinding);
+        set { PlayerPrefs.SetString(KeyWalkiePower, string.IsNullOrEmpty(value) ? DefaultWalkiePowerBinding : value); NotifyChanged(); }
+    }
 
     // ---- Screen ----------------------------------------------------------------
 
