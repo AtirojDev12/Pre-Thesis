@@ -22,13 +22,14 @@ public class EOSLobby : MonoBehaviour {
     public string CurrentLobbyId => ConnectedToLobby ? currentLobbyId : string.Empty;
 
     /// <summary>
-    /// 13RoH: voice chat. Every lobby gets an EOS voice room. Manual audio output =
+    /// 13RoH: voice chat. Every lobby gets an EOS voice room. Manual audio input + output =
+    /// EOS does not touch the mic or speakers: Unity records the mic (VoiceMicCapture) and
     /// EOS does not play voices itself; VoiceChatManager receives each player's
     /// voice separately and plays it in 3D from their body (or on the radio).
     /// </summary>
     public static LocalRTCOptions VoiceRtcOptions() => new LocalRTCOptions {
         Flags = 0,
-        UseManualAudioInput = false,
+        UseManualAudioInput = true,   // mic recorded by Unity, pushed with SendAudio (VoiceMicCapture)
         UseManualAudioOutput = true,
         AudioOutputStartsMuted = false
     };

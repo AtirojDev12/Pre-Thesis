@@ -38,6 +38,10 @@ public sealed class VoiceStream
     /// <summary>Loudness of the last block, 0..1 (peak). For a "talking" icon or, later, ghosts that hear you.</summary>
     public volatile float Level;
 
+    private long blocks;
+    /// <summary>How many audio blocks arrived (voice test overlay).</summary>
+    public long Blocks => System.Threading.Interlocked.Read(ref blocks);
+
     public VoiceStream(string participantId)
     {
         ParticipantId = participantId;
@@ -80,6 +84,8 @@ public sealed class VoiceStream
 
             Level = peak;
         }
+
+        System.Threading.Interlocked.Increment(ref blocks);
 
         System.Threading.Interlocked.Exchange(ref lastWriteMs, clock.ElapsedMilliseconds);
     }

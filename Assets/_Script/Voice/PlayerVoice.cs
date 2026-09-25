@@ -91,7 +91,7 @@ public class PlayerVoice : NetworkBehaviour
     {
         // EOS logs in once at startup; by the time a match runs it is ready,
         // but wait anyway rather than send an empty id.
-        while (!EOSSDKComponent.Initialized || string.IsNullOrEmpty(EOSSDKComponent.LocalUserProductIdString))
+        while (!EOSSDKComponent.IsReady || string.IsNullOrEmpty(EOSSDKComponent.LocalUserProductIdString))
             yield return null;
 
         CmdSetProductUserId(EOSSDKComponent.LocalUserProductIdString);

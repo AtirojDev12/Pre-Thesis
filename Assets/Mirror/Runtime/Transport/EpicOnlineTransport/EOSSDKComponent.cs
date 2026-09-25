@@ -133,6 +133,14 @@ namespace EpicTransport {
             }
         }
 
+        /// <summary>
+        /// 13RoH: true when EOS is up and logged in. Unlike <see cref="Initialized"/> this NEVER
+        /// creates an EOSSDKComponent. Use it from code that runs during scene changes (voice chat):
+        /// touching Instance while the real component is briefly gone creates an empty one, and the
+        /// real one then destroys itself in Awake -> EOS is dead until the game restarts.
+        /// </summary>
+        public static bool IsReady => instance != null && instance.initialized && instance.EOS != null;
+
         protected static EOSSDKComponent instance;
         protected static EOSSDKComponent Instance {
             get {
