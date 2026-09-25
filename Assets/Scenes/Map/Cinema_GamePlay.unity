@@ -1066,6 +1066,7 @@ Transform:
   - {fileID: 1662780840}
   - {fileID: 1338506665}
   - {fileID: 522356497}
+  - {fileID: 400049678}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &119536599
@@ -4894,6 +4895,37 @@ MonoBehaviour:
   m_SelectedFaces: 
   m_SelectedEdges: []
   m_SelectedVertices: 
+--- !u!1 &400049677
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 400049678}
+  m_Layer: 0
+  m_Name: GhostFavorLC
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &400049678
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 400049677}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 11.666, y: -3, z: -3.35}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 117103351}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &401765171
 GameObject:
   m_ObjectHideFlags: 0
@@ -9278,7 +9310,8 @@ MonoBehaviour:
   bbqStation: {fileID: 1040463695}
   paprikaStation: {fileID: 1662780840}
   ghostStation: {fileID: 1338506665}
-  ghostFavorRelocationPoints: []
+  ghostFavorRelocationPoints:
+  - {fileID: 400049678}
   waterDispensers:
   - {fileID: 1809358235}
   - {fileID: 1910514823}
@@ -10120,7 +10153,8 @@ Transform:
   m_LocalPosition: {x: -13.13, y: -0, z: 0.54}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1259619220}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &683719927
@@ -21422,12 +21456,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1259619219}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -12.862, y: 0.046899162, z: 2.4680004}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0.26799965, y: 0.046899162, z: 1.9280005}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 682732019}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!4 &1314100394 stripped
 Transform:
@@ -38916,7 +38950,6 @@ SceneRoots:
   - {fileID: 647803632}
   - {fileID: 653739886}
   - {fileID: 682732019}
-  - {fileID: 1259619220}
   - {fileID: 912802608}
   - {fileID: 587253840}
   - {fileID: 401765172}
