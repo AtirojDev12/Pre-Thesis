@@ -3,12 +3,21 @@ using Epic.OnlineServices;
 using Epic.OnlineServices.Lobby;
 using Epic.OnlineServices.RTCAudio;
 using EpicTransport;
+using Mirror;
 using UnityEngine;
 
 /// <summary>
-/// Voice chat through EOS Voice (RTC), the free voice service in the EOS SDK
-/// we already ship. Creates itself at startup and lives for the whole game —
+/// Voice chat manager. Creates itself at startup and lives for the whole game —
 /// no scene has to contain it.
+///
+/// MAIN PATH (26 Sep): voice goes through MIRROR, the game's own network
+/// (VoiceNetwork): mic -> ADPCM -> server decides who hears it (distance /
+/// Walkie-Talkie) -> played here in 3D from the talker's body or on the radio.
+///
+/// EOS voice (below) stays connected as a BACKUP only: it is used when there
+/// is no Mirror connection, and its flat speaker is muted while Mirror voice
+/// runs. With our EOS SDK, EOS never handed voices to the game (only to its
+/// own flat speaker), which is why the main path moved to Mirror.
 ///
 /// HOW IT WORKS
 ///   1. Every EOS lobby is created / joined with a voice room
@@ -55,6 +64,19 @@ public sealed class VoiceChatManager : MonoBehaviour
     public static bool DebugHearSelf;
     /// <summary>Every voice flat and loud: no distance, no walls, no body needed.</summary>
     public static bool DebugHearEveryone;
+    /// <summary>F4: let EOS play every voice itself (flat, no 3D), even if our own playback works.</summary>
+    public static bool DebugEosSpeaker;
+
+    // ---- EOS speaker (fallback) ------------------------------------------------
+    // EOS plays voices itself (flat) UNLESS our 3D playback receives audio. In the
+    // 25 Sep 2-PC test EOS never handed us the voices with manual output, so now
+    // EOS output stays on as a fallback and is muted only once our own playback
+    // (AudioBeforeRender) actually gets audio. Result: players always hear each
+    // other; 3D/radio works whenever EOS delivers the audio to us.
+    private bool? eosSpeakerMuted;
+    private float lastRenderAudioTime = -999f;
+    private long lastReceivedCount;
+    public static string EosSpeakerForDebug { get; private set; } = "-";
 
     // ---- Diagnostics (read by VoiceDebugOverlay) --------------------------------
     public static string RoomNameForDebug => instance != null ? instance.roomName : null;
@@ -153,6 +175,8 @@ public sealed class VoiceChatManager : MonoBehaviour
         CurrentStatus = Status.Offline;
         DebugHearSelf = false;
         DebugHearEveryone = false;
+        DebugEosSpeaker = false;
+        EosSpeakerForDebug = "-";
         micInputStatus = "no event yet";
         chosenMic = null;
         sendAudioFailures = 0;
@@ -186,11 +210,13 @@ public sealed class VoiceChatManager : MonoBehaviour
         beforeSendCallback = OnAudioBeforeSend;
         inputStateCallback = OnAudioInputState;
         participantCallback = OnParticipantUpdated;
+        VoiceNetwork.VoiceReceived += OnNetworkVoice;
     }
 
     private void OnDestroy()
     {
         if (instance != this) return;
+        VoiceNetwork.VoiceReceived -= OnNetworkVoice;
         LeaveRoom();
         mic.Stop();
         instance = null;
@@ -216,7 +242,13 @@ public sealed class VoiceChatManager : MonoBehaviour
             ApplyMicState();
         }
 
+        VoiceNetwork.Tick();
+        UpdateNetworkStats();
+        if (VoiceNetwork.Active)
+            CurrentStatus = PauseMenuController.IsOpen ? Status.MutedByMenu : Status.Live;
+
         PumpMicrophone(eosVoice && roomConnected);
+        if (eosVoice && roomConnected) ApplyEosSpeaker();
         UpdatePlaybacks();
     }
 
@@ -327,6 +359,7 @@ public sealed class VoiceChatManager : MonoBehaviour
 
         roomName = null;
         roomConnected = false;
+        eosSpeakerMuted = null;
         appliedSending = null;
         micInputStatus = "not in a voice room";
         if (!DebugHearSelf) mic.Stop();
@@ -339,6 +372,52 @@ public sealed class VoiceChatManager : MonoBehaviour
     }
 
     // ---- Microphone: always on, off only while the Esc menu is open ----------
+
+    private void ApplyEosSpeaker()
+    {
+        long received = ReceivedBlocks;
+        if (received != lastReceivedCount)
+        {
+            lastReceivedCount = received;
+            lastRenderAudioTime = Time.unscaledTime;
+        }
+
+        // Our playback is fed if audio arrived in the last 3 s.
+        bool ourPlaybackWorks = Time.unscaledTime - lastRenderAudioTime < 3f;
+        // Mirror voice running: EOS carries no voice, keep its speaker silent.
+        bool mute = (ourPlaybackWorks || VoiceNetwork.Active) && !DebugEosSpeaker;
+        EosSpeakerForDebug = (VoiceNetwork.Active && mute ? "muted (voice goes through the game network)"
+                             : mute ? "muted (our 3D playback has the audio)" : "ON (EOS plays voices, flat)") +
+                             (DebugEosSpeaker ? "  [forced by F4]" : "");
+        if (eosSpeakerMuted == mute) return;
+
+        RTCAudioInterface audio = GetAudioInterface();
+        if (audio == null) return;
+
+        string deviceId = DefaultOutputDeviceId(audio);
+        Result result = audio.SetAudioOutputSettings(new SetAudioOutputSettingsOptions
+        {
+            LocalUserId = EOSSDKComponent.LocalUserProductId,
+            DeviceId = deviceId,
+            Volume = mute ? 0f : 50f   // this SDK: 0 = silent, anything else = unchanged
+        });
+        Debug.Log("[Voice] EOS speaker " + (mute ? "muted" : "on") + ": " + result + " (device " + (deviceId ?? "default") + ")");
+        if (result == Result.Success) eosSpeakerMuted = mute;
+    }
+
+    private static string DefaultOutputDeviceId(RTCAudioInterface audio)
+    {
+        uint count = audio.GetAudioOutputDevicesCount(new GetAudioOutputDevicesCountOptions());
+        string first = null;
+        for (uint i = 0; i < count; i++)
+        {
+            AudioOutputDeviceInfo info = audio.GetAudioOutputDeviceByIndex(new GetAudioOutputDeviceByIndexOptions { DeviceInfoIndex = i });
+            if (info == null) continue;
+            if (first == null) first = info.DeviceId;
+            if (info.DefaultDevice) return info.DeviceId;
+        }
+        return first;
+    }
 
     private void ApplyMicState()
     {
@@ -382,7 +461,8 @@ public sealed class VoiceChatManager : MonoBehaviour
     /// </summary>
     private void PumpMicrophone(bool inRoom)
     {
-        bool wanted = inRoom || DebugHearSelf;
+        bool viaMirror = VoiceNetwork.Active;
+        bool wanted = viaMirror || inRoom || DebugHearSelf;
         if (!wanted)
         {
             if (mic.IsRecording) mic.Stop();
@@ -391,13 +471,16 @@ public sealed class VoiceChatManager : MonoBehaviour
         }
         if (!mic.IsRecording) mic.Start(chosenMic);
 
-        bool send = inRoom && appliedSending == true;
+        // EOS only gets the mic when Mirror voice is not available (backup path).
+        bool send = !viaMirror && inRoom && appliedSending == true;
+        bool mirrorAllowed = !PauseMenuController.IsOpen; // always-on mic, muted only in the Esc menu
         mic.Pump(block =>
         {
             System.Threading.Interlocked.Increment(ref micBlocks);
             micLevel = mic.Level;
 
             if (DebugHearSelf) selfStream.Write(block, VoiceMicCapture.OutputRate, 1);
+            if (viaMirror) VoiceNetwork.PushMicBlock(block, mic.Level, mirrorAllowed);
             if (!send) return;
 
             if (sendBuffer == null)
@@ -524,9 +607,11 @@ public sealed class VoiceChatManager : MonoBehaviour
             if (stream.SampleRate <= 0) continue;
 
             bool isSelf = stream == selfStream;
-            bool flat = isSelf || DebugHearEveryone || !inMatch || stream.IsMixed;
-
-            PlayerVoice talker = !flat ? FindTalker(stream.ParticipantId) : null;
+            bool fromNetwork = stream.ParticipantId.StartsWith(NetStreamPrefix);
+            PlayerVoice talker = isSelf ? null : FindTalker(stream.ParticipantId);
+            // Network voices: flat when the talker has no body (lobby RoomPlayer).
+            bool flat = isSelf || DebugHearEveryone || !inMatch || stream.IsMixed || (fromNetwork && talker == null);
+            if (flat) talker = fromNetwork ? talker : null;
             Transform parent = !flat && talker != null ? talker.Mouth : transform;
 
             VoicePlayback playback = FindPlayback(stream);
@@ -546,7 +631,11 @@ public sealed class VoiceChatManager : MonoBehaviour
             playback.SetSpatial(!flat && talker != null);
             playback.SetProximityMuted(!flat && talker == null);
 
-            bool radio = !isSelf && iHearRadio && talker != null && talker != PlayerVoice.Local && talker.RadioTransmitting;
+            // Network voices: the SERVER already decided the radio (it only sends
+            // radio audio to players carrying a switched-on walkie), so just follow it.
+            bool radio = fromNetwork
+                ? !isSelf && stream.RadioRecently && iHearRadio
+                : !isSelf && iHearRadio && talker != null && talker != PlayerVoice.Local && talker.RadioTransmitting;
             playback.SetRadio(radio);
         }
     }
@@ -554,8 +643,55 @@ public sealed class VoiceChatManager : MonoBehaviour
     /// <summary>For the voice test panel: is this EOS id linked to a player body?</summary>
     public static bool HasBody(string productUserId) => FindTalker(productUserId) != null;
 
+    private const string NetStreamPrefix = "net:";
+
+    /// <summary>A voice packet from the game network (main thread).</summary>
+    private void OnNetworkVoice(uint talkerNetId, byte flags, short[] samples, int count)
+    {
+        string id = NetStreamPrefix + talkerNetId;
+        VoiceStream stream = null;
+        lock (streams)
+        {
+            for (int i = 0; i < streams.Count; i++)
+                if (streams[i].ParticipantId == id) { stream = streams[i]; break; }
+            if (stream == null)
+            {
+                stream = new VoiceStream(id);
+                streams.Add(stream);
+            }
+        }
+        stream.WriteMono(samples, count, VoiceCodec.NetworkRate,
+            (flags & VoiceNetwork.FlagProximity) != 0,
+            (flags & VoiceNetwork.FlagRadio) != 0);
+    }
+
+    // ---- Game-network stats for the F8 panel (per second) --------------------------
+    public static int NetSentPerSecond { get; private set; }
+    public static int NetReceivedPerSecond { get; private set; }
+    public static int NetRelayedPerSecond { get; private set; }
+    private float nextStatsReset;
+
+    private void UpdateNetworkStats()
+    {
+        if (Time.unscaledTime < nextStatsReset) return;
+        nextStatsReset = Time.unscaledTime + 1f;
+        NetSentPerSecond = VoiceNetwork.SentPackets;
+        NetReceivedPerSecond = VoiceNetwork.ReceivedPackets;
+        NetRelayedPerSecond = VoiceNetwork.RelayedPackets;
+        VoiceNetwork.ResetCounters();
+    }
+
     private static PlayerVoice FindTalker(string productUserId)
     {
+        // Game-network voice: "net:<netId>" -> that player object's PlayerVoice (null in the lobby).
+        if (productUserId != null && productUserId.StartsWith(NetStreamPrefix))
+        {
+            if (uint.TryParse(productUserId.Substring(NetStreamPrefix.Length), out uint netId) &&
+                NetworkClient.spawned.TryGetValue(netId, out NetworkIdentity identity) && identity != null)
+                return identity.GetComponent<PlayerVoice>();
+            return null;
+        }
+
         List<PlayerVoice> all = PlayerVoice.All;
         for (int i = 0; i < all.Count; i++)
             if (all[i] != null && all[i].ProductUserId == productUserId) return all[i];

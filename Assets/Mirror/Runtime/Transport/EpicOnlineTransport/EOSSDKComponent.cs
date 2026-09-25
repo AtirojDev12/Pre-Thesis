@@ -247,7 +247,13 @@ namespace EpicTransport {
                     ClientId = apiKeys.epicClientId,
                     ClientSecret = apiKeys.epicClientSecret
                 },
-                TickBudgetInMilliseconds = tickBudgetInMilliseconds
+                TickBudgetInMilliseconds = tickBudgetInMilliseconds,
+                // 13RoH: we never use the Epic overlay (friends popup). Disabling it stops the
+                // "LogEOSOverlay: Failed to subclass window" errors in the Editor.
+                Flags = PlatformFlags.DisableOverlay | PlatformFlags.DisableSocialOverlay
+#if UNITY_EDITOR
+                        | PlatformFlags.LoadingInEditor
+#endif
             };
 
             // 13RoH: try WITH voice first (Windows needs the XAudio 2.9 dll path).
@@ -262,6 +268,7 @@ namespace EpicTransport {
                     DeploymentId = options.DeploymentId,
                     ClientCredentials = options.ClientCredentials,
                     TickBudgetInMilliseconds = options.TickBudgetInMilliseconds,
+                    Flags = options.Flags,
                     RTCOptions = new WindowsRTCOptions() {
                         PlatformSpecificOptions = new WindowsRTCOptionsPlatformSpecificOptions() {
                             XAudio29DllPath = xaudioPath

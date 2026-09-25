@@ -1,9 +1,10 @@
 using System.Diagnostics;
 
 /// <summary>
-/// One remote player's voice, as it arrives from EOS.
+/// One remote player's voice, as it arrives from the network (the game's own
+/// Mirror voice, VoiceNetwork) or from EOS.
 ///
-/// EOS pushes 10 ms blocks of 16-bit PCM (possibly from its own audio thread);
+/// Blocks of 16-bit PCM arrive (EOS may push them from its own audio thread);
 /// Unity's AudioClip reader pulls float samples (from the audio thread). Two
 /// small jitter buffers sit in between, one per output:
 ///   - Proximity: the 3D voice from the player's body. Always fed.
@@ -88,6 +89,46 @@ public sealed class VoiceStream
         System.Threading.Interlocked.Increment(ref blocks);
 
         System.Threading.Interlocked.Exchange(ref lastWriteMs, clock.ElapsedMilliseconds);
+    }
+
+    private long lastRadioMs = -100000;
+    /// <summary>True while radio audio arrived in the last 300 ms (the talker is on the Walkie-Talkie).</summary>
+    public bool RadioRecently => clock.ElapsedMilliseconds - System.Threading.Interlocked.Read(ref lastRadioMs) < 300;
+
+    /// <summary>
+    /// Game-network side (VoiceNetwork, main thread). Mono samples with explicit
+    /// routing decided by the server: near enough to hear the body, and/or on
+    /// the radio.
+    /// </summary>
+    public void WriteMono(short[] samples, int count, int rate, bool toProximity, bool toRadio)
+    {
+        if (samples == null || count <= 0 || rate <= 0) return;
+
+        lock (gate)
+        {
+            if (sampleRate != rate || proximity == null)
+            {
+                sampleRate = rate;
+                proximity = new Ring(rate);
+                radio = new Ring(rate);
+            }
+
+            float peak = 0f;
+            for (int i = 0; i < count; i++)
+            {
+                float sample = samples[i] / 32768f;
+                float abs = sample < 0f ? -sample : sample;
+                if (abs > peak) peak = abs;
+                if (toProximity) proximity.Push(sample);
+                if (toRadio) radio.Push(sample);
+            }
+            Level = peak;
+        }
+
+        long now = clock.ElapsedMilliseconds;
+        if (toRadio) System.Threading.Interlocked.Exchange(ref lastRadioMs, now);
+        System.Threading.Interlocked.Increment(ref blocks);
+        System.Threading.Interlocked.Exchange(ref lastWriteMs, now);
     }
 
     /// <summary>Unity audio side. Always fills the whole array (silence on underrun).</summary>

@@ -71,6 +71,13 @@ public class PlayerVoice : NetworkBehaviour
     public override void OnStartClient()
     {
         if (!All.Contains(this)) All.Add(this);
+
+        // Only YOUR camera may listen. Remote players' cameras kept their
+        // AudioListener enabled ("3 listeners in scene"), so Unity could hear
+        // the 3D voices from another player's head.
+        if (!isLocalPlayer)
+            foreach (AudioListener listener in GetComponentsInChildren<AudioListener>(true))
+                listener.enabled = false;
     }
 
     public override void OnStopClient() => All.Remove(this);

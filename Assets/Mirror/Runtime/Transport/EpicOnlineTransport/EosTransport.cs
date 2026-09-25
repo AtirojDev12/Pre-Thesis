@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -260,14 +260,16 @@ namespace EpicTransport {
         }
 
         public override void Shutdown() {
-            if (EOSSDKComponent.CollectPlayerMetrics) {
+            // 13RoH: on quit EOS may already be released. IsReady first: it never creates a new
+            // EOSSDKComponent (CollectPlayerMetrics would), which caused NullReferences on quit.
+            if (EOSSDKComponent.IsReady && EOSSDKComponent.CollectPlayerMetrics) {
                 // Stop Metrics collection session
                 EndPlayerSessionOptions endSessionOptions = new EndPlayerSessionOptions();
                 endSessionOptions.AccountId = EOSSDKComponent.LocalUserAccountId;
                 Result result = EOSSDKComponent.GetMetricsInterface().EndPlayerSession(endSessionOptions);
 
                 if (result == Result.Success) {
-                    Debug.LogError("Stopped Metric Session");
+                    Debug.Log("Stopped Metric Session");
                 }
             }
 

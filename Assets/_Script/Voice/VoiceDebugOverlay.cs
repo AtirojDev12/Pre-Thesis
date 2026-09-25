@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 using EpicTransport;
+using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -41,6 +42,7 @@ public sealed class VoiceDebugOverlay : MonoBehaviour
         if (keyboard.f5Key.wasPressedThisFrame) VoiceChatManager.DebugHearSelf = !VoiceChatManager.DebugHearSelf;
         if (keyboard.f6Key.wasPressedThisFrame) VoiceChatManager.DebugHearEveryone = !VoiceChatManager.DebugHearEveryone;
         if (keyboard.f7Key.wasPressedThisFrame) VoiceChatManager.UseNextInputDevice();
+        if (keyboard.f4Key.wasPressedThisFrame) VoiceChatManager.DebugEosSpeaker = !VoiceChatManager.DebugEosSpeaker;
 
         if (Time.unscaledTime >= nextRefresh)
         {
@@ -90,7 +92,11 @@ public sealed class VoiceDebugOverlay : MonoBehaviour
                             $"  body={(VoiceChatManager.HasBody(p.id) ? Good("found") : "not found")}");
         }
 
-        text.AppendLine($"6. Received audio: {receivedBlocksPerSecond:0} blocks/s   (total {VoiceChatManager.ReceivedBlocks})");
+        text.AppendLine("GAME-NETWORK VOICE (main path): " + (VoiceNetwork.Active ? Good("ON") : Bad("off (not in a room)")) +
+                        "   you speaking: " + (VoiceNetwork.Speaking ? Good("YES") : "no"));
+        text.AppendLine($"   sent {VoiceChatManager.NetSentPerSecond} packets/s (25 while talking)   received {VoiceChatManager.NetReceivedPerSecond}/s" +
+                        (NetworkServer.active ? $"   relayed by host {VoiceChatManager.NetRelayedPerSecond}/s" : ""));
+        text.AppendLine($"6. Voices playing: (EOS path {receivedBlocksPerSecond:0} blocks/s, total {VoiceChatManager.ReceivedBlocks})");
         foreach (VoiceStream s in VoiceChatManager.StreamsSnapshot())
             text.AppendLine($"     {Short(s.ParticipantId)}  {s.SampleRate} Hz  blocks {s.Blocks}  level {Bar(s.Level)}");
 
@@ -100,6 +106,8 @@ public sealed class VoiceDebugOverlay : MonoBehaviour
         text.AppendLine();
         text.AppendLine("[F5] Hear myself: " + OnOff(VoiceChatManager.DebugHearSelf));
         text.AppendLine("[F6] Hear everyone loud (no distance): " + OnOff(VoiceChatManager.DebugHearEveryone));
+        text.AppendLine("[F4] Force EOS speaker (flat): " + OnOff(VoiceChatManager.DebugEosSpeaker) +
+                        "   EOS speaker now: " + VoiceChatManager.EosSpeakerForDebug);
     }
 
     private void OnGUI()
@@ -119,7 +127,7 @@ public sealed class VoiceDebugOverlay : MonoBehaviour
         }
 
         GUI.depth = -1000;
-        var rect = new Rect(20, 20, 900, 620);
+        var rect = new Rect(20, 20, 920, 700);
         Color old = GUI.color;
         GUI.color = new Color(1f, 1f, 1f, 0.95f);
         GUI.Box(rect, text.ToString(), style);

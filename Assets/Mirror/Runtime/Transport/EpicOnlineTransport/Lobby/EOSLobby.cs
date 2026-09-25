@@ -30,7 +30,7 @@ public class EOSLobby : MonoBehaviour {
     public static LocalRTCOptions VoiceRtcOptions() => new LocalRTCOptions {
         Flags = 0,
         UseManualAudioInput = true,   // mic recorded by Unity, pushed with SendAudio (VoiceMicCapture)
-        UseManualAudioOutput = true,
+        UseManualAudioOutput = false, // EOS speaker stays as fallback; VoiceChatManager mutes it when our 3D playback gets audio
         AudioOutputStartsMuted = false
     };
     private bool isLobbyOwner = false;
@@ -281,6 +281,14 @@ public class EOSLobby : MonoBehaviour {
     /// <para>This process may throw errors. You can errors by subscribing to the <see cref="LeaveLobbyFailed"/> event.</para>
     /// </summary>
     public virtual void LeaveLobby() {
+        // 13RoH: on quit EOS may already be released; touching it would create an empty
+        // EOSSDKComponent and throw. The lobby dies with the EOS session anyway.
+        if (!EOSSDKComponent.IsReady) {
+            ConnectedToLobby = false;
+            LeaveLobbySucceeded?.Invoke();
+            return;
+        }
+
         //if we are the owner of the lobby
         if (isLobbyOwner) {
             //Destroy lobby
