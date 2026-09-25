@@ -79,7 +79,7 @@ public sealed class VoiceChatManager : MonoBehaviour
     private static long sendAudioFailures;
     public static string LastSendAudioResult { get; private set; } = "-";
     public static long SendAudioFailures => System.Threading.Interlocked.Read(ref sendAudioFailures);
-    public static string MicDeviceForDebug => instance != null ? instance.mic.DeviceName + " @" + instance.mic.DeviceRate + " Hz" + (instance.mic.IsRecording ? "" : " (not recording)") : "-";
+    public static string MicDeviceForDebug => instance != null ? instance.mic.DeviceName + " @" + instance.mic.DeviceRate + " Hz  auto gain x" + instance.mic.Gain.ToString("0.0") + (instance.mic.IsRecording ? "" : " (not recording)") : "-";
     public static string MicErrorForDebug => instance != null ? instance.mic.LastError : "";
 
     /// <summary>Mic list for the panel: "&gt;" = in use.</summary>

@@ -32,8 +32,21 @@ public sealed class VoiceMicCapture
     public string DeviceName => string.IsNullOrEmpty(device) ? "(Windows default)" : device;
     public int DeviceRate => deviceRate;
 
-    /// <summary>Peak of the last block, 0..1.</summary>
+    /// <summary>Peak of the last block after gain, 0..1.</summary>
     public float Level { get; private set; }
+
+    // ---- Automatic gain -----------------------------------------------------
+    // Quiet USB mics (the Maono gave a peak of 0.03) sound thin and far away.
+    // Raise quiet speech towards TargetPeak, never above MaxGain, and never
+    // amplify pure room noise (below NoiseFloor).
+    private const float TargetPeak = 0.35f;
+    private const float MaxGain = 8f;
+    private const float NoiseFloor = 0.01f;
+    private float gain = 1f;
+    private float rawBlockPeak;
+
+    /// <summary>Current automatic gain (for the test panel).</summary>
+    public float Gain => gain;
 
     public string LastError { get; private set; } = "";
 
@@ -132,6 +145,10 @@ public sealed class VoiceMicCapture
             float b = readBuffer[i];
             float s = step == 1.0 ? b : Mathf.Lerp(a, b, frac);
 
+            float raw = s < 0f ? -s : s;
+            if (raw > rawBlockPeak) rawBlockPeak = raw;
+
+            s = SoftClip(s * gain);
             float abs = s < 0f ? -s : s;
             if (abs > blockPeak) blockPeak = abs;
             block[blockFill++] = (short)Mathf.Clamp(Mathf.RoundToInt(s * 32767f), short.MinValue, short.MaxValue);
@@ -139,7 +156,9 @@ public sealed class VoiceMicCapture
             if (blockFill == BlockSamples)
             {
                 Level = blockPeak;
+                UpdateGain(rawBlockPeak);
                 blockPeak = 0f;
+                rawBlockPeak = 0f;
                 blockFill = 0;
                 onBlock(block);
             }
@@ -150,4 +169,21 @@ public sealed class VoiceMicCapture
     }
 
     private float blockPeak;
+
+    private void UpdateGain(float peak)
+    {
+        if (peak < NoiseFloor) return; // silence / room noise: keep the gain we have
+        float wanted = Mathf.Clamp(TargetPeak / peak, 1f, MaxGain);
+        // Down fast (no clipping on a shout), up slowly (no pumping between words).
+        gain = wanted < gain ? Mathf.Lerp(gain, wanted, 0.5f) : Mathf.Lerp(gain, wanted, 0.02f);
+    }
+
+    /// <summary>Linear up to 0.8, then a gentle knee to 1.0 instead of harsh clipping.</summary>
+    private static float SoftClip(float x)
+    {
+        float a = x < 0f ? -x : x;
+        if (a <= 0.8f) return x;
+        float y = 0.8f + 0.2f * (1f - Mathf.Exp(-(a - 0.8f) * 5f));
+        return x < 0f ? -y : y;
+    }
 }

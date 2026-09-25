@@ -91,17 +91,21 @@ public sealed class VoiceStream
     }
 
     /// <summary>Unity audio side. Always fills the whole array (silence on underrun).</summary>
-    public void Read(Output output, float[] data)
+    public void Read(Output output, float[] data) => Read(output, data, 0, data.Length);
+
+    /// <summary>Fills data[offset .. offset+count) (silence on underrun). Audio thread safe.</summary>
+    public void Read(Output output, float[] data, int offset, int count)
     {
+        if (count <= 0) return;
         lock (gate)
         {
             Ring ring = output == Output.Radio ? radio : proximity;
             if (ring == null)
             {
-                System.Array.Clear(data, 0, data.Length);
+                System.Array.Clear(data, offset, count);
                 return;
             }
-            ring.Pop(data);
+            ring.Pop(data, offset, count);
         }
     }
 
@@ -128,9 +132,9 @@ public sealed class VoiceStream
         public Ring(int rate)
         {
             buffer = new float[rate];              // 1 s
-            startThreshold = rate * 60 / 1000;     // 60 ms
-            maxLatency = rate / 4;                 // 250 ms
-            trimTo = rate / 10;                    // 100 ms
+            startThreshold = rate * 80 / 1000;     // 80 ms: absorbs network + frame jitter
+            maxLatency = rate * 300 / 1000;        // 300 ms
+            trimTo = rate * 120 / 1000;            // 120 ms
         }
 
         public void Clear()
@@ -159,11 +163,11 @@ public sealed class VoiceStream
             }
         }
 
-        public void Pop(float[] data)
+        public void Pop(float[] data, int offset, int length)
         {
             if (!playing && count >= startThreshold) playing = true;
 
-            for (int i = 0; i < data.Length; i++)
+            for (int i = offset; i < offset + length; i++)
             {
                 if (playing && count > 0)
                 {
