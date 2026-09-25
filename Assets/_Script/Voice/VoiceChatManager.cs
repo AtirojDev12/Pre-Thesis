@@ -99,7 +99,7 @@ public sealed class VoiceChatManager : MonoBehaviour
 
     private void Update()
     {
-        if (!EOSSDKComponent.Initialized)
+        if (!EOSSDKComponent.Initialized || !EOSSDKComponent.VoiceAvailable)
         {
             if (roomName != null) LeaveRoom();
             CurrentStatus = Status.Offline;

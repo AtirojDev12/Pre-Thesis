@@ -127,8 +127,9 @@ public class EOSLobby : MonoBehaviour {
             PermissionLevel = permissionLevel,
             PresenceEnabled = presenceEnabled,
             BucketId = DefaultAttributeKey,
-            EnableRTCRoom = true,
-            LocalRTCOptions = VoiceRtcOptions(),
+            // 13RoH: voice room only when EOS started with voice, or CreateLobby would fail.
+            EnableRTCRoom = EOSSDKComponent.VoiceAvailable,
+            LocalRTCOptions = EOSSDKComponent.VoiceAvailable ? VoiceRtcOptions() : null,
         }, null, (CreateLobbyCallbackInfo callback) => {
             List<Attribute> lobbyReturnData = new List<Attribute>();
 
@@ -239,7 +240,7 @@ public class EOSLobby : MonoBehaviour {
     /// <param name="presenceEnabled">Use Epic's overlay to display information to others.</param>
     public virtual void JoinLobby(LobbyDetails lobbyToJoin, string[] attributeKeys = null, bool presenceEnabled = false) {
         //join lobby
-        EOSSDKComponent.GetLobbyInterface().JoinLobby(new JoinLobbyOptions { LobbyDetailsHandle = lobbyToJoin, LocalUserId = EOSSDKComponent.LocalUserProductId, PresenceEnabled = presenceEnabled, LocalRTCOptions = VoiceRtcOptions() }, null, (JoinLobbyCallbackInfo callback) => {
+        EOSSDKComponent.GetLobbyInterface().JoinLobby(new JoinLobbyOptions { LobbyDetailsHandle = lobbyToJoin, LocalUserId = EOSSDKComponent.LocalUserProductId, PresenceEnabled = presenceEnabled, LocalRTCOptions = EOSSDKComponent.VoiceAvailable ? VoiceRtcOptions() : null }, null, (JoinLobbyCallbackInfo callback) => {
             //if the result was not a success, invoke an error event and return
             if (callback.ResultCode != Result.Success) {
                 JoinLobbyFailed?.Invoke("There was an error while joining a lobby. Error: " + callback.ResultCode);

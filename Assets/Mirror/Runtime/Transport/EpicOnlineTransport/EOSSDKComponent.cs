@@ -145,8 +145,30 @@ namespace EpicTransport {
         }
 
         public static void Tick() {
+            // 13RoH: EOS failed to start (see the Console) -> do nothing instead of throwing every frame.
+            if (instance == null || instance.EOS == null) return;
             instance.platformTickTimer -= Time.deltaTime;
             instance.EOS.Tick();
+        }
+
+        /// <summary>13RoH: true when EOS started WITH voice (RTC). False = game works, but no voice chat.</summary>
+        public static bool VoiceAvailable { get; private set; }
+
+        /// <summary>
+        /// 13RoH: EOS voice on Windows needs xaudio2_9redist.dll. Looked for next to the EOS SDK
+        /// dll (Editor) and in the build's Plugins folder. Returns null if it is not there.
+        /// </summary>
+        private static string FindXAudioDll() {
+            const string fileName = "xaudio2_9redist.dll";
+            string[] candidates = {
+                System.IO.Path.Combine(Application.dataPath, "Mirror/Runtime/Transport/EpicOnlineTransport/EOSSDK/" + fileName), // Editor
+                System.IO.Path.Combine(Application.dataPath, "Plugins/x86_64/" + fileName),  // Windows build (64-bit)
+                System.IO.Path.Combine(Application.dataPath, "Plugins/" + fileName),         // Windows build (other layout)
+            };
+            foreach (string path in candidates) {
+                if (System.IO.File.Exists(path)) return System.IO.Path.GetFullPath(path);
+            }
+            return null;
         }
 
         // If we're in editor, we should dynamically load and unload the SDK between play sessions.
@@ -217,12 +239,36 @@ namespace EpicTransport {
                     ClientId = apiKeys.epicClientId,
                     ClientSecret = apiKeys.epicClientSecret
                 },
-                TickBudgetInMilliseconds = tickBudgetInMilliseconds,
-                // 13RoH: turns on EOS RTC (lobby voice chat). Null = RTC disabled.
-                RTCOptions = new RTCOptions()
+                TickBudgetInMilliseconds = tickBudgetInMilliseconds
             };
 
-            EOS = PlatformInterface.Create(options);
+            // 13RoH: try WITH voice first (Windows needs the XAudio 2.9 dll path).
+            // If that fails, start WITHOUT voice so rooms and matches still work.
+            VoiceAvailable = false;
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+            string xaudioPath = FindXAudioDll();
+            if (xaudioPath != null) {
+                EOS = PlatformInterface.Create(new WindowsOptions() {
+                    ProductId = options.ProductId,
+                    SandboxId = options.SandboxId,
+                    DeploymentId = options.DeploymentId,
+                    ClientCredentials = options.ClientCredentials,
+                    TickBudgetInMilliseconds = options.TickBudgetInMilliseconds,
+                    RTCOptions = new WindowsRTCOptions() {
+                        PlatformSpecificOptions = new WindowsRTCOptionsPlatformSpecificOptions() {
+                            XAudio29DllPath = xaudioPath
+                        }
+                    }
+                });
+                VoiceAvailable = EOS != null;
+                if (EOS == null) Debug.LogWarning("[Voice] EOS could not start with voice (" + xaudioPath + "). Starting without voice.");
+            } else {
+                Debug.LogWarning("[Voice] xaudio2_9redist.dll not found, so voice chat is OFF. Put it next to EOSSDK-Win64-Shipping.dll (see claude/voice-and-hotbar.md).");
+            }
+#endif
+            if (EOS == null) {
+                EOS = PlatformInterface.Create(options); // no RTCOptions = no voice
+            }
             if (EOS == null) {
                 throw new System.Exception("Failed to create platform");
             }
