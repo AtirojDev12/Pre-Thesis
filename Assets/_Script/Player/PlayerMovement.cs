@@ -20,6 +20,7 @@ public class PlayerMovement : NetworkBehaviour
     private static readonly int IsSprintingParameter = Animator.StringToHash("IsSprinting");
     private static readonly int IsDownedParameter = Animator.StringToHash("IsDowned");
     private static readonly int IsDeadParameter = Animator.StringToHash("IsDead");
+    private static readonly int RunningState = Animator.StringToHash("Running");
 
     [Header("Movement")]
     public float moveSpeed = 5f;
@@ -44,12 +45,20 @@ public class PlayerMovement : NetworkBehaviour
     [Tooltip("0 keeps the animation's original hip drift; 1 keeps the model centred while running.")]
     [Range(0f, 1f)] [SerializeField] private float runningHipStability = 1f;
 
+    [Tooltip("Shoe mesh allowance below the foot/toe reference points, including toe-off, in world metres.")]
+    [Min(0f)] [SerializeField] private float runningSoleClearance = 0.08f;
+
     private Rigidbody rb;
     private Vector3 movement;
     private PlayerHealth playerHealth;
     private PlayerStamina playerStamina;
     private bool isSprinting;
     private Transform hips;
+    private Transform leftFoot;
+    private Transform rightFoot;
+    private Transform leftToes;
+    private Transform rightToes;
+    private CapsuleCollider bodyCollider;
     private Vector3 hipsRestLocalPosition;
     // Replicate the owner's locomotion choice rather than guessing it from
     // interpolated transforms, which can pause/catch up between snapshots.
@@ -62,6 +71,7 @@ public class PlayerMovement : NetworkBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        bodyCollider = GetComponent<CapsuleCollider>();
         playerHealth = GetComponent<PlayerHealth>();
         playerStamina = GetComponent<PlayerStamina>();
 
@@ -224,12 +234,20 @@ public class PlayerMovement : NetworkBehaviour
         if (playerAnimator == null || !playerAnimator.isHuman) return;
 
         hips = playerAnimator.GetBoneTransform(HumanBodyBones.Hips);
+        leftFoot = playerAnimator.GetBoneTransform(HumanBodyBones.LeftFoot);
+        rightFoot = playerAnimator.GetBoneTransform(HumanBodyBones.RightFoot);
+        leftToes = playerAnimator.GetBoneTransform(HumanBodyBones.LeftToes);
+        rightToes = playerAnimator.GetBoneTransform(HumanBodyBones.RightToes);
         if (hips != null) hipsRestLocalPosition = hips.localPosition;
     }
 
     private void LateUpdate()
     {
-        if (!stabilizeRunningHips || !isSprinting || runningHipStability <= 0f) return;
+        if (playerAnimator == null || (playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead))) return;
+        // Include the blend out of Running, even after Shift has been released.
+        bool runningPose = playerAnimator.GetCurrentAnimatorStateInfo(0).shortNameHash == RunningState ||
+            (playerAnimator.IsInTransition(0) && playerAnimator.GetNextAnimatorStateInfo(0).shortNameHash == RunningState);
+        if (!runningPose) return;
 
         if (hips == null)
         {
@@ -239,14 +257,29 @@ public class PlayerMovement : NetworkBehaviour
 
         // Mixamo clips often contain a small X/Z translation on the Hips bone.
         // With root motion disabled that movement does not steer the Rigidbody,
-        // but it still shifts the entire rendered skeleton left/right. Keep the
-        // animated Y value (the useful running bounce) and only remove planar
-        // drift, so feet and limbs retain their original motion.
-        Vector3 animatedPosition = hips.localPosition;
-        hips.localPosition = new Vector3(
-            Mathf.Lerp(animatedPosition.x, hipsRestLocalPosition.x, runningHipStability),
-            animatedPosition.y,
-            Mathf.Lerp(animatedPosition.z, hipsRestLocalPosition.z, runningHipStability));
+        // but it still shifts the entire rendered skeleton left/right. Remove
+        // planar drift first; the grounding correction below preserves vertical
+        // bounce wherever the animated shoes already clear the support plane.
+        if (stabilizeRunningHips && runningHipStability > 0f)
+        {
+            Vector3 animatedPosition = hips.localPosition;
+            hips.localPosition = new Vector3(
+                Mathf.Lerp(animatedPosition.x, hipsRestLocalPosition.x, runningHipStability),
+                animatedPosition.y,
+                Mathf.Lerp(animatedPosition.z, hipsRestLocalPosition.z, runningHipStability));
+        }
+
+        // The retargeted run bends the knees and moves the soles below the
+        // capsule's support plane. Lift only the skeleton by the penetration;
+        // never move the network root, collider or camera, or pull airborne feet down.
+        if (bodyCollider == null || !bodyCollider.enabled || leftFoot == null || rightFoot == null) return;
+        float lowestSole = Mathf.Min(leftFoot.position.y - playerAnimator.leftFeetBottomHeight,
+            rightFoot.position.y - playerAnimator.rightFeetBottomHeight);
+        // At toe-off the toes can be lower than either ankle's sole estimate.
+        if (leftToes != null) lowestSole = Mathf.Min(lowestSole, leftToes.position.y);
+        if (rightToes != null) lowestSole = Mathf.Min(lowestSole, rightToes.position.y);
+        float lift = bodyCollider.bounds.min.y + runningSoleClearance - lowestSole;
+        if (lift > 0f) hips.position += Vector3.up * lift;
     }
 
     private void FixedUpdate()

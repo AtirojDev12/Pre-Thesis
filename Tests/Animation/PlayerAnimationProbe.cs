@@ -7,11 +7,36 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 
+[DefaultExecutionOrder(10000)]
 public sealed class PlayerAnimationProbe : MonoBehaviour
 {
     public GameObject prefab;
     readonly List<string> results = new List<string>();
     bool failed;
+    PlayerHealth[] groundingPlayers;
+    readonly Dictionary<PlayerHealth, float> worstPenetration = new Dictionary<PlayerHealth, float>();
+    readonly Dictionary<PlayerHealth, int> groundingSamples = new Dictionary<PlayerHealth, int>();
+    Mesh groundingMesh;
+    void LateUpdate()
+    {
+        if (groundingPlayers == null) return;
+        if (groundingMesh == null) groundingMesh = new Mesh();
+        foreach (var p in groundingPlayers)
+        {
+            if (p == null) continue;
+            var animator = p.GetComponent<Animator>();
+            if (!animator.GetCurrentAnimatorStateInfo(0).IsName("Running") || animator.IsInTransition(0)) continue;
+            float bottom = float.PositiveInfinity;
+            foreach (var renderer in p.GetComponentsInChildren<SkinnedMeshRenderer>())
+            {
+                renderer.BakeMesh(groundingMesh);
+                foreach (var vertex in groundingMesh.vertices)
+                    bottom = Mathf.Min(bottom, renderer.transform.TransformPoint(vertex).y);
+            }
+            worstPenetration[p] = Mathf.Max(worstPenetration[p], p.GetComponent<Collider>().bounds.min.y - bottom);
+            groundingSamples[p]++;
+        }
+    }
     void Check(bool pass, string text) { results.Add((pass ? "PASS " : "FAIL ") + text); failed |= !pass; }
     IEnumerator WaitForHealth(PlayerHealth[] players, int phase)
     {
@@ -45,6 +70,8 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         Check(NetworkClient.localPlayer != null, "Local network player spawned");
         var players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
         Check(players.Length == 2, "Host and joining player spawned");
+        groundingPlayers = players;
+        foreach (var p in players) { worstPenetration[p] = 0; groundingSamples[p] = 0; }
         if (NetworkClient.localPlayer != null)
         {
             foreach (var p in players) p.GetComponent<Rigidbody>().useGravity = false;
@@ -84,6 +111,11 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 }
             }
         }
+        foreach (var p in players)
+            Check(groundingSamples[p] > 10 && worstPenetration[p] <= 0.005f,
+                (p.isLocalPlayer ? "Local" : "Remote") + " sprint mesh stays above capsule floor: penetration=" + worstPenetration[p]);
+        groundingPlayers = null;
+        if (groundingMesh != null) Destroy(groundingMesh);
         if (Keyboard.current != null) InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState());
         yield return new WaitForSecondsRealtime(1);
         foreach (var p in players)
@@ -111,6 +143,3 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         Application.Quit(failed ? 1 : 0);
     }
 }
-
-
-

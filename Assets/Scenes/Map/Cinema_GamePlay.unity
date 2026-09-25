@@ -9278,6 +9278,7 @@ MonoBehaviour:
   bbqStation: {fileID: 1040463695}
   paprikaStation: {fileID: 1662780840}
   ghostStation: {fileID: 1338506665}
+  ghostFavorRelocationPoints: []
   waterDispensers:
   - {fileID: 1809358235}
   - {fileID: 1910514823}

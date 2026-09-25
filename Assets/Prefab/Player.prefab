@@ -374,6 +374,7 @@ MonoBehaviour:
   animationDampTime: 0.1
   stabilizeRunningHips: 1
   runningHipStability: 1
+  runningSoleClearance: 0.08
 --- !u!114 &6123076420129374501
 MonoBehaviour:
   m_ObjectHideFlags: 0
