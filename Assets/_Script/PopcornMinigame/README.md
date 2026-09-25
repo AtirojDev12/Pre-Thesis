@@ -10,6 +10,14 @@
 
 **R** discards the held container/item so the player can recover from choosing the wrong one. One item can be held at a time. Empty containers cannot be served, mixed, or silently replaced. Filled items cannot be refilled. Held props attach to the local player's hand view and cannot block interaction rays.
 
+## Blackout recovery
+
+`GhostFavorRecovery` observes `GhostManager.areLightsOnCurrently` without modifying the ghost system. Darkness lasting at least 0.5 seconds teleports **GhostFavor** to the ticket booth's customer counter point; short warning flickers do not count. The bootstrap's optional **Ghost Favor Relocation Points** list supports future map anchors, chosen randomly by the server. Leaving it empty uses the ticket booth.
+
+Any player can press **E** to pick up the displaced seasoning. Carry it within 1.8 metres of its original spot to restore its exact position and rotation automatically. **R** drops it for another player; death, being downed, or disconnecting also drops it from its last carried position. The server (or offline game) simulates gravity and floor collisions, and replicates the falling/resting pose to clients. Picking it up stops physics. Its colliders are disabled while carried. Existing containers remain held, but preparation is paused during recovery. Seasoning cannot be applied until the object is back home, and later blackouts leave an unfinished recovery alone.
+
+`PopcornNetSync` replicates displacement, carrier and pose, including to late joiners. Pickup/drop/mix requests validate the requesting player and range on the server. Each flavor's hover prompt always includes its name, even with empty hands or an already-filled container.
+
 ## Results
 
 Both human and ghost customers can order Cheese, BBQ, Paprika, or water. Correct orders still award one point; wrong human orders award nothing; wrong ghost orders still apply the configured damage (10 by default). A submitted filled item is consumed and the customer leaves after either outcome. The existing zone target, task rewards, and match win/loss flow are unchanged.
@@ -26,6 +34,6 @@ Other scenes using `PopcornMinigameBootstrap` must assign the new station and co
 
 ## Verification
 
-Run `Tests/Popcorn/Run-PopcornChecks.ps1 -UnityPath '<Unity 6000.5.7f1 executable>'` in PowerShell. It copies the project into ignored `.utmp/popcorn-regression`, then checks the Cinema scene in an isolated editor. Tests cover station bindings/colliders, E pickup, correct container restrictions, three-second preparation, release/aim/occlusion cancellation, progress reset, ghost recipes, authored drink visuals, score/damage, repeat submissions, outlines, and local-player cleanup.
+Run `Tests/Popcorn/Run-PopcornChecks.ps1 -UnityPath '<Unity 6000.5.7f1 executable>'` in PowerShell. It copies the project into ignored `.utmp/popcorn-regression`, then checks the Cinema scene in an isolated editor. Tests cover station bindings/colliders, E pickup, correct container restrictions, three-second preparation, release/aim/occlusion cancellation, progress reset, ghost recipes, authored drink visuals, score/damage, repeat submissions, outlines, and local-player cleanup. Recovery checks cover flicker filtering, blackout relocation, unavailable seasoning, competing pickups, transfer to another player, exact return, real Mirror host pickup/drop commands, carrier despawn, and serialization of a carried snapshot. A separate remote-client playtest remains a manual check.
 
 For a final manual playtest, walk through every station in the authored layout at the target display resolution, then test a host and a remote client serving the same queue. Adjust the scene UI anchors and held prop offsets in the Inspector if needed for the preferred camera framing.

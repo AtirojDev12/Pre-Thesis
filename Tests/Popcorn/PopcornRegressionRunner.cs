@@ -10,6 +10,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
+using Mirror;
 using Object = UnityEngine.Object;
 
 [InitializeOnLoad]
@@ -78,6 +79,8 @@ public static class PopcornRegressionRunner
         movedStation = station;
         originalPosition = station.transform.position;
         station.transform.position = new Vector3(1000, 5, 1000);
+        if (station.Kind == PopcornStationKind.Ghost && GhostFavorRecovery.Instance != null)
+            Set(GhostFavorRecovery.Instance, "homePosition", station.transform.position);
         Physics.SyncTransforms();
         var collider = station.GetComponentInChildren<Collider>();
         Vector3 target = collider.bounds.center;
@@ -142,6 +145,8 @@ public static class PopcornRegressionRunner
         foreach (var station in stations)
             Check(station.GetComponentsInChildren<Collider>().Any(c => c.enabled && !c.isTrigger), station.name + " has an interaction collider");
         Check(Resources.Load<Shader>("InteractionOutline") != null, "Outline shader included in build resources");
+        foreach (var station in stations.Where(s => s.Kind == PopcornStationKind.Scoop))
+            Check(station.GetInteractionPrompt().Contains(station.Flavor.ToString()), "Empty hands hover identifies " + station.Flavor);
         Check(!holder.Hold(PopcornFlavor.Cheese) && !holder.MixGhost(), "Cannot fill or mix without a container");
         Press(Station(PopcornStationKind.Bucket));
         Check(holder.HasItem && !holder.IsReady && !holder.IsCup, "E at bucket spawner picks up empty bucket");
@@ -161,6 +166,75 @@ public static class PopcornRegressionRunner
         Check(holder.HeldFlavor == PopcornFlavor.Cheese && !holder.GhostMixed, "Scoop preserves selected base flavor");
         Press(Station(PopcornStationKind.Ghost));
         Check(holder.GhostMixed && holder.HeldFlavor == PopcornFlavor.Cheese && !holder.MixGhost(), "Ghost mix adds once without replacing flavor");
+        var recovery = GhostFavorRecovery.Instance;
+        var home = (Vector3)Get(recovery, "homePosition");
+        var ghostManager = GhostManager.Instance;
+        ghostManager.PlayerToggleLights(false);
+        Set(recovery, "darkSeconds", 0f);
+        Call(recovery, "Update");
+        Check(recovery.IsHome, "Brief warning flicker does not relocate GhostFavor");
+        Set(recovery, "darkSeconds", 0.6f);
+        Call(recovery, "Update");
+        var destinations = ((Transform[])Get(recovery, "destinations")).Where(t => t != null).ToArray();
+        Check(!recovery.IsHome && (destinations.Length > 0
+            ? destinations.Any(t => t.position == recovery.VisibleState.position)
+            : recovery.VisibleState.position == Object.FindAnyObjectByType<TicketMinigame>().GhostFavorDestination.position),
+            "Sustained blackout relocates GhostFavor to configured destination or ticket booth fallback");
+        holder.Consume();
+        holder.PickUp(false);
+        holder.Hold(PopcornFlavor.Cheese);
+        Check(!holder.MixGhost(), "Displaced GhostFavor cannot season popcorn");
+        Check(!recovery.ServerInteract(player, false) && !recovery.IsLocalCarrier, "Out of range pickup rejected");
+        player.transform.position = recovery.VisibleState.position + Vector3.back;
+        recovery.ServerInteract(player, false);
+        Check(recovery.IsLocalCarrier && !holder.MixGhost(), "Player picks up shared seasoning but cannot use it while carried");
+        var otherObject = new GameObject("Second recovery player", typeof(Mirror.NetworkIdentity));
+        var other = otherObject.AddComponent<PlayerHealth>();
+        other.transform.position = player.transform.position;
+        recovery.ServerInteract(other, false);
+        Check(recovery.IsLocalCarrier, "Simultaneous second pickup cannot steal carried object");
+        var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        floor.name = "GhostFavor drop test floor";
+        floor.transform.position = new Vector3(1100, 0, 1000);
+        floor.transform.localScale = new Vector3(20, 0.2f, 20);
+        player.transform.position = new Vector3(1100, 5, 1000);
+        Call(recovery, "Update");
+        Call(recovery, "LateUpdate");
+        float releaseHeight = recovery.VisibleState.position.y;
+        recovery.ServerInteract(player, true);
+        var favorBody = Station(PopcornStationKind.Ghost).GetComponent<Rigidbody>();
+        Check(!favorBody.isKinematic && favorBody.useGravity, "Dropping enables authoritative gravity");
+        var simulationMode = Physics.simulationMode;
+        try
+        {
+            Physics.simulationMode = SimulationMode.Script;
+            Physics.SyncTransforms();
+            for (int i = 0; i < 200; i++)
+            {
+                Physics.Simulate(0.02f);
+                Call(recovery, "Update");
+                Call(recovery, "LateUpdate");
+            }
+        }
+        finally { Physics.simulationMode = simulationMode; }
+        var favorCollider = Station(PopcornStationKind.Ghost).GetComponent<Collider>();
+        Check(recovery.VisibleState.position.y < releaseHeight - 1f &&
+            Mathf.Abs(favorCollider.bounds.min.y - floor.GetComponent<Collider>().bounds.max.y) < 0.05f,
+            "Dropped GhostFavor falls and rests on floor without hovering or sinking");
+        other.transform.position = recovery.VisibleState.position + Vector3.back;
+        recovery.ServerInteract(other, false);
+        Check(favorBody.isKinematic && !favorBody.useGravity, "Picking up stops drop physics");
+        Object.Destroy(floor);
+        Check(ReferenceEquals(Get(recovery, "carrier"), other), "Another player can pick up dropped GhostFavor");
+        other.transform.position = home;
+        Call(recovery, "Update");
+        Call(recovery, "LateUpdate");
+        Check(recovery.IsHome && Station(PopcornStationKind.Ghost).transform.position == home && holder.MixGhost(),
+            "Other player returns seasoning to exact home position and unlocks mixing");
+        Object.Destroy(otherObject);
+        ghostManager.PlayerToggleLights(true);
+        Call(recovery, "Update");
+        player.transform.position = new Vector3(1000, 3, 1000);
         holder.Consume();
         Press(Station(PopcornStationKind.Cup));
         Check(holder.IsCup && !holder.IsReady && !holder.MixGhost(), "Cup starts empty and rejects early ghost mix");
@@ -263,6 +337,62 @@ public static class PopcornRegressionRunner
         for (int i = 0; i < 4; i++) yield return null;
         Capture("popcorn-progress.png");
         for (int i = 0; i < 4; i++) yield return null;
+
+        // Exercise real Mirror commands and generated snapshot serialization.
+        Object.Destroy(player.gameObject);
+        yield return null;
+        var networkObject = new GameObject("Recovery Host Test");
+        var transport = networkObject.AddComponent<kcp2k.KcpTransport>();
+        transport.Port = 17994;
+        var network = networkObject.AddComponent<NetworkManager>();
+        var authoredNetwork = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefab/NetworkManager.prefab").GetComponent<NetworkManager>();
+        network.transport = transport;
+        network.playerPrefab = authoredNetwork.playerPrefab;
+        network.spawnPrefabs = new List<GameObject>(authoredNetwork.spawnPrefabs);
+        network.StartHost();
+        for (int i = 0; i < 120 && NetworkClient.localPlayer == null; i++) yield return null;
+        Check(NetworkClient.localPlayer != null, "Mirror host player connected");
+        player = PlayerHealth.LocalInstance;
+        player.GetComponent<PlayerMovement>().enabled = false;
+        player.GetComponent<Rigidbody>().isKinematic = true;
+        ghostManager.PlayerToggleLights(false);
+        Set(recovery, "darkSeconds", 0.6f);
+        Call(recovery, "Update");
+        Check(PopcornNetSync.Instance.GhostFavor.displaced, "Host publishes blackout displacement");
+        player.transform.position = recovery.VisibleState.position + Vector3.back;
+        recovery.RequestInteraction();
+        for (int i = 0; i < 10; i++) yield return null;
+        Check(recovery.VisibleState.carrierId == player.netId && recovery.IsLocalCarrier,
+            "Mirror pickup command assigns requesting player");
+        var writer = new NetworkWriter();
+        writer.Write(recovery.VisibleState);
+        var snapshot = new NetworkReader(writer.ToArraySegment()).Read<GhostFavorState>();
+        Check(snapshot.displaced && snapshot.carrierId == player.netId && snapshot.position == recovery.VisibleState.position,
+            "Mirror serializes complete carried state for remote and late-joining clients");
+        recovery.RequestInteraction(true);
+        for (int i = 0; i < 10; i++) yield return null;
+        Check(recovery.VisibleState.carrierId == 0 && !recovery.IsHome, "Mirror drop command releases shared object");
+        Check(!favorBody.isKinematic && favorBody.useGravity &&
+            Vector3.Distance(recovery.VisibleState.position, favorBody.position) < 0.1f,
+            "Host publishes the falling rigidbody pose");
+        var secondPlayer = Object.Instantiate(network.playerPrefab);
+        NetworkServer.Spawn(secondPlayer);
+        var secondHealth = secondPlayer.GetComponent<PlayerHealth>();
+        secondPlayer.transform.position = recovery.VisibleState.position;
+        recovery.ServerInteract(secondHealth, false);
+        Call(recovery, "Update");
+        Check(recovery.VisibleState.carrierId == secondHealth.netId, "Server accepts a different network player as carrier");
+        NetworkServer.Destroy(secondPlayer);
+        yield return null;
+        Call(recovery, "Update");
+        Check(recovery.VisibleState.carrierId == 0 && !recovery.IsHome, "Despawned carrier releases item for recovery");
+        player.transform.position = recovery.VisibleState.position;
+        recovery.RequestInteraction();
+        for (int i = 0; i < 10; i++) yield return null;
+        player.transform.position = home;
+        Call(recovery, "Update");
+        Check(recovery.IsHome && recovery.VisibleState.carrierId == 0, "Host publishes completed return");
+        network.StopHost();
     }
     static void Capture(string path)
     {

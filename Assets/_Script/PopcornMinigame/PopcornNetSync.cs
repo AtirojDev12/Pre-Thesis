@@ -81,6 +81,30 @@ public class PopcornNetSync : NetworkBehaviour
     public string ZoneID => zoneID;
     public bool ZoneComplete => score >= ordersToComplete;
 
+    [SyncVar] private GhostFavorState ghostFavor;
+    public GhostFavorState GhostFavor => ghostFavor;
+
+    public void SetGhostFavorState(GhostFavorState value)
+    {
+        if (HasAuthority) ghostFavor = value;
+    }
+
+    public void RequestGhostFavor(bool drop) => CmdGhostFavor(drop);
+
+    [Command(requiresAuthority = false)]
+    private void CmdGhostFavor(bool drop, NetworkConnectionToClient sender = null)
+    {
+        if (sender == null || sender.identity == null || GhostFavorRecovery.Instance == null) return;
+        if (GhostFavorRecovery.Instance.ServerInteract(sender.identity.GetComponent<PlayerHealth>(), drop))
+            TargetMixGhostFavor(sender);
+    }
+
+    [TargetRpc]
+    private void TargetMixGhostFavor(NetworkConnectionToClient target)
+    {
+        if (GhostFavorRecovery.Instance != null) GhostFavorRecovery.Instance.MixLocally();
+    }
+
     /// <summary>Raised on every machine when the order changes, so each client can redraw its own screens.</summary>
     public event System.Action OrderChanged;
 

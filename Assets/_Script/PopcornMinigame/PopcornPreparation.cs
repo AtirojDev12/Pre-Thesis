@@ -39,6 +39,7 @@ public sealed class PopcornPreparation : MonoBehaviour
     public void Interact(PopcornStation station)
     {
         if (Holder == null || IsPreparing) return;
+        if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier) return;
         PlayerHealth player = PlayerHealth.LocalInstance;
         if (player == null || player.IsDead || player.IsDowned) return;
         if (station.Kind == PopcornStationKind.Bucket || station.Kind == PopcornStationKind.Cup)
@@ -50,7 +51,8 @@ public sealed class PopcornPreparation : MonoBehaviour
         }
         if (station.Kind == PopcornStationKind.Ghost)
         {
-            ShowStatus(Holder.MixGhost() ? "Ghost flavor added · Ready to serve" : station.GetInteractionPrompt());
+            if (GhostFavorRecovery.Instance != null) GhostFavorRecovery.Instance.RequestInteraction();
+            else MixGhostAtHome();
             return;
         }
         bool water = station.Kind == PopcornStationKind.Water;
@@ -71,8 +73,15 @@ public sealed class PopcornPreparation : MonoBehaviour
     private void Update()
     {
         if (Holder == null) return;
+        if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier)
+        {
+            Cancel(false);
+            ShowStatus(GhostFavorRecovery.Instance.Prompt);
+            return;
+        }
         Keyboard keyboard = Keyboard.current;
-        if (keyboard != null && keyboard.rKey.wasPressedThisFrame && Holder.HasItem)
+        if (keyboard != null && keyboard.rKey.wasPressedThisFrame && Holder.HasItem &&
+            (GhostFavorRecovery.Instance == null || !GhostFavorRecovery.Instance.DroppedThisFrame))
         {
             Cancel(false);
             Holder.Consume();
@@ -108,6 +117,11 @@ public sealed class PopcornPreparation : MonoBehaviour
         progressText.text = (activeStation.Kind == PopcornStationKind.Water ? "FILLING WATER" :
             "SCOOPING " + UiFactory.FlavorName(activeStation.Flavor).ToUpperInvariant()) +
             $"  {Mathf.CeilToInt(fraction * 100f)}%\nHold E and keep aiming · {Mathf.Max(0f, PreparationSeconds - elapsed):0.0}s";
+    }
+
+    public void MixGhostAtHome()
+    {
+        ShowStatus(Holder.MixGhost() ? "Ghost flavor added · Ready to serve" : "Fill popcorn or water before mixing");
     }
 
     private void Cancel(bool notify)

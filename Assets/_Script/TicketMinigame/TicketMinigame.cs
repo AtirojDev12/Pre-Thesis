@@ -73,6 +73,7 @@ public sealed class TicketMinigame : MonoBehaviour
     private WorldButtonInteractable[] movieHighlights;
 
     public TicketCustomerState State => state;
+    public Transform GhostFavorDestination => counterPoint;
     private PopcornNetSync ZoneCounter => zoneCounter != null ? zoneCounter : PopcornNetSync.Instance;
     private string ZoneID => ZoneCounter != null ? ZoneCounter.ZoneID : FallbackZoneID;
     // Separate key from the popcorn stand's, so the two open tasks never overwrite each other.
