@@ -1,6 +1,7 @@
 using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections.Generic;
 
 /// <summary>
 /// First-person movement. Only the player that belongs to THIS machine reads
@@ -27,6 +28,8 @@ public class PlayerMovement : NetworkBehaviour
 
     [Tooltip("Movement speed while holding Left Shift and stamina is available.")]
     [Min(0f)] public float sprintSpeed = 8f;
+    [Range(0.1f, 1f)] public float backwardSpeedMultiplier = 0.55f;
+    [Range(0.1f, 1f)] public float strafeSpeedMultiplier = 0.8f;
 
     [Header("Camera")]
     public Transform playerCamera;
@@ -67,6 +70,54 @@ public class PlayerMovement : NetworkBehaviour
     private bool sentAnimationState;
     private bool lastSentMoving;
     private bool lastSentSprinting;
+    [SyncVar] private Vector2 animationDirection;
+    private Vector2 lastSentDirection;
+    private Vector2 localDirection;
+    public Vector2 AnimationDirection => NetworkMode.IsLocalController(this) ? localDirection : animationDirection;
+    public float CurrentMovementSpeed
+    {
+        get
+        {
+            Vector2 direction = AnimationDirection.normalized;
+            float forwardScale = direction.y < 0f ? backwardSpeedMultiplier : 1f;
+            float scale = new Vector2(direction.x * strafeSpeedMultiplier, direction.y * forwardScale).magnitude;
+            return (isSprinting ? sprintSpeed : moveSpeed) * scale;
+        }
+    }
+
+    [Header("Directional steps and grounding")]
+    [Min(0.1f)] [SerializeField] private float stepLength = 0.7f;
+    [Min(0f)] [SerializeField] private float stepHeight = 0.12f;
+    [Min(0f)] [SerializeField] private float groundProbeDistance = 0.2f;
+    [Range(0f, 80f)] [SerializeField] private float maximumGroundAngle = 50f;
+    private readonly RaycastHit[] groundHits = new RaycastHit[24];
+    private float stepPhase;
+    private float directionalWeight;
+    private Vector2 blendedDirection;
+    private Vector3 leftFootRest;
+    private Vector3 rightFootRest;
+    private struct SolePoint
+    {
+        public Transform bone;
+        public Vector3 position;
+        public Transform bone1, bone2, bone3;
+        public Vector3 position1, position2, position3;
+        public Vector4 weights;
+        public bool left;
+
+        public Vector3 WorldPosition()
+        {
+            Vector3 point = bone.TransformPoint(position) * weights.x;
+            if (weights.y > 0f) point += bone1.TransformPoint(position1) * weights.y;
+            if (weights.z > 0f) point += bone2.TransformPoint(position2) * weights.z;
+            if (weights.w > 0f) point += bone3.TransformPoint(position3) * weights.w;
+            return point;
+        }
+    }
+    private readonly List<SolePoint> solePoints = new List<SolePoint>();
+    private Vector3 lastStepPosition;
+    private bool hasStepPosition;
+    private Transform modelRoot;
 
     private void Awake()
     {
@@ -82,6 +133,7 @@ public class PlayerMovement : NetworkBehaviour
             playerAnimator = GetComponentInChildren<Animator>(true);
 
         CacheRunningPoseReference();
+        if (playerAnimator != null) playerAnimator.applyRootMotion = false;
 
         if (playerCamera == null)
         {
@@ -152,23 +204,22 @@ public class PlayerMovement : NetworkBehaviour
         float vertical = 0f;
 
         // A / D
-        if (Keyboard.current.aKey.isPressed) horizontal = -1f;
-        if (Keyboard.current.dKey.isPressed) horizontal = 1f;
+        if (Keyboard.current.aKey.isPressed) horizontal -= 1f;
+        if (Keyboard.current.dKey.isPressed) horizontal += 1f;
 
         // W / S
-        if (Keyboard.current.wKey.isPressed) vertical = 1f;
-        if (Keyboard.current.sKey.isPressed) vertical = -1f;
+        if (Keyboard.current.wKey.isPressed) vertical += 1f;
+        if (Keyboard.current.sKey.isPressed) vertical -= 1f;
 
         // ทิศทางของกล้อง
         Vector3 forward = playerCamera.forward;
-        Vector3 right = playerCamera.right;
+        Vector3 right;
 
         // ไม่ให้มุมกล้องขึ้น/ลงมีผลกับการเดิน
         forward.y = 0f;
-        right.y = 0f;
-
+        if (forward.sqrMagnitude < 0.001f) forward = transform.forward;
         forward.Normalize();
-        right.Normalize();
+        right = Vector3.Cross(Vector3.up, forward);
 
         // คำนวณทิศทางการเดิน
         movement = forward * vertical + right * horizontal;
@@ -176,7 +227,7 @@ public class PlayerMovement : NetworkBehaviour
         // ป้องกันเดินเฉียงเร็วเกินไป
         movement = Vector3.ClampMagnitude(movement, 1f);
 
-        bool wantsToSprint = movement.sqrMagnitude > 0.01f &&
+        bool wantsToSprint = vertical > 0f && movement.sqrMagnitude > 0.01f &&
                              Keyboard.current.leftShiftKey.isPressed;
         SetSprinting(playerStamina != null
             ? playerStamina.UpdateSprint(wantsToSprint, Time.deltaTime)
@@ -187,22 +238,29 @@ public class PlayerMovement : NetworkBehaviour
 
     private void UpdateWalkingAnimation()
     {
+        Vector3 relative = transform.InverseTransformDirection(movement);
+        localDirection = new Vector2(relative.x, relative.z);
         SetAnimationSpeed(movement.magnitude);
         if (NetworkMode.IsOffline || !isLocalPlayer) return;
         bool moving = movement.sqrMagnitude > 0.01f;
-        if (sentAnimationState && moving == lastSentMoving && isSprinting == lastSentSprinting) return;
+        if (sentAnimationState && moving == lastSentMoving && isSprinting == lastSentSprinting &&
+            (localDirection - lastSentDirection).sqrMagnitude < 0.0025f) return;
         sentAnimationState = true;
         lastSentMoving = moving;
         lastSentSprinting = isSprinting;
-        CmdSetAnimationState(moving, isSprinting);
+        lastSentDirection = localDirection;
+        CmdSetAnimationState(localDirection, isSprinting);
     }
 
     [Command]
-    private void CmdSetAnimationState(bool moving, bool sprinting)
+    private void CmdSetAnimationState(Vector2 direction, bool sprinting)
     {
         bool incapacitated = playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead);
-        animationMoving = moving && !incapacitated;
-        animationSprinting = sprinting && animationMoving;
+        if (float.IsNaN(direction.x) || float.IsNaN(direction.y) ||
+            float.IsInfinity(direction.x) || float.IsInfinity(direction.y)) direction = Vector2.zero;
+        animationDirection = incapacitated ? Vector2.zero : Vector2.ClampMagnitude(direction, 1f);
+        animationMoving = animationDirection.sqrMagnitude > 0.01f;
+        animationSprinting = sprinting && animationMoving && animationDirection.y > 0f;
     }
 
     private void UpdateRemoteWalkingAnimation(bool isIncapacitated)
@@ -234,11 +292,81 @@ public class PlayerMovement : NetworkBehaviour
         if (playerAnimator == null || !playerAnimator.isHuman) return;
 
         hips = playerAnimator.GetBoneTransform(HumanBodyBones.Hips);
+        modelRoot = hips;
+        while (modelRoot != null && modelRoot.parent != playerAnimator.transform)
+            modelRoot = modelRoot.parent;
+        if (modelRoot == null || modelRoot == hips) modelRoot = playerAnimator.transform;
         leftFoot = playerAnimator.GetBoneTransform(HumanBodyBones.LeftFoot);
         rightFoot = playerAnimator.GetBoneTransform(HumanBodyBones.RightFoot);
         leftToes = playerAnimator.GetBoneTransform(HumanBodyBones.LeftToes);
         rightToes = playerAnimator.GetBoneTransform(HumanBodyBones.RightToes);
         if (hips != null) hipsRestLocalPosition = hips.localPosition;
+        if (leftFoot != null && rightFoot != null)
+        {
+            leftFootRest = transform.InverseTransformPoint(leftFoot.position);
+            rightFootRest = transform.InverseTransformPoint(rightFoot.position);
+            CacheSoles();
+        }
+    }
+
+    private void CacheSoles()
+    {
+        // Bake once, in the rest pose, to measure this model's shoes rather than
+        // assuming ankle/toe pivots are the soles. Runtime work only transforms
+        // these small foot patches with their skin weights; it never bakes the
+        // full character each frame. Weights matter at the ankle/toe joint.
+        solePoints.Clear();
+        Transform[] feet = { leftFoot, rightFoot, leftToes, rightToes };
+        var mesh = new Mesh();
+        var vertices = new List<Vector3>();
+        float ankleHeight = Mathf.Min(leftFoot.position.y, rightFoot.position.y);
+        foreach (var renderer in playerAnimator.GetComponentsInChildren<SkinnedMeshRenderer>())
+        {
+            renderer.BakeMesh(mesh);
+            mesh.GetVertices(vertices);
+            Mesh source = renderer.sharedMesh;
+            bool readable = source != null && source.isReadable;
+            Vector3[] sourceVertices = readable ? source.vertices : null;
+            BoneWeight[] weights = readable ? source.boneWeights : null;
+            Matrix4x4[] bindPoses = readable ? source.bindposes : null;
+            Transform[] bones = renderer.bones;
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                Vector3 point = renderer.transform.TransformPoint(vertices[i]);
+                if (point.y > ankleHeight + 0.08f) continue;
+                Transform nearest = leftFoot;
+                float distance = float.PositiveInfinity;
+                foreach (Transform foot in feet)
+                {
+                    if (foot == null) continue;
+                    float candidate = (point - foot.position).sqrMagnitude;
+                    if (candidate >= distance) continue;
+                    distance = candidate;
+                    nearest = foot;
+                }
+                if (distance < 0.09f)
+                {
+                    var sole = new SolePoint { bone = nearest, position = nearest.InverseTransformPoint(point),
+                        weights = new Vector4(1f, 0f, 0f, 0f), left = nearest == leftFoot || nearest == leftToes };
+                    if (readable && weights.Length == vertices.Count)
+                    {
+                        BoneWeight skin = weights[i];
+                        Vector3 vertex = sourceVertices[i];
+                        sole.bone = bones[skin.boneIndex0];
+                        sole.bone1 = bones[skin.boneIndex1];
+                        sole.bone2 = bones[skin.boneIndex2];
+                        sole.bone3 = bones[skin.boneIndex3];
+                        sole.position = bindPoses[skin.boneIndex0].MultiplyPoint3x4(vertex);
+                        sole.position1 = bindPoses[skin.boneIndex1].MultiplyPoint3x4(vertex);
+                        sole.position2 = bindPoses[skin.boneIndex2].MultiplyPoint3x4(vertex);
+                        sole.position3 = bindPoses[skin.boneIndex3].MultiplyPoint3x4(vertex);
+                        sole.weights = new Vector4(skin.weight0, skin.weight1, skin.weight2, skin.weight3);
+                    }
+                    solePoints.Add(sole);
+                }
+            }
+        }
+        Destroy(mesh);
     }
 
     private void LateUpdate()
@@ -247,7 +375,6 @@ public class PlayerMovement : NetworkBehaviour
         // Include the blend out of Running, even after Shift has been released.
         bool runningPose = playerAnimator.GetCurrentAnimatorStateInfo(0).shortNameHash == RunningState ||
             (playerAnimator.IsInTransition(0) && playerAnimator.GetNextAnimatorStateInfo(0).shortNameHash == RunningState);
-        if (!runningPose) return;
 
         if (hips == null)
         {
@@ -260,7 +387,7 @@ public class PlayerMovement : NetworkBehaviour
         // but it still shifts the entire rendered skeleton left/right. Remove
         // planar drift first; the grounding correction below preserves vertical
         // bounce wherever the animated shoes already clear the support plane.
-        if (stabilizeRunningHips && runningHipStability > 0f)
+        if (runningPose && stabilizeRunningHips && runningHipStability > 0f)
         {
             Vector3 animatedPosition = hips.localPosition;
             hips.localPosition = new Vector3(
@@ -269,17 +396,117 @@ public class PlayerMovement : NetworkBehaviour
                 Mathf.Lerp(animatedPosition.z, hipsRestLocalPosition.z, runningHipStability));
         }
 
-        // The retargeted run bends the knees and moves the soles below the
-        // capsule's support plane. Lift only the skeleton by the penetration;
-        // never move the network root, collider or camera, or pull airborne feet down.
+        // Adjust only the visual skeleton, never the collider or camera.
         if (bodyCollider == null || !bodyCollider.enabled || leftFoot == null || rightFoot == null) return;
         float lowestSole = Mathf.Min(leftFoot.position.y - playerAnimator.leftFeetBottomHeight,
             rightFoot.position.y - playerAnimator.rightFeetBottomHeight);
         // At toe-off the toes can be lower than either ankle's sole estimate.
         if (leftToes != null) lowestSole = Mathf.Min(lowestSole, leftToes.position.y);
         if (rightToes != null) lowestSole = Mathf.Min(lowestSole, rightToes.position.y);
-        float lift = bodyCollider.bounds.min.y + runningSoleClearance - lowestSole;
-        if (lift > 0f) hips.position += Vector3.up * lift;
+        if (!TryGround(bodyCollider.bounds.center, groundProbeDistance, out RaycastHit support)) return;
+        float lift = support.point.y + runningSoleClearance - lowestSole;
+        if (solePoints.Count > 0)
+        {
+            bool leftSupported = TryGround(leftFoot.position, groundProbeDistance + 0.15f, out RaycastHit leftSupport);
+            bool rightSupported = TryGround(rightFoot.position, groundProbeDistance + 0.15f, out RaycastHit rightSupport);
+            lift = float.NegativeInfinity;
+            foreach (SolePoint point in solePoints)
+            {
+                if (point.left ? !leftSupported : !rightSupported) continue;
+                RaycastHit footSupport = point.left ? leftSupport : rightSupport;
+                float clearance = Vector3.Dot(footSupport.normal, point.WorldPosition() - footSupport.point);
+                lift = Mathf.Max(lift, (0.003f - clearance) / footSupport.normal.y);
+            }
+            if (float.IsNegativeInfinity(lift)) return;
+        }
+        // Walking always has a support foot. Correct both floating and penetration;
+        // the run retains its authored flight phase. Never ground an airborne body.
+        if (lift > 0f || !runningPose)
+            hips.position += Vector3.up * Mathf.Max(lift, -0.25f);
+    }
+
+    private bool TryGround(Vector3 point, float reach, out RaycastHit support)
+    {
+        support = default;
+        if (bodyCollider == null) return false;
+        float bottom = bodyCollider.bounds.min.y;
+        Vector3 origin = new Vector3(point.x, bottom + 0.3f, point.z);
+        int count = Physics.RaycastNonAlloc(origin, Vector3.down, groundHits, 0.3f + reach,
+            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        float nearest = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = groundHits[i];
+            if (hit.collider.transform.IsChildOf(transform) || hit.collider == bodyCollider ||
+                hit.normal.y < Mathf.Cos(maximumGroundAngle * Mathf.Deg2Rad) || hit.distance >= nearest) continue;
+            nearest = hit.distance;
+            support = hit;
+        }
+        return nearest < float.PositiveInfinity;
+    }
+
+    private void OnAnimatorIK(int layerIndex)
+    {
+        if (layerIndex != 0 || playerAnimator == null || !playerAnimator.isHuman || leftFoot == null || rightFoot == null) return;
+        bool incapacitated = playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead);
+        Vector2 direction = incapacitated ? Vector2.zero : AnimationDirection;
+        Vector3 stepDelta = transform.position - lastStepPosition;
+        stepDelta.y = 0f;
+        float distance = hasStepPosition ? Mathf.Min(stepDelta.magnitude, 1f) : 0f;
+        lastStepPosition = transform.position;
+        hasStepPosition = true;
+        float blend = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.01f, animationDampTime));
+        blendedDirection = Vector2.Lerp(blendedDirection, direction, blend);
+        // Forward uses the authored walk/run; sideways and backward use an
+        // alternating support/swing gait, never a forward clip played in reverse.
+        float targetWeight = direction.sqrMagnitude > 0.01f
+            ? Mathf.Clamp01((1f - direction.normalized.y) * 2f) : 0f;
+        directionalWeight = Mathf.Lerp(directionalWeight, targetWeight, blend);
+        if (incapacitated || !TryGround(transform.position, groundProbeDistance, out _))
+        {
+            playerAnimator.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 0f);
+            playerAnimator.SetIKPositionWeight(AvatarIKGoal.RightFoot, 0f);
+            playerAnimator.SetIKRotationWeight(AvatarIKGoal.LeftFoot, 0f);
+            playerAnimator.SetIKRotationWeight(AvatarIKGoal.RightFoot, 0f);
+            return;
+        }
+        // Advance by actual travel, so blocked players and interpolated remote
+        // players cannot keep sliding their planted feet at the requested speed.
+        stepPhase = Mathf.Repeat(stepPhase + distance / (2f * Mathf.Max(0.1f, stepLength)), 1f);
+        // A small knee bend gives the solver room to lift/reach a stepping foot.
+        playerAnimator.bodyPosition -= Vector3.up * (0.08f * directionalWeight);
+        PlaceFoot(AvatarIKGoal.LeftFoot, leftFootRest, stepPhase, playerAnimator.leftFeetBottomHeight);
+        PlaceFoot(AvatarIKGoal.RightFoot, rightFootRest, Mathf.Repeat(stepPhase + 0.5f, 1f), playerAnimator.rightFeetBottomHeight);
+    }
+
+    private void PlaceFoot(AvatarIKGoal goal, Vector3 rest, float phase, float soleHeight)
+    {
+        bool stance = phase < 0.5f;
+        float swing = (phase - 0.5f) * 2f;
+        float along = stance ? 0.5f - phase * 2f : Mathf.Lerp(-0.5f, 0.5f, Mathf.SmoothStep(0f, 1f, swing));
+        Vector3 direction = transform.TransformDirection(new Vector3(blendedDirection.x, 0f, blendedDirection.y)).normalized;
+        Vector3 target = transform.TransformPoint(rest) + direction * (along * stepLength);
+        Vector3 authored = modelRoot.TransformPoint(playerAnimator.transform.InverseTransformPoint(playerAnimator.GetIKPosition(goal)));
+        if (!TryGround(Vector3.Lerp(authored, target, directionalWeight), groundProbeDistance + 0.15f, out RaycastHit hit))
+        {
+            playerAnimator.SetIKPositionWeight(goal, 0f);
+            playerAnimator.SetIKRotationWeight(goal, 0f);
+            return;
+        }
+        float lift = stance ? 0f : Mathf.Sin(swing * Mathf.PI) * stepHeight;
+        target.y = hit.point.y + soleHeight + 0.025f + lift;
+        // This prefab's visual model is offset below the Animator root. Unity's
+        // humanoid goals omit that container offset; convert both ways so the
+        // solver targets the rendered floor rather than a point a metre below it.
+        // Keep the forward clip's swing height, lifting it only for an obstacle.
+        authored.y = Mathf.Max(authored.y, hit.point.y + soleHeight + 0.025f);
+        playerAnimator.SetIKPositionWeight(goal, 1f);
+        Vector3 renderedTarget = Vector3.Lerp(authored, target, directionalWeight);
+        playerAnimator.SetIKPosition(goal, playerAnimator.transform.TransformPoint(modelRoot.InverseTransformPoint(renderedTarget)));
+        playerAnimator.SetIKRotationWeight(goal, directionalWeight);
+        // Humanoid IK goals use sole-up/character-forward space, not the FBX
+        // foot bone's bind rotation (which points this rig's toes downward).
+        playerAnimator.SetIKRotation(goal, Quaternion.FromToRotation(Vector3.up, hit.normal) * transform.rotation);
     }
 
     private void FixedUpdate()
@@ -287,7 +514,17 @@ public class PlayerMovement : NetworkBehaviour
         if (!NetworkMode.IsLocalController(this)) return;
         if (rb == null || rb.isKinematic) return;
 
-        float currentSpeed = isSprinting ? sprintSpeed : moveSpeed;
-        rb.MovePosition(rb.position + movement * currentSpeed * Time.fixedDeltaTime);
+        float currentSpeed = CurrentMovementSpeed;
+        // Let the solver resolve walls and gravity instead of teleporting the
+        // dynamic capsule through collisions with MovePosition every step.
+        Vector3 velocity = movement * currentSpeed;
+        float verticalVelocity = rb.linearVelocity.y;
+        if (TryGround(rb.position, groundProbeDistance, out RaycastHit ground) && Vector3.Dot(rb.linearVelocity, ground.normal) <= 0.5f)
+        {
+            velocity = Vector3.ProjectOnPlane(velocity, ground.normal).normalized * velocity.magnitude;
+            float gap = Mathf.Max(0f, bodyCollider.bounds.min.y - ground.point.y);
+            verticalVelocity = velocity.y - Mathf.Max(1f, gap / Time.fixedDeltaTime);
+        }
+        rb.linearVelocity = new Vector3(velocity.x, verticalVelocity, velocity.z);
     }
 }

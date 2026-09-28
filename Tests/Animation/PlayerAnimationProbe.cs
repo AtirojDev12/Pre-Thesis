@@ -16,7 +16,31 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
     PlayerHealth[] groundingPlayers;
     readonly Dictionary<PlayerHealth, float> worstPenetration = new Dictionary<PlayerHealth, float>();
     readonly Dictionary<PlayerHealth, int> groundingSamples = new Dictionary<PlayerHealth, int>();
+    readonly Dictionary<PlayerHealth, float> worstFloating = new Dictionary<PlayerHealth, float>();
     Mesh groundingMesh;
+    void CapturePose(PlayerMovement player, string name)
+    {
+        var cameraObject = new GameObject("Pose review camera");
+        var camera = cameraObject.AddComponent<Camera>();
+        camera.enabled = false;
+        camera.transform.position = player.transform.position + new Vector3(3f, 0.8f, -3f);
+        camera.transform.LookAt(player.transform.position);
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = new Color(0.3f, 0.35f, 0.4f);
+        var target = new RenderTexture(640, 640, 24);
+        camera.targetTexture = target;
+        camera.Render();
+        var previous = RenderTexture.active;
+        RenderTexture.active = target;
+        var texture = new Texture2D(640, 640, TextureFormat.RGB24, false);
+        texture.ReadPixels(new Rect(0, 0, 640, 640), 0, 0);
+        texture.Apply();
+        File.WriteAllBytes(Path.Combine(Application.dataPath, "../" + name + ".png"), texture.EncodeToPNG());
+        RenderTexture.active = previous;
+        camera.targetTexture = null;
+        target.Release();
+        Destroy(texture); Destroy(target); Destroy(cameraObject);
+    }
     void LateUpdate()
     {
         if (groundingPlayers == null) return;
@@ -25,7 +49,6 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         {
             if (p == null) continue;
             var animator = p.GetComponent<Animator>();
-            if (!animator.GetCurrentAnimatorStateInfo(0).IsName("Running") || animator.IsInTransition(0)) continue;
             float bottom = float.PositiveInfinity;
             foreach (var renderer in p.GetComponentsInChildren<SkinnedMeshRenderer>())
             {
@@ -33,7 +56,21 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 foreach (var vertex in groundingMesh.vertices)
                     bottom = Mathf.Min(bottom, renderer.transform.TransformPoint(vertex).y);
             }
-            worstPenetration[p] = Mathf.Max(worstPenetration[p], p.GetComponent<Collider>().bounds.min.y - bottom);
+            // Compare the visible soles to the actual test floor. During spawn
+            // settling the capsule may still be above it; that is not clipping.
+            float penetration = -1f - bottom;
+            if (penetration > worstPenetration[p] + 0.02f)
+            {
+                Debug.Log("Ground penetration=" + penetration + " state=" + animator.GetCurrentAnimatorStateInfo(0).shortNameHash +
+                    " transition=" + animator.IsInTransition(0) + " direction=" + p.GetComponent<PlayerMovement>().AnimationDirection +
+                    " capsule=" + p.GetComponent<Collider>().bounds.min.y + " mesh=" + bottom +
+                    " left=" + animator.GetBoneTransform(HumanBodyBones.LeftFoot).position + " right=" + animator.GetBoneTransform(HumanBodyBones.RightFoot).position);
+                if (p.isLocalPlayer) CapturePose(p.GetComponent<PlayerMovement>(), "grounding-worst");
+            }
+            worstPenetration[p] = Mathf.Max(worstPenetration[p], penetration);
+            if (!animator.GetCurrentAnimatorStateInfo(0).IsName("Running") && !animator.IsInTransition(0))
+                if (p.GetComponent<Collider>().bounds.min.y < -0.95f)
+                    worstFloating[p] = Mathf.Max(worstFloating[p], bottom + 1f);
             groundingSamples[p]++;
         }
     }
@@ -57,6 +94,19 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = 60;
         bool client = Array.IndexOf(Environment.GetCommandLineArgs(), "--client") >= 0;
+        var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        floor.name = "Grounding test floor";
+        floor.transform.position = new Vector3(0f, -1.5f, 0f);
+        floor.transform.localScale = new Vector3(1000f, 1f, 1000f);
+        var light = new GameObject("Pose review light").AddComponent<Light>();
+        light.type = LightType.Directional;
+        light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+        for (int i = 0; i < 2; i++)
+        {
+            var spawn = new GameObject("Spawn " + i);
+            spawn.transform.position = new Vector3(i * 4f, 0f, 0f);
+            spawn.AddComponent<NetworkStartPosition>();
+        }
         var root = new GameObject("Animation Test Network");
         var transport = root.AddComponent<kcp2k.KcpTransport>();
         transport.Port = 17996;
@@ -71,10 +121,9 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         var players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
         Check(players.Length == 2, "Host and joining player spawned");
         groundingPlayers = players;
-        foreach (var p in players) { worstPenetration[p] = 0; groundingSamples[p] = 0; }
+        foreach (var p in players) { worstPenetration[p] = 0; worstFloating[p] = 0; groundingSamples[p] = 0; }
         if (NetworkClient.localPlayer != null)
         {
-            foreach (var p in players) p.GetComponent<Rigidbody>().useGravity = false;
             var keyboard = InputSystem.AddDevice<Keyboard>();
             keyboard.MakeCurrent();
             var bones = new Dictionary<PlayerHealth, Transform>();
@@ -110,10 +159,80 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                     Check(angles[p] > 20, role + " animated " + (sprint ? "sprint" : "walk") + " boneDelta=" + angles[p] + " Speed=" + animator.GetFloat("Speed") + " sprint=" + animator.GetBool("IsSprinting") + " state=" + animator.GetCurrentAnimatorStateInfo(0).shortNameHash);
                 }
             }
+            var mover = NetworkClient.localPlayer.GetComponent<PlayerMovement>();
+            var directions = new[] { new Vector2(0,-1), new Vector2(-1,0), new Vector2(1,0), new Vector2(1,-1).normalized, Vector2.zero };
+            var inputs = new[] { new KeyboardState(Key.S, Key.LeftShift), new KeyboardState(Key.A), new KeyboardState(Key.D),
+                new KeyboardState(Key.S, Key.D), new KeyboardState(Key.W, Key.S, Key.A, Key.D) };
+            for (int i = 0; i < directions.Length; i++)
+            {
+                for (float until = Time.time + 0.5f; Time.time < until;)
+                {
+                    InputSystem.QueueStateEvent(keyboard, inputs[i]);
+                    yield return null;
+                }
+                Vector3 start = mover.transform.position;
+                float began = Time.time;
+                Transform left = mover.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.LeftFoot);
+                Transform right = mover.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.RightFoot);
+                Vector3 lastLeft = left.position, lastRight = right.position;
+                int plantedSamples = 0;
+                float footSeparation = 0f;
+                for (float until = Time.time + 0.5f; Time.time < until;)
+                {
+                    InputSystem.QueueStateEvent(keyboard, inputs[i]);
+                    yield return null;
+                    float lower = Mathf.Min(left.position.y, right.position.y);
+                    if ((left.position.y - lower < 0.02f && Vector3.Distance(left.position, lastLeft) < 0.025f) ||
+                        (right.position.y - lower < 0.02f && Vector3.Distance(right.position, lastRight) < 0.025f)) plantedSamples++;
+                    footSeparation = Mathf.Max(footSeparation, Mathf.Abs(left.position.y - right.position.y));
+                    lastLeft = left.position; lastRight = right.position;
+                }
+                if (i == 0)
+                {
+                    Check(plantedSamples > 5 && footSeparation > 0.04f, "Backward gait plants a support foot and lifts the swing foot: planted=" + plantedSamples + " lift=" + footSeparation);
+                }
+                Vector3 displacement = mover.transform.InverseTransformDirection(mover.transform.position - start);
+                Vector2 travelled = new Vector2(displacement.x, displacement.z);
+                Check((mover.AnimationDirection - directions[i]).magnitude < 0.05f, "Input direction " + i);
+                Check(directions[i] == Vector2.zero ? travelled.magnitude < 0.05f :
+                    Vector2.Dot(travelled.normalized, directions[i]) > 0.99f && Mathf.Abs(travelled.magnitude / (Time.time - began) - mover.CurrentMovementSpeed) < 0.3f,
+                    "Correct displacement and normalized speed " + i + ": " + travelled);
+                foreach (var p in players)
+                {
+                    Check((p.GetComponent<PlayerMovement>().AnimationDirection - directions[i]).magnitude < 0.05f,
+                        (p.isLocalPlayer ? "Local" : "Remote") + " direction replicated " + i);
+                    Check(!p.GetComponent<Animator>().GetBool("IsSprinting"), "Side/back step does not use forward sprint " + i);
+                    Check(Mathf.Abs(p.GetComponent<Collider>().bounds.min.y + 1f) < 0.04f, "Capsule remains on physical floor " + i);
+                }
+                if (!client) CapturePose(mover, "direction-" + i);
+                // Hold this phase while the peer finishes its measurements.
+                for (float until = Time.time + 0.5f; Time.time < until;)
+                {
+                    InputSystem.QueueStateEvent(keyboard, inputs[i]);
+                    yield return null;
+                }
+            }
+            Vector3 wallStart = mover.transform.position;
+            var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wall.transform.position = wallStart + mover.transform.forward * 2f;
+            wall.transform.rotation = mover.transform.rotation;
+            wall.transform.localScale = new Vector3(2f, 4f, 0.1f);
+            for (float until = Time.time + 1f; Time.time < until;)
+            {
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W, Key.LeftShift));
+                yield return null;
+            }
+            float wallTravel = Vector3.Dot(mover.transform.position - wallStart, mover.transform.forward);
+            Check(wallTravel > 1f && wallTravel < 1.5f, "Sprint capsule stops at a thin wall: travel=" + wallTravel);
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return new WaitForSecondsRealtime(0.2f);
+            Destroy(wall);
         }
         foreach (var p in players)
             Check(groundingSamples[p] > 10 && worstPenetration[p] <= 0.005f,
-                (p.isLocalPlayer ? "Local" : "Remote") + " sprint mesh stays above capsule floor: penetration=" + worstPenetration[p]);
+                (p.isLocalPlayer ? "Local" : "Remote") + " locomotion mesh stays above physical floor: penetration=" + worstPenetration[p]);
+        foreach (var p in players)
+            Check(worstFloating[p] < 0.035f, (p.isLocalPlayer ? "Local" : "Remote") + " walking mesh stays grounded: gap=" + worstFloating[p]);
         groundingPlayers = null;
         if (groundingMesh != null) Destroy(groundingMesh);
         if (Keyboard.current != null) InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState());
