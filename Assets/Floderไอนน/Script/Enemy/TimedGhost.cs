@@ -1,200 +1,177 @@
-using Mirror;
 using UnityEngine;
 using UnityEngine.AI;
+using Mirror; 
 
-/// <summary>
-/// ผีที่ GhostManager ปล่อยออกมาเป็นช่วงเวลา
-///
-/// MULTIPLAYER NOTES
-/// -----------------
-/// The AI runs on the server only (see Enemy_Abstract_Class). Two things here
-/// had to change beyond that:
-///
-///   1. The jumpscare UI. It used to switch on a GameObject in the scene, which
-///      on six machines means everybody's screen gets the scare at once — even
-///      the four players on the other side of the cinema. It is now a TargetRpc
-///      to the victim alone.
-///
-///   2. "Did the player move" used to compare against one cached player. It now
-///      tracks the position of each candidate separately, because in the dark
-///      this ghost hunts by MOVEMENT, and six players means six things that
-///      might be moving.
-/// </summary>
 public class TimedGhost : Enemy_Abstract_Class
 {
     [Header("Ghost Visual Settings")]
-    [Tooltip("Jumpscare overlay INSIDE this ghost's prefab, or left empty to find one tagged 'JumpscareUI' in the scene. It is shown only on the victim's screen.")]
-    [SerializeField] private GameObject jumpscareUI;
-    [SerializeField] private float jumpscareDuration = 3.0f;
-
-    [Header("Damage")]
-    [Tooltip("Damage dealt to the victim. The GDD makes a Jump Scare instant death — tick killsOutright for that instead of raising this.")]
-    [SerializeField] private float jumpscareDamage = 25f;
-
-    [Tooltip("GDD rule: a Jump Scare kills outright, skipping the downed state. Leave OFF while testing so a mistake does not end the run.")]
-    [SerializeField] private bool killsOutright = false;
-
+    [SerializeField] private GameObject jumpscareUI;       
+    [SerializeField] private float jumpscareDuration = 3.0f; 
+    
     [Header("Movement Detection Settings")]
-    [SerializeField] private float movementThreshold = 0.02f;
+    [SerializeField] private float movementThreshold = 0.02f; 
 
     [Header("Patrol Settings (ความมืด)")]
-    [SerializeField] private float randomPatrolRadius = 15f;
+    [SerializeField] private float randomPatrolRadius = 15f; 
 
-    [Tooltip("How close the ghost must get before the jumpscare fires.")]
-    [SerializeField] private float jumpscareRange = 1.5f;
+    [Header("Mic Settings for Child Ghost")]
+    [SerializeField] private float micVolumeThreshold = 0.3f; 
 
-    /// <summary>
-    /// Whether the lights are on. Pushed by GhostManager, which owns it as a
-    /// SyncVar — this ghost never reads Light components itself, because on a
-    /// client those may not match the server's idea of the switch.
-    /// </summary>
-    [HideInInspector] public bool isSceneLightOn = true;
+    [HideInInspector] public bool isSceneLightOn = true; 
 
-    private bool isJumpscareTriggered = false;
-
-    // Per-player last-known position, for the dark-hunting movement check. A
-    // single lastPlayerPosition could only ever watch one person.
-    private readonly System.Collections.Generic.Dictionary<uint, Vector3> lastSeenPositions =
-        new System.Collections.Generic.Dictionary<uint, Vector3>();
+    private Vector3 lastPlayerPosition;  
+    private bool isJumpscareTriggered = false; 
 
     protected override void Start()
     {
-        base.Start();
-
+        base.Start(); 
+        
         if (agent == null) agent = GetComponent<NavMeshAgent>();
-
-        // Only the machine running the AI needs to sit on the NavMesh.
-        if (HasAiAuthority && agent != null && agent.enabled)
+        
+        // 💡 [แก้บั๊กลอยค้างออนไลน์] สั่งเปิดรันระบบ Agent และวาร์ปลงล็อกติดแผ่นพื้นสีฟ้าทันทีในเฟรมแรกที่ขยับตัว
+        if (agent != null)
         {
-            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 2.0f, NavMesh.AllAreas))
+            agent.enabled = true;
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(transform.position, out hit, 5.0f, NavMesh.AllAreas))
+            {
                 agent.Warp(hit.position);
+                Debug.Log("[Ghost AI] วาร์ปผีลงมายืนบนพื้น NavMesh สำเร็จ!");
+            }
         }
 
         if (jumpscareUI == null)
         {
-            // Scene lookup kept for the test scenes, but narrowed to ACTIVE scene
-            // objects. The old version walked Resources.FindObjectsOfTypeAll,
-            // which also returns prefab assets and would happily grab one.
-            GameObject tagged = GameObject.FindGameObjectWithTag("JumpscareUI");
-            if (tagged != null) jumpscareUI = tagged;
-        }
-
-        if (jumpscareUI != null) jumpscareUI.SetActive(false);
-    }
-
-    protected override void CheckForPlayer()
-    {
-        if (isJumpscareTriggered) return;
-
-        if (isSceneLightOn)
-        {
-            // Lit: normal sight. The base class already picks the nearest player
-            // it can actually see, across everyone in the map.
-            base.CheckForPlayer();
-        }
-        else
-        {
-            // Dark: it cannot see, it notices MOVEMENT. Check every living
-            // player in range, not one cached transform.
-            if (currentState != EnemyState.Chase)
+            GameObject[] allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+            foreach (GameObject obj in allObjects)
             {
-                PlayerHealth mover = FindNearestMovingPlayer();
-                if (mover != null)
+                if (obj.CompareTag("JumpscareUI") && obj.scene.name != null)
                 {
-                    targetPlayer = mover;
-                    OnPlayerSpotted();
+                    jumpscareUI = obj;
+                    break;
                 }
             }
         }
 
-        RememberPositions();
+        if (playerTransform != null)
+        {
+            lastPlayerPosition = playerTransform.position;
+        }
+        
+        if (jumpscareUI != null) jumpscareUI.SetActive(false);
     }
 
-    /// <summary>
-    /// The closest player inside view distance who has moved more than the
-    /// threshold since the last check. Stand still in the dark and this ghost
-    /// walks past you — which is the whole point of the mechanic, and it only
-    /// works if it is evaluated per player.
-    /// </summary>
-    private PlayerHealth FindNearestMovingPlayer()
+    protected override void checkForPlayer()
     {
-        PlayerHealth best = null;
-        float bestSqr = viewDistance * viewDistance;
+        if (isJumpscareTriggered) return;
+        if (playerTransform == null) return;
 
-        var players = PlayerRegistry.All;
-        for (int i = 0; i < players.Count; i++)
+        if (isSceneLightOn)
         {
-            PlayerHealth candidate = players[i];
-            if (candidate == null || candidate.IsDead || candidate.netIdentity == null) continue;
+            // [ไฟเปิดอยู่] -> ผีใช้สายตาปกติ
+            base.checkForPlayer();
+        }
+        else
+        {
+            // [ไฟดับอยู่] -> ผีตาบอด สัมผัสการขยับ + ดึงเสียงไมค์ออนไลน์จากระบบของเพื่อน
+            if (currentState != EnemyState.Chase) 
+            {
+                float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
 
-            Vector3 position = candidate.transform.position;
-            float sqr = (position - transform.position).sqrMagnitude;
-            if (sqr > bestSqr) continue;
+                if (distanceToPlayer <= viewDistance)
+                {
+                    // 1. ระบบชนระยะประชิดตัว 3 เมตร ผีจะตื่นทันที
+                    if (distanceToPlayer <= 3f)
+                    {
+                        Debug.Log("[Ghost AI] ผีเดินสุ่มมาเจอผู้เล่นระยะประชิดตัว!");
+                        OnPlayerSpotted();
+                        return;
+                    }
 
-            if (!lastSeenPositions.TryGetValue(candidate.netIdentity.netId, out Vector3 previous)) continue;
-            if (Vector3.Distance(position, previous) <= movementThreshold) continue;
+                    // 2. ตรวจจับจากการขยับตัวเคลื่อนที่ (ระบบพิกัดสำรอง)
+                    float playerMovedDistance = Vector3.Distance(playerTransform.position, lastPlayerPosition);
+                    if (playerMovedDistance > movementThreshold)
+                    {
+                        Debug.Log("[Ghost AI] ผีตรวจจับพิกัดการเดินของผู้เล่นในความมืดได้!");
+                        OnPlayerSpotted(); 
+                        return; 
+                    }
 
-            bestSqr = sqr;
-            best = candidate;
+                    // 3. 💡 [ระบบไมค์ออนไลน์ของเพื่อน] 💡
+                    if (canDetectMic)
+                    {
+                        // สั่งดึงคอมโพเนนต์ PlayerNoise ที่แปะอยู่บนตัวละครผู้เล่นคนนั้นมาตรวจสอบค่าบน Server
+                        PlayerNoise playerNoise = playerTransform.GetComponent<PlayerNoise>();
+                        
+                        if (playerNoise != null)
+                        {
+                            // ดึงค่าน้ำหนักเสียงไมค์สดๆ ที่เพื่อนซิงค์ข้ามเน็ตเวิร์กมาเก็บไว้ที่ ServerMic
+                            float currentMicVolume = playerNoise.ServerMic;
+
+                            // เช็คระดับเสียง: ถ้าตะโกนดังเกินค่ากำหนด (หรือใช้เงื่อนไข playerNoise.ServerTooLoud ตามที่เพื่อนจดโน้ตไว้ก็ได้ครับ)
+                            if (currentMicVolume > micVolumeThreshold || playerNoise.ServerTooLoud)
+                            {
+                                Debug.Log($"[Ghost AI] ผีได้ยินผู้เล่นทำเสียงดังออนไลน์! ไมค์: {playerNoise.ServerMic} เกม: {playerNoise.ServerGame}");
+                                OnPlayerSpotted(); 
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        return best;
-    }
-
-    private void RememberPositions()
-    {
-        var players = PlayerRegistry.All;
-        for (int i = 0; i < players.Count; i++)
-        {
-            PlayerHealth candidate = players[i];
-            if (candidate == null || candidate.netIdentity == null) continue;
-
-            lastSeenPositions[candidate.netIdentity.netId] = candidate.transform.position;
-        }
+        lastPlayerPosition = playerTransform.position;
     }
 
     protected override void PatrolBehavior()
     {
-        if (isJumpscareTriggered) return;
-        if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
+        if (isJumpscareTriggered || playerTransform == null) return;
+        if (!agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
 
         if (isSceneLightOn)
         {
-            // Lit: drift toward whoever is nearest, even without line of sight.
-            PlayerHealth nearest = PlayerRegistry.ClosestTo(transform.position);
-            if (nearest != null) agent.SetDestination(nearest.transform.position);
+            agent.SetDestination(playerTransform.position);
         }
-        else if (!agent.pathPending && agent.remainingDistance < 1f)
+        else
         {
-            agent.SetDestination(GetRandomNavMeshLocation());
+            // ไฟดับ: สั่งตั้งค่าจุดหมายปลายทางให้ผีก้าวขาเดินสุ่มทันทีฉลุยรอบด่าน
+            if (!agent.pathPending && agent.remainingDistance < 1f)
+            {
+                Vector3 randomDestination = GetRandomNavMeshLocation();
+                agent.SetDestination(randomDestination);
+                Debug.Log($"[Ghost AI] ผีกำลังเดินสุ่มลาดตระเวนไปที่: {randomDestination}");
+            }
         }
     }
 
     private Vector3 GetRandomNavMeshLocation()
     {
-        Vector3 randomDirection = Random.insideUnitSphere * randomPatrolRadius + transform.position;
-
-        return NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, randomPatrolRadius, NavMesh.AllAreas)
-            ? hit.position
-            : transform.position;
+        Vector3 randomDirection = Random.insideUnitSphere * randomPatrolRadius;
+        randomDirection += transform.position;
+        
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(randomDirection, out hit, randomPatrolRadius, NavMesh.AllAreas))
+        {
+            return hit.position;
+        }
+        
+        return transform.position;
     }
 
     protected override void ChaseBehavior()
     {
-        if (isJumpscareTriggered) return;
-        if (targetPlayer == null || targetPlayer.IsDead)
+        if (isJumpscareTriggered || playerTransform == null) return;
+
+        if (agent.isActiveAndEnabled && agent.isOnNavMesh)
         {
-            // The person we were chasing died or left. Do not freeze — go back
-            // to patrol and let CheckForPlayer pick somebody else.
-            currentState = EnemyState.Patrol;
-            return;
+            agent.SetDestination(playerTransform.position);
         }
 
-        if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh)
-            agent.SetDestination(targetPlayer.transform.position);
-
-        if (Vector3.Distance(transform.position, targetPlayer.transform.position) <= jumpscareRange)
-            TriggerJumpscare(targetPlayer);
+        if (Vector3.Distance(transform.position, playerTransform.position) <= 1.5f)
+        {
+            TriggerJumpscare();
+        }
     }
 
     protected override void SearchBehavior()
@@ -202,64 +179,52 @@ public class TimedGhost : Enemy_Abstract_Class
         currentState = EnemyState.Patrol;
     }
 
-    /// <summary>
-    /// SERVER ONLY. Hurts one named victim and shows the scare on THAT player's
-    /// screen alone.
-    /// </summary>
-    public override void TriggerJumpscare(PlayerHealth victim)
+    public override void TriggerJumpscare()
     {
-        if (!HasAiAuthority || isJumpscareTriggered) return;
-
+        if (isJumpscareTriggered) return;
         isJumpscareTriggered = true;
-
-        if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh)
-            agent.isStopped = true;
-
-        if (victim != null)
+        
+        if (agent.isActiveAndEnabled && agent.isOnNavMesh)
         {
-            if (killsOutright) victim.ServerKill("jump scare");
-            else victim.TakeDamage(jumpscareDamage);
+            agent.isStopped = true; 
         }
 
-        if (NetworkMode.IsOffline)
-        {
-            ShowJumpscare();
-        }
-        else if (victim != null && victim.connectionToClient != null)
-        {
-            // Only the victim sees it. A ClientRpc here would scare all six
-            // players at once, including the four in another room.
-            TargetShowJumpscare(victim.connectionToClient);
-        }
-
-        // Tell the manager not to despawn us mid-scare.
-        if (GhostManager.Instance != null) GhostManager.Instance.CancelDespawnTimer();
-
-        Invoke(nameof(EndJumpscareEffect), jumpscareDuration);
+        RpcShowJumpscareUI(); 
     }
 
-    [TargetRpc]
-    private void TargetShowJumpscare(NetworkConnectionToClient target) => ShowJumpscare();
-
-    private void ShowJumpscare()
+    [ClientRpc] 
+    private void RpcShowJumpscareUI()
     {
-        if (jumpscareUI != null) jumpscareUI.SetActive(true);
-        Invoke(nameof(HideJumpscare), jumpscareDuration);
+        if (jumpscareUI != null)
+        {
+            jumpscareUI.SetActive(true);
+        }
+
+        GhostManager manager = FindObjectOfType<GhostManager>();
+        if (manager != null)
+        {
+            manager.CancelDespawnTimer();
+        }
+
+        Invoke("EndJumpscareEffect", jumpscareDuration);
     }
 
-    private void HideJumpscare()
-    {
-        if (jumpscareUI != null) jumpscareUI.SetActive(false);
-    }
-
-    /// <summary>SERVER ONLY — despawning is the server's call, same as spawning.</summary>
     private void EndJumpscareEffect()
     {
-        if (!HasAiAuthority) return;
+        if (jumpscareUI != null)
+        {
+            jumpscareUI.SetActive(false); 
+        }
 
-        if (GhostManager.Instance != null) GhostManager.Instance.ResetManagerAfterJumpscare();
+        GhostManager manager = FindObjectOfType<GhostManager>();
+        if (manager != null)
+        {
+            manager.ResetManagerAfterJumpscare();
+        }
 
-        if (NetworkServer.active) NetworkServer.Destroy(gameObject);
-        else Destroy(gameObject);
+        if (isServer)
+        {
+            NetworkServer.Destroy(gameObject); // ใช้ฟังก์ชันลบวัตถุเน็ตเวิร์กออนไลน์ของ Mirror ทันที
+        }
     }
 }
