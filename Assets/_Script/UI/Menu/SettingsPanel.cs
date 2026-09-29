@@ -8,9 +8,17 @@ using UnityEngine.UI;
 /// <summary>
 /// Settings screen, used in two places: the main menu and the Esc pause menu.
 ///
-///   General: player name, mouse sensitivity, brightness, fullscreen, resolution
-///   Sound:   master, music, SFX, ambient
+/// Tabs on the left (click one to show only that page):
+///   General:  player name, mouse sensitivity
+///   Display:  brightness, fullscreen, resolution
+///   Sound:    master, music, SFX, ambient | microphone, mic meter sensitivity,
+///             noise meter (bar direction, move it on screen, reset position)
 ///   Controls: Walkie-Talkie talk key + on/off key (rebindable, any key or mouse button)
+///
+/// Switching tabs keeps unapplied edits: Apply saves every page at once.
+///
+/// "Move meter" and "Reset position" act at once (they are a small editor of
+/// their own); everything else waits for Apply.
 ///
 /// Nothing changes until APPLY is pressed. Moving a slider only edits a
 /// pending copy (the labels show the pending value). Apply writes every value
@@ -45,9 +53,27 @@ public class SettingsPanel : MonoBehaviour
     [SerializeField] private Slider ambientSlider;
     [SerializeField] private TMP_Text ambientText;
 
+    [Header("Microphone & noise meter (optional: rebuilt by Tools > Pre-Thesis > Rebuild Settings + Pause Menu)")]
+    [SerializeField] private TMP_Dropdown microphoneDropdown;
+    [SerializeField] private Slider micSensitivitySlider;
+    [SerializeField] private TMP_Text micSensitivityText;
+    [SerializeField] private Button meterDirectionButton;
+    [SerializeField] private Button meterMoveButton;
+    [SerializeField] private Button meterResetButton;
+
+    [Header("Mic clean-up (optional: rebuilt by Tools > Pre-Thesis > Rebuild Settings + Pause Menu)")]
+    [SerializeField] private Toggle noiseReductionToggle;
+    [SerializeField] private Toggle noiseGateToggle;
+    [SerializeField] private Slider gateThresholdSlider;
+    [SerializeField] private TMP_Text gateThresholdText;
+
     [Header("Controls (optional: rebuilt by Tools > Pre-Thesis > Rebuild Settings + Pause Menu)")]
     [SerializeField] private Button walkieTalkButton;
     [SerializeField] private Button walkiePowerButton;
+
+    [Header("Tabs (same order: button i opens page i)")]
+    [SerializeField] private Button[] tabButtons;
+    [SerializeField] private GameObject[] tabPages;
 
     [Header("Buttons")]
     [SerializeField] private Button applyButton;
@@ -58,11 +84,23 @@ public class SettingsPanel : MonoBehaviour
 
     private readonly List<Vector2Int> resolutions = new List<Vector2Int>();
 
+    // Tab look (same colours as the menu builder).
+    private static readonly Color TabColor = new Color32(0x2E, 0x24, 0x20, 0xFF);
+    private static readonly Color TabSelectedColor = new Color32(0xD9, 0xA4, 0x41, 0xFF);
+    private static readonly Color TabTextColor = new Color32(0xF4, 0xEF, 0xED, 0xFF);
+    private static readonly Color TabSelectedTextColor = new Color32(0x0E, 0x0B, 0x0A, 0xFF);
+    private static int lastTab; // reopen on the page the player used last
+    private readonly List<string> microphones = new List<string>(); // index 0 = "" (Windows default)
+
     // Snapshot of the saved values when the panel opened (or after Apply).
     // Used to grey out Apply when nothing has changed.
     private string savedName;
-    private float savedSensitivity, savedBrightness, savedMaster, savedMusic, savedSfx, savedAmbient;
-    private bool savedFullscreen;
+    private float savedSensitivity, savedBrightness, savedMaster, savedMusic, savedSfx, savedAmbient, savedMicSensitivity;
+    private bool savedFullscreen, savedMeterVertical;
+    private bool savedNoiseReduction, savedNoiseGate;
+    private float savedGateThreshold;
+    private string savedMicrophone;
+    private bool pendingMeterVertical;
     private int savedResolutionIndex;
     private string savedWalkieTalk, savedWalkiePower;
 
@@ -86,6 +124,15 @@ public class SettingsPanel : MonoBehaviour
         SetupSlider(musicSlider, 0f, 1f);
         SetupSlider(sfxSlider, 0f, 1f);
         SetupSlider(ambientSlider, 0f, 1f);
+        SetupSlider(micSensitivitySlider, 0f, 1f);
+        if (microphoneDropdown != null) microphoneDropdown.onValueChanged.AddListener(_ => RefreshApplyButton());
+        SetupSlider(gateThresholdSlider, GameSettings.NoiseGateMinDb, GameSettings.NoiseGateMaxDb);
+        if (gateThresholdSlider != null) gateThresholdSlider.wholeNumbers = true;
+        if (noiseReductionToggle != null) noiseReductionToggle.onValueChanged.AddListener(_ => RefreshApplyButton());
+        if (noiseGateToggle != null) noiseGateToggle.onValueChanged.AddListener(_ => { RefreshLabels(); RefreshApplyButton(); });
+        if (meterDirectionButton != null) meterDirectionButton.onClick.AddListener(ToggleMeterDirection);
+        if (meterMoveButton != null) meterMoveButton.onClick.AddListener(() => NoiseMeterHUD.BeginEdit(pendingMeterVertical));
+        if (meterResetButton != null) meterResetButton.onClick.AddListener(NoiseMeterHUD.ResetPosition);
 
         fullscreenToggle.onValueChanged.AddListener(_ => RefreshApplyButton());
         resolutionDropdown.onValueChanged.AddListener(_ => RefreshApplyButton());
@@ -99,6 +146,34 @@ public class SettingsPanel : MonoBehaviour
         if (walkiePowerButton != null) walkiePowerButton.onClick.AddListener(() => StartRebind(RebindTarget.WalkiePower));
 
         BuildResolutionList();
+
+        if (tabButtons != null)
+        {
+            for (int i = 0; i < tabButtons.Length; i++)
+            {
+                int index = i;
+                if (tabButtons[i] != null) tabButtons[i].onClick.AddListener(() => ShowTab(index));
+            }
+        }
+    }
+
+    /// <summary>Show page <paramref name="index"/> and highlight its tab.</summary>
+    public void ShowTab(int index)
+    {
+        if (tabPages == null || tabPages.Length == 0) return;
+        index = Mathf.Clamp(index, 0, tabPages.Length - 1);
+        lastTab = index;
+
+        for (int i = 0; i < tabPages.Length; i++)
+        {
+            bool selected = i == index;
+            if (tabPages[i] != null) tabPages[i].SetActive(selected);
+
+            if (tabButtons == null || i >= tabButtons.Length || tabButtons[i] == null) continue;
+            if (tabButtons[i].targetGraphic != null) tabButtons[i].targetGraphic.color = selected ? TabSelectedColor : TabColor;
+            TMP_Text label = tabButtons[i].GetComponentInChildren<TMP_Text>(true);
+            if (label != null) label.color = selected ? TabSelectedTextColor : TabTextColor;
+        }
     }
 
     private void SetupSlider(Slider slider, float min, float max)
@@ -112,7 +187,11 @@ public class SettingsPanel : MonoBehaviour
 
     // Every time the panel opens it shows the SAVED values, so edits that were
     // never applied are gone.
-    private void OnEnable() => LoadSavedValues();
+    private void OnEnable()
+    {
+        LoadSavedValues();
+        ShowTab(lastTab);
+    }
 
     private void OnDisable() => StopRebind();
 
@@ -129,6 +208,13 @@ public class SettingsPanel : MonoBehaviour
         savedResolutionIndex = Mathf.Max(0, resolutions.IndexOf(GameSettings.SavedResolution));
         savedWalkieTalk = pendingWalkieTalk = GameSettings.WalkieTalkBinding;
         savedWalkiePower = pendingWalkiePower = GameSettings.WalkiePowerBinding;
+        savedMicSensitivity = GameSettings.MicSensitivity;
+        savedMeterVertical = pendingMeterVertical = GameSettings.NoiseMeterVertical;
+        savedMicrophone = GameSettings.MicrophoneDevice;
+        savedNoiseReduction = GameSettings.NoiseReduction;
+        savedNoiseGate = GameSettings.NoiseGate;
+        savedGateThreshold = GameSettings.NoiseGateThresholdDb;
+        BuildMicrophoneList(savedMicrophone);
         StopRebind();
 
         nameField.SetTextWithoutNotify(savedName);
@@ -138,6 +224,10 @@ public class SettingsPanel : MonoBehaviour
         SetSilently(musicSlider, savedMusic);
         SetSilently(sfxSlider, savedSfx);
         SetSilently(ambientSlider, savedAmbient);
+        SetSilently(micSensitivitySlider, savedMicSensitivity);
+        SetSilently(gateThresholdSlider, savedGateThreshold);
+        if (noiseReductionToggle != null) noiseReductionToggle.SetIsOnWithoutNotify(savedNoiseReduction);
+        if (noiseGateToggle != null) noiseGateToggle.SetIsOnWithoutNotify(savedNoiseGate);
         fullscreenToggle.SetIsOnWithoutNotify(savedFullscreen);
         resolutionDropdown.SetValueWithoutNotify(savedResolutionIndex);
 
@@ -164,6 +254,13 @@ public class SettingsPanel : MonoBehaviour
         if (musicSlider != null) GameSettings.MusicVolume = musicSlider.value;
         if (sfxSlider != null) GameSettings.SfxVolume = sfxSlider.value;
         if (ambientSlider != null) GameSettings.AmbientVolume = ambientSlider.value;
+        if (micSensitivitySlider != null) GameSettings.MicSensitivity = micSensitivitySlider.value;
+        if (pendingMeterVertical != savedMeterVertical) GameSettings.NoiseMeterVertical = pendingMeterVertical;
+        string chosenMic = SelectedMicrophone();
+        if (chosenMic != savedMicrophone) GameSettings.MicrophoneDevice = chosenMic;
+        if (noiseReductionToggle != null && noiseReductionToggle.isOn != savedNoiseReduction) GameSettings.NoiseReduction = noiseReductionToggle.isOn;
+        if (noiseGateToggle != null && noiseGateToggle.isOn != savedNoiseGate) GameSettings.NoiseGate = noiseGateToggle.isOn;
+        if (Changed(gateThresholdSlider, savedGateThreshold)) GameSettings.NoiseGateThresholdDb = gateThresholdSlider.value;
 
         // Screen changes are the slow ones: only touch them if they changed.
         if (fullscreenToggle.isOn != savedFullscreen) GameSettings.Fullscreen = fullscreenToggle.isOn;
@@ -198,6 +295,12 @@ public class SettingsPanel : MonoBehaviour
         if (Changed(musicSlider, savedMusic)) return true;
         if (Changed(sfxSlider, savedSfx)) return true;
         if (Changed(ambientSlider, savedAmbient)) return true;
+        if (Changed(micSensitivitySlider, savedMicSensitivity)) return true;
+        if (pendingMeterVertical != savedMeterVertical) return true;
+        if (SelectedMicrophone() != savedMicrophone) return true;
+        if (noiseReductionToggle != null && noiseReductionToggle.isOn != savedNoiseReduction) return true;
+        if (noiseGateToggle != null && noiseGateToggle.isOn != savedNoiseGate) return true;
+        if (Changed(gateThresholdSlider, savedGateThreshold)) return true;
         if (fullscreenToggle.isOn != savedFullscreen) return true;
         if (pendingWalkieTalk != savedWalkieTalk || pendingWalkiePower != savedWalkiePower) return true;
         return resolutionDropdown.value != savedResolutionIndex;
@@ -219,6 +322,27 @@ public class SettingsPanel : MonoBehaviour
         SetPercent(musicText, "Music", musicSlider);
         SetPercent(sfxText, "Sound effects", sfxSlider);
         SetPercent(ambientText, "Ambient", ambientSlider);
+
+        if (micSensitivityText != null && micSensitivitySlider != null)
+        {
+            int db = Mathf.RoundToInt(GameSettings.SensitivityToDb(micSensitivitySlider.value));
+            micSensitivityText.text = db == 0 ? "Mic meter sensitivity: default" : $"Mic meter sensitivity: {db:+0;-0} dB";
+        }
+
+        if (gateThresholdText != null && gateThresholdSlider != null)
+        {
+            // Lower = opens for quieter sounds. Higher = needs louder speech (blocks more noise).
+            int db = Mathf.RoundToInt(gateThresholdSlider.value);
+            gateThresholdText.text = $"Noise gate level: {db} dB" + (db == Mathf.RoundToInt(GameSettings.DefaultNoiseGateDb) ? " (default)" : "");
+            gateThresholdText.alpha = noiseGateToggle == null || noiseGateToggle.isOn ? 1f : 0.4f;
+        }
+        if (gateThresholdSlider != null) gateThresholdSlider.interactable = noiseGateToggle == null || noiseGateToggle.isOn;
+
+        if (meterDirectionButton != null)
+        {
+            TMP_Text label = meterDirectionButton.GetComponentInChildren<TMP_Text>(true);
+            if (label != null) label.text = pendingMeterVertical ? "Meter bars: standing (vertical)" : "Meter bars: lying (horizontal)";
+        }
 
         if (sensitivityText != null && sensitivitySlider != null)
             sensitivityText.text = $"Mouse sensitivity: {sensitivitySlider.value:0.0}x";
@@ -288,8 +412,50 @@ public class SettingsPanel : MonoBehaviour
         TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
         if (label == null) return;
         label.text = isListening
-            ? action + ": press a key or mouse button... (Esc = cancel)"
+            ? action + ": press a key... (Esc = cancel)"
             : action + ": " + BoundButton.DisplayName(path);
+    }
+
+    // ---- Noise meter / microphone ---------------------------------------------------
+
+    private void ToggleMeterDirection()
+    {
+        pendingMeterVertical = !pendingMeterVertical;
+        RefreshLabels();
+        RefreshApplyButton();
+    }
+
+    /// <summary>Fills the microphone list (it can change while the game runs) and selects <paramref name="current"/>.</summary>
+    private void BuildMicrophoneList(string current)
+    {
+        if (microphoneDropdown == null) return;
+
+        microphones.Clear();
+        microphones.Add(string.Empty);
+        var labels = new List<string> { "Windows default" };
+        foreach (string device in Microphone.devices)
+        {
+            microphones.Add(device);
+            labels.Add(device);
+        }
+
+        // A saved mic that is not plugged in right now stays selectable, marked.
+        if (!string.IsNullOrEmpty(current) && !microphones.Contains(current))
+        {
+            microphones.Add(current);
+            labels.Add(current + " (not found)");
+        }
+
+        microphoneDropdown.ClearOptions();
+        microphoneDropdown.AddOptions(labels);
+        microphoneDropdown.SetValueWithoutNotify(Mathf.Max(0, microphones.IndexOf(current ?? string.Empty)));
+    }
+
+    private string SelectedMicrophone()
+    {
+        if (microphoneDropdown == null) return savedMicrophone;
+        int index = microphoneDropdown.value;
+        return index >= 0 && index < microphones.Count ? microphones[index] : string.Empty;
     }
 
     // ---- Resolution list -------------------------------------------------------

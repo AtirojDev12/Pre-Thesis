@@ -470,57 +470,125 @@ public static class MainMenuBuilder
     }
 
     /// <summary>
-    /// Two-column Settings card. Used by the main menu (menu set) and the Esc
-    /// pause menu (menu null — it listens to SettingsPanel.BackRequested).
+    /// Settings card with TABS, like most games: the system names on the left
+    /// (General, Display, Sound, Controls), click one to show only its page.
+    /// Back / Apply stay at the bottom for every page. Used by the main menu
+    /// (menu set) and the Esc pause menu (menu null — it listens to
+    /// SettingsPanel.BackRequested).
     /// </summary>
     private static SettingsPanel BuildSettingsPanel(RectTransform parent, MainMenuController menu)
     {
-        RectTransform card = Card(parent, "Settings Panel", new Vector2(1180, 860));
+        RectTransform card = Card(parent, "Settings Panel", new Vector2(1500, 900));
         Label(card, "Title", "Settings", 44, AccentColor, TextAlignmentOptions.Center, 60);
 
-        RectTransform columns = NewRect("Columns", card);
-        Layout(columns, 0, 600, flexibleHeight: 1);
-        HorizontalLayoutGroup row = columns.gameObject.AddComponent<HorizontalLayoutGroup>();
-        ConfigureHorizontal(row, 48, new RectOffset(0, 0, 0, 0));
-        row.childAlignment = TextAnchor.UpperLeft;
-        row.childForceExpandWidth = true;
-        row.childForceExpandHeight = true;
+        // Body: tab list on the left, the open page on the right.
+        RectTransform body = NewRect("Body", card);
+        Layout(body, 0, 660, flexibleHeight: 1);
+        HorizontalLayoutGroup bodyRow = body.gameObject.AddComponent<HorizontalLayoutGroup>();
+        ConfigureHorizontal(bodyRow, 40, new RectOffset(0, 0, 0, 0));
+        bodyRow.childAlignment = TextAnchor.UpperLeft;
+        bodyRow.childForceExpandHeight = true;
 
-        // ---- General -------------------------------------------------------
-        RectTransform left = Column(columns, "General");
-        Label(left, "Header", "General", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
-        Label(left, "Name Label", "Player name", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
-        TMP_InputField name = MakeInput(left, "Name Field", "Your name");
-        TMP_Text sensitivityText = Label(left, "Sensitivity Label", "Mouse sensitivity: 1.0x", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
-        Slider sensitivity = MakeSlider(left, "Sensitivity Slider");
-        TMP_Text brightnessText = Label(left, "Brightness Label", "Brightness: default", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
-        Slider brightness = MakeSlider(left, "Brightness Slider");
-        Toggle fullscreen = MakeToggle(left, "Fullscreen Toggle", "Fullscreen");
-        Label(left, "Resolution Label", "Resolution", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
-        TMP_Dropdown resolution = MakeDropdown(left, "Resolution Dropdown");
+        RectTransform tabs = NewRect("Tabs", body);
+        LayoutElement tabsLayout = tabs.gameObject.AddComponent<LayoutElement>();
+        tabsLayout.preferredWidth = tabsLayout.minWidth = 260f;
+        tabsLayout.flexibleWidth = 0f;
+        ConfigureVertical(tabs.gameObject.AddComponent<VerticalLayoutGroup>(), 12, new RectOffset(0, 0, 0, 0));
 
-        // ---- Sound ---------------------------------------------------------
-        RectTransform right = Column(columns, "Sound");
-        Label(right, "Header", "Sound", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
-        TMP_Text volumeText = Label(right, "Master Label", "Master volume: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
-        Slider volume = MakeSlider(right, "Master Slider");
-        TMP_Text musicText = Label(right, "Music Label", "Music: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
-        Slider music = MakeSlider(right, "Music Slider");
-        TMP_Text sfxText = Label(right, "SFX Label", "Sound effects: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
-        Slider sfx = MakeSlider(right, "SFX Slider");
-        TMP_Text ambientText = Label(right, "Ambient Label", "Ambient: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
-        Slider ambient = MakeSlider(right, "Ambient Slider");
+        RectTransform pages = NewRect("Pages", body);
+        LayoutElement pagesLayout = pages.gameObject.AddComponent<LayoutElement>();
+        pagesLayout.flexibleWidth = 1f;
+        pagesLayout.flexibleHeight = 1f;
 
-        // ---- Controls (under Sound) -----------------------------------------
-        Label(right, "Controls Header", "Controls", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
-        Button walkieTalk = MakeButton(right, "Walkie Talk Binding", "Walkie talk (hold): Left Button [Mouse]", false, 52f);
-        Button walkiePower = MakeButton(right, "Walkie Power Binding", "Walkie on / off: Right Button [Mouse]", false, 52f);
-        ButtonText(walkieTalk).fontSize = 20;
-        ButtonText(walkiePower).fontSize = 20;
+        string[] tabNames = { "General", "Display", "Sound", "Controls" };
+        var tabButtons = new Object[tabNames.Length];
+        var tabPages = new Object[tabNames.Length];
+        var pageRoots = new RectTransform[tabNames.Length];
+        for (int i = 0; i < tabNames.Length; i++)
+        {
+            Button tab = MakeButton(tabs, tabNames[i] + " Tab", tabNames[i], false, 64f);
+            ButtonText(tab).alignment = TextAlignmentOptions.MidlineLeft;
+            ButtonText(tab).margin = new Vector4(24f, 0f, 0f, 0f);
+            tabButtons[i] = tab;
+
+            RectTransform page = NewRect(tabNames[i] + " Page", pages);
+            Stretch(page);
+            HorizontalLayoutGroup pageRow = page.gameObject.AddComponent<HorizontalLayoutGroup>();
+            ConfigureHorizontal(pageRow, 48, new RectOffset(0, 0, 0, 0));
+            pageRow.childAlignment = TextAnchor.UpperLeft;
+            pageRow.childForceExpandWidth = true;
+            pageRow.childForceExpandHeight = true;
+            pageRoots[i] = page;
+            tabPages[i] = page.gameObject;
+        }
+
+        // ---- General --------------------------------------------------------
+        RectTransform general = Column(pageRoots[0], "Player");
+        Label(general, "Header", "Player", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
+        Label(general, "Name Label", "Player name", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        TMP_InputField name = MakeInput(general, "Name Field", "Your name");
+        TMP_Text sensitivityText = Label(general, "Sensitivity Label", "Mouse sensitivity: 1.0x", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider sensitivity = MakeSlider(general, "Sensitivity Slider");
+        Column(pageRoots[0], "Spacer");
+
+        // ---- Display --------------------------------------------------------
+        RectTransform display = Column(pageRoots[1], "Screen");
+        Label(display, "Header", "Screen", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
+        TMP_Text brightnessText = Label(display, "Brightness Label", "Brightness: default", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider brightness = MakeSlider(display, "Brightness Slider");
+        Toggle fullscreen = MakeToggle(display, "Fullscreen Toggle", "Fullscreen");
+        Label(display, "Resolution Label", "Resolution", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        TMP_Dropdown resolution = MakeDropdown(display, "Resolution Dropdown");
+        Column(pageRoots[1], "Spacer");
+
+        // ---- Sound: volumes | microphone + noise meter ---------------------------
+        RectTransform volumes = Column(pageRoots[2], "Volume");
+        Label(volumes, "Header", "Volume", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
+        TMP_Text volumeText = Label(volumes, "Master Label", "Master volume: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider volume = MakeSlider(volumes, "Master Slider");
+        TMP_Text musicText = Label(volumes, "Music Label", "Music: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider music = MakeSlider(volumes, "Music Slider");
+        TMP_Text sfxText = Label(volumes, "SFX Label", "Sound effects: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider sfx = MakeSlider(volumes, "SFX Slider");
+        TMP_Text ambientText = Label(volumes, "Ambient Label", "Ambient: 100%", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider ambient = MakeSlider(volumes, "Ambient Slider");
+
+        RectTransform micColumn = Column(pageRoots[2], "Microphone");
+        Label(micColumn, "Header", "Microphone", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
+        TMP_Dropdown microphone = MakeDropdown(micColumn, "Microphone Dropdown");
+        TMP_Text micSensitivityText = Label(micColumn, "Mic Sensitivity Label", "Mic meter sensitivity: default", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider micSensitivity = MakeSlider(micColumn, "Mic Sensitivity Slider");
+        // Mic clean-up for cheap mics (VoiceNoiseProcessor).
+        Toggle noiseReduction = MakeToggle(micColumn, "Noise Reduction Toggle", "Noise reduction (removes hiss / fan)");
+        Toggle noiseGate = MakeToggle(micColumn, "Noise Gate Toggle", "Noise gate (silent until you speak)");
+        TMP_Text gateText = Label(micColumn, "Noise Gate Label", "Noise gate level: -50 dB (default)", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        Slider gateThreshold = MakeSlider(micColumn, "Noise Gate Slider");
+        Label(micColumn, "Meter Header", "Noise meter", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
+        Button meterDirection = MakeButton(micColumn, "Meter Direction Button", "Meter bars: standing (vertical)", false, 52f);
+        ButtonText(meterDirection).fontSize = 22;
+        RectTransform meterRow = ButtonRow(micColumn, "Meter Buttons");
+        Layout(meterRow, 0, 52);
+        Button meterMove = MakeButton(meterRow, "Meter Move Button", "Move meter", false, 52f);
+        Button meterReset = MakeButton(meterRow, "Meter Reset Button", "Reset position", false, 52f);
+        ButtonText(meterMove).fontSize = 22;
+        ButtonText(meterReset).fontSize = 22;
+
+        // ---- Controls -------------------------------------------------------------
+        RectTransform controls = Column(pageRoots[3], "Walkie-Talkie");
+        Label(controls, "Header", "Walkie-Talkie", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
+        Label(controls, "Hint", "Click a button, then press any key or mouse button. Esc cancels.", 20, MutedColor, TextAlignmentOptions.TopLeft, 56);
+        Button walkieTalk = MakeButton(controls, "Walkie Talk Binding", "Walkie talk (hold): Left Button [Mouse]", false, 56f);
+        Button walkiePower = MakeButton(controls, "Walkie Power Binding", "Walkie on / off: Right Button [Mouse]", false, 56f);
+        ButtonText(walkieTalk).fontSize = 22;
+        ButtonText(walkiePower).fontSize = 22;
+        Column(pageRoots[3], "Spacer");
 
         RectTransform buttons = ButtonRow(card, "Buttons");
         Button back = MakeButton(buttons, "Back Button", "Back", false);
         Button apply = MakeButton(buttons, "Apply Button", "Apply", true);
+
+        // Only the first page shows until a tab is clicked (SettingsPanel switches them).
+        for (int i = 1; i < pageRoots.Length; i++) pageRoots[i].gameObject.SetActive(false);
 
         SettingsPanel panel = card.gameObject.AddComponent<SettingsPanel>();
         Wire(panel,
@@ -532,8 +600,15 @@ public static class MainMenuBuilder
             ("musicSlider", music), ("musicText", musicText),
             ("sfxSlider", sfx), ("sfxText", sfxText),
             ("ambientSlider", ambient), ("ambientText", ambientText),
+            ("microphoneDropdown", microphone),
+            ("micSensitivitySlider", micSensitivity), ("micSensitivityText", micSensitivityText),
+            ("noiseReductionToggle", noiseReduction), ("noiseGateToggle", noiseGate),
+            ("gateThresholdSlider", gateThreshold), ("gateThresholdText", gateText),
+            ("meterDirectionButton", meterDirection), ("meterMoveButton", meterMove), ("meterResetButton", meterReset),
             ("walkieTalkButton", walkieTalk), ("walkiePowerButton", walkiePower),
             ("applyButton", apply), ("backButton", back));
+        WireArray(panel, "tabButtons", tabButtons);
+        WireArray(panel, "tabPages", tabPages);
         return panel;
     }
 
@@ -617,7 +692,7 @@ public static class MainMenuBuilder
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
-        log.AppendLine("- MainMenu: Settings panel rebuilt (general + sound + controls). Nothing else in the menu was touched.");
+        log.AppendLine("- MainMenu: Settings panel rebuilt (tabs: General / Display / Sound / Controls). Nothing else in the menu was touched.");
     }
 
     /// <summary>
@@ -1112,9 +1187,43 @@ public static class MainMenuBuilder
         if (dropdown.captionText != null)
         {
             dropdown.captionText.color = TextColor;
-            dropdown.captionText.fontSize = 26;
+            dropdown.captionText.fontSize = 24;
+            dropdown.captionText.textWrappingMode = TextWrappingModes.NoWrap;
+            dropdown.captionText.overflowMode = TextOverflowModes.Ellipsis;
         }
-        if (dropdown.itemText != null) dropdown.itemText.fontSize = 24;
+
+        // The default list rows are 20 px tall: bigger text overlapped the next
+        // row. Make each row tall enough and cut long names with "...".
+        const float rowHeight = 48f;
+        Transform template = go.transform.Find("Template");
+        if (template != null)
+        {
+            var templateRt = (RectTransform)template;
+            templateRt.sizeDelta = new Vector2(templateRt.sizeDelta.x, rowHeight * 6f);
+            if (template.TryGetComponent(out Image templateBg)) templateBg.color = CardColor;
+
+            Transform content = template.Find("Viewport/Content");
+            if (content != null)
+            {
+                var contentRt = (RectTransform)content;
+                contentRt.sizeDelta = new Vector2(contentRt.sizeDelta.x, rowHeight);
+                Transform item = content.Find("Item");
+                if (item != null)
+                {
+                    var itemRt = (RectTransform)item;
+                    itemRt.sizeDelta = new Vector2(itemRt.sizeDelta.x, rowHeight);
+                    Transform itemBg = item.Find("Item Background");
+                    if (itemBg != null && itemBg.TryGetComponent(out Image itemBgImage)) itemBgImage.color = ButtonColor;
+                }
+            }
+        }
+        if (dropdown.itemText != null)
+        {
+            dropdown.itemText.fontSize = 22;
+            dropdown.itemText.color = TextColor;
+            dropdown.itemText.textWrappingMode = TextWrappingModes.NoWrap;
+            dropdown.itemText.overflowMode = TextOverflowModes.Ellipsis;
+        }
 
         Layout((RectTransform)go.transform, 0, 60);
         return dropdown;
@@ -1203,6 +1312,21 @@ public static class MainMenuBuilder
             }
             property.objectReferenceValue = value;
         }
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void WireArray(Object target, string field, Object[] values)
+    {
+        var so = new SerializedObject(target);
+        SerializedProperty property = so.FindProperty(field);
+        if (property == null || !property.isArray)
+        {
+            Debug.LogError($"[MainMenuBuilder] {target.GetType().Name} has no serialized array '{field}'.", target);
+            return;
+        }
+        property.arraySize = values.Length;
+        for (int i = 0; i < values.Length; i++)
+            property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 

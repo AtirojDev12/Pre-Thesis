@@ -1,24 +1,20 @@
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System.Collections.Generic;
 using System.Text;
-using EpicTransport;
 using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// VOICE TEST PANEL. Press F8 in any scene (menu, lobby, match).
+/// DEVELOPER TEST PANEL for voice + noise. Press F8 to show / hide (hidden at start).
 ///
-///   F5 = hear yourself (your mic comes back through your speakers)
-///   F6 = hear everyone loud (no distance, no body needed)
+/// Exists ONLY in the Unity Editor and in Development Builds
+/// (File > Build Profiles > "Development Build" ticked). In a normal release
+/// build this whole file is compiled out, so players can never open it.
 ///
-/// Read it top to bottom; the first line that looks wrong is where the sound stops:
-///   1. EOS voice available?        no  -> xaudio2_9redist.dll / EOS start problem
-///   2. Voice room connected?       no  -> Dev Portal policy / lobby made by an old build
-///   3. My mic: status + level      level stays 0 when you talk -> wrong Windows mic / mic blocked
-///   4. Sent blocks go up?          no  -> EOS is not sending (mic muted / menu open)
-///   5. Other player "speaking=YES" when they talk?  no -> THEIR mic side (check their panel)
-///   6. Received blocks go up?      no  -> EOS render callback problem (send me this panel)
-///   7. F5 you hear yourself?       no  -> speakers / Unity audio / Master volume
+/// Shows: mic device and levels, voice status, game-network voice packets,
+/// the noise meter values (and, on the host, every player's server values),
+/// the voices playing, and audio listener info.
 ///
 /// Added automatically by VoiceChatManager. IMGUI on purpose: no prefab, no scene edits.
 /// </summary>
@@ -28,86 +24,83 @@ public sealed class VoiceDebugOverlay : MonoBehaviour
     private GUIStyle style;
     private readonly StringBuilder text = new StringBuilder(1024);
     private float nextRefresh;
-    private long lastMicBlocks, lastReceivedBlocks;
-    private float micBlocksPerSecond, receivedBlocksPerSecond;
 
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
-        if (keyboard == null) return;
+        if (keyboard != null && keyboard.f8Key.wasPressedThisFrame) visible = !visible;
+        if (!visible || Time.unscaledTime < nextRefresh) return;
 
-        if (keyboard.f8Key.wasPressedThisFrame) visible = !visible;
-        if (!visible) return;
-
-        if (keyboard.f5Key.wasPressedThisFrame) VoiceChatManager.DebugHearSelf = !VoiceChatManager.DebugHearSelf;
-        if (keyboard.f6Key.wasPressedThisFrame) VoiceChatManager.DebugHearEveryone = !VoiceChatManager.DebugHearEveryone;
-        if (keyboard.f7Key.wasPressedThisFrame) VoiceChatManager.UseNextInputDevice();
-        if (keyboard.f4Key.wasPressedThisFrame) VoiceChatManager.DebugEosSpeaker = !VoiceChatManager.DebugEosSpeaker;
-
-        if (Time.unscaledTime >= nextRefresh)
-        {
-            nextRefresh = Time.unscaledTime + 0.25f;
-            long mic = VoiceChatManager.MicBlocks, received = VoiceChatManager.ReceivedBlocks;
-            micBlocksPerSecond = (mic - lastMicBlocks) * 4f;
-            receivedBlocksPerSecond = (received - lastReceivedBlocks) * 4f;
-            lastMicBlocks = mic;
-            lastReceivedBlocks = received;
-            Rebuild();
-        }
+        nextRefresh = Time.unscaledTime + 0.2f;
+        Rebuild();
     }
 
     private void Rebuild()
     {
         text.Length = 0;
-        text.AppendLine("<b>VOICE TEST</b>   (F8 hide)");
+        text.AppendLine("<b>VOICE + NOISE TEST</b>   (F8 hide · Editor / Development Build only)");
         text.AppendLine();
 
-        bool eos = EOSSDKComponent.IsReady;
-        text.AppendLine("1. EOS ready: " + YesNo(eos) + "    voice available: " + YesNo(EOSSDKComponent.VoiceAvailable));
+        // ---- Microphone ----
+        text.AppendLine("<b>Microphone</b>: " + VoiceChatManager.MicDeviceName +
+                        (VoiceChatManager.MicRecording ? Good("  recording") : Bad("  not recording")) +
+                        "   " + Bad(VoiceChatManager.MicError));
+        text.AppendLine($"   raw level   {Bar(VoiceChatManager.MicRawLevel)} {VoiceChatManager.MicRawLevel:0.000}   (straight from the mic)");
+        text.AppendLine($"   clean-up    noise reduction {(GameSettings.NoiseReduction ? Good("ON") : "off")}   gate {(GameSettings.NoiseGate ? Good("ON") : "off")}" +
+                        $"   level {VoiceChatManager.MicCleanedDb:0} dB / gate {GameSettings.NoiseGateThresholdDb:0} dB   " +
+                        (VoiceChatManager.MicGateOpen ? Good("OPEN") : Bad("closed")));
+        text.AppendLine($"   meter level {Bar(VoiceChatManager.MicMeterLevel)} {VoiceChatManager.MicMeterLevel:0.000}   (after clean-up, used by the meter)");
+        text.AppendLine($"   after gain  {Bar(VoiceChatManager.MicLevelAfterGain)} {VoiceChatManager.MicLevelAfterGain:0.000}   auto gain x{VoiceChatManager.MicGain:0.0}");
+        text.AppendLine($"   loudness    {Bar(VoiceChatManager.MicLoudness)} {VoiceChatManager.MicLoudness:0.00}   sensitivity {GameSettings.MicSensitivityDb:+0;-0;0} dB");
 
-        string room = VoiceChatManager.RoomNameForDebug;
-        text.AppendLine("2. Voice room: " + (room == null ? Bad("none (create or join a room)") :
-            VoiceChatManager.RoomConnected ? Good("connected") : Bad("connecting...")));
+        // ---- Voice ----
+        text.AppendLine();
+        text.AppendLine("<b>Voice</b>: " + VoiceChatManager.CurrentStatus +
+                        "   game-network voice " + (VoiceNetwork.Active ? Good("ON") : Bad("off (not in a room)")) +
+                        "   you speaking: " + (VoiceNetwork.Speaking ? Good("YES") : "no"));
+        text.AppendLine($"   packets/s  sent {VoiceChatManager.NetSentPerSecond} (25 while talking)   received {VoiceChatManager.NetReceivedPerSecond}" +
+                        (NetworkServer.active ? $"   relayed by host {VoiceChatManager.NetRelayedPerSecond}" : ""));
 
-        float level = VoiceChatManager.MicLevel;
-        text.AppendLine("3. My mic: " + VoiceChatManager.MicInputStatus + "   level " + Bar(level) +
-                        $" {level:0.00}   (talk: it should move)");
-
-        List<string> mics = VoiceChatManager.InputDeviceLines();
-        text.AppendLine("   Recording from: " + VoiceChatManager.MicDeviceForDebug + "   [F7] next mic   " +
-                        Bad(VoiceChatManager.MicErrorForDebug));
-        foreach (string line in mics) text.AppendLine("     " + line);
-
-        bool? sending = VoiceChatManager.MicSending;
-        text.AppendLine("4. Sending: " + (sending == true ? Good("ON") : sending == false ? Bad("OFF (Esc menu open)") : "-") +
-                        $"   mic blocks/s {micBlocksPerSecond:0} (should be ~100)   status: {VoiceChatManager.LastSendResult}");
-        text.AppendLine($"   SendAudio: {VoiceChatManager.LastSendAudioResult}   failures {VoiceChatManager.SendAudioFailures}");
-
-        text.AppendLine("5. Players in the voice room (EOS):");
-        List<VoiceChatManager.ParticipantInfo> people = VoiceChatManager.ParticipantsSnapshot();
-        if (people.Count == 0) text.AppendLine("     " + Bad("nobody else yet"));
-        foreach (VoiceChatManager.ParticipantInfo p in people)
+        // ---- Noise meter ----
+        text.AppendLine();
+        PlayerNoise local = PlayerNoise.Local;
+        if (local == null) text.AppendLine("<b>Noise meter</b>: no local player (menu / lobby)");
+        else
         {
-            text.AppendLine($"     {Short(p.id)}  speaking={(p.speaking ? Good("YES") : "no")}  audio={p.audioStatus}" +
-                            $"  body={(VoiceChatManager.HasBody(p.id) ? Good("found") : "not found")}");
+            text.AppendLine($"<b>Noise meter</b> (this PC)   MIC {Bar(local.Mic)} {local.Mic:0.00}   GAME {Bar(local.Game)} {local.Game:0.00}" +
+                            $"   too loud at {PlayerNoise.LoudThreshold:0.00}");
         }
 
-        text.AppendLine("GAME-NETWORK VOICE (main path): " + (VoiceNetwork.Active ? Good("ON") : Bad("off (not in a room)")) +
-                        "   you speaking: " + (VoiceNetwork.Speaking ? Good("YES") : "no"));
-        text.AppendLine($"   sent {VoiceChatManager.NetSentPerSecond} packets/s (25 while talking)   received {VoiceChatManager.NetReceivedPerSecond}/s" +
-                        (NetworkServer.active ? $"   relayed by host {VoiceChatManager.NetRelayedPerSecond}/s" : ""));
-        text.AppendLine($"6. Voices playing: (EOS path {receivedBlocksPerSecond:0} blocks/s, total {VoiceChatManager.ReceivedBlocks})");
-        foreach (VoiceStream s in VoiceChatManager.StreamsSnapshot())
-            text.AppendLine($"     {Short(s.ParticipantId)}  {s.SampleRate} Hz  blocks {s.Blocks}  level {Bar(s.Level)}");
+        if (NetworkServer.active || NetworkMode.IsOffline)
+        {
+            List<PlayerNoise> all = PlayerNoise.All;
+            text.AppendLine($"   server view ({all.Count} players):");
+            foreach (PlayerNoise p in all)
+            {
+                if (p == null) continue;
+                string who = p.TryGetComponent(out NetworkIdentity id) ? "netId " + id.netId : p.name;
+                text.AppendLine($"     {who,-10} mic {p.ServerMic:0.00}  game {p.ServerGame:0.00}  " +
+                                (p.ServerTooLoud ? Bad("TOO LOUD") : Good("ok")));
+            }
+        }
 
+        // ---- Voices playing ----
         text.AppendLine();
-        text.AppendLine("7. Unity audio: master " + $"{AudioListener.volume:0.00}" + "   listeners in scene: " + ListenerCount() +
+        List<VoicePlayback> playbacks = VoiceChatManager.PlaybacksSnapshot();
+        text.AppendLine($"<b>Voices playing</b>: {playbacks.Count}");
+        foreach (VoicePlayback pb in playbacks)
+        {
+            if (pb == null || pb.Stream == null) continue;
+            VoiceStream s = pb.Stream;
+            text.AppendLine($"     {s.ParticipantId,-12} level {Bar(s.Level)}  " +
+                            (s.SecondsSinceLastAudio < 0.3f ? Good("talking") : "silent") +
+                            (pb.RadioOn ? "  " + Good("RADIO") : ""));
+        }
+
+        // ---- Unity audio ----
+        text.AppendLine();
+        text.AppendLine($"<b>Unity audio</b>: master {AudioListener.volume:0.00}   listeners in scene {FindObjectsByType<AudioListener>().Length}" +
                         (AudioListener.pause ? Bad("   PAUSED") : ""));
-        text.AppendLine();
-        text.AppendLine("[F5] Hear myself: " + OnOff(VoiceChatManager.DebugHearSelf));
-        text.AppendLine("[F6] Hear everyone loud (no distance): " + OnOff(VoiceChatManager.DebugHearEveryone));
-        text.AppendLine("[F4] Force EOS speaker (flat): " + OnOff(VoiceChatManager.DebugEosSpeaker) +
-                        "   EOS speaker now: " + VoiceChatManager.EosSpeakerForDebug);
     }
 
     private void OnGUI()
@@ -127,18 +120,11 @@ public sealed class VoiceDebugOverlay : MonoBehaviour
         }
 
         GUI.depth = -1000;
-        var rect = new Rect(20, 20, 920, 700);
         Color old = GUI.color;
         GUI.color = new Color(1f, 1f, 1f, 0.95f);
-        GUI.Box(rect, text.ToString(), style);
+        GUI.Box(new Rect(20, 20, 900, 620), text.ToString(), style);
         GUI.color = old;
     }
-
-    private static int ListenerCount() =>
-        FindObjectsByType<AudioListener>().Length;
-
-    private static string Short(string id) =>
-        string.IsNullOrEmpty(id) ? "?" : id.Length > 10 ? id.Substring(0, 6) + "..." + id.Substring(id.Length - 4) : id;
 
     private static string Bar(float v)
     {
@@ -147,7 +133,6 @@ public sealed class VoiceDebugOverlay : MonoBehaviour
     }
 
     private static string Good(string s) => "<color=#6f6>" + s + "</color>";
-    private static string Bad(string s) => "<color=#f66>" + s + "</color>";
-    private static string YesNo(bool b) => b ? Good("YES") : Bad("NO");
-    private static string OnOff(bool b) => b ? Good("ON") : "off";
+    private static string Bad(string s) => string.IsNullOrEmpty(s) ? "" : "<color=#f66>" + s + "</color>";
 }
+#endif

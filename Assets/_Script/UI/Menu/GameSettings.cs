@@ -9,8 +9,8 @@ public enum SoundCategory
 }
 
 /// <summary>
-/// Per-machine player settings: name, volumes, mouse sensitivity, brightness,
-/// screen.
+/// Per-machine player settings: name, volumes, microphone, noise meter, mouse
+/// sensitivity, brightness, screen, key bindings.
 ///
 /// Stored in PlayerPrefs on purpose, NOT in the encrypted save. These belong to
 /// this PC (a laptop and a desktop want different resolutions), they are not
@@ -34,6 +34,14 @@ public static class GameSettings
     private const string KeyResHeight = "settings.resHeight";
     private const string KeyWalkieTalk = "settings.bind.walkieTalk";
     private const string KeyWalkiePower = "settings.bind.walkiePower";
+    private const string KeyMicDevice = "settings.micDevice";
+    private const string KeyMicSensitivity = "settings.micSensitivity";
+    private const string KeyNoiseReduction = "settings.mic.noiseReduction";
+    private const string KeyNoiseGate = "settings.mic.noiseGate";
+    private const string KeyNoiseGateDb = "settings.mic.noiseGateDb";
+    private const string KeyMeterVertical = "settings.noiseMeter.vertical";
+    private const string KeyMeterX = "settings.noiseMeter.x";
+    private const string KeyMeterY = "settings.noiseMeter.y";
 
     /// <summary>Default key bindings (Input System control paths).</summary>
     public const string DefaultWalkieTalkBinding = "<Mouse>/leftButton";
@@ -101,6 +109,91 @@ public static class GameSettings
     {
         get => PlayerPrefs.GetFloat(KeyAmbient, 1f);
         set { PlayerPrefs.SetFloat(KeyAmbient, Mathf.Clamp01(value)); NotifyChanged(); }
+    }
+
+    // ---- Microphone & noise meter ------------------------------------------------
+
+    /// <summary>Microphone to record from. Empty = Windows default.</summary>
+    public static string MicrophoneDevice
+    {
+        get => PlayerPrefs.GetString(KeyMicDevice, string.Empty);
+        set { PlayerPrefs.SetString(KeyMicDevice, value ?? string.Empty); NotifyChanged(); }
+    }
+
+    /// <summary>
+    /// How sensitive the MIC bar of the noise meter is, 0..1 (0.5 = unchanged).
+    /// Mics differ a lot (a quiet USB mic reads far lower than a headset), so
+    /// the player can match the bar to their mic. Only the meter / ghost
+    /// loudness uses this; the voice other players hear is not changed.
+    /// </summary>
+    public static float MicSensitivity
+    {
+        get => PlayerPrefs.GetFloat(KeyMicSensitivity, 0.5f);
+        set { PlayerPrefs.SetFloat(KeyMicSensitivity, Mathf.Clamp01(value)); NotifyChanged(); }
+    }
+
+    /// <summary>Max boost / cut of the mic sensitivity slider, in dB.</summary>
+    public const float MicSensitivityRangeDb = 12f;
+
+    /// <summary>The sensitivity slider as a dB offset (-12 .. +12).</summary>
+    public static float MicSensitivityDb => SensitivityToDb(MicSensitivity);
+    public static float SensitivityToDb(float slider) => (Mathf.Clamp01(slider) - 0.5f) * 2f * MicSensitivityRangeDb;
+
+    /// <summary>Noise meter bars standing (true) or lying (false).</summary>
+    // ---- Mic clean-up (for cheap mics / mics without their own noise cancelling) ----
+
+    /// <summary>Noise reduction: removes steady background noise (hiss, fan, hum). Default ON.</summary>
+    public static bool NoiseReduction
+    {
+        get => PlayerPrefs.GetInt(KeyNoiseReduction, 1) == 1;
+        set { PlayerPrefs.SetInt(KeyNoiseReduction, value ? 1 : 0); NotifyChanged(); }
+    }
+
+    /// <summary>Noise gate: the mic stays silent until you really speak (keyboard clicks stay out). Default ON.</summary>
+    public static bool NoiseGate
+    {
+        get => PlayerPrefs.GetInt(KeyNoiseGate, 1) == 1;
+        set { PlayerPrefs.SetInt(KeyNoiseGate, value ? 1 : 0); NotifyChanged(); }
+    }
+
+    public const float NoiseGateMinDb = -70f;
+    public const float NoiseGateMaxDb = -20f;
+    public const float DefaultNoiseGateDb = -50f;
+
+    /// <summary>How loud (dBFS, RMS) the mic must be before the gate opens. Higher = blocks more.</summary>
+    public static float NoiseGateThresholdDb
+    {
+        get => Mathf.Clamp(PlayerPrefs.GetFloat(KeyNoiseGateDb, DefaultNoiseGateDb), NoiseGateMinDb, NoiseGateMaxDb);
+        set { PlayerPrefs.SetFloat(KeyNoiseGateDb, Mathf.Clamp(value, NoiseGateMinDb, NoiseGateMaxDb)); NotifyChanged(); }
+    }
+
+    public static bool NoiseMeterVertical
+    {
+        get => PlayerPrefs.GetInt(KeyMeterVertical, 1) == 1;
+        set { PlayerPrefs.SetInt(KeyMeterVertical, value ? 1 : 0); NotifyChanged(); }
+    }
+
+    /// <summary>Where the player dragged the meter (centre, as a fraction of the screen). False = default top-right.</summary>
+    public static bool TryGetNoiseMeterPosition(out float x, out float y)
+    {
+        x = PlayerPrefs.GetFloat(KeyMeterX, -1f);
+        y = PlayerPrefs.GetFloat(KeyMeterY, -1f);
+        return x >= 0f && y >= 0f;
+    }
+
+    public static void SetNoiseMeterPosition(float x, float y)
+    {
+        PlayerPrefs.SetFloat(KeyMeterX, Mathf.Clamp01(x));
+        PlayerPrefs.SetFloat(KeyMeterY, Mathf.Clamp01(y));
+        NotifyChanged();
+    }
+
+    public static void ResetNoiseMeterPosition()
+    {
+        PlayerPrefs.DeleteKey(KeyMeterX);
+        PlayerPrefs.DeleteKey(KeyMeterY);
+        PlayerPrefs.Save();
+        NotifyChanged();
     }
 
     /// <summary>The category slider value (0..1). Master is applied separately by AudioListener.</summary>

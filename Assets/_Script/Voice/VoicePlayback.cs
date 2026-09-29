@@ -99,14 +99,21 @@ public sealed class VoicePlayback : MonoBehaviour
         if (proximity != null) proximity.spatialBlend = spatial ? 1f : 0f;
     }
 
-    /// <summary>Route this voice to the Walkie-Talkie too. Plays a click when it opens / closes.</summary>
-    public void SetRadio(bool on)
+    /// <summary>
+    /// Route this voice to the Walkie-Talkie too. Plays a click when it opens / closes.
+    /// Returns true when the radio just opened or closed (the click played).
+    /// </summary>
+    public bool SetRadio(bool on)
     {
-        if (on == radioOn) return;
+        if (on == radioOn) return false;
         radioOn = on;
         stream.RadioEnabled = on;
         if (clickSource != null && squelch != null) clickSource.PlayOneShot(squelch, 0.6f);
+        return true;
     }
+
+    /// <summary>True while this voice is also playing on your Walkie-Talkie.</summary>
+    public bool RadioOn => radioOn;
 
     /// <summary>Silence the body voice without destroying anything (e.g. talker not found yet).</summary>
     public void SetProximityMuted(bool muted)

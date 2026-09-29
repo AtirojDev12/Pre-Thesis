@@ -120,6 +120,9 @@ public class PauseMenuController : MonoBehaviour
         Keyboard kb = Keyboard.current;
         if (kb == null || !kb.escapeKey.wasPressedThisFrame || leaving) return;
 
+        // Esc while moving the noise meter only ends that (NoiseMeterHUD handles it).
+        if (NoiseMeterHUD.IsEditing || NoiseMeterHUD.EditEndedFrame == Time.frameCount) return;
+
         if (!content.activeSelf)
         {
             // Only in a match: there must be a local player.

@@ -16,6 +16,11 @@ using UnityEngine;
 ///     and every player who CARRIES a switched-on walkie (any slot, no need to
 ///     hold it) also hears you, at any distance.
 ///
+/// NOISE
+///   Adds a <see cref="PlayerNoise"/> to the body at runtime and carries its
+///   numbers from the owner to the server (CmdReportNoise), so ghost code on
+///   the server can read how loud each player is.
+///
 /// AUTHORITY
 ///   The EOS id and the transmit flag are SyncVars written by the server only.
 ///   A client asks with a Command; the server re-checks the inventory before
@@ -43,10 +48,12 @@ public class PlayerVoice : NetworkBehaviour
     private Transform mouth;
     private PlayerInventory inventory;
     private PlayerHealth health;
+    private PlayerNoise noise;
 
     public string ProductUserId => productUserId;
     public bool RadioTransmitting => radioTransmitting;
     public Transform Mouth => mouth;
+    public PlayerNoise Noise => noise;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
@@ -59,6 +66,12 @@ public class PlayerVoice : NetworkBehaviour
     {
         inventory = GetComponent<PlayerInventory>();
         health = GetComponent<PlayerHealth>();
+
+        // Plain MonoBehaviour added in code: the prefab needs no change, and the
+        // network part goes through this NetworkBehaviour's Command below.
+        noise = GetComponent<PlayerNoise>();
+        if (noise == null) noise = gameObject.AddComponent<PlayerNoise>();
+        noise.Init(this);
 
         // A dedicated, always-active child: the camera object of a remote
         // player may be disabled, and a disabled object plays no audio.
@@ -110,6 +123,25 @@ public class PlayerVoice : NetworkBehaviour
         if (string.IsNullOrEmpty(id) || id.Length > 64) return;
         productUserId = id;
     }
+
+    // ---- Noise (for the noise meter and, later, ghosts) -------------------------
+
+    /// <summary>Owner only: send the latest loudness (0..255) to the server. Called by PlayerNoise ~10x a second.</summary>
+    public void SendNoise(byte mic, byte game)
+    {
+        if (NetworkMode.IsOffline)
+        {
+            noise.ServerReceive(mic, game); // solo test scene: this machine is the "server"
+            return;
+        }
+        if (!isLocalPlayer || !NetworkClient.ready) return;
+        CmdReportNoise(mic, game);
+    }
+
+    // Unreliable: the owner re-sends every 0.5 s anyway, so a lost packet only
+    // delays the value a little, and a slow reliable queue can never build up.
+    [Command(channel = Channels.Unreliable)]
+    private void CmdReportNoise(byte mic, byte game) => noise.ServerReceive(mic, game);
 
     // ---- Walkie-Talkie ---------------------------------------------------------
 

@@ -9,6 +9,11 @@ using UnityEngine;
 /// never started. Unity's Microphone is simple and visible (level meter), and
 /// EOS then only has to transport the audio ("manual audio input").
 ///
+/// Clean-up chain for every 10 ms block (both parts can be switched off in
+/// Settings > Sound, see <see cref="VoiceNoiseProcessor"/>):
+///   mic -> noise reduction (hiss / fan / hum) -> noise gate (silent until you
+///   really speak) -> loudness for the noise meter -> auto gain -> send.
+///
 /// Main thread only (Unity's Microphone API).
 /// </summary>
 public sealed class VoiceMicCapture
@@ -26,7 +31,24 @@ public sealed class VoiceMicCapture
     private double resamplePos;
     private float lastSample;
     private readonly short[] block = new short[BlockSamples];
+    private readonly float[] rawBlock = new float[BlockSamples];
     private int blockFill;
+
+    // Noise reduction + noise gate (settings are copied in by VoiceChatManager).
+    private readonly VoiceNoiseProcessor cleaner = new VoiceNoiseProcessor(BlockSamples, OutputRate);
+    public bool NoiseReduction { get => cleaner.NoiseReduction; set => cleaner.NoiseReduction = value; }
+    public bool NoiseGate { get => cleaner.NoiseGate; set => cleaner.NoiseGate = value; }
+    public float GateThresholdDb { get => cleaner.GateThresholdDb; set => cleaner.GateThresholdDb = value; }
+    /// <summary>False while the noise gate holds the mic silent (always true when the gate is off).</summary>
+    public bool GateOpen => cleaner.GateOpen;
+    /// <summary>Level of the last block after noise reduction, before the gate (dBFS RMS). For the test panel.</summary>
+    public float CleanedDb => cleaner.LastInputDb;
+
+    // Noise meter level: RMS of the last 30 ms after clean-up, shown like a peak.
+    private const int MeterBlocks = 3;
+    private const float MeterCrest = 3.16f; // +10 dB: speech RMS -> about its peak, keyboard clicks stay low
+    private readonly float[] meterEnergy = new float[MeterBlocks];
+    private int meterIndex;
 
     public bool IsRecording => clip != null && Microphone.IsRecording(device);
     public string DeviceName => string.IsNullOrEmpty(device) ? "(Windows default)" : device;
@@ -34,6 +56,32 @@ public sealed class VoiceMicCapture
 
     /// <summary>Peak of the last block after gain, 0..1.</summary>
     public float Level { get; private set; }
+
+    /// <summary>Peak of the last block straight from the mic (before any clean-up or gain), 0..1. Test panel only.</summary>
+    public float RawLevel { get; private set; }
+
+    /// <summary>
+    /// How loud the player really is, 0..1 (peak-like scale), for the noise
+    /// meter / ghosts. Measured AFTER noise reduction + gate and BEFORE auto
+    /// gain (auto gain would make a whisper look like talking). Uses the
+    /// average over 30 ms, so a single key click reads low. 0 while the gate is closed.
+    /// </summary>
+    public float MeterLevel { get; private set; }
+
+    /// <summary>Quietest level the noise meter shows (dBFS). Everything below reads 0.</summary>
+    public const float LoudnessFloorDb = -60f;
+
+    /// <summary>
+    /// A peak (0..1) as loudness 0..1 on a dB scale, the way ears hear it:
+    /// -60 dB = 0, 0 dB (maximum) = 1. <paramref name="offsetDb"/> shifts it
+    /// (mic sensitivity setting).
+    /// </summary>
+    public static float PeakToLoudness(float peak, float offsetDb = 0f)
+    {
+        if (peak <= 0.00001f) return 0f;
+        float db = 20f * Mathf.Log10(peak) + offsetDb;
+        return Mathf.Clamp01((db - LoudnessFloorDb) / -LoudnessFloorDb);
+    }
 
     // ---- Automatic gain -----------------------------------------------------
     // Quiet USB mics (the Maono gave a peak of 0.03) sound thin and far away.
@@ -78,6 +126,8 @@ public sealed class VoiceMicCapture
         resamplePos = 0;
         blockFill = 0;
         lastSample = 0f;
+        cleaner.Reset();
+        System.Array.Clear(meterEnergy, 0, MeterBlocks);
     }
 
     public void Stop()
@@ -86,6 +136,8 @@ public sealed class VoiceMicCapture
         if (clip != null) Object.Destroy(clip);
         clip = null;
         Level = 0f;
+        RawLevel = 0f;
+        MeterLevel = 0f;
     }
 
     /// <summary>
@@ -147,20 +199,14 @@ public sealed class VoiceMicCapture
 
             float raw = s < 0f ? -s : s;
             if (raw > rawBlockPeak) rawBlockPeak = raw;
-
-            s = SoftClip(s * gain);
-            float abs = s < 0f ? -s : s;
-            if (abs > blockPeak) blockPeak = abs;
-            block[blockFill++] = (short)Mathf.Clamp(Mathf.RoundToInt(s * 32767f), short.MinValue, short.MaxValue);
+            rawBlock[blockFill++] = s;
 
             if (blockFill == BlockSamples)
             {
-                Level = blockPeak;
-                UpdateGain(rawBlockPeak);
-                blockPeak = 0f;
-                rawBlockPeak = 0f;
                 blockFill = 0;
-                onBlock(block);
+                RawLevel = rawBlockPeak;
+                rawBlockPeak = 0f;
+                FinishBlock(onBlock);
             }
             resamplePos += step;
         }
@@ -168,7 +214,40 @@ public sealed class VoiceMicCapture
         lastSample = readBuffer[count - 1];
     }
 
-    private float blockPeak;
+    /// <summary>One full 10 ms block: clean it, measure it, auto gain, hand it out.</summary>
+    private void FinishBlock(System.Action<short[]> onBlock)
+    {
+        cleaner.Process(rawBlock); // in place
+
+        // Loudness for the meter (before auto gain).
+        float energy = 0f, cleanPeak = 0f;
+        for (int i = 0; i < BlockSamples; i++)
+        {
+            float v = rawBlock[i];
+            energy += v * v;
+            float a = v < 0f ? -v : v;
+            if (a > cleanPeak) cleanPeak = a;
+        }
+        meterEnergy[meterIndex] = energy / BlockSamples;
+        meterIndex = (meterIndex + 1) % MeterBlocks;
+        float sum = 0f;
+        for (int i = 0; i < MeterBlocks; i++) sum += meterEnergy[i];
+        MeterLevel = Mathf.Min(1f, Mathf.Sqrt(sum / MeterBlocks) * MeterCrest);
+
+        // Auto gain learns only from real sound (not from a closed gate / silence).
+        if (cleaner.GateOpen) UpdateGain(cleanPeak);
+
+        float peak = 0f;
+        for (int i = 0; i < BlockSamples; i++)
+        {
+            float s = SoftClip(rawBlock[i] * gain);
+            float a = s < 0f ? -s : s;
+            if (a > peak) peak = a;
+            block[i] = (short)Mathf.Clamp(Mathf.RoundToInt(s * 32767f), short.MinValue, short.MaxValue);
+        }
+        Level = peak;
+        onBlock(block);
+    }
 
     private void UpdateGain(float peak)
     {
