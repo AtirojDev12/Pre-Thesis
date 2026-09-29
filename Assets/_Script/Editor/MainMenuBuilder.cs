@@ -561,7 +561,7 @@ public static class MainMenuBuilder
         // Mic clean-up for cheap mics (VoiceNoiseProcessor).
         Toggle noiseReduction = MakeToggle(micColumn, "Noise Reduction Toggle", "Noise reduction (removes hiss / fan)");
         Toggle noiseGate = MakeToggle(micColumn, "Noise Gate Toggle", "Noise gate (silent until you speak)");
-        TMP_Text gateText = Label(micColumn, "Noise Gate Label", "Noise gate level: -50 dB (default)", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
+        TMP_Text gateText = Label(micColumn, "Noise Gate Label", "Noise gate level: -45 dB (default)", 22, TextColor, TextAlignmentOptions.MidlineLeft, 28);
         Slider gateThreshold = MakeSlider(micColumn, "Noise Gate Slider");
         Label(micColumn, "Meter Header", "Noise meter", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
         Button meterDirection = MakeButton(micColumn, "Meter Direction Button", "Meter bars: standing (vertical)", false, 52f);

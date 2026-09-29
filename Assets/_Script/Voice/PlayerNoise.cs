@@ -38,13 +38,20 @@ public sealed class PlayerNoise : MonoBehaviour
     /// <summary>Above this the meter turns red and ghosts may react (tune freely).</summary>
     public const float LoudThreshold = 0.75f;
 
+    /// <summary>
+    /// MIC bar boost (dB) on top of the player's "Mic meter sensitivity"
+    /// setting, so normal talking reads mid-high and raised voices reach red.
+    /// </summary>
+    public const float MicBoostDb = 8f;
+
     // ---- Game-noise tuning (0..1) -------------------------------------------
-    public const float WalkNoise = 0.2f;
-    public const float SprintNoise = 0.5f;
-    public const float RadioClickNoise = 0.4f;
-    /// <summary>Radio playing a voice: base + this much of the voice's loudness.</summary>
-    public const float RadioVoiceBase = 0.35f;
-    public const float RadioVoiceRange = 0.6f;
+    // Raised 29 Sep (Mr.k): in-game noise should reach red more easily.
+    public const float WalkNoise = 0.3f;
+    public const float SprintNoise = 0.6f;
+    public const float RadioClickNoise = 0.5f;
+    /// <summary>Radio playing a voice: base + this much of the voice's loudness (0.45..1.0, a loud voice turns it red).</summary>
+    public const float RadioVoiceBase = 0.45f;
+    public const float RadioVoiceRange = 0.55f;
 
     // How fast the bars fall back (per second). Rising is instant.
     private const float MicRelease = 1.6f;

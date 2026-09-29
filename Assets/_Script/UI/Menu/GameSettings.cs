@@ -158,7 +158,7 @@ public static class GameSettings
 
     public const float NoiseGateMinDb = -70f;
     public const float NoiseGateMaxDb = -20f;
-    public const float DefaultNoiseGateDb = -50f;
+    public const float DefaultNoiseGateDb = -45f;
 
     /// <summary>How loud (dBFS, RMS) the mic must be before the gate opens. Higher = blocks more.</summary>
     public static float NoiseGateThresholdDb

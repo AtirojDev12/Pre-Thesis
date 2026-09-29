@@ -383,7 +383,7 @@ public sealed class VoiceChatManager : MonoBehaviour
         // EOS only gets the mic when Mirror voice is not available (backup path).
         bool sendEos = !viaMirror && inEosRoom && appliedSending == true;
         bool micOpen = !PauseMenuController.IsOpen; // always-on mic, muted only in the Esc menu
-        float sensitivityDb = GameSettings.MicSensitivityDb;
+        float sensitivityDb = GameSettings.MicSensitivityDb + PlayerNoise.MicBoostDb;
         float loudest = -1f;
 
         mic.Pump(block =>
