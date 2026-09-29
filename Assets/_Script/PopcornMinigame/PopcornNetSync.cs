@@ -167,7 +167,8 @@ public class PopcornNetSync : NetworkBehaviour
     {
         // Tell the match how many zones it owes. Registration is idempotent, so
         // it is safe whether this runs before or after MatchDirector.
-        if (HasAuthority && MatchDirector.Instance != null)
+        // With task boards (prototype loop) the boards are the zones instead.
+        if (HasAuthority && MatchDirector.Instance != null && !ZoneTaskList.ExistsInScene())
             MatchDirector.Instance.ServerRegisterZone(zoneID);
     }
 
@@ -264,6 +265,11 @@ public class PopcornNetSync : NetworkBehaviour
         if (correct)
         {
             ServerAddZoneProgress(health);
+
+            // Prototype loop: count it on the task boards (per flavor / water, human / ghost).
+            ZoneTaskList.ServerReportSale(
+                heldFlavor == PopcornFlavor.Drink ? ZoneTaskKind.Water : ZoneTaskKind.Popcorn,
+                heldFlavor, -1, currentCustomerType == PopcornCustomerType.Ghost);
             SendResult(sender, true, "Correct!  +1 Point");
         }
         else
@@ -298,7 +304,7 @@ public class PopcornNetSync : NetworkBehaviour
         if (MatchDirector.Instance != null && seller != null)
             MatchDirector.Instance.ServerReportTaskCompleted(seller.netIdentity, zoneID);
 
-        if (ZoneComplete && MatchDirector.Instance != null)
+        if (ZoneComplete && MatchDirector.Instance != null && !ZoneTaskList.ExistsInScene())
             MatchDirector.Instance.ServerReportZoneCompleted(zoneID);
 
         // Hooks do not fire on the machine that made the change.

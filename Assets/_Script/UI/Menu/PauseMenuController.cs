@@ -123,6 +123,9 @@ public class PauseMenuController : MonoBehaviour
         // Esc while moving the noise meter only ends that (NoiseMeterHUD handles it).
         if (NoiseMeterHUD.IsEditing || NoiseMeterHUD.EditEndedFrame == Time.frameCount) return;
 
+        // The end-of-round results screen has its own buttons.
+        if (MatchResultsUI.IsShowing) return;
+
         if (!content.activeSelf)
         {
             // Only in a match: there must be a local player.
@@ -194,6 +197,17 @@ public class PauseMenuController : MonoBehaviour
             : "Leave the match and go back to the main menu?";
         confirmPopup.SetActive(true);
         confirmPopup.transform.SetAsLastSibling();
+    }
+
+    /// <summary>
+    /// Leave the match to the main menu, exactly like the menu's Leave button
+    /// (used by the results screen). False if there is no pause menu.
+    /// </summary>
+    public static bool LeaveMatch()
+    {
+        if (instance == null) return false;
+        instance.Leave();
+        return true;
     }
 
     private void Leave()

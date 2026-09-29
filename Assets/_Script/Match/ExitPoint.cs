@@ -57,6 +57,22 @@ public class ExitPoint : NetworkBehaviour
     [Tooltip("Source on this exit. Must be 3D (Spatial Blend = 1) with the same rolloff the zone task cue uses, or the sound stops being positional information and becomes an announcement.")]
     [SerializeField] private AudioSource cueSource;
 
+    [Header("Prototype: walk-in exit + glow (Mr.k, 29 Sep)")]
+    [Tooltip("Players standing inside this box leave automatically while the exit is open " +
+             "(06:00 or later AND every zone done). Use a BoxCollider with Is Trigger ON. Empty = no walk-in exit.")]
+    [SerializeField] private BoxCollider exitArea;
+
+    [Tooltip("Switched ON while the exit is open (a bright unlit mesh, a light...), OFF while it is closed. " +
+             "No animation yet: open = glows bright, closed = nothing.")]
+    [SerializeField] private GameObject[] glowWhenOpen = new GameObject[0];
+
+    private const float WalkInCheckInterval = 0.2f;
+    private float nextWalkInCheck;
+    private int shownOpen = -1; // -1 unknown, 0 closed, 1 open
+
+    /// <summary>True on every machine while this exit can be used (06:00+ and every zone done).</summary>
+    public bool IsOpen => MatchDirector.Instance != null && MatchDirector.Instance.GatesPassable;
+
     /// <summary>
     /// SERVER-SIDE ONLY. Never replicated — see the class comment. Clients learn
     /// occupancy by hearing the door fill or by walking into it and being told.
@@ -158,6 +174,59 @@ public class ExitPoint : NetworkBehaviour
         return true;
     }
 
+    // ---- Prototype: glow + walk-in ------------------------------------------
+
+    private void Update()
+    {
+        // Every machine: glow while open. The state comes from MatchDirector's
+        // SyncVars (phase + zones), so all players see the same thing.
+        bool open = IsOpen;
+        int state = open ? 1 : 0;
+        if (state != shownOpen)
+        {
+            shownOpen = state;
+            for (int i = 0; i < glowWhenOpen.Length; i++)
+                if (glowWhenOpen[i] != null) glowWhenOpen[i].SetActive(open);
+        }
+
+        // Server: anyone standing in the exit area while it is open walks out.
+        // Checked on the server with positions (not OnTriggerEnter), because a
+        // remote player's body on the host is moved by the network, not by
+        // physics, and would not fire trigger events reliably.
+        if (!open || exitArea == null || !NetworkMode.HasServerAuthority(this)) return;
+        if (Time.time < nextWalkInCheck) return;
+        nextWalkInCheck = Time.time + WalkInCheckInterval;
+
+        MatchDirector director = MatchDirector.Instance;
+        Bounds area = exitArea.bounds;
+        area.Expand(0.4f);
+
+        foreach (PlayerHealth health in ServerPlayers())
+        {
+            if (health == null || health.IsDead || health.IsDowned) continue;
+            NetworkIdentity identity = health.netIdentity;
+            if (identity == null || director.HasEscaped(identity) || ServerIsFull) continue;
+            if (!area.Contains(health.transform.position)) continue;
+            ServerTryUse(identity);
+        }
+    }
+
+    private static readonly System.Collections.Generic.List<PlayerHealth> playerBuffer =
+        new System.Collections.Generic.List<PlayerHealth>();
+
+    private static System.Collections.Generic.List<PlayerHealth> ServerPlayers()
+    {
+        playerBuffer.Clear();
+        if (NetworkServer.active)
+        {
+            foreach (NetworkConnectionToClient conn in NetworkServer.connections.Values)
+                if (conn != null && conn.identity != null && conn.identity.TryGetComponent(out PlayerHealth h))
+                    playerBuffer.Add(h);
+        }
+        else playerBuffer.AddRange(FindObjectsByType<PlayerHealth>());
+        return playerBuffer;
+    }
+
     /// <summary>Convenience overload for callers that do not need the reason.</summary>
     public bool ServerTryUse(NetworkIdentity player) => ServerTryUse(player, out _);
 
@@ -200,7 +269,8 @@ public class ExitPoint : NetworkBehaviour
     {
         base.OnValidate();
 
-        if (capacity != 2)
+        // 6 is allowed for the prototype's single exit (one door must fit the whole team).
+        if (capacity != 2 && capacity != 6)
         {
             Debug.LogWarning(
                 $"[ExitPoint] '{exitName}' has capacity {capacity}. The design is three exits at TWO each, " +

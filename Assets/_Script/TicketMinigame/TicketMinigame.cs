@@ -56,6 +56,8 @@ public sealed class TicketMinigame : MonoBehaviour
 
     // Used only when no PopcornNetSync exists (offline sandbox without the popcorn stand).
     private const string FallbackZoneID = "zone_ticket_counter";
+    // Zone name used for the payout log when task boards are in use.
+    private const string TicketZoneID = "zone_ticket";
 
     private TicketCustomerState state;
     private float delay;
@@ -188,6 +190,16 @@ public sealed class TicketMinigame : MonoBehaviour
     /// </summary>
     private void ReportSale(PlayerHealth seller)
     {
+        // Prototype loop: the Ticket Zone has its OWN task board now (not the
+        // popcorn counter's shared total). Count the ticket there and pay the seller.
+        if (ZoneTaskList.ExistsInScene())
+        {
+            ZoneTaskList.ServerReportSale(ZoneTaskKind.Ticket, PopcornFlavor.None, state.movieIndex, state.ghost);
+            if (MatchDirector.Instance != null && seller != null)
+                MatchDirector.Instance.ServerReportTaskCompleted(seller.netIdentity, TicketZoneID);
+            return;
+        }
+
         PopcornNetSync counter = ZoneCounter;
         if (counter != null)
         {

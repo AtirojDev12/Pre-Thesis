@@ -68,6 +68,21 @@ public class MatchDirector : NetworkBehaviour
     [Header("Debug")]
     [SerializeField] private bool logRoundSetup = true;
 
+    [Header("Prototype game loop (Mr.k, 29 Sep)")]
+    [Tooltip("Real seconds per in-game hour on EVERY difficulty. 150 = 2.5 min per hour = 15 min for 00:00 -> 06:00. 0 = use the difficulty profile instead.")]
+    [Min(0f)] [SerializeField] private float secondsPerInGameHourOverride = 150f;
+
+    [Tooltip("ON: at 06:00 everyone always gets ONE extra hour (06:00 -> 07:00) while the ghosts haunt (see ExtraHour). " +
+             "The exit opens when EVERY zone is done AND it is 06:00 or later. At 07:00 everyone still inside dies.\n" +
+             "OFF: the older Overtime / Locked-in rules below.")]
+    [SerializeField] private bool simpleDawnRule = true;
+
+    [Tooltip("Currency for each task a SURVIVING player did (tasks x this).")]
+    [Min(0)] [SerializeField] private int currencyPerTask = 10;
+
+    [Tooltip("Flat consolation prize for a player who DIED, whatever they did.")]
+    [Min(0)] [SerializeField] private int consolationPrize = 10;
+
     // ---- Fixed rules of 13RoH ---------------------------------------------
     // These are const rather than serialized on purpose. A field in the
     // Inspector is a field someone can typo into a five-hour night, and nothing
@@ -302,6 +317,17 @@ public class MatchDirector : NetworkBehaviour
     public bool GatesPassable => ExitsOpen && MinimumMet;
 
     /// <summary>
+    /// FOR THE GHOST PROGRAMMER. True during the extra hour 06:00 -> 07:00
+    /// (prototype loop): the ghosts should haunt / hunt harder now. At 07:00
+    /// everyone still inside dies. Readable on every machine (phase is a SyncVar);
+    /// also raised as <see cref="ExitsOpened"/> / <see cref="PhaseChanged"/>.
+    /// </summary>
+    public bool ExtraHour => phase == MatchPhase.Escape;
+
+    /// <summary>Currency per task for survivors (Inspector). For the results screen.</summary>
+    public int CurrencyPerTask => currencyPerTask;
+
+    /// <summary>
     /// Whether the team is allowed to deal with the main ghost — Method 2.
     /// Requires the SAME minimum the gates do.
     ///
@@ -439,6 +465,9 @@ public class MatchDirector : NetworkBehaviour
 
     private void Start()
     {
+        // Clock + status line at the top of the screen, on every machine.
+        MatchHUD.Ensure();
+
         // Offline sandbox: nobody is hosting, so OnStartServer never fires, but a
         // designer pressing Play in GamePlay still expects a working round.
         if (NetworkMode.IsOffline) ConfigureRound(MatchState.ResolveOrDefault(), 1);
@@ -496,6 +525,10 @@ public class MatchDirector : NetworkBehaviour
                 "Running on built-in defaults — assign the three profiles in the Inspector.", this);
         }
 
+        // Prototype loop: the same clock on every difficulty (2.5 min per hour).
+        if (secondsPerInGameHourOverride > 0f)
+            nightLengthSeconds = secondsPerInGameHourOverride * NightLengthInGameHours;
+
         // Both derived from the clock, so they are always equal and always one
         // in-game hour. Must be set AFTER nightLengthSeconds, since
         // SecondsPerInGameHour reads it.
@@ -519,6 +552,9 @@ public class MatchDirector : NetworkBehaviour
         escapedPlayers.Clear();
         outcomes.Clear();
         trackedPlayers.Clear();
+        downedCounts.Clear();
+        currentlyDowned.Clear();
+        resultsSent.Clear();
         hasSeenAnyPlayer = false;
         rosterTickAccumulator = 0f;
 
@@ -601,6 +637,9 @@ public class MatchDirector : NetworkBehaviour
 
         if (next == MatchPhase.Escape) ExitsOpened?.Invoke();
         if (next == MatchPhase.Ended) RoundEnded?.Invoke();
+
+        // Everyone who has not seen their result yet gets it now.
+        if (next == MatchPhase.Ended && NetworkMode.HasServerAuthority(this)) ServerSendAllResults();
     }
 
     private void Update()
@@ -623,6 +662,7 @@ public class MatchDirector : NetworkBehaviour
         {
             rosterTickAccumulator = 0f;
             RefreshPlayerRoster();
+            ServerWatchPlayers();
             EvaluateRoundEnd();
 
             if (phase == MatchPhase.Ended) return;
@@ -799,6 +839,22 @@ public class MatchDirector : NetworkBehaviour
         switch (phase)
         {
             case MatchPhase.Night:
+                // Prototype loop: 06:00 always gives ONE extra hour. The ghosts
+                // haunt (ExtraHour), the exit opens as soon as every zone is
+                // done, and 07:00 kills everyone still inside (the Escape case below).
+                if (simpleDawnRule)
+                {
+                    EnterPhase(MatchPhase.Escape, EscapeWindowInGameHours * SecondsPerInGameHour);
+
+                    if (logRoundSetup)
+                    {
+                        Debug.Log(
+                            $"[MatchDirector] 06:00 — extra hour starts ({secondsRemaining:F0}s). Zones {zonesCompleted}/{zonesRequired}; " +
+                            (MinimumMet ? "the exit is open." : "the exit opens when every zone is done. Ghosts haunt."), this);
+                    }
+                    break;
+                }
+
                 // 06:00 arrives. Three different things can happen, and which
                 // one is decided here and nowhere else.
                 if (MinimumMet)
@@ -1095,6 +1151,17 @@ public class MatchDirector : NetworkBehaviour
         escapedCount = escapedPlayers.Count;
         outcomes[id] = PlayerOutcome.EscapedThroughGate;
 
+        // Out of the building: hide the body on every machine and show this
+        // player their result straight away.
+        if (player != null)
+        {
+            if (NetworkServer.active) RpcPlayerLeftBuilding(player.netId);
+            else HidePlayerBody(player.gameObject);
+
+            PlayerHealth health = player.GetComponent<PlayerHealth>();
+            if (health != null) ServerSendResult(health);
+        }
+
         if (logRoundSetup)
             Debug.Log($"[MatchDirector] A player is out — {escapedCount} escaped.", this);
 
@@ -1171,6 +1238,115 @@ public class MatchDirector : NetworkBehaviour
     /// </summary>
     public bool HasEscaped(NetworkIdentity player) =>
         player != null && escapedPlayers.Contains(player.netId);
+
+    // ---- Downed counter + results screen (prototype loop) -------------------
+    //
+    // Server-side. Filled on the slow roster tick (every 0.5 s): a player is
+    // downed for far longer than that, so no knock-down is ever missed, and
+    // PlayerHealth (the sub programmer's file) does not need a new event.
+
+    /// <summary>netId -> times downed this round. Runtime server state only, never saved or sent as a whole.</summary>
+    private readonly Dictionary<uint, int> downedCounts = new Dictionary<uint, int>();
+    private readonly HashSet<uint> currentlyDowned = new HashSet<uint>();
+    /// <summary>Players who already got their result (so nobody is paid twice).</summary>
+    private readonly HashSet<uint> resultsSent = new HashSet<uint>();
+
+    /// <summary>How many times this player went down this round (server).</summary>
+    public int DownedCountFor(NetworkIdentity player) =>
+        player != null && downedCounts.TryGetValue(player.netId, out int n) ? n : 0;
+
+    private void ServerWatchPlayers()
+    {
+        for (int i = 0; i < trackedPlayers.Count; i++)
+        {
+            PlayerHealth health = trackedPlayers[i];
+            if (health == null) continue;
+            uint id = health.netIdentity != null ? health.netIdentity.netId : 0u;
+
+            if (health.IsDowned && !health.IsDead)
+            {
+                if (currentlyDowned.Add(id))
+                {
+                    downedCounts.TryGetValue(id, out int n);
+                    downedCounts[id] = n + 1;
+                }
+            }
+            else currentlyDowned.Remove(id);
+
+            // Died inside: this player's round is over now.
+            if (health.IsDead && !escapedPlayers.Contains(id))
+            {
+                outcomes[id] = PlayerOutcome.Dead;
+                ServerSendResult(health);
+            }
+        }
+    }
+
+    private void ServerSendAllResults()
+    {
+        RefreshPlayerRoster();
+        ServerWatchPlayers();
+        for (int i = 0; i < trackedPlayers.Count; i++)
+            if (trackedPlayers[i] != null) ServerSendResult(trackedPlayers[i]);
+    }
+
+    /// <summary>
+    /// SERVER. Works out one player's result and sends it to that player only.
+    /// Survivors: tasks x currencyPerTask. Dead: the flat consolation prize.
+    /// </summary>
+    private void ServerSendResult(PlayerHealth health)
+    {
+        NetworkIdentity identity = health.netIdentity;
+        uint id = identity != null ? identity.netId : 0u;
+        if (!resultsSent.Add(id)) return;
+
+        outcomes.TryGetValue(id, out PlayerOutcome outcome);
+        bool dead = health.IsDead || outcome == PlayerOutcome.Dead;
+        if (dead) outcome = PlayerOutcome.Dead;
+        else if (outcome == PlayerOutcome.Unresolved) outcome = PlayerOutcome.SurvivedTheGhost;
+
+        int tasks = TasksCompletedBy(identity);
+        downedCounts.TryGetValue(id, out int downs);
+
+        MatchResult result = new MatchResult
+        {
+            outcome = (byte)outcome,
+            downedCount = downs,
+            tasksDone = tasks,
+            currencyPerTask = currencyPerTask,
+            currency = dead ? consolationPrize : tasks * currencyPerTask,
+            consolation = dead
+        };
+
+        if (logRoundSetup)
+            Debug.Log($"[MatchDirector] Result for {health.name}: {outcome}, downed {downs}x, tasks {tasks}, currency +{result.currency}.", this);
+
+        if (NetworkServer.active && health.connectionToClient != null) TargetShowResult(health.connectionToClient, result);
+        else if (NetworkMode.IsOffline) MatchResultsUI.Show(result);
+    }
+
+    [TargetRpc]
+    private void TargetShowResult(NetworkConnectionToClient target, MatchResult result) => MatchResultsUI.Show(result);
+
+    [ClientRpc]
+    private void RpcPlayerLeftBuilding(uint playerNetId)
+    {
+        if (NetworkClient.spawned.TryGetValue(playerNetId, out NetworkIdentity identity) && identity != null)
+            HidePlayerBody(identity.gameObject);
+    }
+
+    /// <summary>An escaped player's body disappears (prototype: no exit animation yet).</summary>
+    private static void HidePlayerBody(GameObject body)
+    {
+        foreach (Renderer r in body.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
+
+        // The owner keeps its CharacterController (its movement script still
+        // calls Move and would spam warnings); everyone else drops every collider
+        // so the invisible body does not block the door.
+        bool owner = body.TryGetComponent(out NetworkIdentity id) && NetworkMode.IsLocalController(id);
+        foreach (Collider c in body.GetComponentsInChildren<Collider>(true))
+            if (!(owner && c is CharacterController)) c.enabled = false;
+    }
 
     // ---- SyncVar hooks (remote clients only) -------------------------------
 
