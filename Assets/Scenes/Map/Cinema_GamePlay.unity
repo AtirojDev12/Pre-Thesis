@@ -22726,7 +22726,7 @@ Transform:
   m_GameObject: {fileID: 1136920045}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.092, y: 0.397, z: -0.367}
+  m_LocalPosition: {x: 1.092, y: 0.397, z: -0.429}
   m_LocalScale: {x: 0.11800348, y: 0.16189799, z: 0.23715962}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -23840,7 +23840,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 3.9870014
+      value: 3.988
       objectReference: {fileID: 0}
     - target: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       propertyPath: m_LocalPosition.y
@@ -23848,7 +23848,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 11.807411
+      value: 11.812
       objectReference: {fileID: 0}
     - target: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       propertyPath: m_LocalRotation.w
@@ -24386,192 +24386,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1281266670}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!1 &1284621529
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1284621535}
-  - component: {fileID: 1284621534}
-  - component: {fileID: 1284621533}
-  - component: {fileID: 1284621532}
-  - component: {fileID: 1284621531}
-  - component: {fileID: 1284621530}
-  m_Layer: 0
-  m_Name: Cube (1)
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1284621530
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1284621529}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2e2e41d9063c2a246861a6c08213b228, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ZoneTaskList
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
-  zoneID: zone_ticket
-  title: TICKETS
-  tasks:
-  - label: Sell Ticket 1 to Humans
-    kind: 2
-    flavor: 0
-    movie: 1
-    customer: 1
-    target: 15
-  - label: Sell Ticket 1 to Ghosts
-    kind: 2
-    flavor: 0
-    movie: 1
-    customer: 2
-    target: 15
-  - label: Sell Ticket 2 to Humans
-    kind: 2
-    flavor: 0
-    movie: 2
-    customer: 1
-    target: 15
-  - label: Sell Ticket 2 to Ghosts
-    kind: 2
-    flavor: 0
-    movie: 2
-    customer: 2
-    target: 15
-  - label: Sell Ticket 3 to Humans
-    kind: 2
-    flavor: 0
-    movie: 3
-    customer: 1
-    target: 15
-  - label: Sell Ticket 3 to Ghosts
-    kind: 2
-    flavor: 0
-    movie: 3
-    customer: 2
-    target: 15
-  boardWidth: 1.6
---- !u!114 &1284621531
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1284621529}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Mirror::Mirror.NetworkIdentity
-  sceneId: 600156736
-  _assetId: 0
-  serverOnly: 0
-  visibility: 0
-  hasSpawned: 0
---- !u!65 &1284621532
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1284621529}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!23 &1284621533
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1284621529}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &1284621534
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1284621529}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &1284621535
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1284621529}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -7.99098, y: 1.681, z: 13.863}
-  m_LocalScale: {x: 1.4816, y: 1.106, z: 0.20717733}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!43 &1287604996
 Mesh:
   m_ObjectHideFlags: 0
@@ -26700,7 +26514,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 2.7050018
+      value: 2.705
       objectReference: {fileID: 0}
     - target: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       propertyPath: m_LocalPosition.y
@@ -26708,7 +26522,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 11.81641
+      value: 11.779
       objectReference: {fileID: 0}
     - target: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       propertyPath: m_LocalRotation.w
@@ -35157,25 +34971,25 @@ MonoBehaviour:
     flavor: 2
     movie: 0
     customer: 0
-    target: 15
+    target: 3
   - label: Sell Cheese popcorn
     kind: 0
     flavor: 1
     movie: 0
     customer: 0
-    target: 15
+    target: 3
   - label: Sell Paprika popcorn
     kind: 0
     flavor: 4
     movie: 0
     customer: 0
-    target: 15
+    target: 3
   - label: Sell Water
     kind: 1
     flavor: 5
     movie: 0
     customer: 0
-    target: 15
+    target: 3
   boardWidth: 1.6
 --- !u!114 &1760108145
 MonoBehaviour:
@@ -36518,7 +36332,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1816630815
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -36542,37 +36356,37 @@ MonoBehaviour:
     flavor: 0
     movie: 1
     customer: 1
-    target: 15
+    target: 3
   - label: Sell Ticket 1 to Ghosts
     kind: 2
     flavor: 0
     movie: 1
     customer: 2
-    target: 15
+    target: 3
   - label: Sell Ticket 2 to Humans
     kind: 2
     flavor: 0
     movie: 2
     customer: 1
-    target: 15
+    target: 3
   - label: Sell Ticket 2 to Ghosts
     kind: 2
     flavor: 0
     movie: 2
     customer: 2
-    target: 15
+    target: 3
   - label: Sell Ticket 3 to Humans
     kind: 2
     flavor: 0
     movie: 3
     customer: 1
-    target: 15
+    target: 3
   - label: Sell Ticket 3 to Ghosts
     kind: 2
     flavor: 0
     movie: 3
     customer: 2
-    target: 15
+    target: 3
   boardWidth: 1.6
 --- !u!114 &1816630816
 MonoBehaviour:
@@ -38661,7 +38475,7 @@ Transform:
   m_GameObject: {fileID: 1910514822}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.19399945, y: 0.397, z: -0.3588996}
+  m_LocalPosition: {x: -0.19399945, y: 0.397, z: -0.457}
   m_LocalScale: {x: 0.14576969, y: 0.17647788, z: 0.23715962}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -40306,7 +40120,7 @@ MonoBehaviour:
   ghostRosters:
   - {fileID: 11400000, guid: b81a86ea70d23454b896ad139bb89627, type: 2}
   logRoundSetup: 1
-  secondsPerInGameHourOverride: 150
+  secondsPerInGameHourOverride: 60
   simpleDawnRule: 1
   currencyPerTask: 10
   consolationPrize: 10
@@ -43427,4 +43241,3 @@ SceneRoots:
   - {fileID: 513263058}
   - {fileID: 867548714}
   - {fileID: 563598384}
-  - {fileID: 1284621535}
