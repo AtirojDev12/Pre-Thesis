@@ -18,6 +18,8 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
     readonly Dictionary<PlayerHealth, int> groundingSamples = new Dictionary<PlayerHealth, int>();
     readonly Dictionary<PlayerHealth, float> worstFloating = new Dictionary<PlayerHealth, float>();
     Mesh groundingMesh;
+    readonly Dictionary<PlayerHealth, List<string>> footsteps = new Dictionary<PlayerHealth, List<string>>();
+    readonly Dictionary<PlayerHealth, int> previousClip = new Dictionary<PlayerHealth, int>();
     void CapturePose(PlayerMovement player, string name)
     {
         var cameraObject = new GameObject("Pose review camera");
@@ -120,8 +122,30 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         Check(NetworkClient.localPlayer != null, "Local network player spawned");
         var players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
         Check(players.Length == 2, "Host and joining player spawned");
+        // Let spawn gravity, initial network snapshots and the first humanoid
+        // evaluation settle before measuring locomotion rather than spawn poses.
+        yield return new WaitForSecondsRealtime(1);
         groundingPlayers = players;
         foreach (var p in players) { worstPenetration[p] = 0; worstFloating[p] = 0; groundingSamples[p] = 0; }
+        foreach (var p in players)
+        {
+            footsteps[p] = new List<string>();
+            previousClip[p] = -1;
+            var stepper = p.GetComponent<PlayerFootsteps>();
+            Check(stepper != null, "Player prefab has footsteps");
+            stepper.FootstepPlayed += (foot, clip) => {
+                if (clip == previousClip[p]) Check(false, "Footstep repeated the previous clip");
+                previousClip[p] = clip;
+                footsteps[p].Add(foot + ":" + clip);
+            };
+            var source = p.transform.Find("Left Footstep").GetComponent<AudioSource>();
+            Check(source.spatialBlend == 1f && source.rolloffMode == AudioRolloffMode.Linear && source.maxDistance == 15f,
+                "Footsteps use 3D attenuation with 15m cutoff");
+            float savedVolume = GameSettings.SfxVolume;
+            GameSettings.SfxVolume = 0.25f;
+            Check(Mathf.Abs(source.volume - 0.2f) < 0.001f, "Footsteps follow SFX volume");
+            GameSettings.SfxVolume = savedVolume;
+        }
         if (NetworkClient.localPlayer != null)
         {
             var keyboard = InputSystem.AddDevice<Keyboard>();
@@ -137,6 +161,8 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
             }
             foreach (bool sprint in new[] { false, true })
             {
+                var stepCounts = new Dictionary<PlayerHealth, int>();
+                foreach (var p in players) stepCounts[p] = footsteps[p].Count;
                 foreach (var p in players) angles[p] = 0;
                 var start = NetworkClient.localPlayer.transform.position; float phaseStart = Time.time; int samples = 0; int remoteSprintFrames = 0;
                 for (float until = Time.time + 3; Time.time < until;)
@@ -145,7 +171,9 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                     yield return null;
                     foreach (var p in players)
                     {
-                        if (sprint && !p.isLocalPlayer && Time.time - phaseStart > 1f) { samples++; if (p.GetComponent<Animator>().GetBool("IsSprinting")) remoteSprintFrames++; }
+                        // Measure steady sprint, excluding the peer's transition
+                        // into the next phase (process clocks are not synchronized).
+                        if (sprint && !p.isLocalPlayer && Time.time - phaseStart > 1f && Time.time - phaseStart < 2.5f) { samples++; if (p.GetComponent<Animator>().GetBool("IsSprinting")) remoteSprintFrames++; }
                         angles[p] += Quaternion.Angle(last[p], bones[p].localRotation);
                         last[p] = bones[p].localRotation;
                     }
@@ -154,6 +182,13 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 Check(Vector3.Distance(start, NetworkClient.localPlayer.transform.position) > 1, "Local movement " + sprint);
                 foreach (var p in players)
                 {
+                    Check(footsteps[p].Count - stepCounts[p] >= 3,
+                        (p.isLocalPlayer ? "Local" : "Remote") + " foot contacts play while " + (sprint ? "running" : "walking") + ": " + (footsteps[p].Count - stepCounts[p]));
+                    for (int foot = 0; foot < 2; foot++)
+                    {
+                        int contacts = footsteps[p].GetRange(stepCounts[p], footsteps[p].Count - stepCounts[p]).FindAll(step => step.StartsWith(foot + ":")).Count;
+                        Check(contacts >= 2 && contacts <= (sprint ? 6 : 4), (p.isLocalPlayer ? "Local" : "Remote") + " " + (sprint ? "run" : "walk") + " foot " + foot + " contacts=" + contacts);
+                    }
                     var animator = p.GetComponent<Animator>();
                     string role = p.isLocalPlayer ? "local" : "remote";
                     Check(angles[p] > 20, role + " animated " + (sprint ? "sprint" : "walk") + " boneDelta=" + angles[p] + " Speed=" + animator.GetFloat("Speed") + " sprint=" + animator.GetBool("IsSprinting") + " state=" + animator.GetCurrentAnimatorStateInfo(0).shortNameHash);
@@ -165,6 +200,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 new KeyboardState(Key.S, Key.D), new KeyboardState(Key.W, Key.S, Key.A, Key.D) };
             for (int i = 0; i < directions.Length; i++)
             {
+                int beforeDirectionSteps = footsteps[mover.GetComponent<PlayerHealth>()].Count;
                 for (float until = Time.time + 0.5f; Time.time < until;)
                 {
                     InputSystem.QueueStateEvent(keyboard, inputs[i]);
@@ -211,6 +247,8 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                     InputSystem.QueueStateEvent(keyboard, inputs[i]);
                     yield return null;
                 }
+                if (directions[i] != Vector2.zero)
+                    Check(footsteps[mover.GetComponent<PlayerHealth>()].Count > beforeDirectionSteps, "Foot contacts during direction " + i);
             }
             Vector3 wallStart = mover.transform.position;
             var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -224,6 +262,13 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
             }
             float wallTravel = Vector3.Dot(mover.transform.position - wallStart, mover.transform.forward);
             Check(wallTravel > 1f && wallTravel < 1.5f, "Sprint capsule stops at a thin wall: travel=" + wallTravel);
+            int blockedSteps = footsteps[mover.GetComponent<PlayerHealth>()].Count;
+            for (float until = Time.time + 0.4f; Time.time < until;)
+            {
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W, Key.LeftShift));
+                yield return null;
+            }
+            Check(footsteps[mover.GetComponent<PlayerHealth>()].Count == blockedSteps, "No footsteps while blocked by a wall");
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return new WaitForSecondsRealtime(0.2f);
             Destroy(wall);
@@ -237,6 +282,10 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         if (groundingMesh != null) Destroy(groundingMesh);
         if (Keyboard.current != null) InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState());
         yield return new WaitForSecondsRealtime(1);
+        var idleCounts = new Dictionary<PlayerHealth, int>();
+        foreach (var p in players) idleCounts[p] = footsteps[p].Count;
+        yield return new WaitForSecondsRealtime(0.5f);
+        foreach (var p in players) Check(footsteps[p].Count == idleCounts[p], "No footsteps while idle");
         foreach (var p in players)
             Check(p.GetComponent<Animator>().GetCurrentAnimatorStateInfo(0).IsName("Idle"), (p.isLocalPlayer ? "Local" : "Remote") + " returns to Idle after releasing input");
         if (!client) foreach (var p in players) p.TakeDamage(999);
@@ -256,6 +305,11 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
             var animator = p.GetComponent<Animator>();
             Check(p.IsDead && !p.IsDowned && animator.GetCurrentAnimatorStateInfo(0).IsName("Dying"),
                 (p.isLocalPlayer ? "Local" : "Remote") + " direct death enters Dying state");
+        }
+        foreach (var p in players)
+        {
+            Check(footsteps[p].Count == idleCounts[p], "No footsteps while downed/dead");
+            File.WriteAllLines(Path.Combine(Application.dataPath, "../footsteps-" + (client ? "client" : "host") + "-" + p.netId + ".txt"), footsteps[p]);
         }
         File.WriteAllLines(Path.Combine(Application.dataPath, "../animation-results-" + (client ? "client" : "host") + ".txt"), results);
         yield return new WaitForSecondsRealtime(4);

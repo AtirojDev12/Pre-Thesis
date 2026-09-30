@@ -1,7 +1,8 @@
-param([string] $UnityPath = 'C:/InstallUnity/6000.5.7f1/Editor/Unity.exe')
+param([string] $UnityPath = 'C:/InstallUnity/6000.5.7f1/Editor/Unity.exe',
+      [string] $TestProject = '.utmp/customer-build/Project')
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-$project = Join-Path $repo '.utmp/customer-build/Project'
+$project = Join-Path $repo $TestProject
 New-Item -ItemType Directory -Force (Join-Path $project 'Assets/Editor') | Out-Null
 foreach ($folder in @('Assets','Packages','ProjectSettings','Library/PackageCache')) {
     & robocopy (Join-Path $repo $folder) (Join-Path $project $folder) /E /NFL /NDL /NJH /NJS /NP | Out-Null
@@ -29,3 +30,13 @@ foreach ($process in @($hostProcess, $clientProcess)) {
 }
 foreach ($mode in @('host','client')) { Get-Content (Join-Path $build "animation-results-$mode.txt") }
 if ($hostProcess.ExitCode -ne 0 -or $clientProcess.ExitCode -ne 0) { throw 'Animation checks failed' }
+foreach ($hostSteps in Get-ChildItem (Join-Path $build 'footsteps-host-*.txt')) {
+    $clientSteps = Join-Path $build ($hostSteps.Name.Replace('footsteps-host-', 'footsteps-client-'))
+    if (!(Test-Path $clientSteps)) { throw "Missing client footsteps: $clientSteps" }
+    $hostSequence = @(Get-Content $hostSteps.FullName)
+    $clientSequence = @(Get-Content $clientSteps)
+    if ($hostSequence.Count -lt 6 -or ($hostSequence -join ',') -ne ($clientSequence -join ',')) {
+        throw "Host/client footstep sequence differs: $($hostSteps.Name)"
+    }
+    Write-Output "PASS identical host/client footstep sequence: $($hostSequence.Count) contacts ($($hostSteps.Name))"
+}

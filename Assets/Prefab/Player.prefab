@@ -221,6 +221,7 @@ GameObject:
   - component: {fileID: 43268456614067055}
   - component: {fileID: 7397698309218730996}
   - component: {fileID: 3020241743421449484}
+  - component: {fileID: 8240591739302916471}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -369,12 +370,18 @@ MonoBehaviour:
   syncInterval: 0
   moveSpeed: 5
   sprintSpeed: 8
+  backwardSpeedMultiplier: 0.55
+  strafeSpeedMultiplier: 0.8
   playerCamera: {fileID: 443704085783855534}
   playerAnimator: {fileID: -2365669203378768568}
   animationDampTime: 0.1
   stabilizeRunningHips: 1
   runningHipStability: 1
   runningSoleClearance: 0.08
+  stepLength: 0.7
+  stepHeight: 0.12
+  groundProbeDistance: 0.2
+  maximumGroundAngle: 50
 --- !u!114 &6123076420129374501
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -469,7 +476,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Mirror::Mirror.NetworkIdentity
   sceneId: 0
-  _assetId: 0
+  _assetId: 2193187429
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
@@ -592,6 +599,34 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WalkieTalkieController
   heldPosition: {x: 0.28, y: -0.28, z: 0.5}
   heldRotation: {x: -10, y: -15, z: 0}
+--- !u!114 &8240591739302916471
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3873886348749462617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f3265b190904d709a87d1b49f91d09c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerFootsteps
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  carpetClips:
+  - {fileID: 8300000, guid: acb59a74b62fc3a4b83e19666ac14a77, type: 3}
+  - {fileID: 8300000, guid: 3e5e0a96bce7cdf4594122c4ef328b09, type: 3}
+  - {fileID: 8300000, guid: 76270ca1d45a30e4eaebd9fbce5f937c, type: 3}
+  - {fileID: 8300000, guid: cf03baff903f6f44798b8a0043eb6ff7, type: 3}
+  volume: 0.2
+  minDistance: 1
+  maxDistance: 15
+  contactHeight: 0.012
+  releaseHeight: 0.035
+  FootTouchedGround:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1001 &4241667098483019941
 PrefabInstance:
   m_ObjectHideFlags: 0

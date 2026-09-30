@@ -425,6 +425,22 @@ public class PlayerMovement : NetworkBehaviour
             hips.position += Vector3.up * Mathf.Max(lift, -0.25f);
     }
 
+    /// <summary>Final rendered sole clearance, after animation, IK and grounding.</summary>
+    public bool TryGetFootGround(bool left, out Vector3 position, out float clearance)
+    {
+        position = transform.position;
+        clearance = float.PositiveInfinity;
+        Transform foot = left ? leftFoot : rightFoot;
+        if (foot == null || !TryGround(foot.position, groundProbeDistance, out RaycastHit support)) return false;
+        position = support.point;
+        foreach (SolePoint point in solePoints)
+            if (point.left == left)
+                clearance = Mathf.Min(clearance, Vector3.Dot(support.normal, point.WorldPosition() - support.point));
+        if (float.IsPositiveInfinity(clearance))
+            clearance = foot.position.y - (left ? playerAnimator.leftFeetBottomHeight : playerAnimator.rightFeetBottomHeight) - support.point.y;
+        return true;
+    }
+
     private bool TryGround(Vector3 point, float reach, out RaycastHit support)
     {
         support = default;

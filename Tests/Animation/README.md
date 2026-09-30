@@ -4,6 +4,31 @@ Run `Tests/Animation/Run-AnimationChecks.ps1` with Unity 6000.5.7f1 installed (o
 
 The probe uses keyboard input through the real PlayerMovement component. It checks local movement and bone motion, remote movement animation, stable sprint state between network snapshots, stopping, downing, reviving, and instant death on both machines. Results are written to `AnimationBuild/animation-results-host.txt` and `animation-results-client.txt` inside the isolated project. Build/player logs are in `.utmp/animation-*.log`. Test saves use a separate company/product name.
 
+## Footstep audio
+
+`PlayerFootsteps` is attached to the shared Player prefab with all four carpet clips.
+The owner detects each sole's transition from lifted to planted after animation/IK
+and visual grounding. `FootTouchedGround(int)` is a UnityEvent (0 left, 1 right).
+Contact hysteresis prevents repeated events while a foot remains planted; idle,
+blocked movement, airborne feet and incapacitated players do not produce steps.
+No fixed timer or imported clip events are needed, including for procedural strafing.
+
+An ownership-required Mirror Command asks the server to select a clip excluding the
+previous index. A reliable ClientRpc sends that same foot/clip pair to all observers,
+including the owner, with no additional local playback on the host. Network latency
+therefore also delays the owner's sound. Offline test scenes play directly.
+Each foot has a runtime 3D AudioSource, linear attenuation from 1 to 15 metres,
+zero volume beyond 15 metres, no Doppler, and SoundCategoryVolume set to SFX.
+Tune volume/range/contact thresholds on PlayerFootsteps in the prefab. Carpet is
+currently used for all surfaces. PlayerNoise's existing walking/running levels remain
+the gameplay noise input; receiving another player's sound does not add local noise.
+
+The animation probe checks actual walk/run contact playback on host and client,
+non-repeating choices, SFX routing, distance settings, and idle/downed/dead silence.
+The runner compares the entire foot/clip sequence across both processes. To use a
+separate cache, pass `-TestProject '.utmp/footstep-build/Project'`. Logs still share
+the animation log names, so run one animation test at a time.
+
 ## Causes and fixes
 
 - Remote sprint previously compared displacement in one rendered frame against a speed threshold. NetworkTransform interpolation can pause or catch up between snapshots, so continuous sprinting repeatedly toggled the Animator back to walking. A two-process build reproduced sprint being active in only 81/121 samples on the host and 79/121 on the joining client. PlayerMovement now sends the owner's walking/sprinting choice when it changes, through an authority-required Command and server SyncVars. Local animation remains immediate; remote and newly spawned observers receive the same locomotion state. Downed/dead state still overrides locomotion.
