@@ -36368,7 +36368,7 @@ MonoBehaviour:
     flavor: 0
     movie: 2
     customer: 1
-    target: 10
+    target: 3
   - label: Sell Ticket 2 to Ghosts
     kind: 2
     flavor: 0
