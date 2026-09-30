@@ -513,8 +513,11 @@ public sealed class VoiceChatManager : MonoBehaviour
 
         // In a match (we have a body) voices come from bodies. In the lobby there are none.
         bool inMatch = PlayerVoice.Local != null;
+        // My round is over (results screen): the server only sends me other
+        // finished players, and they are played flat like the lobby, no radio.
+        bool finished = inMatch && MatchResultsUI.IsShowing;
         PlayerInventory myInventory = PlayerInventory.Local;
-        bool iHearRadio = inMatch && myInventory != null && myInventory.HasPoweredRadio;
+        bool iHearRadio = inMatch && !finished && myInventory != null && myInventory.HasPoweredRadio;
         PlayerNoise myNoise = PlayerNoise.Local;
 
         foreach (VoiceStream stream in snapshot)
@@ -524,7 +527,7 @@ public sealed class VoiceChatManager : MonoBehaviour
             bool fromNetwork = stream.ParticipantId.StartsWith(NetStreamPrefix);
             PlayerVoice talker = FindTalker(stream.ParticipantId);
             // Flat when there is no body to play from (lobby RoomPlayer, mixed EOS audio).
-            bool flat = !inMatch || stream.IsMixed || (fromNetwork && talker == null);
+            bool flat = !inMatch || finished || stream.IsMixed || (fromNetwork && talker == null);
             Transform parent = !flat && talker != null ? talker.Mouth : transform;
 
             VoicePlayback playback = FindPlayback(stream);

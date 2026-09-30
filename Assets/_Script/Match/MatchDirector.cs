@@ -555,6 +555,7 @@ public class MatchDirector : NetworkBehaviour
         downedCounts.Clear();
         currentlyDowned.Clear();
         resultsSent.Clear();
+        RoundList.Clear();
         hasSeenAnyPlayer = false;
         rosterTickAccumulator = 0f;
 
@@ -644,7 +645,22 @@ public class MatchDirector : NetworkBehaviour
 
     private void Update()
     {
-        if (phase == MatchPhase.Ended) return;
+        if (phase == MatchPhase.Ended)
+        {
+            // After the round the results screen still shows who is here, so
+            // keep marking players who leave the room.
+            if (NetworkMode.HasServerAuthority(this))
+            {
+                rosterTickAccumulator += Time.deltaTime;
+                if (rosterTickAccumulator >= 1f)
+                {
+                    rosterTickAccumulator = 0f;
+                    RefreshPlayerRoster();
+                    ServerUpdateRoundPlayers();
+                }
+            }
+            return;
+        }
 
         // The server owns the clock. Remote clients hold a synced copy and must
         // not tick it themselves, or six machines would drift apart and disagree
@@ -663,6 +679,7 @@ public class MatchDirector : NetworkBehaviour
             rosterTickAccumulator = 0f;
             RefreshPlayerRoster();
             ServerWatchPlayers();
+            ServerUpdateRoundPlayers();
             EvaluateRoundEnd();
 
             if (phase == MatchPhase.Ended) return;
@@ -1150,6 +1167,7 @@ public class MatchDirector : NetworkBehaviour
 
         escapedCount = escapedPlayers.Count;
         outcomes[id] = PlayerOutcome.EscapedThroughGate;
+        ServerUpdateRoundPlayers();
 
         // Out of the building: hide the body on every machine and show this
         // player their result straight away.
@@ -1286,6 +1304,7 @@ public class MatchDirector : NetworkBehaviour
     {
         RefreshPlayerRoster();
         ServerWatchPlayers();
+        ServerUpdateRoundPlayers();
         for (int i = 0; i < trackedPlayers.Count; i++)
             if (trackedPlayers[i] != null) ServerSendResult(trackedPlayers[i]);
     }
@@ -1340,12 +1359,132 @@ public class MatchDirector : NetworkBehaviour
     {
         foreach (Renderer r in body.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
 
-        // The owner keeps its CharacterController (its movement script still
-        // calls Move and would spam warnings); everyone else drops every collider
-        // so the invisible body does not block the door.
+        // FIX (30 Sep): the owner's body is a DYNAMIC Rigidbody. Turning its
+        // colliders off made it fall through the floor. The owner keeps its
+        // colliders and is frozen where it stands instead.
         bool owner = body.TryGetComponent(out NetworkIdentity id) && NetworkMode.IsLocalController(id);
-        foreach (Collider c in body.GetComponentsInChildren<Collider>(true))
-            if (!(owner && c is CharacterController)) c.enabled = false;
+        if (owner)
+        {
+            FreezeBody(body);
+            return;
+        }
+
+        // Everyone else: remote bodies are kinematic (moved by the network), so
+        // dropping their colliders is safe and the invisible body blocks nobody.
+        foreach (Collider c in body.GetComponentsInChildren<Collider>(true)) c.enabled = false;
+    }
+
+    /// <summary>
+    /// Stops a player's own body from moving or falling: velocity 0 and
+    /// kinematic, colliders untouched. Used when that player's round is over.
+    /// </summary>
+    public static void FreezeBody(GameObject body)
+    {
+        if (body == null || !body.TryGetComponent(out Rigidbody rb) || rb.isKinematic) return;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+    }
+
+    // ---- Player list for the results screen + post-round voice ---------------
+    //
+    // Every machine can read who is still playing / escaped / dead / left.
+    // The results screen shows it, and players whose round is over talk to
+    // each other flat (like the lobby); players still inside cannot hear them.
+
+    private readonly SyncList<RoundPlayerEntry> roundPlayers = new SyncList<RoundPlayerEntry>();
+    // Offline test: Mirror will not write a SyncList with no server/client running.
+    private readonly List<RoundPlayerEntry> offlineRoundPlayers = new List<RoundPlayerEntry>();
+    private IList<RoundPlayerEntry> RoundList => NetworkMode.IsOffline ? offlineRoundPlayers : (IList<RoundPlayerEntry>)roundPlayers;
+
+    public int RoundPlayerCount => RoundList.Count;
+    public RoundPlayerEntry RoundPlayerAt(int i) => RoundList[i];
+
+    /// <summary>Every machine: is this player's round over (escaped, dead, left, or the round ended)?</summary>
+    public bool IsFinished(uint playerNetId)
+    {
+        if (phase == MatchPhase.Ended) return true;
+        IList<RoundPlayerEntry> list = RoundList;
+        for (int i = 0; i < list.Count; i++)
+            if (list[i].netId == playerNetId) return list[i].state != (byte)RoundPlayerState.Playing;
+        return false;
+    }
+
+    /// <summary>SERVER: is this player's round over? Used by VoiceNetwork to route post-round voice.</summary>
+    public bool ServerIsFinished(NetworkIdentity player)
+    {
+        if (player == null) return false;
+        if (phase == MatchPhase.Ended) return true;
+        if (escapedPlayers.Contains(player.netId)) return true;
+        return player.TryGetComponent(out PlayerHealth health) && health.IsDead;
+    }
+
+    private void ServerUpdateRoundPlayers()
+    {
+        if (!NetworkMode.HasServerAuthority(this)) return;
+        IList<RoundPlayerEntry> list = RoundList;
+
+        for (int i = 0; i < trackedPlayers.Count; i++)
+        {
+            PlayerHealth health = trackedPlayers[i];
+            if (health == null) continue;
+            uint id = health.netIdentity != null ? health.netIdentity.netId : 0u;
+            byte state = (byte)(escapedPlayers.Contains(id) ? RoundPlayerState.Escaped
+                : health.IsDead ? RoundPlayerState.Dead
+                : RoundPlayerState.Playing);
+
+            int index = IndexOfRoundPlayer(list, id);
+            if (index < 0)
+            {
+                list.Add(new RoundPlayerEntry { netId = id, name = NameFor(health), state = state });
+            }
+            else if (list[index].state != state)
+            {
+                RoundPlayerEntry entry = list[index];
+                entry.state = state;
+                list[index] = entry;
+            }
+        }
+
+        // Anyone listed who is no longer connected has left the room.
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i].state == (byte)RoundPlayerState.Left || IsTracked(list[i].netId)) continue;
+            RoundPlayerEntry entry = list[i];
+            entry.state = (byte)RoundPlayerState.Left;
+            list[i] = entry;
+        }
+    }
+
+    private static int IndexOfRoundPlayer(IList<RoundPlayerEntry> list, uint netId)
+    {
+        for (int i = 0; i < list.Count; i++) if (list[i].netId == netId) return i;
+        return -1;
+    }
+
+    private bool IsTracked(uint netId)
+    {
+        for (int i = 0; i < trackedPlayers.Count; i++)
+        {
+            PlayerHealth health = trackedPlayers[i];
+            if (health != null && (health.netIdentity != null ? health.netIdentity.netId : 0u) == netId) return true;
+        }
+        return false;
+    }
+
+    /// <summary>The name the player typed in Settings (from their lobby player).</summary>
+    private static string NameFor(PlayerHealth health)
+    {
+        if (NetworkMode.IsOffline) return GameSettings.PlayerName;
+
+        RoHRoomManager room = RoHRoomManager.Instance;
+        if (room != null && health.connectionToClient != null)
+        {
+            foreach (NetworkRoomPlayer slot in room.roomSlots)
+                if (slot is RoHRoomPlayer player && player != null && player.connectionToClient == health.connectionToClient)
+                    return player.DisplayName;
+        }
+        return health.name;
     }
 
     // ---- SyncVar hooks (remote clients only) -------------------------------

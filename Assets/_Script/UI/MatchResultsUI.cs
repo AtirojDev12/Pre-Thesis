@@ -21,6 +21,23 @@ public struct MatchResult
     public bool consolation;      // true = died, flat consolation prize
 }
 
+/// <summary>Where one player is in the round, for the results screen's player list.</summary>
+public enum RoundPlayerState : byte
+{
+    Playing = 0,
+    Escaped = 1,
+    Dead = 2,
+    Left = 3,
+}
+
+/// <summary>One row of the results screen's player list. Synced by MatchDirector.</summary>
+public struct RoundPlayerEntry
+{
+    public uint netId;
+    public string name;
+    public byte state;   // (byte)RoundPlayerState
+}
+
 /// <summary>
 /// PROTOTYPE RESULTS SCREEN (Mr.k, 29 Sep). Shown to a player when THEIR round
 /// ends: they escaped, they died, or 07:00 came.
@@ -30,6 +47,10 @@ public struct MatchResult
 ///   - Tasks done x 10 = currency, counted up from 0
 ///   - Died: the consolation prize (+10) with a sorry message
 ///   - Back to Lobby (host, when the whole round is over) / Main Menu
+///   - PLAYERS list (30 Sep): who is still playing / escaped / dead / left.
+///     Players whose round is over hear each other flat, like the lobby
+///     (VoiceNetwork routes it); players still inside cannot hear them.
+///   - Your own body is frozen where it stands (it used to fall through the map).
 ///
 /// The currency is added to the save (SaveManager.Current) the moment this
 /// opens, once. Built in code; lives in the gameplay scene only.
@@ -52,6 +73,10 @@ public sealed class MatchResultsUI : MonoBehaviour
     private Button menuButton;
     private TMP_Text lobbyLabel;
     private bool leaving;
+
+    private const int MaxRows = 6;
+    private readonly TMP_Text[] playerRows = new TMP_Text[MaxRows];
+    private float nextListRefresh;
 
     private static readonly Color Gold = new Color(1f, 0.8f, 0.3f);
     private static readonly Color Good = new Color(0.45f, 1f, 0.55f);
@@ -84,6 +109,9 @@ public sealed class MatchResultsUI : MonoBehaviour
             SaveManager.AddCurrency(r.currency);
             SaveManager.SaveToDisk();
         }
+
+        // Your round is over: your body stays exactly where it is.
+        if (PlayerHealth.LocalInstance != null) MatchDirector.FreezeBody(PlayerHealth.LocalInstance.gameObject);
 
         PersistentHUD.PushHidden();
         Build();
@@ -123,35 +151,60 @@ public sealed class MatchResultsUI : MonoBehaviour
 
         var card = NewImage("Card", transform, new Color(0.11f, 0.09f, 0.08f, 1f)).rectTransform;
         card.anchorMin = card.anchorMax = card.pivot = new Vector2(0.5f, 0.5f);
-        card.sizeDelta = new Vector2(1000f, 760f);
+        card.sizeDelta = new Vector2(1500f, 780f);
+
+        // Left: this player's result. Right: everyone in the room.
+        RectTransform left = Column(card, "Result", 0f, 0.56f);
+        RectTransform right = Column(card, "Players", 0.56f, 1f);
+        var divider = NewImage("Divider", card, new Color(1f, 1f, 1f, 0.08f)).rectTransform;
+        divider.anchorMin = new Vector2(0.56f, 0f);
+        divider.anchorMax = new Vector2(0.56f, 1f);
+        divider.offsetMin = new Vector2(-1f, 150f);
+        divider.offsetMax = new Vector2(1f, -40f);
 
         PlayerOutcome outcome = (PlayerOutcome)result.outcome;
         bool dead = outcome == PlayerOutcome.Dead;
         string heading = dead ? "YOU DIED" : outcome == PlayerOutcome.EscapedThroughGate ? "YOU ESCAPED" : "YOU SURVIVED";
 
         float y = 40f;
-        Row(card, NewText("Heading", card, heading, 84f, dead ? Danger : Good, FontStyles.Bold), ref y, 110f);
-        Row(card, NewText("Downed", card, $"Times downed: {result.downedCount}", 40f, TextColor, FontStyles.Normal), ref y, 60f);
-        Row(card, NewText("Tasks", card, $"Tasks done: {result.tasksDone}", 40f, TextColor, FontStyles.Normal), ref y, 60f);
+        Row(left, NewText("Heading", left, heading, 84f, dead ? Danger : Good, FontStyles.Bold), ref y, 110f);
+        Row(left, NewText("Downed", left, $"Times downed: {result.downedCount}", 40f, TextColor, FontStyles.Normal), ref y, 60f);
+        Row(left, NewText("Tasks", left, $"Tasks done: {result.tasksDone}", 40f, TextColor, FontStyles.Normal), ref y, 60f);
 
         if (dead)
         {
-            TMP_Text sorry = NewText("Consolation", card,
+            TMP_Text sorry = NewText("Consolation", left,
                 "We feel sorry for your loss.\nThis is your consolation prize.", 34f, Muted, FontStyles.Italic);
             sorry.textWrappingMode = TextWrappingModes.Normal;
-            Row(card, sorry, ref y, 100f);
+            Row(left, sorry, ref y, 100f);
         }
         else
         {
-            Row(card, NewText("Formula", card,
+            Row(left, NewText("Formula", left,
                 $"{result.tasksDone} tasks x {result.currencyPerTask} = {result.currency}", 34f, Muted, FontStyles.Normal), ref y, 100f);
         }
 
-        currencyText = NewText("Currency", card, "+0", 72f, Gold, FontStyles.Bold);
-        Row(card, currencyText, ref y, 100f);
+        currencyText = NewText("Currency", left, "+0", 60f, Gold, FontStyles.Bold);
+        currencyText.textWrappingMode = TextWrappingModes.Normal;
+        Row(left, currencyText, ref y, 150f);
 
-        statusText = NewText("Status", card, "", 28f, Muted, FontStyles.Normal);
-        Row(card, statusText, ref y, 50f);
+        statusText = NewText("Status", left, "", 28f, Muted, FontStyles.Normal);
+        Row(left, statusText, ref y, 50f);
+
+        // Player list
+        float py = 40f;
+        Row(right, NewText("Players Title", right, "PLAYERS", 44f, Gold, FontStyles.Bold), ref py, 70f);
+        TMP_Text hint = NewText("Voice Hint", right,
+            "Players who have finished can talk to each other.", 24f, Muted, FontStyles.Italic);
+        hint.textWrappingMode = TextWrappingModes.Normal;
+        Row(right, hint, ref py, 60f);
+        for (int i = 0; i < MaxRows; i++)
+        {
+            playerRows[i] = NewText("Player " + (i + 1), right, "", 32f, TextColor, FontStyles.Normal);
+            playerRows[i].alignment = TextAlignmentOptions.MidlineLeft;
+            playerRows[i].overflowMode = TextOverflowModes.Ellipsis;
+            Row(right, playerRows[i], ref py, 58f);
+        }
 
         // Buttons
         var row = new GameObject("Buttons", typeof(RectTransform)).GetComponent<RectTransform>();
@@ -159,8 +212,8 @@ public sealed class MatchResultsUI : MonoBehaviour
         row.anchorMin = new Vector2(0f, 0f);
         row.anchorMax = new Vector2(1f, 0f);
         row.pivot = new Vector2(0.5f, 0f);
-        row.offsetMin = new Vector2(60f, 40f);
-        row.offsetMax = new Vector2(-60f, 120f);
+        row.offsetMin = new Vector2(200f, 40f);
+        row.offsetMax = new Vector2(-200f, 120f);
         var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
         layout.spacing = 40f;
         layout.childForceExpandWidth = true;
@@ -207,6 +260,46 @@ public sealed class MatchResultsUI : MonoBehaviour
         statusText.text = roundOver
             ? (hosting ? "Round over." : "Round over. Waiting for the host...")
             : "Waiting for the other players...";
+
+        if (Time.unscaledTime >= nextListRefresh)
+        {
+            nextListRefresh = Time.unscaledTime + 0.25f;
+            RefreshPlayerList(director);
+        }
+    }
+
+    private void RefreshPlayerList(MatchDirector director)
+    {
+        int count = director != null ? Mathf.Min(director.RoundPlayerCount, MaxRows) : 0;
+        uint me = PlayerHealth.LocalInstance != null && PlayerHealth.LocalInstance.netIdentity != null
+            ? PlayerHealth.LocalInstance.netIdentity.netId : 0u;
+
+        for (int i = 0; i < MaxRows; i++)
+        {
+            TMP_Text row = playerRows[i];
+            if (i >= count)
+            {
+                if (row.text.Length > 0) row.text = "";
+                continue;
+            }
+
+            RoundPlayerEntry entry = director.RoundPlayerAt(i);
+            string name = string.IsNullOrEmpty(entry.name) ? "Player " + (i + 1) : entry.name;
+            if (entry.netId == me) name += " (you)";
+
+            string label;
+            string color;
+            switch ((RoundPlayerState)entry.state)
+            {
+                case RoundPlayerState.Escaped: label = "ESCAPED"; color = "#73FF8C"; break;
+                case RoundPlayerState.Dead:    label = "DEAD"; color = "#FF594D"; break;
+                case RoundPlayerState.Left:    label = "LEFT THE GAME"; color = "#8C8A88"; break;
+                default:                       label = "STILL PLAYING"; color = "#F2EDE6"; break;
+            }
+
+            string text = $"{name}   <color={color}>{label}</color>";
+            if (row.text != text) row.text = text;
+        }
     }
 
     // ---- Buttons ---------------------------------------------------------------
@@ -238,6 +331,18 @@ public sealed class MatchResultsUI : MonoBehaviour
     }
 
     // ---- Small UI helpers -------------------------------------------------------
+
+    /// <summary>A full-height column of the card, from x0 to x1 (0..1 of the card width).</summary>
+    private static RectTransform Column(RectTransform card, string name, float x0, float x1)
+    {
+        var rt = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
+        rt.SetParent(card, false);
+        rt.anchorMin = new Vector2(x0, 0f);
+        rt.anchorMax = new Vector2(x1, 1f);
+        rt.offsetMin = new Vector2(0f, 140f); // leave room for the buttons
+        rt.offsetMax = Vector2.zero;
+        return rt;
+    }
 
     private static void Row(RectTransform card, TMP_Text text, ref float y, float height)
     {

@@ -8,7 +8,8 @@ using UnityEngine;
 ///
 /// Adds the prototype game-loop objects to the OPEN scene (Cinema_GamePlay):
 ///   - "Task Board - Popcorn & Water"  (BBQ / Cheese / Paprika / Water, 15 each)
-///   - "Task Board - Tickets"          (Humans 15, Ghosts 15)
+///   - "Task Board - Tickets"          (Ticket 1/2/3 x Human/Ghost, 15 each)
+///     (an existing board with the old 2 lines is updated to these 6)
 ///   - "Exit (Prototype)"               (walk-in exit, glows when open, fits 6)
 /// They appear in front of the Scene view camera. MOVE THEM to the right places,
 /// then save the scene (Ctrl+S). Running it again does not make duplicates.
@@ -55,15 +56,24 @@ public static class GameplayLoopSetup
             made++;
         }
 
-        if (FindBoard("zone_ticket") == null)
+        ZoneTaskList ticketBoard = FindBoard("zone_ticket");
+        if (ticketBoard == null)
         {
             last = MakeBoard("Task Board - Tickets", "zone_ticket", "TICKETS",
-                origin + facing * new Vector3(1.2f, 1.6f, 0f), facing, so =>
-                {
-                    AddTask(so, "Sell tickets to Humans", ZoneTaskKind.Ticket, PopcornFlavor.None, 0, 15, ZoneTaskCustomer.Human);
-                    AddTask(so, "Sell tickets to Ghosts", ZoneTaskKind.Ticket, PopcornFlavor.None, 0, 15, ZoneTaskCustomer.Ghost);
-                });
+                origin + facing * new Vector3(1.2f, 1.6f, 0f), facing, AddTicketTasks);
             made++;
+        }
+        else if (HasOldTicketLines(ticketBoard))
+        {
+            // 30 Sep: Mr.k wants one line per ticket x customer (6 lines), not 2.
+            var so = new SerializedObject(ticketBoard);
+            Undo.RecordObject(ticketBoard, "Update ticket board");
+            so.FindProperty("tasks").ClearArray();
+            AddTicketTasks(so);
+            so.ApplyModifiedProperties();
+            last = ticketBoard.gameObject;
+            made++;
+            Debug.Log("[GameplayLoopSetup] Ticket board updated to 6 lines (Ticket 1/2/3 x Human/Ghost).", ticketBoard);
         }
 
         if (GameObject.Find("Exit (Prototype)") == null)
@@ -88,6 +98,24 @@ public static class GameplayLoopSetup
         foreach (ZoneTaskList board in Object.FindObjectsByType<ZoneTaskList>())
             if (board.ZoneID == zoneID) return board;
         return null;
+    }
+
+    /// <summary>Ticket 1/2/3 to Humans and to Ghosts, 15 each (Mr.k, 30 Sep).</summary>
+    private static void AddTicketTasks(SerializedObject so)
+    {
+        for (int movie = 1; movie <= 3; movie++)
+        {
+            AddTask(so, $"Sell Ticket {movie} to Humans", ZoneTaskKind.Ticket, PopcornFlavor.None, movie, 15, ZoneTaskCustomer.Human);
+            AddTask(so, $"Sell Ticket {movie} to Ghosts", ZoneTaskKind.Ticket, PopcornFlavor.None, movie, 15, ZoneTaskCustomer.Ghost);
+        }
+    }
+
+    /// <summary>The first version's 2 lines ("Sell tickets to Humans / Ghosts"), not edited by hand.</summary>
+    private static bool HasOldTicketLines(ZoneTaskList board)
+    {
+        return board.TaskCount == 2 &&
+               board.TaskAt(0).label == "Sell tickets to Humans" &&
+               board.TaskAt(1).label == "Sell tickets to Ghosts";
     }
 
     private static GameObject MakeBoard(string name, string zoneID, string title, Vector3 position, Quaternion rotation,

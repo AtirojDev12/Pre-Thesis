@@ -178,6 +178,12 @@ public static class VoiceNetwork
         float maxDistance = VoicePlayback.MaxHearingDistance + HearingMargin;
         Vector3 talkerPosition = talker.transform.position;
 
+        // After their round is over (escaped / dead / round ended) players talk
+        // only to each other, heard flat like the lobby. Players still inside
+        // cannot hear them, and they cannot hear the players still inside.
+        MatchDirector director = inMatch ? MatchDirector.Instance : null;
+        bool talkerFinished = director != null && director.ServerIsFinished(talker);
+
         foreach (NetworkConnectionToClient listener in NetworkServer.connections.Values)
         {
             if (listener == null || listener == sender || !listener.isReady || listener.identity == null) continue;
@@ -186,6 +192,12 @@ public static class VoiceNetwork
             if (!inMatch)
             {
                 flags = FlagProximity; // lobby: everyone hears everyone (played flat)
+            }
+            else if (director != null && (talkerFinished || director.ServerIsFinished(listener.identity)))
+            {
+                // Both finished: heard at any distance (played flat). Only one: not sent.
+                if (!talkerFinished || !director.ServerIsFinished(listener.identity)) continue;
+                flags = FlagProximity;
             }
             else
             {

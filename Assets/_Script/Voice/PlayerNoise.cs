@@ -151,6 +151,16 @@ public sealed class PlayerNoise : MonoBehaviour
 
         float dt = Time.unscaledDeltaTime;
 
+        // Round over for this player (results screen): they make no noise in the map.
+        if (MatchResultsUI.IsShowing)
+        {
+            Mic = 0f;
+            Game = 0f;
+            spike = 0f;
+            SendToServer();
+            return;
+        }
+
         // MIC: VoiceChatManager already reports 0 while the Esc menu is open.
         Mic = Follow(Mic, VoiceChatManager.MicLoudness, MicRelease, dt);
 
