@@ -47,6 +47,7 @@ public sealed class PlayerNoise : MonoBehaviour
     // ---- Game-noise tuning (0..1) -------------------------------------------
     // Raised 29 Sep (Mr.k): in-game noise should reach red more easily.
     public const float WalkNoise = 0.3f;
+    public const float CrouchWalkNoise = 0.12f;
     public const float SprintNoise = 0.6f;
     public const float RadioClickNoise = 0.5f;
     /// <summary>Radio playing a voice: base + this much of the voice's loudness (0.45..1.0, a loud voice turns it red).</summary>
@@ -179,7 +180,11 @@ public sealed class PlayerNoise : MonoBehaviour
         if (movement == null || GameplayInput.Blocked) return 0f;
         float speed = movement.CurrentMovementSpeed;
         if (speed <= 0.05f) return 0f;
-        return speed > movement.moveSpeed + 0.1f ? SprintNoise : WalkNoise;
+        Rigidbody body = movement.GetComponent<Rigidbody>();
+        if (body != null && new Vector2(body.linearVelocity.x, body.linearVelocity.z).sqrMagnitude < 0.01f)
+            return 0f;
+        if (movement.IsCrouching) return CrouchWalkNoise;
+        return movement.IsSprinting ? SprintNoise : WalkNoise;
     }
 
     /// <summary>Jumps up at once, falls back at <paramref name="release"/> per second.</summary>

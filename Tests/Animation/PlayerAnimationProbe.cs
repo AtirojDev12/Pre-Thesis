@@ -20,6 +20,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
     Mesh groundingMesh;
     readonly Dictionary<PlayerHealth, List<string>> footsteps = new Dictionary<PlayerHealth, List<string>>();
     readonly Dictionary<PlayerHealth, int> previousClip = new Dictionary<PlayerHealth, int>();
+    readonly Dictionary<PlayerHealth, float[]> lastFootTime = new Dictionary<PlayerHealth, float[]>();
     void CapturePose(PlayerMovement player, string name)
     {
         var cameraObject = new GameObject("Pose review camera");
@@ -131,10 +132,13 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         {
             footsteps[p] = new List<string>();
             previousClip[p] = -1;
+            lastFootTime[p] = new[] { -999f, -999f };
             var stepper = p.GetComponent<PlayerFootsteps>();
             Check(stepper != null, "Player prefab has footsteps");
             stepper.FootstepPlayed += (foot, clip) => {
                 if (clip == previousClip[p]) Check(false, "Footstep repeated the previous clip");
+                if (Time.time - lastFootTime[p][foot] < 0.22f) Check(false, "Rapid repeated foot contact");
+                lastFootTime[p][foot] = Time.time;
                 previousClip[p] = clip;
                 footsteps[p].Add(foot + ":" + clip);
             };
@@ -143,7 +147,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 "Footsteps use 3D attenuation with 15m cutoff");
             float savedVolume = GameSettings.SfxVolume;
             GameSettings.SfxVolume = 0.25f;
-            Check(Mathf.Abs(source.volume - 0.2f) < 0.001f, "Footsteps follow SFX volume");
+            Check(Mathf.Abs(source.volume - 0.05f) < 0.001f, "Footsteps follow SFX volume");
             GameSettings.SfxVolume = savedVolume;
         }
         if (NetworkClient.localPlayer != null)
@@ -195,9 +199,12 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 }
             }
             var mover = NetworkClient.localPlayer.GetComponent<PlayerMovement>();
-            var directions = new[] { new Vector2(0,-1), new Vector2(-1,0), new Vector2(1,0), new Vector2(1,-1).normalized, Vector2.zero };
+            var directions = new[] { new Vector2(0,-1), new Vector2(-1,0), new Vector2(1,0),
+                new Vector2(1,-1).normalized, new Vector2(-1,1).normalized,
+                new Vector2(1,1).normalized, Vector2.zero };
             var inputs = new[] { new KeyboardState(Key.S, Key.LeftShift), new KeyboardState(Key.A), new KeyboardState(Key.D),
-                new KeyboardState(Key.S, Key.D), new KeyboardState(Key.W, Key.S, Key.A, Key.D) };
+                new KeyboardState(Key.S, Key.D), new KeyboardState(Key.W, Key.A),
+                new KeyboardState(Key.W, Key.D), new KeyboardState(Key.W, Key.S, Key.A, Key.D) };
             for (int i = 0; i < directions.Length; i++)
             {
                 int beforeDirectionSteps = footsteps[mover.GetComponent<PlayerHealth>()].Count;
@@ -250,6 +257,94 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 if (directions[i] != Vector2.zero)
                     Check(footsteps[mover.GetComponent<PlayerHealth>()].Count > beforeDirectionSteps, "Foot contacts during direction " + i);
             }
+            foreach (var phase in new[] {
+                new { keys = new KeyboardState(Key.A, Key.LeftShift), state = "Strafe Run Left", direction = -1f },
+                new { keys = new KeyboardState(Key.D, Key.LeftShift), state = "Strafe Run Right", direction = 1f } })
+            {
+                int before = footsteps[mover.GetComponent<PlayerHealth>()].Count;
+                for (float until = Time.time + 1.4f; Time.time < until;)
+                {
+                    InputSystem.QueueStateEvent(keyboard, phase.keys);
+                    yield return null;
+                }
+                foreach (var p in players)
+                {
+                    var animator = p.GetComponent<Animator>();
+                    Check(animator.GetCurrentAnimatorStateInfo(0).IsName(phase.state),
+                        (p.isLocalPlayer ? "Local" : "Remote") + " uses " + phase.state);
+                    if (p.isLocalPlayer)
+                        Check(animator.GetBool("IsSprinting") &&
+                              Mathf.Sign(p.GetComponent<PlayerMovement>().AnimationDirection.x) == phase.direction,
+                              "Owner strafe run direction and sprint respond immediately");
+                }
+                Check(footsteps[mover.GetComponent<PlayerHealth>()].Count > before,
+                    "Strafe running produces foot contacts");
+            }
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
+            yield return null;
+            for (float until = Time.time + 0.5f; Time.time < until;)
+            {
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                yield return null;
+            }
+            foreach (var p in players)
+            {
+                Check(p.GetComponent<PlayerMovement>().IsCrouching &&
+                      p.GetComponent<Animator>().GetCurrentAnimatorStateInfo(0).IsName("Crouch Idle"),
+                      (p.isLocalPlayer ? "Local" : "Remote") + " crouch idle");
+                Check(Mathf.Abs(p.GetComponent<CapsuleCollider>().height - 1.2f) < 0.01f,
+                      "Crouch capsule height replicated");
+            }
+            int crouchStepStart = footsteps[mover.GetComponent<PlayerHealth>()].Count;
+            for (float until = Time.time + 1.3f; Time.time < until;)
+            {
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W, Key.LeftShift));
+                yield return null;
+            }
+            foreach (var p in players)
+                Check(p.GetComponent<Animator>().GetCurrentAnimatorStateInfo(0).IsName("Crouch Walk") &&
+                      !p.GetComponent<Animator>().GetBool("IsSprinting"),
+                      (p.isLocalPlayer ? "Local" : "Remote") + " crouch walks without sprinting");
+            Check(footsteps[mover.GetComponent<PlayerHealth>()].Count > crouchStepStart,
+                "Crouch walking produces foot contacts");
+            Check(PlayerNoise.Local != null && PlayerNoise.Local.Game <= PlayerNoise.WalkNoise,
+                "Crouch walking stays quieter than normal walking");
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return new WaitForSecondsRealtime(0.3f);
+            var ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ceiling.transform.position = mover.transform.position + Vector3.up * 0.68f;
+            ceiling.transform.localScale = new Vector3(2f, 0.2f, 2f);
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
+            yield return null;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return new WaitForSecondsRealtime(0.3f);
+            Check(mover.IsCrouching, "Ceiling blocks standing");
+            Destroy(ceiling);
+            yield return null;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
+            yield return null;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return new WaitForSecondsRealtime(0.4f);
+            foreach (var p in players)
+                Check(!p.GetComponent<PlayerMovement>().IsCrouching &&
+                      Mathf.Abs(p.GetComponent<CapsuleCollider>().height - 2f) < 0.01f,
+                      (p.isLocalPlayer ? "Local" : "Remote") + " stands after ceiling clears");
+            var movingBody = mover.GetComponent<Rigidbody>();
+            // Teleporting for the airborne input check is outside locomotion;
+            // exclude the network interpolation settling frames from ground QA.
+            groundingPlayers = null;
+            Vector3 groundedPosition = movingBody.position;
+            movingBody.position = groundedPosition + Vector3.up * 3f;
+            movingBody.linearVelocity = Vector3.zero;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
+            yield return null;
+            Check(!mover.IsCrouching, "Cannot crouch while airborne");
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            movingBody.position = groundedPosition;
+            movingBody.linearVelocity = Vector3.zero;
+            yield return new WaitForFixedUpdate();
+            yield return new WaitForSecondsRealtime(0.5f);
+            groundingPlayers = players;
             Vector3 wallStart = mover.transform.position;
             var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wall.transform.position = wallStart + mover.transform.forward * 2f;
@@ -292,6 +387,10 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         yield return WaitForHealth(players, 1);
         foreach (var p in players)
             Check(p.IsDowned && p.GetComponent<Animator>().GetCurrentAnimatorStateInfo(0).IsName("Dying"), (p.isLocalPlayer ? "Local" : "Remote") + " downed animation still works");
+        if (Keyboard.current != null) InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.C));
+        yield return null;
+        foreach (var p in players) Check(!p.GetComponent<PlayerMovement>().IsCrouching, "Cannot crouch while downed");
+        if (Keyboard.current != null) InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState());
         if (!client) yield return new WaitForSecondsRealtime(1);
         if (!client) foreach (var p in players) p.Revive();
         yield return WaitForHealth(players, 0);

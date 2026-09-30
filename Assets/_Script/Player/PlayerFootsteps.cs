@@ -32,6 +32,7 @@ public sealed class PlayerFootsteps : NetworkBehaviour
     private bool initialized;
     private int lastClip = -1;
     private readonly double[] nextServerStep = new double[2];
+    private readonly float[] nextLocalStep = new float[2];
 
     private void Awake()
     {
@@ -66,7 +67,10 @@ public sealed class PlayerFootsteps : NetworkBehaviour
             bool contact = supported && gap <= (planted[foot] ? Mathf.Max(contactHeight, releaseHeight) : contactHeight);
             bool landed = initialized && contact && !planted[foot];
             planted[foot] = contact;
-            if (!landed || !moving) continue;
+            if (!landed || !moving || Time.time < nextLocalStep[foot]) continue;
+            // Each clip plants a given foot once per cycle (1.03 s walk/crouch,
+            // 0.67 s strafe run). This also rejects threshold bounce.
+            nextLocalStep[foot] = Time.time + (movement.IsSprinting ? 0.28f : 0.42f);
             FootTouchedGround.Invoke(foot);
             if (NetworkMode.IsOffline) ChooseAndPlay(foot);
             else if (isLocalPlayer && NetworkClient.ready) CmdFootContact(foot);
@@ -81,7 +85,7 @@ public sealed class PlayerFootsteps : NetworkBehaviour
     {
         // Mirror enforces ownership. Reject invalid/spammed contacts and dead players.
         if (foot < 0 || foot > 1 || Incapacitated || NetworkTime.time < nextServerStep[foot]) return;
-        nextServerStep[foot] = NetworkTime.time + 0.08;
+        nextServerStep[foot] = NetworkTime.time + (movement.IsSprinting ? 0.25 : 0.38);
         ChooseAndPlay(foot);
     }
 

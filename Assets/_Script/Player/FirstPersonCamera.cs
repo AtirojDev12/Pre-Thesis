@@ -19,6 +19,8 @@ public class FirstPersonCamera : MonoBehaviour
     [Header("Stable Camera Mount")]
     [Tooltip("Camera-pivot position relative to the non-animated player controller.")]
     [SerializeField] private Vector3 cameraLocalPosition = new Vector3(0f, 0.81f, 0.05f);
+    [SerializeField] private float crouchCameraDrop = 0.65f;
+    [SerializeField] private float crouchCameraLerpSpeed = 9f;
 
     [Header("Mouse Settings")]
     public float mouseSensitivity = 0.1f;
@@ -62,6 +64,8 @@ public class FirstPersonCamera : MonoBehaviour
     private NetworkIdentity ownerIdentity;
     private PlayerHealth playerHealth;
     private PlayerStamina playerStamina;
+    private PlayerMovement playerMovement;
+    private float crouchCameraOffset;
     private Camera viewCamera;
     private bool initialised;
     private bool wasIncapacitated;
@@ -78,6 +82,7 @@ public class FirstPersonCamera : MonoBehaviour
         ownerIdentity = GetComponentInParent<NetworkIdentity>();
         playerHealth = GetComponentInParent<PlayerHealth>();
         playerStamina = GetComponentInParent<PlayerStamina>();
+        playerMovement = GetComponentInParent<PlayerMovement>();
         viewCamera = GetComponent<Camera>();
         if (viewCamera == null) viewCamera = GetComponentInChildren<Camera>(true);
 
@@ -303,7 +308,10 @@ public class FirstPersonCamera : MonoBehaviour
 
         // The neutral local rotation is exactly forward. Only explicit look
         // input changes pitch/yaw; animation can no longer tilt or roll it.
-        transform.localPosition = cameraLocalPosition + currentMotionOffset;
+        float targetDrop = playerMovement != null && playerMovement.IsCrouching ? crouchCameraDrop : 0f;
+        crouchCameraOffset = Mathf.Lerp(crouchCameraOffset, targetDrop,
+            1f - Mathf.Exp(-crouchCameraLerpSpeed * Time.deltaTime));
+        transform.localPosition = cameraLocalPosition + currentMotionOffset + Vector3.down * crouchCameraOffset;
         transform.localRotation = Quaternion.Euler(
             verticalRotation,
             downedHorizontalRotation,

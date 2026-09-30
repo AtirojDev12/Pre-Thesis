@@ -22,6 +22,10 @@ public class PlayerMovement : NetworkBehaviour
     private static readonly int IsDownedParameter = Animator.StringToHash("IsDowned");
     private static readonly int IsDeadParameter = Animator.StringToHash("IsDead");
     private static readonly int RunningState = Animator.StringToHash("Running");
+    private static readonly int HorizontalParameter = Animator.StringToHash("Horizontal");
+    private static readonly int VerticalParameter = Animator.StringToHash("Vertical");
+    private static readonly int CrouchingParameter = Animator.StringToHash("IsCrouching");
+    private static readonly int LocomotionParameter = Animator.StringToHash("Locomotion");
 
     [Header("Movement")]
     public float moveSpeed = 5f;
@@ -30,6 +34,8 @@ public class PlayerMovement : NetworkBehaviour
     [Min(0f)] public float sprintSpeed = 8f;
     [Range(0.1f, 1f)] public float backwardSpeedMultiplier = 0.55f;
     [Range(0.1f, 1f)] public float strafeSpeedMultiplier = 0.8f;
+    [Range(0.1f, 1f)] [SerializeField] private float crouchSpeedMultiplier = 0.45f;
+    [SerializeField] private float crouchHeight = 1.2f;
 
     [Header("Camera")]
     public Transform playerCamera;
@@ -56,6 +62,12 @@ public class PlayerMovement : NetworkBehaviour
     private PlayerHealth playerHealth;
     private PlayerStamina playerStamina;
     private bool isSprinting;
+    private bool localCrouch;
+    [SyncVar] private bool networkCrouch;
+    private float standingHeight;
+    private Vector3 standingCenter;
+    public bool IsCrouching => NetworkMode.IsLocalController(this) ? localCrouch : networkCrouch;
+    public bool IsSprinting => isSprinting;
     private Transform hips;
     private Transform leftFoot;
     private Transform rightFoot;
@@ -70,6 +82,7 @@ public class PlayerMovement : NetworkBehaviour
     private bool sentAnimationState;
     private bool lastSentMoving;
     private bool lastSentSprinting;
+    private bool lastSentCrouch;
     [SyncVar] private Vector2 animationDirection;
     private Vector2 lastSentDirection;
     private Vector2 localDirection;
@@ -81,7 +94,7 @@ public class PlayerMovement : NetworkBehaviour
             Vector2 direction = AnimationDirection.normalized;
             float forwardScale = direction.y < 0f ? backwardSpeedMultiplier : 1f;
             float scale = new Vector2(direction.x * strafeSpeedMultiplier, direction.y * forwardScale).magnitude;
-            return (isSprinting ? sprintSpeed : moveSpeed) * scale;
+            return (isSprinting ? sprintSpeed : moveSpeed) * scale * (IsCrouching ? crouchSpeedMultiplier : 1f);
         }
     }
 
@@ -123,6 +136,7 @@ public class PlayerMovement : NetworkBehaviour
     {
         rb = GetComponent<Rigidbody>();
         bodyCollider = GetComponent<CapsuleCollider>();
+        if (bodyCollider != null) { standingHeight = bodyCollider.height; standingCenter = bodyCollider.center; }
         playerHealth = GetComponent<PlayerHealth>();
         playerStamina = GetComponent<PlayerStamina>();
 
@@ -173,6 +187,7 @@ public class PlayerMovement : NetworkBehaviour
         if (!NetworkMode.IsLocalController(this))
         {
             movement = Vector3.zero;
+            ApplyCrouchShape(networkCrouch);
             UpdateRemoteWalkingAnimation(isDowned || isDead);
             return;
         }
@@ -181,6 +196,8 @@ public class PlayerMovement : NetworkBehaviour
         if (playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead))
         {
             movement = Vector3.zero;
+            localCrouch = false;
+            ApplyCrouchShape(false);
             SetSprinting(playerStamina != null
                 ? playerStamina.UpdateSprint(false, Time.deltaTime)
                 : false);
@@ -189,7 +206,7 @@ public class PlayerMovement : NetworkBehaviour
         }
 
         // GameplayInput.Blocked: the Esc menu is open, so W/A/S/D/Shift do nothing.
-        if (Keyboard.current == null || playerCamera == null || GameplayInput.Blocked)
+        if (playerCamera == null || GameplayInput.Blocked)
         {
             movement = Vector3.zero;
             SetSprinting(playerStamina != null
@@ -203,13 +220,22 @@ public class PlayerMovement : NetworkBehaviour
         float horizontal = 0f;
         float vertical = 0f;
 
-        // A / D
-        if (Keyboard.current.aKey.isPressed) horizontal -= 1f;
-        if (Keyboard.current.dKey.isPressed) horizontal += 1f;
-
-        // W / S
-        if (Keyboard.current.wKey.isPressed) vertical += 1f;
-        if (Keyboard.current.sKey.isPressed) vertical -= 1f;
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.aKey.isPressed) horizontal -= 1f;
+            if (Keyboard.current.dKey.isPressed) horizontal += 1f;
+            if (Keyboard.current.wKey.isPressed) vertical += 1f;
+            if (Keyboard.current.sKey.isPressed) vertical -= 1f;
+        }
+        if (Gamepad.current != null)
+        {
+            Vector2 stick = Gamepad.current.leftStick.ReadValue();
+            if (stick.sqrMagnitude > 0.04f) { horizontal = stick.x; vertical = stick.y; }
+        }
+        bool crouchPressed = (Keyboard.current != null && Keyboard.current.cKey.wasPressedThisFrame) ||
+                             (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame);
+        if (crouchPressed && IsGroundedForStance() && (!localCrouch || CanStand())) localCrouch = !localCrouch;
+        ApplyCrouchShape(localCrouch);
 
         // ทิศทางของกล้อง
         Vector3 forward = playerCamera.forward;
@@ -227,8 +253,10 @@ public class PlayerMovement : NetworkBehaviour
         // ป้องกันเดินเฉียงเร็วเกินไป
         movement = Vector3.ClampMagnitude(movement, 1f);
 
-        bool wantsToSprint = vertical > 0f && movement.sqrMagnitude > 0.01f &&
-                             Keyboard.current.leftShiftKey.isPressed;
+        bool shift = (Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed) ||
+                     (Gamepad.current != null && Gamepad.current.leftStickButton.isPressed);
+        bool wantsToSprint = !localCrouch && movement.sqrMagnitude > 0.01f && shift &&
+                             (vertical > 0f || Mathf.Abs(horizontal) > 0.01f);
         SetSprinting(playerStamina != null
             ? playerStamina.UpdateSprint(wantsToSprint, Time.deltaTime)
             : wantsToSprint);
@@ -243,30 +271,47 @@ public class PlayerMovement : NetworkBehaviour
         SetAnimationSpeed(movement.magnitude);
         if (NetworkMode.IsOffline || !isLocalPlayer) return;
         bool moving = movement.sqrMagnitude > 0.01f;
-        if (sentAnimationState && moving == lastSentMoving && isSprinting == lastSentSprinting &&
+        if (sentAnimationState && moving == lastSentMoving && isSprinting == lastSentSprinting && localCrouch == lastSentCrouch &&
             (localDirection - lastSentDirection).sqrMagnitude < 0.0025f) return;
         sentAnimationState = true;
         lastSentMoving = moving;
         lastSentSprinting = isSprinting;
+        lastSentCrouch = localCrouch;
         lastSentDirection = localDirection;
-        CmdSetAnimationState(localDirection, isSprinting);
+        CmdSetAnimationState(localDirection, isSprinting, localCrouch);
     }
 
     [Command]
-    private void CmdSetAnimationState(Vector2 direction, bool sprinting)
+    private void CmdSetAnimationState(Vector2 direction, bool sprinting, bool crouching)
     {
         bool incapacitated = playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead);
         if (float.IsNaN(direction.x) || float.IsNaN(direction.y) ||
             float.IsInfinity(direction.x) || float.IsInfinity(direction.y)) direction = Vector2.zero;
         animationDirection = incapacitated ? Vector2.zero : Vector2.ClampMagnitude(direction, 1f);
         animationMoving = animationDirection.sqrMagnitude > 0.01f;
-        animationSprinting = sprinting && animationMoving && animationDirection.y > 0f;
+        bool acceptedCrouch = !incapacitated && crouching;
+        if (acceptedCrouch && !networkCrouch && !IsGroundedForStance()) acceptedCrouch = false;
+        if (!incapacitated && !acceptedCrouch && networkCrouch && !CanStand()) acceptedCrouch = true;
+        networkCrouch = acceptedCrouch;
+        ApplyCrouchShape(networkCrouch);
+        if (networkCrouch != crouching) TargetCorrectCrouch(connectionToClient, networkCrouch);
+        animationSprinting = sprinting && animationMoving && !networkCrouch &&
+                             (animationDirection.y > 0f || Mathf.Abs(animationDirection.x) > 0.01f);
+    }
+
+    [TargetRpc]
+    private void TargetCorrectCrouch(NetworkConnectionToClient target, bool accepted)
+    {
+        localCrouch = accepted;
+        ApplyCrouchShape(accepted);
+        sentAnimationState = false;
     }
 
     private void UpdateRemoteWalkingAnimation(bool isIncapacitated)
     {
         SetSprinting(!isIncapacitated && animationSprinting);
         SetAnimationSpeed(!isIncapacitated && animationMoving ? 1f : 0f);
+        SetDirectionalAnimation(isIncapacitated ? Vector2.zero : animationDirection, networkCrouch);
     }
 
     private void SetSprinting(bool value)
@@ -285,6 +330,53 @@ public class PlayerMovement : NetworkBehaviour
             speed,
             animationDampTime,
             Time.deltaTime);
+        SetDirectionalAnimation(localDirection, localCrouch);
+    }
+
+    private void SetDirectionalAnimation(Vector2 direction, bool crouching)
+    {
+        if (playerAnimator == null) return;
+        playerAnimator.SetFloat(HorizontalParameter, direction.x, animationDampTime, Time.deltaTime);
+        playerAnimator.SetFloat(VerticalParameter, direction.y, animationDampTime, Time.deltaTime);
+        playerAnimator.SetBool(CrouchingParameter, crouching);
+        int state = 0; // Idle
+        if (direction.sqrMagnitude > 0.01f)
+        {
+            if (crouching) state = 7;
+            else if (Mathf.Abs(direction.x) >= Mathf.Abs(direction.y) && Mathf.Abs(direction.x) > 0.1f)
+                state = direction.x < 0f ? (isSprinting ? 4 : 2) : (isSprinting ? 5 : 3);
+            else state = isSprinting ? 6 : 1;
+        }
+        else if (crouching) state = 8;
+        playerAnimator.SetInteger(LocomotionParameter, state);
+    }
+
+    private bool IsGroundedForStance() => rb != null && Mathf.Abs(rb.linearVelocity.y) < 1.5f &&
+        TryGround(transform.position, groundProbeDistance, out _);
+
+    private bool CanStand()
+    {
+        if (bodyCollider == null || standingHeight <= 0f) return true;
+        float radius = bodyCollider.radius * 0.95f;
+        Vector3 center = transform.TransformPoint(standingCenter);
+        // Probe only the volume newly occupied by the head/shoulders. Testing
+        // the full standing capsule would include the floor at the feet.
+        float currentTop = bodyCollider.bounds.max.y;
+        float standingTop = center.y + standingHeight * 0.5f;
+        Vector3 bottom = new Vector3(center.x, currentTop + radius, center.z);
+        Vector3 top = new Vector3(center.x, standingTop - radius, center.z);
+        Collider[] hits = Physics.OverlapCapsule(bottom, top, radius, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        foreach (Collider hit in hits)
+            if (hit != bodyCollider && !hit.transform.IsChildOf(transform)) return false;
+        return true;
+    }
+
+    private void ApplyCrouchShape(bool crouch)
+    {
+        if (bodyCollider == null || standingHeight <= 0f) return;
+        float height = crouch ? Mathf.Clamp(crouchHeight, bodyCollider.radius * 2f, standingHeight) : standingHeight;
+        bodyCollider.height = height;
+        bodyCollider.center = standingCenter + Vector3.down * ((standingHeight - height) * 0.5f);
     }
 
     private void CacheRunningPoseReference()
@@ -375,6 +467,10 @@ public class PlayerMovement : NetworkBehaviour
         // Include the blend out of Running, even after Shift has been released.
         bool runningPose = playerAnimator.GetCurrentAnimatorStateInfo(0).shortNameHash == RunningState ||
             (playerAnimator.IsInTransition(0) && playerAnimator.GetNextAnimatorStateInfo(0).shortNameHash == RunningState);
+        // The new FBXs contain metres of lateral/forward translation on Hips.
+        // Physics owns displacement; otherwise the visible model slides away
+        // from its collider and snaps back at each loop boundary.
+        bool locomotionPose = playerAnimator.GetInteger(LocomotionParameter) != 0;
 
         if (hips == null)
         {
@@ -387,7 +483,7 @@ public class PlayerMovement : NetworkBehaviour
         // but it still shifts the entire rendered skeleton left/right. Remove
         // planar drift first; the grounding correction below preserves vertical
         // bounce wherever the animated shoes already clear the support plane.
-        if (runningPose && stabilizeRunningHips && runningHipStability > 0f)
+        if (locomotionPose && stabilizeRunningHips && runningHipStability > 0f)
         {
             Vector3 animatedPosition = hips.localPosition;
             hips.localPosition = new Vector3(
@@ -466,6 +562,16 @@ public class PlayerMovement : NetworkBehaviour
         if (layerIndex != 0 || playerAnimator == null || !playerAnimator.isHuman || leftFoot == null || rightFoot == null) return;
         bool incapacitated = playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead);
         Vector2 direction = incapacitated ? Vector2.zero : AnimationDirection;
+        // The authored lateral and crouch clips supply their own leg motion.
+        if (IsCrouching || Mathf.Abs(direction.x) >= Mathf.Abs(direction.y) && Mathf.Abs(direction.x) > 0.1f)
+        {
+            playerAnimator.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 0f);
+            playerAnimator.SetIKPositionWeight(AvatarIKGoal.RightFoot, 0f);
+            playerAnimator.SetIKRotationWeight(AvatarIKGoal.LeftFoot, 0f);
+            playerAnimator.SetIKRotationWeight(AvatarIKGoal.RightFoot, 0f);
+            directionalWeight = 0f;
+            return;
+        }
         Vector3 stepDelta = transform.position - lastStepPosition;
         stepDelta.y = 0f;
         float distance = hasStepPosition ? Mathf.Min(stepDelta.magnitude, 1f) : 0f;
