@@ -45,6 +45,7 @@ public class PlayerHealth : NetworkBehaviour
     public UnityEvent OnDamaged;
     public UnityEvent OnDeath;
     public UnityEvent OnDowned;
+    public UnityEvent OnRevived = new UnityEvent();
     public UnityEvent<float> OnDownedTimerChanged; // (remainingTime)
 
     /// <summary>
@@ -249,6 +250,7 @@ public class PlayerHealth : NetworkBehaviour
         isDowned = false;
         downedTimer = 0f;
         currentHealth = Mathf.Clamp(healAmount > 0f ? healAmount : maxHealth * 0.3f, 1f, maxHealth);
+        OnRevived?.Invoke();
 
         Debug.Log($"[PlayerHealth] ผู้เล่นถูกคืนชีพ ({name}) เลือด {currentHealth}/{maxHealth}");
 
@@ -359,6 +361,7 @@ public class PlayerHealth : NetworkBehaviour
     private void OnDownedSynced(bool oldValue, bool newValue)
     {
         if (newValue) RaiseDowned();
+        else if (!isDead) OnRevived?.Invoke();
     }
 
     /// <summary>

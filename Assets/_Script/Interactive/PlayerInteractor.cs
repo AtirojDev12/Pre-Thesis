@@ -13,7 +13,7 @@ using UnityEngine.InputSystem;
 ///   server re-validates range and CanInteract() before running it. A client
 ///   never gets to assert "I interacted with that" on its own.
 /// </summary>
-public class PlayerInteractor : NetworkBehaviour
+public partial class PlayerInteractor : NetworkBehaviour
 {
     [Header("Raycast")]
     [Tooltip("Origin/direction of the interaction ray. Leave empty to use this player's own camera.")]
@@ -88,6 +88,7 @@ public class PlayerInteractor : NetworkBehaviour
 
     private void Update()
     {
+        UpdateRevival();
         // Every client runs one copy of this prefab per connected player.
         // Without this guard, pressing E on one machine would fire an
         // interaction for all six player objects at once.
@@ -105,6 +106,7 @@ public class PlayerInteractor : NetworkBehaviour
         UpdatePrompt();
 
         if (_currentTarget != null
+            && _reviveLookTarget == null
             && !GameplayInput.Blocked
             && Keyboard.current != null
             && Keyboard.current[interactKey].wasPressedThisFrame

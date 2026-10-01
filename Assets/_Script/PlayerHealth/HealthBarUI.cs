@@ -95,6 +95,7 @@ public class HealthBarUI : MonoBehaviour
 
         _bound.OnHealthChanged.AddListener(UpdateHealthBar);
         _bound.OnDowned.AddListener(ShowDownedState);
+        _bound.OnRevived.AddListener(HideDownedState);
         _bound.OnDownedTimerChanged.AddListener(UpdateDownedTimer);
         _bound.OnDeath.AddListener(HideDownedState);
 
@@ -129,6 +130,7 @@ public class HealthBarUI : MonoBehaviour
         if (_bound == null) return;
         _bound.OnHealthChanged.RemoveListener(UpdateHealthBar);
         _bound.OnDowned.RemoveListener(ShowDownedState);
+        _bound.OnRevived.RemoveListener(HideDownedState);
         _bound.OnDownedTimerChanged.RemoveListener(UpdateDownedTimer);
         _bound.OnDeath.RemoveListener(HideDownedState);
         _bound = null;
@@ -136,6 +138,7 @@ public class HealthBarUI : MonoBehaviour
 
     private void UpdateHealthBar(float current, float max)
     {
+        UpdateDownedState();
         if (healthSlider != null)
         {
             healthSlider.maxValue = max;
