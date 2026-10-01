@@ -1,172 +1,236 @@
 using System.Collections;
+using Mirror;
 using UnityEngine;
-using Mirror; // ดึงระเบียบเน็ตเวิร์กออนไลน์ของ Mirror มาคุมระบบเสกสปอว์น
 
-public class GhostManager : MonoBehaviour
+/// <summary>
+/// ตัวจัดการรอบการปล่อยผีและไฟในฉาก
+///
+/// MULTIPLAYER NOTES
+/// -----------------
+/// The SERVER owns the whole cycle: the timer, the light flicker, the spawn and
+/// the despawn. Clients are told the results.
+///
+/// Three things had to change:
+///
+///   1. Instantiate -> NetworkServer.Spawn. A plain Instantiate creates a ghost
+///      that exists on one machine only. Five players would be running from
+///      nothing while the sixth insists there is a ghost.
+///
+///   2. The light state became a SyncVar. It used to be a local bool on each
+///      machine, so in a match half the team could be standing in the dark and
+///      the other half in the light, and TimedGhost's hunting mode would differ
+///      per machine.
+///
+///   3. A static Instance, so TimedGhost stops calling FindObjectOfType twice
+///      per jumpscare.
+///
+/// The ghost prefab MUST be in NetworkManager.spawnPrefabs or clients cannot
+/// spawn it and will see nothing.
+///
+/// OFFLINE still works: with no server running, the same code Instantiates
+/// locally, so the enemy test scenes need no host.
+///
+/// 1 Oct 2026: restored from Mr.k's Week 4 multiplayer commit (c1a5c769) after
+/// an older single-player copy came in with the 29 Sep pull. Kept from
+/// Nonnapat's newer copy: the spawned ghost keeps the prefab's scale.
+/// </summary>
+[RequireComponent(typeof(NetworkIdentity))]
+public class GhostManager : NetworkBehaviour
 {
-    // ประกาศโครงสร้างตามที่สคริปต์ GhostFavorRecovery ของเพื่อนเรียกหาใช้งานเป๊ะๆ 
-    public static GhostManager Instance;
-
-    // เปิดช่องตัวแปรให้เป็น public เพื่อให้สคริปต์เพื่อนดึงค่าไปใช้ได้ปกติ
-    public bool areLightsOnCurrently = true;
+    public static GhostManager Instance { get; private set; }
 
     [Header("Prefab Settings")]
-    [SerializeField] private GameObject ghostPrefab;   
-    private GameObject currentGhostInstance; 
+    [Tooltip("Must also be registered in NetworkManager.spawnPrefabs, or clients will never see the ghost.")]
+    [SerializeField] private GameObject ghostPrefab;
+    private GameObject currentGhostInstance;
 
     [Header("Spawn Position")]
-    [SerializeField] private Transform spawnPoint; 
+    [SerializeField] private Transform spawnPoint;
 
     [Header("Lights Settings")]
-    [SerializeField] private Light[] allLights;         
+    [SerializeField] private Light[] allLights;
 
     [Header("Timing Settings")]
-    [SerializeField] private float spawnInterval = 60f;   
-    [SerializeField] private float flickerDuration = 3f;  
-    [SerializeField] private float countdownDuration = 10f; 
-    [SerializeField] private float ghostDuration = 15f;    
+    [SerializeField] private float spawnInterval = 60f;
+    [SerializeField] private float flickerDuration = 3f;
+    [SerializeField] private float countdownDuration = 10f;
+    [SerializeField] private float ghostDuration = 15f;
 
     private float timer = 0f;
     private bool isGhostActive = false;
-    private bool isSequenceRunning = false; 
+    private bool isSequenceRunning = false;
 
-    void Awake()
+    /// <summary>
+    /// Replicated so every machine agrees whether the building is lit. TimedGhost
+    /// hunts differently in the dark, so this disagreeing between clients would
+    /// mean the ghost behaves differently on each screen.
+    /// </summary>
+    [SyncVar(hook = nameof(OnLightsChanged))]
+    private bool lightsOn = true;
+
+    public bool areLightsOnCurrently => lightsOn;
+
+    /// <summary>True on the machine allowed to run the cycle: server, or anybody when offline.</summary>
+    private bool HasAuthority => NetworkMode.HasServerAuthority(this);
+
+    private void Awake()
     {
-        // ทำการล็อกล็อกพิกัดผูกข้อมูลตั้งแต่วินาทีแรกที่เปิดระบบขึ้นมาในแผนที่
         if (Instance != null && Instance != this)
         {
-            Destroy(gameObject);
+            Debug.LogWarning("[GhostManager] There is a second GhostManager in this scene — destroying the duplicate.", this);
+            Destroy(this);
             return;
         }
+
         Instance = this;
     }
 
-    void Start()
+    private void OnDestroy()
     {
-        timer = 0f;
-        SetAllLightsEnabled(true);
-        areLightsOnCurrently = true;
+        if (Instance == this) Instance = null;
     }
 
-    void Update()
+    private void Start()
     {
-        // 💡 [จุดแก้ไขปลดล็อกบั๊กผีไม่เกิด] 💡
-        // ปรับเงื่อนไขใหม่: ถ้าอยู่ในระบบ Mirror และเครื่องนี้ "ไม่ใช่ Server" ค่อยกดข้ามไป 
-        // แต่ถ้าเรากำลังกดปุ่ม Play เทสเกมแบบออฟไลน์คนเดียวเฉยๆ ตัวนับเวลาจะทำงานผ่านฉลุยปกติครับ!
-        if (NetworkServer.active && !NetworkServer.activeHost) return; 
+        timer = 0f;
+        ApplyLights(true);
 
+        if (HasAuthority) lightsOn = true;
+    }
+
+    private void Update()
+    {
+        // Clients never run the spawn cycle. They receive the ghost and the
+        // light state from the server.
+        if (!HasAuthority) return;
         if (isGhostActive || isSequenceRunning) return;
 
         timer += Time.deltaTime;
 
         if (timer >= (spawnInterval - flickerDuration))
-        {
             StartCoroutine(GhostArrivalSequence());
-        }
     }
 
-    IEnumerator GhostArrivalSequence()
+    private IEnumerator GhostArrivalSequence()
     {
         isSequenceRunning = true;
         timer = 0f;
 
-        SetAllLightsEnabled(false); yield return new WaitForSeconds(0.2f);
-        SetAllLightsEnabled(true); yield return new WaitForSeconds(0.3f);
-        SetAllLightsEnabled(false); yield return new WaitForSeconds(0.2f);
-        SetAllLightsEnabled(true); yield return new WaitForSeconds(0.3f);
-        SetAllLightsEnabled(false); yield return new WaitForSeconds(0.1f);
+        // The flicker is driven from the server so everyone sees the same
+        // stutter at the same moment — it is a warning, and a warning that
+        // arrives on one machine only is worthless.
+        SetLights(false); yield return new WaitForSeconds(0.2f);
+        SetLights(true); yield return new WaitForSeconds(0.3f);
+        SetLights(false); yield return new WaitForSeconds(0.2f);
+        SetLights(true); yield return new WaitForSeconds(0.3f);
+        SetLights(false); yield return new WaitForSeconds(0.1f);
 
-        SetAllLightsEnabled(true);
-        areLightsOnCurrently = true; 
-        
+        SetLights(true);
+
         yield return new WaitForSeconds(countdownDuration);
 
         SpawnGhost();
     }
 
-    void SpawnGhost()
-{
-    isGhostActive = true;
-
-    // ❌ ลบคำสั่งชิงปิดไฟอัตโนมัติออกไป ❌
-    // SetAllLightsEnabled(false); 
-    // areLightsOnCurrently = false; 
-
-    if (ghostPrefab != null && spawnPoint != null)
+    private void SpawnGhost()
     {
-        currentGhostInstance = Instantiate(ghostPrefab, spawnPoint.position, Quaternion.identity);
-        currentGhostInstance.transform.localScale = ghostPrefab.transform.localScale;
-        
-        TimedGhost ghostScript = currentGhostInstance.GetComponent<TimedGhost>();
-        if (ghostScript != null)
+        isGhostActive = true;
+
+        if (ghostPrefab == null || spawnPoint == null)
         {
-            // 💡 สั่งให้ผีอ่านค่าจากสวิตช์ไฟ ณ วินาทีนั้นเลยว่าผู้เล่นวิ่งไปกดปิดทันไหม 💡
-            // ถ้าผู้เล่นปิดไฟทัน ค่าจะเป็น false ผีจะตาบอด / ถ้าลืมปิด ค่าจะเป็น true ไฟจะสว่างและผีจะเห็นตัวคุณ!
-            ghostScript.isSceneLightOn = areLightsOnCurrently; 
+            Debug.LogWarning("[GhostManager] No ghost prefab or spawn point assigned — nothing spawned.", this);
+            Invoke(nameof(DespawnGhost), ghostDuration);
+            return;
         }
 
-        if (NetworkServer.active)
-        {
-            NetworkServer.Spawn(currentGhostInstance);
-        }
-    }
-    
-    Invoke("DespawnGhost", ghostDuration);
-}
+        currentGhostInstance = Instantiate(ghostPrefab, spawnPoint.position, spawnPoint.rotation);
+        currentGhostInstance.transform.localScale = ghostPrefab.transform.localScale; // Nonnapat: keep the prefab's size
 
+        // The line that makes the ghost real for everyone rather than for one
+        // machine. Offline there is no server, so the local Instantiate above
+        // is already the whole story.
+        if (NetworkServer.active) NetworkServer.Spawn(currentGhostInstance);
 
-    void DespawnGhost()
-    {
-        isGhostActive = false;
-        isSequenceRunning = false; 
-        
-        if (currentGhostInstance != null)
-        {
-            // ถ้าอยู่ในระบบออนไลน์ ให้ทำลายวัตถุออนไลน์ออกจากเน็ตเวิร์ก
-            if (NetworkServer.active)
-            {
-                NetworkServer.Destroy(currentGhostInstance);
-            }
-            else
-            {
-                // ถ้าเทสคนเดียวปกติ ใช้คำสั่งลบอ็อบเจกต์ธรรมดา
-                Destroy(currentGhostInstance);
-            }
-        }
-        
-        SetAllLightsEnabled(true);
-        areLightsOnCurrently = true;
+        if (currentGhostInstance.TryGetComponent(out TimedGhost ghostScript))
+            ghostScript.isSceneLightOn = lightsOn;
+
+        Invoke(nameof(DespawnGhost), ghostDuration);
     }
 
-    public void CancelDespawnTimer()
-    {
-        CancelInvoke("DespawnGhost"); 
-    }
-
-    public void ResetManagerAfterJumpscare()
+    private void DespawnGhost()
     {
         isGhostActive = false;
         isSequenceRunning = false;
-        SetAllLightsEnabled(true);
-        areLightsOnCurrently = true;
+
+        if (currentGhostInstance != null)
+        {
+            if (NetworkServer.active) NetworkServer.Destroy(currentGhostInstance);
+            else Destroy(currentGhostInstance);
+        }
+
+        SetLights(true);
     }
 
+    /// <summary>SERVER ONLY. Stops the despawn timer so a jumpscare is not cut short.</summary>
+    public void CancelDespawnTimer()
+    {
+        if (!HasAuthority) return;
+        CancelInvoke(nameof(DespawnGhost));
+    }
+
+    /// <summary>SERVER ONLY. Clears state after a jumpscare so the next cycle can start.</summary>
+    public void ResetManagerAfterJumpscare()
+    {
+        if (!HasAuthority) return;
+
+        isGhostActive = false;
+        isSequenceRunning = false;
+        currentGhostInstance = null;
+        SetLights(true);
+    }
+
+    /// <summary>
+    /// SERVER ONLY. Call this from a player's [Command] — see LightController.
+    /// A client calling it directly changes only its own screen, and TimedGhost
+    /// would then hunt differently on that machine than on everyone else's.
+    /// </summary>
     public void PlayerToggleLights(bool open)
     {
-        SetAllLightsEnabled(open);
-        areLightsOnCurrently = open;
+        if (!HasAuthority)
+        {
+            Debug.LogWarning("[GhostManager] PlayerToggleLights was called on a client. Route it through a Command — ignored.", this);
+            return;
+        }
+
+        SetLights(open);
     }
 
-    private void SetAllLightsEnabled(bool state)
+    private void SetLights(bool state)
+    {
+        lightsOn = state;
+
+        // SyncVar hooks do not fire on the machine that made the change, so the
+        // host has to apply its own result directly or the host's lights would
+        // never move while every client's did.
+        ApplyLights(state);
+
+        if (currentGhostInstance != null && currentGhostInstance.TryGetComponent(out TimedGhost ghost))
+            ghost.isSceneLightOn = state;
+    }
+
+    private void OnLightsChanged(bool oldValue, bool newValue)
+    {
+        ApplyLights(newValue);
+
+        if (currentGhostInstance != null && currentGhostInstance.TryGetComponent(out TimedGhost ghost))
+            ghost.isSceneLightOn = newValue;
+    }
+
+    private void ApplyLights(bool state)
     {
         if (allLights == null) return;
 
         foreach (Light lightItem in allLights)
-        {
-            if (lightItem != null)
-            {
-                lightItem.enabled = state;
-            }
-        }
+            if (lightItem != null) lightItem.enabled = state;
     }
 }

@@ -63,7 +63,7 @@ public static class PlayerRegistry
         for (int i = 0; i < cache.Count; i++)
         {
             PlayerHealth candidate = cache[i];
-            if (candidate == null || candidate.IsDead) continue;
+            if (candidate == null || candidate.IsDead || !IsInRound(candidate)) continue;
 
             float sqr = (candidate.transform.position - position).sqrMagnitude;
             if (sqr > bestSqr) continue;
@@ -93,7 +93,7 @@ public static class PlayerRegistry
         for (int i = 0; i < cache.Count; i++)
         {
             PlayerHealth candidate = cache[i];
-            if (candidate == null || candidate.IsDead) continue;
+            if (candidate == null || candidate.IsDead || !IsInRound(candidate)) continue;
 
             float sqr = (candidate.transform.position - position).sqrMagnitude;
             if (sqr > bestSqr) continue;
@@ -104,6 +104,17 @@ public static class PlayerRegistry
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// False once this player's round is over (escaped, dead, or the round
+    /// ended). Ghosts must not hunt an escaped player's hidden body.
+    /// </summary>
+    public static bool IsInRound(PlayerHealth player)
+    {
+        if (player == null || player.IsDead) return false;
+        MatchDirector director = MatchDirector.Instance;
+        return director == null || player.netIdentity == null || !director.ServerIsFinished(player.netIdentity);
     }
 
     /// <summary>Forces the next query to rebuild. Call after spawning a player if you need it visible immediately.</summary>
