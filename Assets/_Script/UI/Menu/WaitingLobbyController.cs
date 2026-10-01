@@ -155,7 +155,7 @@ public class WaitingLobbyController : MonoBehaviour
         var strip = (RectTransform)stripGo.transform;
         strip.anchorMin = strip.anchorMax = new Vector2(0.5f, 1f);
         strip.pivot = new Vector2(0.5f, 1f);
-        strip.anchoredPosition = new Vector2(0f, -20f);
+        strip.anchoredPosition = new Vector2(0f, -64f); // under the HP bar (top centre)
         strip.sizeDelta = new Vector2(1240f, 56f);
         Image stripImage = stripGo.GetComponent<Image>();
         stripImage.color = new Color(0f, 0f, 0f, 0.6f);
