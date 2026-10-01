@@ -232,9 +232,10 @@ public class PlayerMovement : NetworkBehaviour
             Vector2 stick = Gamepad.current.leftStick.ReadValue();
             if (stick.sqrMagnitude > 0.04f) { horizontal = stick.x; vertical = stick.y; }
         }
-        bool crouchPressed = (Keyboard.current != null && Keyboard.current.cKey.wasPressedThisFrame) ||
-                             (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame);
-        if (crouchPressed && IsGroundedForStance() && (!localCrouch || CanStand())) localCrouch = !localCrouch;
+        bool crouchHeld = (Keyboard.current != null && Keyboard.current.leftCtrlKey.isPressed) ||
+                             (Gamepad.current != null && Gamepad.current.buttonEast.isPressed);
+        if (crouchHeld && !localCrouch && IsGroundedForStance()) localCrouch = true;
+        else if (!crouchHeld && localCrouch && CanStand()) localCrouch = false;
         ApplyCrouchShape(localCrouch);
 
         // ทิศทางของกล้อง

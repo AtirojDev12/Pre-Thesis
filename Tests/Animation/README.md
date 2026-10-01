@@ -10,7 +10,8 @@ The probe uses keyboard input through the real PlayerMovement component. It chec
 The owner detects each sole's transition from lifted to planted after animation/IK
 and visual grounding. `FootTouchedGround(int)` is a UnityEvent (0 left, 1 right).
 Contact hysteresis prevents repeated events while a foot remains planted; idle,
-blocked movement, airborne feet and incapacitated players do not produce steps.
+blocked movement, crouching, airborne feet and incapacitated players do not produce steps.
+Hold Left Ctrl (or gamepad button East) to crouch; release to stand when headroom is clear.
 No fixed timer or imported clip events are needed, including for procedural strafing.
 
 An ownership-required Mirror Command asks the server to select a clip excluding the

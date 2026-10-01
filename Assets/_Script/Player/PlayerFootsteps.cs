@@ -58,8 +58,12 @@ public sealed class PlayerFootsteps : NetworkBehaviour
 
     private void LateUpdate()
     {
+        // Stop standing steps when crouching, including on remote observers.
+        if (movement.IsCrouching)
+            foreach (AudioSource source in sources)
+                if (source != null && source.isPlaying) source.Stop();
         if (!NetworkMode.IsLocalController(this)) return;
-        bool moving = !GameplayInput.Blocked && !Incapacitated && movement.CurrentMovementSpeed > 0.05f &&
+        bool moving = !movement.IsCrouching && !GameplayInput.Blocked && !Incapacitated && movement.CurrentMovementSpeed > 0.05f &&
             body != null && new Vector2(body.linearVelocity.x, body.linearVelocity.z).sqrMagnitude > 0.01f;
         for (int foot = 0; foot < 2; foot++)
         {
@@ -68,7 +72,7 @@ public sealed class PlayerFootsteps : NetworkBehaviour
             bool landed = initialized && contact && !planted[foot];
             planted[foot] = contact;
             if (!landed || !moving || Time.time < nextLocalStep[foot]) continue;
-            // Each clip plants a given foot once per cycle (1.03 s walk/crouch,
+            // Each clip plants a given foot once per cycle (1.03 s walk,
             // 0.67 s strafe run). This also rejects threshold bounce.
             nextLocalStep[foot] = Time.time + (movement.IsSprinting ? 0.28f : 0.42f);
             FootTouchedGround.Invoke(foot);
@@ -84,7 +88,7 @@ public sealed class PlayerFootsteps : NetworkBehaviour
     private void CmdFootContact(int foot)
     {
         // Mirror enforces ownership. Reject invalid/spammed contacts and dead players.
-        if (foot < 0 || foot > 1 || Incapacitated || NetworkTime.time < nextServerStep[foot]) return;
+        if (foot < 0 || foot > 1 || movement.IsCrouching || Incapacitated || NetworkTime.time < nextServerStep[foot]) return;
         nextServerStep[foot] = NetworkTime.time + (movement.IsSprinting ? 0.25 : 0.38);
         ChooseAndPlay(foot);
     }
@@ -105,6 +109,7 @@ public sealed class PlayerFootsteps : NetworkBehaviour
 
     private void PlayFootstep(int foot, int clip)
     {
+        if (movement.IsCrouching || Incapacitated) return;
         if (foot < 0 || foot >= sources.Length || carpetClips == null || clip < 0 || clip >= carpetClips.Length || carpetClips[clip] == null) return;
         // Use this client's interpolated player location, so sound follows the visible body.
         movement.TryGetFootGround(foot == 0, out Vector3 position, out _);

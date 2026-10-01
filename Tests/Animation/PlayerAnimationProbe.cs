@@ -280,11 +280,11 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 Check(footsteps[mover.GetComponent<PlayerHealth>()].Count > before,
                     "Strafe running produces foot contacts");
             }
-            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
             yield return null;
             for (float until = Time.time + 0.5f; Time.time < until;)
             {
-                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
                 yield return null;
             }
             foreach (var p in players)
@@ -298,30 +298,28 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
             int crouchStepStart = footsteps[mover.GetComponent<PlayerHealth>()].Count;
             for (float until = Time.time + 1.3f; Time.time < until;)
             {
-                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W, Key.LeftShift));
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W, Key.LeftShift, Key.LeftCtrl));
                 yield return null;
             }
             foreach (var p in players)
                 Check(p.GetComponent<Animator>().GetCurrentAnimatorStateInfo(0).IsName("Crouch Walk") &&
                       !p.GetComponent<Animator>().GetBool("IsSprinting"),
                       (p.isLocalPlayer ? "Local" : "Remote") + " crouch walks without sprinting");
-            Check(footsteps[mover.GetComponent<PlayerHealth>()].Count > crouchStepStart,
-                "Crouch walking produces foot contacts");
+            Check(footsteps[mover.GetComponent<PlayerHealth>()].Count == crouchStepStart,
+                "Crouch walking is silent");
             Check(PlayerNoise.Local != null && PlayerNoise.Local.Game <= PlayerNoise.WalkNoise,
                 "Crouch walking stays quieter than normal walking");
-            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
             yield return new WaitForSecondsRealtime(0.3f);
             var ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ceiling.transform.position = mover.transform.position + Vector3.up * 0.68f;
             ceiling.transform.localScale = new Vector3(2f, 0.2f, 2f);
-            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
             yield return null;
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return new WaitForSecondsRealtime(0.3f);
             Check(mover.IsCrouching, "Ceiling blocks standing");
             Destroy(ceiling);
-            yield return null;
-            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
             yield return null;
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
             yield return new WaitForSecondsRealtime(0.4f);
@@ -336,7 +334,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
             Vector3 groundedPosition = movingBody.position;
             movingBody.position = groundedPosition + Vector3.up * 3f;
             movingBody.linearVelocity = Vector3.zero;
-            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.C));
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
             yield return null;
             Check(!mover.IsCrouching, "Cannot crouch while airborne");
             InputSystem.QueueStateEvent(keyboard, new KeyboardState());
@@ -387,7 +385,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         yield return WaitForHealth(players, 1);
         foreach (var p in players)
             Check(p.IsDowned && p.GetComponent<Animator>().GetCurrentAnimatorStateInfo(0).IsName("Dying"), (p.isLocalPlayer ? "Local" : "Remote") + " downed animation still works");
-        if (Keyboard.current != null) InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.C));
+        if (Keyboard.current != null) InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.LeftCtrl));
         yield return null;
         foreach (var p in players) Check(!p.GetComponent<PlayerMovement>().IsCrouching, "Cannot crouch while downed");
         if (Keyboard.current != null) InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState());
