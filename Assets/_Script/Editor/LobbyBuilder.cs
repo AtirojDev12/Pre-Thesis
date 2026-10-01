@@ -15,7 +15,8 @@ using UnityEngine.SceneManagement;
 ///   - Room: floor, walls, lights, 6 spawn points (NetworkStartPosition).
 ///   - Shop counter (ShopTerminal): look at it, press E.
 ///   - Practice area for the Cinema map, with sign boards:
-///       popcorn & water (the real PopcornMinigameBootstrap + PopcornNetSync),
+///       popcorn & drinks (the real PopcornMinigameBootstrap + PopcornNetSync, 2 Oct loop:
+///       PopCornTank + refill machine, water / Fanta / orange juice / Pepsi),
 ///       ticket booth (the real TicketMinigame + TicketNetSync).
 ///     Practice sales give NO currency (no MatchDirector here) and wrong
 ///     ghost orders do NO damage.
@@ -39,6 +40,12 @@ public static class LobbyBuilder
     private const string FilledCupGuid = "31145c7e4b207f34f95cc5b3cea8b10c";
     private const string GhostCupGuid = "c4940806debdabc44b707b50041597f6";
     private const string HeldPopcornGuid = "66596ff46762db5498bc9d4d61a7ddf6";
+    // New popcorn loop (2 Oct update): refill batch, 3 more drinks, the real popcorn machine model.
+    private const string NewPopcornGuid = "d4b433559df88234aaf69a3160c6aa95";
+    private const string FantaCupGuid = "1ef909a72955f4148a3ee4b8a508b51c";
+    private const string OrangeJuiceCupGuid = "1b297f1e67ad1cb448cc2b9869bda4dd";
+    private const string PepsiCupGuid = "989a0cee5a3f7234fbd7e8c6a50d0ebd";
+    private const string PopcornMakerModelGuid = "ef9d96125919a104996c7c7b76dab322"; // Prefab/PrefabModel/Popcorn_Maker
     private const string PlayerPrefabGuid = "1dd82c6745240c446a2b82004c20a793";
 
     private static Transform root;
@@ -83,7 +90,7 @@ public static class LobbyBuilder
             "3D lobby built in Lobby.unity (root: \"" + RootName + "\").\n\n" +
             "- Room, lights, 6 spawn points\n" +
             "- Shop counter (E)\n" +
-            "- Practice: popcorn & water + ticket booth, with signs (no currency, no damage)\n" +
+            "- Practice: popcorn & drinks (tank + refill machine) + ticket booth, with signs (no currency, no damage)\n" +
             "- " + walkieNote + "\n\n" +
             "Players walk around in the lobby; M opens Ready / Start / Leave (TAB frees the mouse).";
         Debug.Log("[LobbyBuilder] " + message);
@@ -181,36 +188,49 @@ public static class LobbyBuilder
 
     private static void BuildPopcornPractice()
     {
-        Transform area = Group("Practice - Popcorn & Water");
+        Transform area = Group("Practice - Popcorn & Drinks");
         Material wood = Mat("Lobby_Counter", new Color(0.36f, 0.22f, 0.13f));
-        Material machine = Mat("Lobby_Machine", new Color(0.55f, 0.1f, 0.08f));
 
-        // Counter along X at z = 1.2. Players stand south of it (z < 0.6),
-        // customers come to the north side.
-        Box(area, "Popcorn Counter", new Vector3(-9.5f, 0.5f, 1.2f), new Vector3(7.5f, 1f, 0.8f), wood);
+        // Counter along X at z = 1.2 (x -14 .. -5.5). Players stand south of it (z < 0.6),
+        // customers come to the north side. Same loop as Cinema_GamePlay (Atiroj, 2 Oct):
+        // bucket -> hold E PopCornTank -> E flavor;  cup -> hold E drink;  Ghost Favor;  serve.
+        GameObject counter = Box(area, "Popcorn Counter", new Vector3(-9.75f, 0.5f, 1.2f), new Vector3(8.5f, 1f, 0.8f), wood);
 
-        Transform bucket = Station(area, "Bucket Stack (E)", -12.6f, Mat("Lobby_Bucket", new Color(0.85f, 0.15f, 0.15f)));
-        Transform cup = Station(area, "Cup Stack (E)", -11.9f, Mat("Lobby_Cup", new Color(0.92f, 0.92f, 0.9f)));
-        Transform water1 = Station(area, "Water Dispenser A (hold E)", -11.2f, Mat("Lobby_Water", new Color(0.25f, 0.5f, 0.95f)));
-        Transform water2 = Station(area, "Water Dispenser B (hold E)", -10.6f, Mat("Lobby_Water", new Color(0.25f, 0.5f, 0.95f)));
-        Transform cheese = Station(area, "Cheese (hold E)", -9.8f, Mat("Lobby_Cheese", new Color(0.98f, 0.82f, 0.2f)));
-        Transform bbq = Station(area, "BBQ (hold E)", -9.2f, Mat("Lobby_BBQ", new Color(0.45f, 0.12f, 0.05f)));
-        Transform paprika = Station(area, "Paprika (hold E)", -8.6f, Mat("Lobby_Paprika", new Color(0.95f, 0.42f, 0.1f)));
-        Transform ghost = Station(area, "Ghost Favor (E)", -7.8f, Mat("Lobby_GhostFavor", new Color(0.55f, 0.3f, 0.85f)));
+        Transform bucket = Station(area, "Bucket Stack (E)", -13.6f, Mat("Lobby_Bucket", new Color(0.85f, 0.15f, 0.15f)));
+        Transform cup = Station(area, "Cup Stack (E)", -13.0f, Mat("Lobby_Cup", new Color(0.92f, 0.92f, 0.9f)));
+        Transform tank = Box(area, "PopCornTank (hold E)", new Vector3(-12.3f, 1.35f, 1.15f), new Vector3(0.6f, 0.7f, 0.5f),
+            Mat("Lobby_Tank", new Color(0.95f, 0.85f, 0.55f))).transform;
+        Transform cheese = Station(area, "Cheese (E)", -11.55f, Mat("Lobby_Cheese", new Color(0.98f, 0.82f, 0.2f)));
+        Transform bbq = Station(area, "BBQ (E)", -10.95f, Mat("Lobby_BBQ", new Color(0.45f, 0.12f, 0.05f)));
+        Transform paprika = Station(area, "Paprika (E)", -10.35f, Mat("Lobby_Paprika", new Color(0.95f, 0.42f, 0.1f)));
+        Transform ghost = Station(area, "Ghost Favor (E)", -9.65f, Mat("Lobby_GhostFavor", new Color(0.55f, 0.3f, 0.85f)));
 
-        // Low machine so its screen sits at eye level above it.
-        Transform maker = Box(area, "Popcorn Maker", new Vector3(-9.2f, 1.25f, 1.5f), new Vector3(2f, 0.5f, 0.3f), machine).transform;
-        Transform cashier = Box(area, "Cashier", new Vector3(-6.4f, 1.2f, 1.2f), new Vector3(0.7f, 0.4f, 0.5f), Mat("Lobby_Shop", new Color(0.85f, 0.65f, 0.2f))).transform;
+        // One dispenser per drink, same colours as the Cinema machine (blue / green / orange / red).
+        Transform water = Station(area, "Water (hold E)", -8.9f, Mat("Lobby_Water", new Color(0.25f, 0.5f, 0.95f)));
+        Transform fanta = Station(area, "Fanta (hold E)", -8.35f, Mat("Lobby_Fanta", new Color(0.2f, 0.75f, 0.25f)));
+        Transform orange = Station(area, "Orange Juice (hold E)", -7.8f, Mat("Lobby_Orange", new Color(1f, 0.55f, 0.05f)));
+        Transform pepsi = Station(area, "Pepsi (hold E)", -7.25f, Mat("Lobby_Pepsi", new Color(0.85f, 0.1f, 0.1f)));
 
-        // UI anchors: forward = away from the player (canvas read from the south).
-        // Eye level (~1.6-2.0 m), just above the boxes (screen sizes: cashier 0.6x0.35 m, maker 0.62x0.85 m).
-        Transform cashierUi = Point(area, "Cashier UI Anchor", new Vector3(-6.4f, 1.75f, 1.6f), Quaternion.identity);
-        Transform makerUi = Point(area, "Popcorn Maker UI Anchor", new Vector3(-9.2f, 1.95f, 1.5f), Quaternion.identity);
+        Transform cashier = Box(area, "Cashier", new Vector3(-6.2f, 1.2f, 1.2f), new Vector3(0.7f, 0.4f, 0.5f), Mat("Lobby_Shop", new Color(0.85f, 0.65f, 0.2f))).transform;
+
+        // Refill: the REAL popcorn machine on a back table (turn around from the counter).
+        Box(area, "Refill Table", new Vector3(-12.3f, 0.45f, -2.2f), new Vector3(1.6f, 0.9f, 0.9f), wood);
+        Transform refillMaker = PlaceMakerModel(area, new Vector3(-12.3f, 0.9f, -2.2f));
+        Sign(area, "Refill Sign", new Vector3(-10.6f, 1.55f, -2.2f), Quaternion.Euler(0f, 180f, 0f), 1500, 820,
+            "<size=120%><color=#FFCC4D>TANK EMPTY?</color></size>\n" +
+            "Hold <color=#FFCC4D>E</color> machine (3 s)\n" +
+            "<color=#FFCC4D>E</color> PopCornTank = +10", 100f, true);
+
+        // UI anchors: forward = away from the player (canvas read from the south). Eye level.
+        // Cashier screen 0.6x0.35 m; instruction screen 0.62x0.85 m above the flavours.
+        Transform cashierUi = Point(area, "Cashier UI Anchor", new Vector3(-6.2f, 1.75f, 1.6f), Quaternion.identity);
+        Transform makerUi = Point(area, "Instructions UI Anchor", new Vector3(-10.95f, 1.95f, 1.5f), Quaternion.identity);
+        Transform maker = counter.transform; // the instruction screen hangs off the counter
 
         // Customer route (north side of the counter), facing the player at the counter.
         Transform spawn = Point(area, "Customer Spawn", new Vector3(-3.5f, 1f, 6f), Quaternion.Euler(0f, 180f, 0f));
         Transform approach = Point(area, "Customer Approach 1", new Vector3(-4.5f, 1f, 3.2f), Quaternion.identity);
-        Transform wait = Point(area, "Customer Wait (counter)", new Vector3(-6.4f, 1f, 2.2f), Quaternion.Euler(0f, 180f, 0f));
+        Transform wait = Point(area, "Customer Wait (counter)", new Vector3(-6.2f, 1f, 2.2f), Quaternion.Euler(0f, 180f, 0f));
         Transform depart = Point(area, "Customer Departure 1", new Vector3(-8f, 1f, 4.5f), Quaternion.identity);
         Transform exit = Point(area, "Customer Exit", new Vector3(-12.5f, 1f, 6.5f), Quaternion.identity);
 
@@ -227,7 +247,18 @@ public static class LobbyBuilder
         SetObject(so, "bbqStation", bbq);
         SetObject(so, "paprikaStation", paprika);
         SetObject(so, "ghostStation", ghost);
-        SetArray(so, "waterDispensers", water1, water2);
+        SetArray(so, "waterDispensers", water);
+        SetArray(so, "fantaDispensers", fanta);
+        SetArray(so, "orangeJuiceDispensers", orange);
+        SetArray(so, "pepsiDispensers", pepsi);
+        SetObject(so, "popcornTank", tank);
+        SetObject(so, "refillMaker", refillMaker);
+        SetObject(so, "newPopcornPrefab", LoadByGuid<GameObject>(NewPopcornGuid));
+        SetObject(so, "fantaCupPrefab", LoadByGuid<GameObject>(FantaCupGuid));
+        SetObject(so, "orangeJuiceCupPrefab", LoadByGuid<GameObject>(OrangeJuiceCupGuid));
+        SetObject(so, "pepsiCupPrefab", LoadByGuid<GameObject>(PepsiCupGuid));
+        SetInt(so, "tankCapacity", 20);
+        SetInt(so, "refillServings", 10);
         SetArray(so, "ghostFavorRelocationPoints");
         SetObject(so, "emptyBucketPrefab", LoadByGuid<GameObject>(EmptyBucketGuid));
         SetObject(so, "emptyCupPrefab", LoadByGuid<GameObject>(EmptyCupGuid));
@@ -336,14 +367,15 @@ public static class LobbyBuilder
             "Shop: left.  Practice: ahead", 110f, true);
 
         // Standing boards at the walkway end of each counter (read looking north).
-        Sign(signs, "Popcorn How-To", new Vector3(-4.6f, 1.55f, 0.4f), Quaternion.identity, 1800, 1150,
-            "<size=120%><color=#FFCC4D>POPCORN & WATER</color></size>\n" +
+        Sign(signs, "Popcorn How-To", new Vector3(-4.6f, 1.55f, 0.4f), Quaternion.identity, 1800, 1250,
+            "<size=120%><color=#FFCC4D>POPCORN & DRINKS</color></size>\n" +
             "1  Read the order (cashier)\n" +
             "2  <color=#FFCC4D>E</color> bucket or cup\n" +
-            "3  Hold <color=#FFCC4D>E</color> flavor / water\n" +
+            "3  Bucket: hold <color=#FFCC4D>E</color> tank, <color=#FFCC4D>E</color> flavor\n" +
+            "    Cup: hold <color=#FFCC4D>E</color> drink\n" +
             "4  Ghost? <color=#FFCC4D>E</color> Ghost Favor\n" +
             "5  <color=#FFCC4D>E</color> on customer = serve\n" +
-            "<color=#FFCC4D>R</color> throw away   <color=#FFCC4D>TAB</color> mouse", 100f, true);
+            "<color=#FFCC4D>R</color> throw away", 100f, true);
 
         Sign(signs, "Ticket How-To", new Vector3(4.6f, 1.55f, 0.4f), Quaternion.identity, 1800, 1150,
             "<size=120%><color=#FFCC4D>TICKETS</color></size>\n" +
@@ -435,6 +467,51 @@ public static class LobbyBuilder
         go.GetComponent<Renderer>().sharedMaterial = material;
         if (!collider) Object.DestroyImmediate(go.GetComponent<Collider>());
         return go;
+    }
+
+    /// <summary>
+    /// The real Popcorn_Maker model (as in Cinema_GamePlay), standing on <paramref name="tableTop"/>.
+    /// It gets a solid BoxCollider so the interaction ray hits it. Greybox box if the model is missing.
+    /// </summary>
+    private static Transform PlaceMakerModel(Transform parent, Vector3 tableTop)
+    {
+        var prefab = LoadByGuid<GameObject>(PopcornMakerModelGuid);
+        GameObject go = prefab != null ? (GameObject)PrefabUtility.InstantiatePrefab(prefab) : null;
+        if (go == null)
+            return Box(parent, "Popcorn Machine (hold E)", tableTop + new Vector3(0f, 0.45f, 0f), new Vector3(0.8f, 0.9f, 0.6f),
+                Mat("Lobby_Machine", new Color(0.55f, 0.1f, 0.08f))).transform;
+
+        go.name = "Popcorn Machine (hold E)";
+        go.transform.SetParent(parent, false);
+        go.transform.SetPositionAndRotation(tableTop, Quaternion.identity);
+        go.transform.localScale = Vector3.one * 1.0795f; // same size as in the Cinema map
+
+        // Sit it on the table and centre it, whatever the model's pivot is.
+        Bounds world = RendererBounds(go, tableTop);
+        go.transform.position += new Vector3(tableTop.x - world.center.x, tableTop.y - world.min.y, tableTop.z - world.center.z);
+        world = RendererBounds(go, tableTop);
+
+        bool hasSolid = false;
+        foreach (Collider c in go.GetComponentsInChildren<Collider>())
+            if (c.enabled && !c.isTrigger) hasSolid = true;
+        if (!hasSolid)
+        {
+            BoxCollider box = go.AddComponent<BoxCollider>();
+            Vector3 scale = go.transform.lossyScale;
+            box.center = go.transform.InverseTransformPoint(world.center);
+            box.size = new Vector3(world.size.x / Mathf.Max(0.0001f, scale.x), world.size.y / Mathf.Max(0.0001f, scale.y),
+                world.size.z / Mathf.Max(0.0001f, scale.z));
+        }
+        return go.transform;
+    }
+
+    private static Bounds RendererBounds(GameObject go, Vector3 fallback)
+    {
+        Renderer[] renderers = go.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0) return new Bounds(fallback, Vector3.one * 0.6f);
+        Bounds b = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+        return b;
     }
 
     /// <summary>A station box on the popcorn counter top (non-trigger collider, as the minigame needs).</summary>
