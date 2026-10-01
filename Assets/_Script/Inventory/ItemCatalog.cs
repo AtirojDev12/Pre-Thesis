@@ -19,13 +19,24 @@ public static class ItemCatalog
         public string displayName;
         /// <summary>Can be switched on/off and used as a radio.</summary>
         public bool isRadio;
+        /// <summary>Shop price in currency. 0 = not sold in the shop.</summary>
+        public int price;
+        /// <summary>Permanent item: max 1 copy, kept between runs, LOST if you die in a match.</summary>
+        public bool permanent;
+        public string description;
     }
 
     // A List, not a Dictionary: a handful of entries, and it matches the
     // project rule for anything that may end up serialized.
     private static readonly List<ItemInfo> items = new List<ItemInfo>
     {
-        new ItemInfo { id = WalkieTalkie, displayName = "Walkie-Talkie", isRadio = true },
+        // 1 Oct: no longer free. Bought in the lobby shop.
+        new ItemInfo
+        {
+            id = WalkieTalkie, displayName = "Walkie-Talkie", isRadio = true,
+            price = 100, permanent = true,
+            description = "Talk to every teammate who carries a switched-on walkie, at any distance. Lost if you die.",
+        },
     };
 
     public static ItemInfo Find(string id)
@@ -37,6 +48,9 @@ public static class ItemCatalog
     }
 
     public static bool Exists(string id) => Find(id) != null;
+
+    /// <summary>Every item, in shop order. Read only.</summary>
+    public static IReadOnlyList<ItemInfo> All => items;
 
     public static string DisplayName(string id)
     {

@@ -54,6 +54,15 @@ public interface IInteractable
 /// player's interaction ray. UI controls and world objects can implement this
 /// without coupling PlayerInteractor to their concrete component types.
 /// </summary>
+/// <summary>
+/// An interactable that only does something on the LOCAL machine (opens a
+/// screen, e.g. the lobby shop). PlayerInteractor runs it directly instead of
+/// sending a Command, so it needs no NetworkIdentity.
+/// </summary>
+public interface ILocalInteractable : IInteractable
+{
+}
+
 public interface IInteractionHighlight
 {
     void SetHighlighted(bool highlighted);

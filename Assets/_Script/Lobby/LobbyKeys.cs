@@ -7,6 +7,8 @@
 public static class LobbyKeys
 {
     public const string MapID = "MapID";
+    // The name the host typed. Shown and searched in the Room Browser.
+    public const string RoomName = "RoomName";
     public const string Difficulty = "Difficulty";
     public const string PlayerLimit = "PlayerLimit";
     public const string IsPrivate = "IsPrivate";

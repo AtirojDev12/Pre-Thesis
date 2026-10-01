@@ -189,6 +189,12 @@ public partial class PlayerInteractor : NetworkBehaviour
             target.Interact(gameObject);
             return;
         }
+        // Local-only (lobby shop): opens a screen on this PC, nothing to replicate.
+        if (target is ILocalInteractable)
+        {
+            target.Interact(gameObject);
+            return;
+        }
         // Ticket buttons route through their shared server-authoritative counter.
         if (target is TicketSellButton ticketButton)
         {

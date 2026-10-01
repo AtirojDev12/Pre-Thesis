@@ -7,6 +7,8 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public class RoomBrowserRow : MonoBehaviour
 {
+    [Tooltip("Optional (added 1 Oct): the room's name.")]
+    [SerializeField] private TMP_Text nameText;
     [SerializeField] private TMP_Text mapText;
     [SerializeField] private TMP_Text difficultyText;
     [SerializeField] private TMP_Text playersText;
@@ -26,6 +28,7 @@ public class RoomBrowserRow : MonoBehaviour
         entry = room;
         onJoin = joinCallback;
 
+        if (nameText != null) nameText.text = room.roomName;
         mapText.text = RoomDisplay.MapName(room.mapID);
         difficultyText.text = RoomDisplay.Difficulty(room.difficulty);
         playersText.text = $"{room.currentPlayers} / {room.maxPlayers}";

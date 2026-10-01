@@ -16,6 +16,8 @@ public class CreateRoomPanel : MonoBehaviour
     [SerializeField] private MainMenuController menu;
 
     [SerializeField] private TMP_Text mapText;
+    [Tooltip("Optional (added 1 Oct). Room name shown and searchable in the Room Browser.")]
+    [SerializeField] private TMP_InputField roomNameField;
     [SerializeField] private TMP_Dropdown difficultyDropdown;
     [SerializeField] private Slider playerLimitSlider;
     [SerializeField] private TMP_Text playerLimitText;
@@ -48,13 +50,19 @@ public class CreateRoomPanel : MonoBehaviour
         backButton.onClick.AddListener(() => menu.ShowMain());
 
         mapText.text = "Map: " + RoomDisplay.MapName(RoomConfig.DemoMapID);
+        if (roomNameField != null) roomNameField.characterLimit = RoomConfig.MaxRoomNameLength;
     }
 
     private void OnEnable()
     {
         errorText.text = string.Empty;
         RefreshLabels();
+        // Suggest "<name>'s room" until the host types their own.
+        if (roomNameField != null && string.IsNullOrWhiteSpace(roomNameField.text))
+            roomNameField.SetTextWithoutNotify(DefaultRoomName());
     }
+
+    private static string DefaultRoomName() => RoomConfig.SanitizeRoomName(GameSettings.PlayerName + "'s room");
 
     private void RefreshLabels()
     {
@@ -70,6 +78,8 @@ public class CreateRoomPanel : MonoBehaviour
     {
         var config = new RoomConfig
         {
+            roomName = roomNameField != null && !string.IsNullOrWhiteSpace(roomNameField.text)
+                ? roomNameField.text : DefaultRoomName(),
             mapID = RoomConfig.DemoMapID,
             difficulty = (DifficultyLevel)Mathf.Clamp(difficultyDropdown.value, 0, RoomDisplay.DifficultyOptions.Length - 1),
             playerLimit = Mathf.RoundToInt(playerLimitSlider.value),

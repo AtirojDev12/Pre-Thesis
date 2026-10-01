@@ -220,6 +220,7 @@ public class LobbyController : EOSLobby
         var attributes = new AttributeData[]
         {
             new AttributeData { Key = LobbyKeys.MapID,       Value = config.mapID },
+            new AttributeData { Key = LobbyKeys.RoomName,    Value = config.roomName },
             new AttributeData { Key = LobbyKeys.Difficulty,  Value = config.difficulty.ToString() },
             new AttributeData { Key = LobbyKeys.PlayerLimit, Value = config.playerLimit },
             new AttributeData { Key = LobbyKeys.HasPassword, Value = config.isPrivate },
@@ -359,6 +360,7 @@ public class LobbyController : EOSLobby
         RoomPasswordAuthenticator.ClientPassword = password ?? string.Empty;
         CurrentRoom = new RoomConfig
         {
+            roomName = entry.roomName,
             mapID = entry.mapID,
             difficulty = entry.difficulty,
             playerLimit = entry.maxPlayers,
@@ -445,6 +447,7 @@ public class LobbyController : EOSLobby
 
     private static RoomConfig PublicCopy(RoomConfig source) => new RoomConfig
     {
+        roomName = source.roomName,
         mapID = source.mapID,
         difficulty = source.difficulty,
         playerLimit = source.playerLimit,
@@ -463,6 +466,8 @@ public class LobbyController : EOSLobby
         var entry = new RoomListEntry { details = details };
 
         entry.mapID = TryReadUtf8Attribute(details, LobbyKeys.MapID, RoomConfig.DemoMapID);
+        entry.roomName = RoomConfig.SanitizeRoomName(TryReadUtf8Attribute(details, LobbyKeys.RoomName, string.Empty));
+        if (string.IsNullOrEmpty(entry.roomName)) entry.roomName = "Unnamed room";
 
         string difficultyName = TryReadUtf8Attribute(details, LobbyKeys.Difficulty, DifficultyLevel.Normal.ToString());
         if (!System.Enum.TryParse(difficultyName, out DifficultyLevel difficulty))

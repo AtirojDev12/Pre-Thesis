@@ -28,7 +28,7 @@ public class PlayerInventory : NetworkBehaviour
     public const int SlotCount = 4;
 
     [Tooltip("Demo: items every player spawns with. Replaced by the lobby loadout later.")]
-    [SerializeField] private List<string> startingItems = new List<string> { ItemCatalog.WalkieTalkie };
+    [SerializeField] private List<string> startingItems = new List<string>(); // 1 Oct: walkie is bought now, not free
 
     private readonly SyncList<InventorySlot> slots = new SyncList<InventorySlot>();
 
@@ -95,6 +95,46 @@ public class PlayerInventory : NetworkBehaviour
     {
         Local = this;
         hud = HotbarHUD.Create(this);
+        SendLoadout();
+    }
+
+    // ---- Loadout from the save (1 Oct) ---------------------------------------
+    //
+    // The save lives on each player's own PC (SaveManager.Current), so the
+    // owner tells the server which permanent items it owns; the server checks
+    // every ID against ItemCatalog and still enforces max 1 per type.
+    // Co-op PvE: trusting the owner's save is fine (same as the noise values).
+
+    /// <summary>Items this PC brought into the current body (a match loses these on death).</summary>
+    public static readonly List<string> LastLoadout = new List<string>();
+
+    /// <summary>Owner: put every owned permanent item from the save into the hotbar.</summary>
+    public void SendLoadout()
+    {
+        if (!isLocalPlayer || SaveManager.Current == null || SaveManager.Current.permanentItems == null) return;
+
+        LastLoadout.Clear();
+        foreach (PermanentItemData item in SaveManager.Current.permanentItems)
+        {
+            if (item == null || !item.isOwned || !ItemCatalog.Exists(item.itemID)) continue;
+            if (!LastLoadout.Contains(item.itemID)) LastLoadout.Add(item.itemID);
+        }
+        if (LastLoadout.Count > 0) CmdLoadout(LastLoadout.ToArray());
+    }
+
+    [Command]
+    private void CmdLoadout(string[] itemIds)
+    {
+        if (itemIds == null) return;
+        int added = 0;
+        foreach (string id in itemIds)
+        {
+            if (added >= SlotCount) break;
+            ItemCatalog.ItemInfo info = ItemCatalog.Find(id);
+            if (info == null || !info.permanent) continue;
+            if (ServerAddItem(id)) added++;
+        }
+        if (added > 0 && voice != null) voice.ServerRefreshRadio();
     }
 
     private void OnDestroy()

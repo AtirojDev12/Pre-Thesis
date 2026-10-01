@@ -22,6 +22,8 @@ public class RoomBrowserPanel : MonoBehaviour
     [SerializeField] private TMP_Text emptyText;
     [SerializeField] private Button refreshButton;
     [SerializeField] private Button backButton;
+    [Tooltip("Optional (added 1 Oct): type part of a room name to filter the list.")]
+    [SerializeField] private TMP_InputField searchField;
 
     [Header("Password prompt")]
     [SerializeField] private GameObject passwordPrompt;
@@ -33,6 +35,8 @@ public class RoomBrowserPanel : MonoBehaviour
     private readonly List<RoomBrowserRow> rows = new List<RoomBrowserRow>();
     private LobbyController boundLobby;
     private RoomListEntry pendingLockedRoom;
+    private List<RoomListEntry> lastFound;
+    private readonly List<RoomListEntry> filtered = new List<RoomListEntry>();
 
     private void Awake()
     {
@@ -46,6 +50,11 @@ public class RoomBrowserPanel : MonoBehaviour
         promptJoinButton.onClick.AddListener(ConfirmPassword);
         promptCancelButton.onClick.AddListener(ClosePrompt);
         promptPasswordField.onSubmit.AddListener(_ => ConfirmPassword());
+        if (searchField != null)
+        {
+            searchField.characterLimit = RoomConfig.MaxRoomNameLength;
+            searchField.onValueChanged.AddListener(_ => ShowRooms(lastFound, lastFound == null ? "Searching..." : "No rooms found. Create one!"));
+        }
     }
 
     private void OnEnable()
@@ -76,18 +85,34 @@ public class RoomBrowserPanel : MonoBehaviour
             boundLobby.RoomsFound += OnRoomsFound;
         }
 
+        lastFound = null;
         ShowRooms(null, "Searching...");
         lobby.FindRooms();
     }
 
     private void OnRoomsFound(List<RoomListEntry> found)
     {
+        lastFound = found;
         ShowRooms(found, "No rooms found. Create one!");
     }
 
-    private void ShowRooms(List<RoomListEntry> found, string emptyMessage)
+    private void ShowRooms(List<RoomListEntry> all, string emptyMessage)
     {
-        int count = found?.Count ?? 0;
+        // Search box: keep rooms whose name contains the typed text (any case).
+        string search = searchField != null ? searchField.text.Trim() : string.Empty;
+        filtered.Clear();
+        if (all != null)
+        {
+            foreach (RoomListEntry room in all)
+            {
+                if (search.Length == 0 ||
+                    (room.roomName ?? string.Empty).IndexOf(search, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    filtered.Add(room);
+            }
+        }
+        if (all != null && all.Count > 0 && filtered.Count == 0) emptyMessage = $"No room named \"{search}\".";
+        List<RoomListEntry> found = filtered;
+        int count = found.Count;
 
         while (rows.Count < count)
         {
@@ -111,7 +136,7 @@ public class RoomBrowserPanel : MonoBehaviour
         if (entry.isLocked)
         {
             pendingLockedRoom = entry;
-            promptTitle.text = $"{RoomDisplay.MapName(entry.mapID)} | {RoomDisplay.Difficulty(entry.difficulty)} is private";
+            promptTitle.text = $"\"{entry.roomName}\" is private";
             promptPasswordField.SetTextWithoutNotify(string.Empty);
             passwordPrompt.SetActive(true);
             promptPasswordField.ActivateInputField();

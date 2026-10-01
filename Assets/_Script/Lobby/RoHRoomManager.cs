@@ -171,6 +171,77 @@ public class RoHRoomManager : NetworkRoomManager
         return true;
     }
 
+    // ---- 3D lobby (1 Oct): every player walks around with a real body -------
+    //
+    // Mirror's room needs each connection's lobby SEAT (RoHRoomPlayer: name,
+    // Ready) and the normal game Player prefab is what can walk, talk in 3D,
+    // use the shop and the practice stations. So in the lobby scene the body
+    // becomes the connection's MAIN player and the seat stays alive and owned
+    // (KeepAuthority) beside it. Before the match starts the seat becomes the
+    // main player again, so Mirror's normal "swap seat for game player" works
+    // unchanged; coming back from a match, the body is given again.
+
+    [Header("3D lobby")]
+    [Tooltip("ON: in the lobby scene each player gets a walkable body (the Player prefab). OFF: the old flat lobby.")]
+    [SerializeField] private bool lobbyBodies = true;
+
+    public override void OnServerAddPlayer(NetworkConnectionToClient conn)
+    {
+        base.OnServerAddPlayer(conn);
+        if (InRoomScene) AttachLobbyBody(conn);
+    }
+
+    public override void OnServerReady(NetworkConnectionToClient conn)
+    {
+        base.OnServerReady(conn);
+        // Back from a match: Mirror made the seat the main player again.
+        if (InRoomScene) AttachLobbyBody(conn);
+    }
+
+    public override void ServerChangeScene(string newSceneName)
+    {
+        // Leaving the lobby for the match: the seat must be the main player
+        // again, or Mirror cannot swap it for the game player.
+        if (InRoomScene && newSceneName != RoomScene)
+        {
+            DetachLobbyBodies();
+            // Seats queued while in the lobby (after returning from a match)
+            // would be replayed when the map loads, including players who have
+            // left since. Every player instead gets their game body when their
+            // own client finishes loading (OnServerReady), like the first match.
+            pendingPlayers.Clear();
+        }
+        base.ServerChangeScene(newSceneName);
+    }
+
+    private void AttachLobbyBody(NetworkConnectionToClient conn)
+    {
+        if (!lobbyBodies || playerPrefab == null || conn == null || !conn.isReady || conn.identity == null) return;
+        RoHRoomPlayer seat = conn.identity.GetComponent<RoHRoomPlayer>();
+        if (seat == null) return; // already walking around
+
+        Transform start = GetStartPosition();
+        GameObject body = start != null
+            ? Instantiate(playerPrefab, start.position, start.rotation)
+            : Instantiate(playerPrefab, Vector3.up, Quaternion.identity);
+        body.name = $"{playerPrefab.name} (lobby) [connId={conn.connectionId}]";
+
+        NetworkServer.ReplacePlayerForConnection(conn, body, ReplacePlayerOptions.KeepAuthority);
+    }
+
+    private void DetachLobbyBodies()
+    {
+        foreach (NetworkRoomPlayer seat in roomSlots)
+        {
+            if (seat == null) continue;
+            NetworkConnectionToClient conn = seat.connectionToClient;
+            if (conn == null || conn.identity == null || conn.identity == seat.netIdentity) continue;
+
+            // Seat back as the main player; the lobby body is destroyed everywhere.
+            NetworkServer.ReplacePlayerForConnection(conn, seat.gameObject, ReplacePlayerOptions.Destroy);
+        }
+    }
+
     public override void OnRoomStopServer()
     {
         BeginSessionEnd();

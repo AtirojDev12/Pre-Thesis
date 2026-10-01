@@ -956,8 +956,9 @@ public sealed class PopcornUiCursorController : MonoBehaviour
 {
     private void Update()
     {
-        // The Esc menu owns the cursor while it is open.
-        if (GameplayInput.Blocked) return;
+        // The Esc menu owns the cursor while it is open. Lobby panels / shop too,
+        // including the frame one closes (else this re-frees the mouse right after).
+        if (GameplayInput.Blocked || OverlayPanels.BlocksEscape) return;
 
         if (UnityEngine.InputSystem.Keyboard.current == null ||
             !UnityEngine.InputSystem.Keyboard.current.tabKey.wasPressedThisFrame) return;

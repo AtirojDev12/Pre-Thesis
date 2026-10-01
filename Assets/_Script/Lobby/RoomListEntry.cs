@@ -8,6 +8,7 @@ using Epic.OnlineServices.Lobby;
 /// </summary>
 public class RoomListEntry
 {
+    public string roomName;
     public string mapID;
     public DifficultyLevel difficulty;
     public int currentPlayers;

@@ -126,6 +126,9 @@ public class PauseMenuController : MonoBehaviour
         // The end-of-round results screen has its own buttons.
         if (MatchResultsUI.IsShowing) return;
 
+        // Lobby panel (Tab) / shop: Esc closes those instead.
+        if (OverlayPanels.BlocksEscape) return;
+
         if (!content.activeSelf)
         {
             // Only in a match: there must be a local player.

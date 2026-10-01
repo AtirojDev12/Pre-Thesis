@@ -47,6 +47,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonCamera
   playerBody: {fileID: 6826038590600976497}
   cameraLocalPosition: {x: 0, y: 0.81, z: 0.05}
+  crouchCameraDrop: 0.65
+  crouchCameraLerpSpeed: 9
   mouseSensitivity: 0.1
   minLookAngle: -80
   maxLookAngle: 80
@@ -372,6 +374,8 @@ MonoBehaviour:
   sprintSpeed: 8
   backwardSpeedMultiplier: 0.55
   strafeSpeedMultiplier: 0.8
+  crouchSpeedMultiplier: 0.45
+  crouchHeight: 1.2
   playerCamera: {fileID: 443704085783855534}
   playerAnimator: {fileID: -2365669203378768568}
   animationDampTime: 0.1
@@ -417,6 +421,10 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
+  reviveRange: 2.5
+  reviveMarkerDistance: 18
+  reviveHoldSeconds: 5
+  reviveMarkerSize: 38
   rayOrigin: {fileID: 0}
   interactionRange: 3
   interactableLayers:
@@ -460,6 +468,9 @@ MonoBehaviour:
   OnDowned:
     m_PersistentCalls:
       m_Calls: []
+  OnRevived:
+    m_PersistentCalls:
+      m_Calls: []
   OnDownedTimerChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -476,7 +487,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Mirror::Mirror.NetworkIdentity
   sceneId: 0
-  _assetId: 2193187429
+  _assetId: 0
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
@@ -583,8 +594,7 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  startingItems:
-  - walkie_talkie
+  startingItems: []
 --- !u!114 &3020241743421449484
 MonoBehaviour:
   m_ObjectHideFlags: 0

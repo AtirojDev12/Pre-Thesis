@@ -73,6 +73,7 @@ public sealed class MatchResultsUI : MonoBehaviour
     private Button menuButton;
     private TMP_Text lobbyLabel;
     private bool leaving;
+    private string lostItems = "";
 
     private const int MaxRows = 6;
     private readonly TMP_Text[] playerRows = new TMP_Text[MaxRows];
@@ -110,6 +111,9 @@ public sealed class MatchResultsUI : MonoBehaviour
             SaveManager.SaveToDisk();
         }
 
+        // Died: the permanent items you brought into this match are lost (1 Oct).
+        if (r.consolation) lostItems = LoseCarriedItems();
+
         // Your round is over: your body stays exactly where it is.
         if (PlayerHealth.LocalInstance != null) MatchDirector.FreezeBody(PlayerHealth.LocalInstance.gameObject);
 
@@ -123,6 +127,29 @@ public sealed class MatchResultsUI : MonoBehaviour
         instance = null;
         PersistentHUD.PopHidden();
         GameplayInput.Blocked = false;
+    }
+
+    /// <summary>Removes the permanent items brought into this match from the save. Returns their names.</summary>
+    private static string LoseCarriedItems()
+    {
+        SaveData save = SaveManager.Current;
+        if (save == null || save.permanentItems == null || PlayerInventory.LastLoadout.Count == 0) return "";
+
+        var names = new System.Text.StringBuilder();
+        foreach (string id in PlayerInventory.LastLoadout)
+        {
+            for (int i = 0; i < save.permanentItems.Count; i++)
+            {
+                PermanentItemData item = save.permanentItems[i];
+                if (item == null || item.itemID != id || !item.isOwned) continue;
+                item.isOwned = false;
+                if (names.Length > 0) names.Append(", ");
+                names.Append(ItemCatalog.DisplayName(id));
+            }
+        }
+        PlayerInventory.LastLoadout.Clear();
+        SaveManager.SaveToDisk();
+        return names.ToString();
     }
 
     // ---- Layout --------------------------------------------------------------
@@ -174,7 +201,8 @@ public sealed class MatchResultsUI : MonoBehaviour
         if (dead)
         {
             TMP_Text sorry = NewText("Consolation", left,
-                "We feel sorry for your loss.\nThis is your consolation prize.", 34f, Muted, FontStyles.Italic);
+                "We feel sorry for your loss.\nThis is your consolation prize." +
+                (lostItems.Length > 0 ? $"\n<color=#FF594D>Lost: {lostItems}</color>" : ""), 30f, Muted, FontStyles.Italic);
             sorry.textWrappingMode = TextWrappingModes.Normal;
             Row(left, sorry, ref y, 100f);
         }

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Mirror;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>
@@ -35,6 +36,23 @@ public class WaitingLobbyController : MonoBehaviour
     [SerializeField] private Button leaveButton;
 
     private readonly List<RoHRoomPlayer> players = new List<RoHRoomPlayer>(RoomConfig.MaxPlayers);
+
+    // ---- 3D lobby (1 Oct) ------------------------------------------------------
+    // With a walking body the panel is hidden and opens with M (Esc closes).
+    // NOT Tab: Tab already frees the mouse for the popcorn / ticket screens
+    // (PopcornUiCursorController), in matches and at the practice stations.
+    // Without a body yet (still connecting, or lobby bodies switched off) it is
+    // always shown, like the old flat lobby.
+    [Header("3D lobby")]
+    [Tooltip("Opens / closes this panel while walking around the lobby. Do not use Tab (popcorn mouse key).")]
+    [SerializeField] private Key panelKey = Key.M;
+
+    private Canvas panelCanvas;
+    private bool panelOpen;          // only meaningful while we have a body
+    private bool appliedVisible;     // what is on screen now
+    private bool registeredOpen;     // counted in OverlayPanels / PersistentHUD
+    private bool hasApplied;
+    private GameObject hintRoot;
     private readonly List<LobbyPlayerRow> rows = new List<LobbyPlayerRow>(RoomConfig.MaxPlayers);
 
     private void Awake()
@@ -52,20 +70,118 @@ public class WaitingLobbyController : MonoBehaviour
         leaveButton.onClick.AddListener(Leave);
     }
 
-    private void OnEnable()
+    private void Start()
     {
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-        PersistentHUD.PushHidden();
+        panelCanvas = GetComponent<Canvas>();
+        BuildHint();
     }
 
-    private void OnDisable()
+    private void OnDisable() => SetRegistered(false);
+    private void OnDestroy() => SetRegistered(false);
+
+    private static bool HasBody => PlayerHealth.LocalInstance != null;
+
+    private void HandlePanelInput()
     {
-        PersistentHUD.PopHidden();
+        Keyboard keyboard = Keyboard.current;
+        if (!HasBody || keyboard == null) return;
+
+        // Esc menu / shop own the screen while open.
+        if (PauseMenuController.IsOpen) return;
+        if (!panelOpen && OverlayPanels.AnyOpen) return;
+
+        if (keyboard[panelKey].wasPressedThisFrame) panelOpen = !panelOpen;
+        else if (panelOpen && keyboard.escapeKey.wasPressedThisFrame) panelOpen = false;
+    }
+
+    private void ApplyPanelVisibility()
+    {
+        // Visible = covers the screen and owns the mouse. Always up without a body.
+        bool visible = !HasBody || panelOpen;
+        if (hasApplied && visible == appliedVisible) return;
+        hasApplied = true;
+        appliedVisible = visible;
+
+        if (panelCanvas != null) panelCanvas.enabled = visible;
+        if (hintRoot != null) hintRoot.SetActive(!visible && HasBody);
+        SetRegistered(visible);
+
+        if (visible) OverlayPanels.SetMouseForUi(true);
+        else if (HasBody) OverlayPanels.SetMouseForUi(false);
+
+        if (HasBody) DisableSceneCameras();
+    }
+
+    /// <summary>
+    /// Once my body exists, the lobby scene's own camera (and its audio
+    /// listener) must stop, or there are two cameras / two listeners.
+    /// </summary>
+    private static void DisableSceneCameras()
+    {
+        PlayerHealth me = PlayerHealth.LocalInstance;
+        if (me == null) return;
+        foreach (Camera cam in FindObjectsByType<Camera>())
+        {
+            if (!cam.enabled || cam.GetComponentInParent<PlayerHealth>() != null) continue;
+            cam.enabled = false;
+            AudioListener listener = cam.GetComponent<AudioListener>();
+            if (listener != null) listener.enabled = false;
+        }
+    }
+
+    private void SetRegistered(bool open)
+    {
+        if (open == registeredOpen) return;
+        registeredOpen = open;
+        if (open) { OverlayPanels.Opened(); PersistentHUD.PushHidden(); }
+        else { OverlayPanels.Closed(); PersistentHUD.PopHidden(); GameplayInput.Blocked = false; }
+    }
+
+    /// <summary>Key reminder at the TOP while walking around (the bottom is the hotbar).</summary>
+    private void BuildHint()
+    {
+        hintRoot = new GameObject("Lobby Hint", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+        Canvas canvas = hintRoot.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 40;
+        CanvasScaler scaler = hintRoot.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        // Dark strip so it stays readable through the retro screen filter.
+        var stripGo = new GameObject("Strip", typeof(RectTransform), typeof(Image));
+        stripGo.transform.SetParent(hintRoot.transform, false);
+        var strip = (RectTransform)stripGo.transform;
+        strip.anchorMin = strip.anchorMax = new Vector2(0.5f, 1f);
+        strip.pivot = new Vector2(0.5f, 1f);
+        strip.anchoredPosition = new Vector2(0f, -20f);
+        strip.sizeDelta = new Vector2(1240f, 56f);
+        Image stripImage = stripGo.GetComponent<Image>();
+        stripImage.color = new Color(0f, 0f, 0f, 0.6f);
+        stripImage.raycastTarget = false;
+
+        var textGo = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        textGo.transform.SetParent(strip, false);
+        var rt = (RectTransform)textGo.transform;
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = rt.offsetMax = Vector2.zero;
+        var text = textGo.GetComponent<TextMeshProUGUI>();
+        text.text = $"<b>{panelKey}</b>  Lobby menu (Ready / Start / Leave)     <b>E</b>  Use / Shop     <b>TAB</b>  Free / lock mouse";
+        text.fontSize = 28;
+        text.fontStyle = FontStyles.Bold;
+        text.alignment = TextAlignmentOptions.Center;
+        text.color = new Color(1f, 0.96f, 0.86f, 1f);
+        text.raycastTarget = false;
+        hintRoot.SetActive(false);
     }
 
     private void Update()
     {
+        HandlePanelInput();
+        ApplyPanelVisibility();
+
         RoHRoomManager room = RoHRoomManager.Instance;
         if (room == null)
         {
@@ -99,8 +215,12 @@ public class WaitingLobbyController : MonoBehaviour
             statusText.text = "Press Ready when you are set.";
     }
 
+    /// <summary>My seat. In the 3D lobby the body is the local player and the seat is only owned.</summary>
     private RoHRoomPlayer FindLocal()
     {
+        for (int i = 0; i < players.Count; i++)
+            if (players[i] != null && players[i].isOwned) return players[i];
+
         NetworkIdentity id = NetworkClient.localPlayer;
         return id != null ? id.GetComponent<RoHRoomPlayer>() : null;
     }
@@ -110,7 +230,7 @@ public class WaitingLobbyController : MonoBehaviour
         RoomConfig config = LobbyController.Instance != null ? LobbyController.Instance.CurrentRoom : null;
         int limit = config != null ? config.playerLimit : room.RoomPlayerLimit;
 
-        titleText.text = "Waiting Lobby";
+        titleText.text = config != null && !string.IsNullOrEmpty(config.roomName) ? config.roomName : "Waiting Lobby";
 
         string map = RoomDisplay.MapName(config != null ? config.mapID : RoomConfig.DemoMapID);
         string difficulty = config != null ? RoomDisplay.Difficulty(config.difficulty) : "?";

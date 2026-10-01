@@ -21,8 +21,11 @@ public class RoomConfig
 
     public const int MinPlayers = 1;
     public const int MaxPlayers = 6;
+    public const int MaxRoomNameLength = 24;
 
     public string mapID = DemoMapID;
+    /// <summary>Name the host gave the room; shown and searchable in the Room Browser.</summary>
+    public string roomName = string.Empty;
     public DifficultyLevel difficulty = DifficultyLevel.Normal;
     public int playerLimit = MaxPlayers;
     public bool isPrivate = false;
@@ -36,6 +39,7 @@ public class RoomConfig
     public bool Validate(out string error)
     {
         playerLimit = Math.Clamp(playerLimit, MinPlayers, MaxPlayers);
+        roomName = SanitizeRoomName(roomName);
 
         if (isPrivate && string.IsNullOrWhiteSpace(password))
         {
@@ -45,5 +49,13 @@ public class RoomConfig
 
         error = null;
         return true;
+    }
+
+    /// <summary>Trimmed, max MaxRoomNameLength characters. Empty stays empty (the UI fills a default).</summary>
+    public static string SanitizeRoomName(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        string trimmed = raw.Trim();
+        return trimmed.Length > MaxRoomNameLength ? trimmed.Substring(0, MaxRoomNameLength) : trimmed;
     }
 }

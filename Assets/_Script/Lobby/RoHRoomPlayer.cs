@@ -30,7 +30,9 @@ public class RoHRoomPlayer : NetworkRoomPlayer
         isHost = connectionToClient is LocalConnectionToClient;
     }
 
-    public override void OnStartLocalPlayer()
+    // OnStartAuthority, not OnStartLocalPlayer: in the 3D lobby the walking
+    // body is the main (local) player and this seat is only OWNED.
+    public override void OnStartAuthority()
     {
         CmdSetName(GameSettings.PlayerName);
     }
@@ -44,7 +46,7 @@ public class RoHRoomPlayer : NetworkRoomPlayer
     /// <summary>Called by the lobby UI's Ready button on the local player.</summary>
     public void SetReady(bool ready)
     {
-        if (!isLocalPlayer) return;
+        if (!isOwned) return; // owned seat (the body is the local player in the 3D lobby)
         CmdChangeReadyState(ready);
     }
 

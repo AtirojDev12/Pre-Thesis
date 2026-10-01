@@ -361,8 +361,12 @@ public static class MainMenuBuilder
 
     private static CreateRoomPanel BuildCreatePanel(RectTransform canvas, MainMenuController menu)
     {
-        RectTransform card = Card(canvas, "Create Room Panel", new Vector2(760, 760));
+        RectTransform card = Card(canvas, "Create Room Panel", new Vector2(760, 880));
         Label(card, "Title", "Create Room", 44, AccentColor, TextAlignmentOptions.Center, 60);
+
+        // 1 Oct: the room's name, shown and searchable in the Room Browser.
+        Label(card, "Room Name Label", "Room name", 24, TextColor, TextAlignmentOptions.MidlineLeft, 30);
+        TMP_InputField roomName = MakeInput(card, "Room Name Field", "e.g. Kong's room");
 
         TMP_Text map = Label(card, "Map", "Map: Cinema", 26, MutedColor, TextAlignmentOptions.MidlineLeft, 36);
 
@@ -383,7 +387,7 @@ public static class MainMenuBuilder
 
         CreateRoomPanel panel = card.gameObject.AddComponent<CreateRoomPanel>();
         Wire(panel,
-            ("menu", menu), ("mapText", map), ("difficultyDropdown", difficulty),
+            ("menu", menu), ("roomNameField", roomName), ("mapText", map), ("difficultyDropdown", difficulty),
             ("playerLimitSlider", limit), ("playerLimitText", limitText),
             ("privateToggle", privateToggle), ("passwordField", password),
             ("errorText", error), ("createButton", create), ("backButton", back));
@@ -392,14 +396,18 @@ public static class MainMenuBuilder
 
     private static RoomBrowserPanel BuildBrowserPanel(RectTransform canvas, MainMenuController menu)
     {
-        RectTransform card = Card(canvas, "Room Browser Panel", new Vector2(1180, 800));
+        RectTransform card = Card(canvas, "Room Browser Panel", new Vector2(1280, 860));
         Label(card, "Title", "Room Browser", 44, AccentColor, TextAlignmentOptions.Center, 60);
+
+        // 1 Oct: find a room by its name.
+        TMP_InputField search = MakeInput(card, "Search Field", "Search room name...");
 
         // Column headers
         RectTransform header = NewRect("Header", card);
         Layout(header, 0, 36);
         ConfigureHorizontal(header.gameObject.AddComponent<HorizontalLayoutGroup>(), 16, new RectOffset(24, 24, 0, 0));
-        Label(header, "Map", "Map", 22, MutedColor, TextAlignmentOptions.MidlineLeft, 36, width: 300, flexibleWidth: 1);
+        Label(header, "Room", "Room", 22, MutedColor, TextAlignmentOptions.MidlineLeft, 36, width: 300, flexibleWidth: 1);
+        Label(header, "Map", "Map", 22, MutedColor, TextAlignmentOptions.MidlineLeft, 36, width: 160);
         Label(header, "Difficulty", "Difficulty", 22, MutedColor, TextAlignmentOptions.MidlineLeft, 36, width: 180);
         Label(header, "Players", "Players", 22, MutedColor, TextAlignmentOptions.MidlineLeft, 36, width: 130);
         Label(header, "Status", "Status", 22, MutedColor, TextAlignmentOptions.MidlineLeft, 36, width: 150);
@@ -432,13 +440,15 @@ public static class MainMenuBuilder
         Layout(rowRt, 0, 68);
         AddImage(rowRt, RowColor);
         ConfigureHorizontal(rowRt.gameObject.AddComponent<HorizontalLayoutGroup>(), 16, new RectOffset(16, 16, 8, 8));
-        TMP_Text rowMap = Label(rowRt, "Map", "Cinema", 26, TextColor, TextAlignmentOptions.MidlineLeft, 52, width: 300, flexibleWidth: 1);
+        TMP_Text rowName = Label(rowRt, "Room Name", "Kong's room", 26, TextColor, TextAlignmentOptions.MidlineLeft, 52, width: 300, flexibleWidth: 1);
+        rowName.overflowMode = TextOverflowModes.Ellipsis;
+        TMP_Text rowMap = Label(rowRt, "Map", "Cinema", 24, MutedColor, TextAlignmentOptions.MidlineLeft, 52, width: 160);
         TMP_Text rowDiff = Label(rowRt, "Difficulty", "Normal", 24, TextColor, TextAlignmentOptions.MidlineLeft, 52, width: 180);
         TMP_Text rowPlayers = Label(rowRt, "Players", "1 / 6", 24, TextColor, TextAlignmentOptions.MidlineLeft, 52, width: 130);
         TMP_Text rowStatus = Label(rowRt, "Status", "Open", 24, MutedColor, TextAlignmentOptions.MidlineLeft, 52, width: 150);
         Button rowJoin = MakeButton(rowRt, "Join Button", "Join", true, 52, 150);
         RoomBrowserRow row = rowRt.gameObject.AddComponent<RoomBrowserRow>();
-        Wire(row, ("mapText", rowMap), ("difficultyText", rowDiff), ("playersText", rowPlayers),
+        Wire(row, ("nameText", rowName), ("mapText", rowMap), ("difficultyText", rowDiff), ("playersText", rowPlayers),
             ("statusText", rowStatus), ("joinButton", rowJoin));
 
         RectTransform buttons = ButtonRow(card, "Buttons");
@@ -460,7 +470,7 @@ public static class MainMenuBuilder
         RoomBrowserPanel panel = card.gameObject.AddComponent<RoomBrowserPanel>();
         Wire(panel,
             ("menu", menu), ("listContent", content), ("rowTemplate", row), ("emptyText", empty),
-            ("refreshButton", refresh), ("backButton", back),
+            ("refreshButton", refresh), ("backButton", back), ("searchField", search),
             ("passwordPrompt", prompt.gameObject), ("promptTitle", promptTitle),
             ("promptPasswordField", promptField), ("promptJoinButton", promptJoin), ("promptCancelButton", promptCancel));
 
@@ -659,6 +669,61 @@ public static class MainMenuBuilder
 
         Debug.Log("[MainMenuBuilder] Settings + Pause Menu done.\n" + log);
         EditorUtility.DisplayDialog("Settings + Pause Menu built", log.ToString(), "OK");
+    }
+
+    // =========================================================================
+    // Create Room + Room Browser only (1 Oct: room name + search). Does NOT
+    // touch the rest of the main menu (background art, other panels).
+    // =========================================================================
+
+    [MenuItem("Tools/Pre-Thesis/Rebuild Create Room + Room Browser")]
+    private static void RebuildRoomPanels()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            EditorUtility.DisplayDialog("Rebuild Create Room + Room Browser", "Stop Play mode first.", "OK");
+            return;
+        }
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+        LoadResources();
+        Scene scene = EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
+        GameObject root = null;
+        foreach (GameObject candidate in scene.GetRootGameObjects())
+            if (candidate.name == MenuRootName) root = candidate;
+
+        if (root == null)
+        {
+            EditorUtility.DisplayDialog("Rebuild Create Room + Room Browser",
+                "MainMenu has no 'Main Menu UI'. Run Tools > Pre-Thesis > Build Main Menu + Lobby first.", "OK");
+            return;
+        }
+
+        MainMenuController menu = root.GetComponent<MainMenuController>();
+        var canvas = (RectTransform)root.transform;
+
+        CreateRoomPanel create = ReplacePanel(canvas, "Create Room Panel", () => BuildCreatePanel(canvas, menu));
+        RoomBrowserPanel browser = ReplacePanel(canvas, "Room Browser Panel", () => BuildBrowserPanel(canvas, menu));
+        if (menu != null) Wire(menu, ("createPanel", create), ("browserPanel", browser));
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        const string done = "Create Room (room name) and Room Browser (name column + search) rebuilt in MainMenu.unity. Nothing else touched.";
+        Debug.Log("[MainMenuBuilder] " + done);
+        EditorUtility.DisplayDialog("Rebuild Create Room + Room Browser", done, "OK");
+    }
+
+    private static T ReplacePanel<T>(RectTransform canvas, string name, System.Func<T> build) where T : Component
+    {
+        Transform old = canvas.Find(name);
+        int sibling = old != null ? old.GetSiblingIndex() : -1;
+        if (old != null) Object.DestroyImmediate(old.gameObject);
+
+        T panel = build();
+        if (sibling >= 0) panel.transform.SetSiblingIndex(sibling);
+        panel.gameObject.SetActive(false);
+        SetLayerRecursively(panel.gameObject, uiLayer);
+        return panel;
     }
 
     /// <summary>Replaces only "Main Menu UI/Settings Panel". Background and all other UI stay as they are.</summary>
