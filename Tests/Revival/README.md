@@ -1,14 +1,15 @@
 # Teammate revival playtest
 
-The existing PlayerInteractor carries the revival implementation; no new player prefab component is needed. Tune Teammate revival on PlayerInteractor: marker distance 18 m, revive range 2.5 m, hold duration 5 seconds, prompt size 38 pixels. Hold the configured interaction key (E by default).
+PlayerInteractor: revive range 2.5 m (root-to-root distance), horizontal facing half-angle 60 degrees, hold duration 5 seconds, prompt size 38 pixels. Hold E by default. The closest downed teammate is selected automatically; selection locks while holding E and releases when E is released.
 
-Run with a host and a separate client, then swap their roles:
+Run with a host and separate client, then swap roles:
 
-1. Down a teammate using server-side damage. Look directly at the character. Beyond 18 m there should be no marker; approaching should smoothly fade and enlarge the circle. At 2.5 m it should show E anchored near the animated hips.
-2. Look away or place a wall between the players: the marker should disappear. A healthy or dead player must have no marker.
-3. Hold E in range for five seconds. The progress bar should fill, the teammate should stand and regain movement with 30% maximum health, and their DOWNED panel should close.
-4. Release E, look away, open the pause menu, move out of range, or down/kill the rescuer before completion. Progress should reset (network heartbeat timeout is at most 0.4 seconds for interrupted requests). Restarting must require a fresh five seconds.
-5. Let the downed timer expire while reviving. Revival must fail once the teammate dies. Two rescuers must not combine progress or resurrect a dead teammate.
-6. Check ordinary doors, ticket buttons, and popcorn interactions still respond to E without a downed target in view.
+1. Approach a downed teammate from any direction. Within 2.5 m, a fixed bottom-center hint appears without aiming at a collider. Outside range it disappears.
+2. Face away: a left/right turn hint appears, E is unavailable, and holding E cannot revive. Turn within 60 degrees of the teammate: E appears. Looking up/down must not change eligibility.
+3. Hold E for five seconds: progress fills and the teammate revives. Turn beyond 60 degrees, release E, leave range, open pause, or down/kill the rescuer: progress resets. Turning back requires a fresh five seconds.
+4. Put a wall or prop between the bodies: the blocked-path hint appears and revival fails. Check cramped spaces and different downed animations; camera pitch must not change the obstruction check.
+5. Down two teammates: the closest is selected. Start holding, then make the other closer: selection must stay locked. If the selected teammate dies or leaves range, no other teammate is revived until E is released and a new attempt starts.
+6. Let the downed timer expire during revival. Two rescuers must not combine progress or resurrect a dead player.
+7. Check doors, ticket buttons and popcorn still respond to E when a nearby teammate is behind the player or blocked.
 
-Server validation checks both players' health, range, occlusion, continuous heartbeat and elapsed time. The server owns progress; clients cannot submit completion. The existing player downed countdown remains unchanged.
+The server validates health, range, horizontal facing, body-to-body obstruction, heartbeat and elapsed time. Its progress is authoritative. Verify the facing boundary on a separate client to cover replicated body rotation.
