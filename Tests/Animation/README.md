@@ -21,7 +21,7 @@ therefore also delays the owner's sound. Offline test scenes play directly.
 Each foot has a runtime 3D AudioSource, linear attenuation from 1 to 15 metres,
 zero volume beyond 15 metres, no Doppler, and SoundCategoryVolume set to SFX.
 Tune volume/range/contact thresholds on PlayerFootsteps in the prefab. Carpet is
-currently used for all surfaces. PlayerNoise's existing walking/running levels remain
+currently used for all surfaces. Crouch movement reports zero game noise; microphone and radio noise still apply. PlayerNoise's walking/running levels remain
 the gameplay noise input; receiving another player's sound does not add local noise.
 
 The animation probe checks actual walk/run contact playback on host and client,

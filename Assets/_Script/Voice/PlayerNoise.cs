@@ -47,7 +47,8 @@ public sealed class PlayerNoise : MonoBehaviour
     // ---- Game-noise tuning (0..1) -------------------------------------------
     // Raised 29 Sep (Mr.k): in-game noise should reach red more easily.
     public const float WalkNoise = 0.3f;
-    public const float CrouchWalkNoise = 0.12f;
+    // Crouch movement is silent for the meter and ghost hearing.
+    public const float CrouchWalkNoise = 0f;
     public const float SprintNoise = 0.6f;
     public const float RadioClickNoise = 0.5f;
     /// <summary>Radio playing a voice: base + this much of the voice's loudness (0.45..1.0, a loud voice turns it red).</summary>
