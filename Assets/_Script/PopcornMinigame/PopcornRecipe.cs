@@ -3,17 +3,22 @@ using UnityEngine;
 /// <summary>Shared recipe rules for local play and the server's order resolution.</summary>
 public static class PopcornRecipe
 {
+    public static bool IsDrink(PopcornFlavor flavor) => flavor == PopcornFlavor.Drink ||
+        flavor == PopcornFlavor.Pepsi || flavor == PopcornFlavor.Fanta || flavor == PopcornFlavor.OrangeJuice;
     public static bool IsOrder(PopcornFlavor flavor) => flavor == PopcornFlavor.Cheese ||
-        flavor == PopcornFlavor.BBQ || flavor == PopcornFlavor.Paprika || flavor == PopcornFlavor.Drink;
+        flavor == PopcornFlavor.BBQ || flavor == PopcornFlavor.Paprika || IsDrink(flavor);
 
     public static PopcornFlavor RandomOrder()
     {
-        switch (Random.Range(0, 4))
+        switch (Random.Range(0, 7))
         {
             case 0: return PopcornFlavor.Cheese;
             case 1: return PopcornFlavor.BBQ;
             case 2: return PopcornFlavor.Paprika;
-            default: return PopcornFlavor.Drink;
+            case 3: return PopcornFlavor.Drink;
+            case 4: return PopcornFlavor.Pepsi;
+            case 5: return PopcornFlavor.Fanta;
+            default: return PopcornFlavor.OrangeJuice;
         }
     }
 

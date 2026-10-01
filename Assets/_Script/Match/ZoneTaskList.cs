@@ -8,7 +8,7 @@ using UnityEngine.UI;
 public enum ZoneTaskKind
 {
     Popcorn = 0,  // Cheese / BBQ / Paprika
-    Water = 1,    // a cup of water (PopcornFlavor.Drink)
+    Water = 1,    // drinks (serialized name retained for existing boards)
     Ticket = 2,   // a movie ticket
 }
 
@@ -29,7 +29,7 @@ public class ZoneTask
 
     public ZoneTaskKind kind = ZoneTaskKind.Popcorn;
 
-    [Tooltip("Popcorn only: which flavor counts. None = any flavor.")]
+    [Tooltip("Popcorn/drinks: which flavor counts. None = any flavor.")]
     public PopcornFlavor flavor = PopcornFlavor.None;
 
     [Tooltip("Ticket only: 0 = any movie, 1 = Movie 1, 2 = Movie 2, 3 = Movie 3.")]
@@ -46,7 +46,7 @@ public class ZoneTask
         if (saleKind != kind) return false;
         if (customer == ZoneTaskCustomer.Human && ghostCustomer) return false;
         if (customer == ZoneTaskCustomer.Ghost && !ghostCustomer) return false;
-        if (kind == ZoneTaskKind.Popcorn && flavor != PopcornFlavor.None && flavor != saleFlavor) return false;
+        if ((kind == ZoneTaskKind.Popcorn || kind == ZoneTaskKind.Water) && flavor != PopcornFlavor.None && flavor != saleFlavor) return false;
         if (kind == ZoneTaskKind.Ticket && movie > 0 && movie - 1 != movieIndex) return false;
         return true;
     }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
 
@@ -172,6 +173,129 @@ public class PopcornNetSync : NetworkBehaviour
             MatchDirector.Instance.ServerRegisterZone(zoneID);
     }
 
+    // The same scene NetworkIdentity carries stock; no runtime network components
+    // are added to the authored machine models or local hand visuals.
+    [SyncVar] private int tankRemaining = 20;
+    [SyncVar] private int tankCapacity = 20;
+    [SyncVar] private int refillServings = 10;
+    public int TankRemaining => tankRemaining;
+    public int TankCapacity => tankCapacity;
+    private struct SupplyWork
+    {
+        public int station, request;
+        public double started;
+    }
+    private readonly Dictionary<NetworkConnectionToClient, SupplyWork> supplyWork = new Dictionary<NetworkConnectionToClient, SupplyWork>();
+    private readonly HashSet<NetworkConnectionToClient> heldRefills = new HashSet<NetworkConnectionToClient>();
+
+    public override void OnStartServer()
+    {
+        base.OnStartServer();
+        PopcornPreparation preparation = PopcornPreparation.Instance;
+        tankCapacity = preparation != null ? preparation.Capacity : 20;
+        refillServings = preparation != null ? preparation.RefillServings : 10;
+        tankRemaining = tankCapacity;
+        supplyWork.Clear();
+        heldRefills.Clear();
+    }
+
+    public void RequestSupply(int station, int request, PopcornSupplyAction action) => CmdSupply(station, request, action);
+    public void RequestDiscardRefill() => CmdDiscardRefill();
+
+    [Command(requiresAuthority = false)]
+    private void CmdDiscardRefill(NetworkConnectionToClient sender = null)
+    {
+        if (sender != null) heldRefills.Remove(sender);
+    }
+
+    private bool CanUseSupply(NetworkConnectionToClient sender, PopcornStation station)
+    {
+        if (sender == null || sender.identity == null || station == null || !station.CanInteract()) return false;
+        PlayerHealth player = sender.identity.GetComponent<PlayerHealth>();
+        if (player == null || player.IsDead || player.IsDowned) return false;
+        float nearest = float.PositiveInfinity;
+        foreach (Collider collider in station.GetComponentsInChildren<Collider>())
+            if (collider.enabled && !collider.isTrigger)
+                nearest = Mathf.Min(nearest, (collider.ClosestPoint(player.transform.position) - player.transform.position).sqrMagnitude);
+        // Matches the interactor's 3 m reach plus 1.5 m network tolerance.
+        return nearest <= 4.5f * 4.5f;
+    }
+
+    [Command(requiresAuthority = false)]
+    private void CmdSupply(int stationId, int request, PopcornSupplyAction action, NetworkConnectionToClient sender = null)
+    {
+        if (sender == null) return;
+        if (action == PopcornSupplyAction.Cancel)
+        {
+            if (supplyWork.TryGetValue(sender, out SupplyWork cancelled) && cancelled.request == request)
+                supplyWork.Remove(sender);
+            return;
+        }
+        PopcornStation station = PopcornPreparation.Instance != null ? PopcornPreparation.Instance.StationAt(stationId) : null;
+        bool valid = CanUseSupply(sender, station) &&
+            (station.Kind == PopcornStationKind.Tank || station.Kind == PopcornStationKind.Maker);
+        string message = "Cannot use this station · Move closer and try again";
+        if (action == PopcornSupplyAction.Begin)
+        {
+            valid = valid && !heldRefills.Contains(sender) && (station.Kind == PopcornStationKind.Maker || tankRemaining > 0);
+            if (valid)
+            {
+                supplyWork[sender] = new SupplyWork { station = stationId, request = request, started = NetworkTime.time };
+                TargetSupplyBeginAccepted(sender, request);
+            }
+            else TargetSupplyBeginRejected(sender, request, tankRemaining == 0 && station != null && station.Kind == PopcornStationKind.Tank ? "Tank empty · Make NewPopcorn first" : message);
+            return;
+        }
+        if (action == PopcornSupplyAction.Refill)
+        {
+            valid = valid && station.Kind == PopcornStationKind.Tank && heldRefills.Contains(sender) && tankRemaining < tankCapacity;
+            if (valid)
+            {
+                tankRemaining = Mathf.Min(tankCapacity, tankRemaining + refillServings);
+                heldRefills.Remove(sender);
+                message = "Tank refilled";
+            }
+            else if (tankRemaining >= tankCapacity) message = "Tank full · Keep NewPopcorn for later";
+            TargetSupplyResult(sender, request, valid, message);
+            return;
+        }
+        if (action != PopcornSupplyAction.Complete) return;
+        bool hasWork = supplyWork.TryGetValue(sender, out SupplyWork work) && work.station == stationId && work.request == request;
+        valid = valid && hasWork && NetworkTime.time - work.started >= PopcornPreparation.PreparationSeconds - 0.05;
+        // A completion is consumed exactly once, even if another player emptied
+        // the tank first. Reliable ordered commands serialize simultaneous scoops.
+        if (hasWork) supplyWork.Remove(sender);
+        if (valid && station.Kind == PopcornStationKind.Tank)
+        {
+            valid = tankRemaining > 0 && !heldRefills.Contains(sender);
+            if (valid) tankRemaining--;
+            else message = "Tank empty · Make NewPopcorn first";
+        }
+        else if (valid)
+        {
+            valid = heldRefills.Add(sender);
+        }
+        TargetSupplyResult(sender, request, valid, message);
+    }
+
+    [TargetRpc]
+    private void TargetSupplyBeginAccepted(NetworkConnectionToClient target, int request)
+    {
+        if (PopcornPreparation.Instance != null) PopcornPreparation.Instance.AcceptSupplyBegin(request);
+    }
+
+    [TargetRpc]
+    private void TargetSupplyBeginRejected(NetworkConnectionToClient target, int request, string message)
+    {
+        if (PopcornPreparation.Instance != null) PopcornPreparation.Instance.RejectSupplyBegin(request, message);
+    }
+
+    [TargetRpc]
+    private void TargetSupplyResult(NetworkConnectionToClient target, int request, bool success, string message)
+    {
+        if (PopcornPreparation.Instance != null) PopcornPreparation.Instance.ReceiveSupplyResult(request, success, message);
+    }
+
     // ---- Server: the customer at the counter -------------------------------
 
     /// <summary>
@@ -268,7 +392,7 @@ public class PopcornNetSync : NetworkBehaviour
 
             // Prototype loop: count it on the task boards (per flavor / water, human / ghost).
             ZoneTaskList.ServerReportSale(
-                heldFlavor == PopcornFlavor.Drink ? ZoneTaskKind.Water : ZoneTaskKind.Popcorn,
+                PopcornRecipe.IsDrink(heldFlavor) ? ZoneTaskKind.Water : ZoneTaskKind.Popcorn,
                 heldFlavor, -1, currentCustomerType == PopcornCustomerType.Ghost);
             SendResult(sender, true, "Correct!  +1 Point");
         }
