@@ -18,7 +18,7 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerInventory), typeof(PlayerVoice))]
 public class WalkieTalkieController : MonoBehaviour
 {
-    [Header("Held model (placeholder box until there is a real model)")]
+    [Header("Held model (placeholder box until there is a real model; material: Resources/WalkieTalkieBody)")]
     [SerializeField] private Vector3 heldPosition = new Vector3(0.28f, -0.28f, 0.5f);
     [SerializeField] private Vector3 heldRotation = new Vector3(-10f, -15f, 0f);
 
@@ -27,6 +27,11 @@ public class WalkieTalkieController : MonoBehaviour
     private PlayerHealth health;
     private readonly BoundButton talkButton = new BoundButton();
     private readonly BoundButton powerButton = new BoundButton();
+
+    // Build-included URP material (Assets/Resources/WalkieTalkieBody.mat), same idea as
+    // CustomerAppearance. CreatePrimitive's default material is NOT in builds -> purple.
+    private const string BodyMaterialPath = "WalkieTalkieBody";
+    private static Material bodyMaterial;
 
     private GameObject heldModel;
     private Renderer ledRenderer;
@@ -108,9 +113,15 @@ public class WalkieTalkieController : MonoBehaviour
         ledRenderer = led.GetComponent<Renderer>();
         ledProperties = new MaterialPropertyBlock();
 
+        if (bodyMaterial == null) bodyMaterial = Resources.Load<Material>(BodyMaterialPath);
+        if (bodyMaterial == null) Debug.LogError("[Walkie] Missing Resources/" + BodyMaterialPath + " material (shows purple in builds).", this);
+
         // Seen only by this player (first-person); never casts a shadow into the world.
         foreach (Renderer r in heldModel.GetComponentsInChildren<Renderer>())
+        {
+            if (bodyMaterial != null) r.sharedMaterial = bodyMaterial; // colours come from the property blocks
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
     }
 
     private void OnDisable()
