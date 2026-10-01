@@ -13324,7 +13324,7 @@ MonoBehaviour:
   ghostFavorRelocationPoints:
   - {fileID: 400049678}
   waterDispensers:
-  - {fileID: 0}
+  - {fileID: 1136920046}
   - {fileID: 1910514823}
   emptyBucketPrefab: {fileID: 2919478932277611772, guid: 76940601842c7b44a8e0ea1b509c1a51, type: 3}
   emptyCupPrefab: {fileID: 2919478932277611772, guid: 822cb28a5fda7ac42b5a7065f7e9b96d, type: 3}
@@ -13943,7 +13943,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9993ade5eac2d44785b8580915a745c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GhostManager
-  areLightsOnCurrently: 1
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   ghostPrefab: {fileID: 4503036079441966393, guid: cb5750ddc7811dd4ba57618d6a758e7d, type: 3}
   spawnPoint: {fileID: 1259619220}
   allLights:
@@ -23815,13 +23817,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1220888382}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.043472204, y: 0.7005042, z: -0.042828295, w: 0.7110344}
-  m_LocalPosition: {x: 0.027, y: 3.23, z: -0.84}
+  m_LocalRotation: {x: 0, y: 0, z: 1, w: 0}
+  m_LocalPosition: {x: -0.556, y: 3.22, z: -0.044}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 117103351}
-  m_LocalEulerAnglesHint: {x: 173.003, y: 269.145, z: 180}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 180}
 --- !u!1001 &1233684519
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -35017,7 +35019,7 @@ Transform:
   m_GameObject: {fileID: 1760108143}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0.99992025, z: -0, w: -0.012629164}
-  m_LocalPosition: {x: -19.202, y: 1.965, z: 13.693}
+  m_LocalPosition: {x: -19.192, y: 1.618, z: 14.104}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -36414,7 +36416,7 @@ Transform:
   m_GameObject: {fileID: 1816630814}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0.99992025, z: -0, w: -0.012629164}
-  m_LocalPosition: {x: -7.991, y: 1.664, z: 13.908}
+  m_LocalPosition: {x: -7.985, y: 1.664, z: 14.139}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
