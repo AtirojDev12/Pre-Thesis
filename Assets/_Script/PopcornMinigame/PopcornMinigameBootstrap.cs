@@ -13,7 +13,10 @@ public enum PopcornFlavor
     BBQ,
     Ghost, // Reserved for existing serialized scenes; seasoning is now a separate flag.
     Paprika,
-    Drink
+    Drink, // Water: preserve serialized value 5.
+    Pepsi,
+    Fanta,
+    OrangeJuice
 }
 
 public enum PopcornCustomerType
@@ -51,6 +54,19 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [SerializeField] private GameObject emptyCupPrefab;
     [SerializeField] private GameObject filledCupPrefab;
     [SerializeField] private GameObject ghostCupPrefab;
+
+    [Header("Popcorn supply")]
+    [SerializeField] private Transform popcornTank;
+    [SerializeField] private Transform refillMaker;
+    [SerializeField] private GameObject newPopcornPrefab;
+    [SerializeField, Min(1)] private int tankCapacity = 20;
+    [SerializeField, Min(1)] private int refillServings = 10;
+    [SerializeField] private Transform[] fantaDispensers = new Transform[0];
+    [SerializeField] private Transform[] orangeJuiceDispensers = new Transform[0];
+    [SerializeField] private Transform[] pepsiDispensers = new Transform[0];
+    [SerializeField] private GameObject fantaCupPrefab;
+    [SerializeField] private GameObject orangeJuiceCupPrefab;
+    [SerializeField] private GameObject pepsiCupPrefab;
 
     [Header("Held popcorn")]
     [SerializeField] private GameObject heldPopcornPrefab;
@@ -97,9 +113,13 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         counterSlot.ConfigureRoute(customerApproachPath, customerDeparturePath, customerWaitPoint.rotation);
         holder.Configure(heldPopcornPrefab, heldPopcornPosition, heldPopcornRotation);
         holder.ConfigureContainers(emptyBucketPrefab, emptyCupPrefab, filledCupPrefab, ghostCupPrefab);
+        holder.ConfigureSupply(newPopcornPrefab, fantaCupPrefab, orangeJuiceCupPrefab, pepsiCupPrefab);
         holder.BuildUi();
         PopcornPreparation preparation = gameObject.AddComponent<PopcornPreparation>();
         preparation.Configure(holder);
+        preparation.ConfigureSupply(tankCapacity, refillServings);
+        preparation.AddStation(popcornTank, PopcornStationKind.Tank);
+        preparation.AddStation(refillMaker, PopcornStationKind.Maker);
         preparation.AddStation(bucketSpawner, PopcornStationKind.Bucket);
         preparation.AddStation(cupSpawner, PopcornStationKind.Cup);
         preparation.AddStation(cheeseStation, PopcornStationKind.Scoop, PopcornFlavor.Cheese);
@@ -109,7 +129,13 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         if (ghostStation != null)
             gameObject.AddComponent<GhostFavorRecovery>().Configure(ghostStation, ghostFavorRelocationPoints);
         foreach (Transform dispenser in waterDispensers)
-            preparation.AddStation(dispenser, PopcornStationKind.Water);
+            preparation.AddStation(dispenser, PopcornStationKind.Water, PopcornFlavor.Drink);
+        foreach (Transform dispenser in fantaDispensers)
+            preparation.AddStation(dispenser, PopcornStationKind.Water, PopcornFlavor.Fanta);
+        foreach (Transform dispenser in orangeJuiceDispensers)
+            preparation.AddStation(dispenser, PopcornStationKind.Water, PopcornFlavor.OrangeJuice);
+        foreach (Transform dispenser in pepsiDispensers)
+            preparation.AddStation(dispenser, PopcornStationKind.Water, PopcornFlavor.Pepsi);
         manager.Configure(holder, counterSlot, cashier, maker, cashierUiAnchor, popcornMakerUiAnchor,
             delayBetweenCustomers);
 
@@ -228,7 +254,39 @@ public sealed class ItemHoldingSystem : MonoBehaviour
     public bool HasItem { get; private set; }
     public PopcornFlavor HeldFlavor { get; private set; }
     public bool IsCup { get; private set; }
-    public bool IsReady => HasItem && HeldFlavor != PopcornFlavor.None;
+    public bool IsReady => HasItem && PopcornRecipe.IsOrder(HeldFlavor);
+    public bool HasPopcorn { get; private set; }
+    public bool IsRefill { get; private set; }
+    public event System.Action RefillDiscarded;
+    private GameObject refillPrefab, fantaPrefab, orangeJuicePrefab, pepsiPrefab;
+
+    public void ConfigureSupply(GameObject refill, GameObject fanta, GameObject orangeJuice, GameObject pepsi)
+    {
+        refillPrefab = refill;
+        fantaPrefab = fanta;
+        orangeJuicePrefab = orangeJuice;
+        pepsiPrefab = pepsi;
+    }
+
+    public bool CanScoop => HasItem && !IsCup && !IsRefill && !HasPopcorn && heldPrefab != null;
+    public bool CanMakeRefill => !HasItem && refillPrefab != null;
+
+    public bool Scoop()
+    {
+        if (!CanScoop || !ShowVisual(heldPrefab)) return false;
+        HasPopcorn = true;
+        RefreshLabel();
+        return true;
+    }
+
+    public bool HoldRefill()
+    {
+        if (!CanMakeRefill || !ShowVisual(refillPrefab)) return false;
+        HasItem = true;
+        IsRefill = true;
+        RefreshLabel();
+        return true;
+    }
     public bool GhostMixed { get; private set; }
     private GameObject bucketPrefab, cupPrefab, waterPrefab, ghostWaterPrefab;
 
@@ -265,8 +323,10 @@ public sealed class ItemHoldingSystem : MonoBehaviour
     private void RefreshLabel()
     {
         if (heldItemText != null)
-            heldItemText.text = !IsReady ? (IsCup ? "EMPTY CUP\nFind water dispenser" : "EMPTY BUCKET\nChoose a flavor station")
-                : UiFactory.ItemName(HeldFlavor) + (GhostMixed ? "\n+ GHOST FLAVOR" : "\nReady - Ghosts need mix");
+            heldItemText.text = IsRefill ? "NEW POPCORN\n[E] Refill PopCornTank" :
+                !IsReady ? (IsCup ? "EMPTY CUP\nChoose a drink dispenser" : HasPopcorn ?
+                "POPCORN\nChoose a flavor station" : "EMPTY BUCKET\nScoop from PopCornTank") :
+                UiFactory.ItemName(HeldFlavor) + (GhostMixed ? "\n+ GHOST FLAVOR" : "\nReady - Ghosts need mix");
         if (heldItemPanel != null) heldItemPanel.SetActive(HasItem);
     }
 
@@ -337,8 +397,11 @@ public sealed class ItemHoldingSystem : MonoBehaviour
 
     public bool Hold(PopcornFlavor flavor)
     {
-        if (!HasItem || IsReady || !PopcornRecipe.IsOrder(flavor) || IsCup != (flavor == PopcornFlavor.Drink)) return false;
-        if (!ShowVisual(IsCup ? waterPrefab : heldPrefab)) return false;
+        if (!HasItem || IsReady || IsRefill || !PopcornRecipe.IsOrder(flavor) || IsCup != PopcornRecipe.IsDrink(flavor)) return false;
+        if (!IsCup && !HasPopcorn) return false;
+        GameObject visual = flavor == PopcornFlavor.Pepsi ? pepsiPrefab : flavor == PopcornFlavor.Fanta ? fantaPrefab :
+            flavor == PopcornFlavor.OrangeJuice ? orangeJuicePrefab : waterPrefab;
+        if (IsCup && !ShowVisual(visual)) return false;
         HeldFlavor = flavor;
         TintPopcorn();
         RefreshLabel();
@@ -388,6 +451,9 @@ public sealed class ItemHoldingSystem : MonoBehaviour
     public PopcornFlavor Consume()
     {
         PopcornFlavor result = HeldFlavor;
+        if (IsRefill) RefillDiscarded?.Invoke();
+        IsRefill = false;
+        HasPopcorn = false;
         HeldFlavor = PopcornFlavor.None;
         GhostMixed = false;
         IsCup = false;
@@ -646,7 +712,7 @@ public sealed class PopcornGameManager : MonoBehaviour
         UiFactory.Stretch(panel.GetComponent<RectTransform>());
 
         TMP_Text instructions = UiFactory.CreateText("Preparation Steps", panel.transform,
-            "PREPARE AN ORDER\n\n1  Pick up a bucket or cup\n\n2  Hold E at a flavor station\nor water dispenser - 3 seconds\n\n3  Ghost customer?\nPress E at Ghost Flavor\n\n4  Serve the waiting customer\n\nCheck the cashier for order details",
+            "PREPARE AN ORDER\n\n1  Pick up a bucket or cup\n\n2  Bucket: Hold E at PopCornTank\nthen press E to choose a flavor\nCup: Hold E at a drink dispenser\n\n3  Ghost? Add Ghost Flavor\nthen serve the waiting customer\n\nREFILL: Hold E at Popcorn Maker\nCarry NewPopcorn to the tank\nand press E to top up\n\nCheck the cashier for order details",
             38f, Color.white);
         instructions.alignment = TextAlignmentOptions.Center;
         UiFactory.SetRect(instructions.rectTransform, new Vector2(0.06f, 0.05f), new Vector2(0.94f, 0.95f));
@@ -1045,9 +1111,9 @@ internal static class UiFactory
         return button;
     }
 
-    public static string ItemName(PopcornFlavor flavor) => flavor == PopcornFlavor.Drink ? "WATER" : FlavorName(flavor).ToUpperInvariant() + " POPCORN";
+    public static string ItemName(PopcornFlavor flavor) => PopcornRecipe.IsDrink(flavor) ? FlavorName(flavor).ToUpperInvariant() : FlavorName(flavor).ToUpperInvariant() + " POPCORN";
 
-    public static string FlavorName(PopcornFlavor flavor) => flavor == PopcornFlavor.Ghost ? "Ghost Flavor" : flavor.ToString();
+    public static string FlavorName(PopcornFlavor flavor) => flavor == PopcornFlavor.Drink ? "Water" : flavor == PopcornFlavor.OrangeJuice ? "Orange Juice" : flavor == PopcornFlavor.Ghost ? "Ghost Flavor" : flavor.ToString();
 
     public static void SetRect(RectTransform rect, Vector2 min, Vector2 max)
     {

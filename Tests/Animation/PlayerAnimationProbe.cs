@@ -307,8 +307,8 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                       (p.isLocalPlayer ? "Local" : "Remote") + " crouch walks without sprinting");
             Check(footsteps[mover.GetComponent<PlayerHealth>()].Count == crouchStepStart,
                 "Crouch walking is silent");
-            Check(PlayerNoise.Local != null && PlayerNoise.Local.Game <= PlayerNoise.WalkNoise,
-                "Crouch walking stays quieter than normal walking");
+            Check(PlayerNoise.Local != null && PlayerNoise.Local.Game <= 0.001f,
+                "Crouch walking reports zero game noise");
             InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.LeftCtrl));
             yield return new WaitForSecondsRealtime(0.3f);
             var ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
