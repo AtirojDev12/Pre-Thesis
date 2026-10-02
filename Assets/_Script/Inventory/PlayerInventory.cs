@@ -16,9 +16,9 @@ using UnityEngine.InputSystem;
 ///   - An item ID can only be in the inventory once (1 copy per type).
 ///   - Items are identified by ItemCatalog string IDs (same IDs as the save).
 ///
-/// NOT DONE YET (later, with the lobby shop): items come from the save /
-/// loadout instead of <see cref="startingItems"/>; dropping; losing items on
-/// death. Popcorn buckets are still held by Atiroj's ItemHoldingSystem, which
+/// Owned shop items come from the save/loadout. PlayerItemThrow handles dropping
+/// and WorldInventoryItem handles pickup; permanent-item loss on death remains
+/// separate. Popcorn buckets are still held by Atiroj's ItemHoldingSystem, which
 /// is separate from this hotbar.
 /// </summary>
 [RequireComponent(typeof(NetworkIdentity))]
@@ -37,6 +37,7 @@ public class PlayerInventory : NetworkBehaviour
 
     private PlayerVoice voice;
     private HotbarHUD hud;
+    private bool loadoutApplied;
 
     /// <summary>This machine's own inventory (null outside a match).</summary>
     public static PlayerInventory Local { get; private set; }
@@ -70,12 +71,20 @@ public class PlayerInventory : NetworkBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => Local = null;
 
-    private void Awake() => voice = GetComponent<PlayerVoice>();
+    private void Awake()
+    {
+        voice = GetComponent<PlayerVoice>();
+        // Mirror's default SyncList guard throws when neither server nor client is running.
+        // Permit the project's offline test mode, preserving Mirror's guard in real sessions.
+        System.Func<bool> mirrorCanWrite = slots.IsWritable;
+        slots.IsWritable = () => NetworkMode.IsOffline || mirrorCanWrite();
+    }
 
     // ---- Lifecycle ---------------------------------------------------------
 
     public override void OnStartServer()
     {
+        loadoutApplied = false;
         slots.Clear();
         for (int i = 0; i < SlotCount; i++) slots.Add(InventorySlot.Empty);
         selectedSlot = 0;
@@ -98,6 +107,16 @@ public class PlayerInventory : NetworkBehaviour
         SendLoadout();
     }
 
+    private void Start()
+    {
+        if (!NetworkMode.IsOffline) return;
+        OnStartServer();
+        Local = this;
+        slots.OnChange += OnSlotsChanged;
+        hud = HotbarHUD.Create(this);
+        SendLoadout();
+    }
+
     // ---- Loadout from the save (1 Oct) ---------------------------------------
     //
     // The save lives on each player's own PC (SaveManager.Current), so the
@@ -111,7 +130,7 @@ public class PlayerInventory : NetworkBehaviour
     /// <summary>Owner: put every owned permanent item from the save into the hotbar.</summary>
     public void SendLoadout()
     {
-        if (!isLocalPlayer || SaveManager.Current == null || SaveManager.Current.permanentItems == null) return;
+        if (!NetworkMode.IsLocalController(this) || SaveManager.Current == null || SaveManager.Current.permanentItems == null) return;
 
         LastLoadout.Clear();
         foreach (PermanentItemData item in SaveManager.Current.permanentItems)
@@ -119,13 +138,20 @@ public class PlayerInventory : NetworkBehaviour
             if (item == null || !item.isOwned || !ItemCatalog.Exists(item.itemID)) continue;
             if (!LastLoadout.Contains(item.itemID)) LastLoadout.Add(item.itemID);
         }
-        if (LastLoadout.Count > 0) CmdLoadout(LastLoadout.ToArray());
+        if (NetworkMode.IsOffline) ApplyLoadout(LastLoadout.ToArray());
+        else CmdLoadout(LastLoadout.ToArray());
     }
 
     [Command]
     private void CmdLoadout(string[] itemIds)
     {
-        if (itemIds == null) return;
+        ApplyLoadout(itemIds);
+    }
+
+    private void ApplyLoadout(string[] itemIds)
+    {
+        if (loadoutApplied || itemIds == null) return;
+        loadoutApplied = true;
         int added = 0;
         foreach (string id in itemIds)
         {
@@ -151,7 +177,7 @@ public class PlayerInventory : NetworkBehaviour
 
     private void Update()
     {
-        if (!isLocalPlayer || GameplayInput.Blocked) return;
+        if (!NetworkMode.IsLocalController(this) || GameplayInput.Blocked) return;
 
         Keyboard keyboard = Keyboard.current;
         if (keyboard != null)
@@ -175,27 +201,40 @@ public class PlayerInventory : NetworkBehaviour
 
     public void RequestSelect(int index)
     {
-        if (!isLocalPlayer || index < 0 || index >= SlotCount || index == selectedSlot) return;
-        CmdSelectSlot(index);
+        if (!NetworkMode.IsLocalController(this) || index < 0 || index >= SlotCount || index == selectedSlot) return;
+        if (NetworkMode.IsOffline) SelectSlot(index);
+        else CmdSelectSlot(index);
     }
 
     /// <summary>Switch the radio in the given slot on / off.</summary>
     public void RequestTogglePower(int index)
     {
-        if (!isLocalPlayer) return;
-        CmdTogglePower(index);
+        if (!NetworkMode.IsLocalController(this)) return;
+        if (NetworkMode.IsOffline) TogglePower(index);
+        else CmdTogglePower(index);
     }
 
     [Command]
     private void CmdSelectSlot(int index)
     {
+        SelectSlot(index);
+    }
+
+    private void SelectSlot(int index)
+    {
         if (index < 0 || index >= SlotCount) return;
         selectedSlot = index;
+        Changed?.Invoke();
         if (voice != null) voice.ServerRefreshRadio();
     }
 
     [Command]
     private void CmdTogglePower(int index)
+    {
+        TogglePower(index);
+    }
+
+    private void TogglePower(int index)
     {
         if (index < 0 || index >= slots.Count) return;
         InventorySlot slot = slots[index];
@@ -209,9 +248,12 @@ public class PlayerInventory : NetworkBehaviour
     // ---- Server API (shop, pickups, death) ---------------------------------
 
     /// <summary>SERVER. Puts an item in the first empty slot. False if full, unknown or already owned.</summary>
-    public bool ServerAddItem(string itemId)
+    public bool ServerAddItem(string itemId) => ServerAddItem(InventorySlot.Of(itemId));
+
+    public bool ServerAddItem(InventorySlot item)
     {
-        if (!isServer || !ItemCatalog.Exists(itemId)) return false;
+        string itemId = item.itemId;
+        if (!NetworkMode.HasServerAuthority(this) || !ItemCatalog.Exists(itemId)) return false;
 
         int empty = -1;
         for (int i = 0; i < slots.Count; i++)
@@ -221,14 +263,15 @@ public class PlayerInventory : NetworkBehaviour
         }
         if (empty < 0) return false;
 
-        slots[empty] = InventorySlot.Of(itemId, powered: true);
+        slots[empty] = item;
+        if (voice != null) voice.ServerRefreshRadio();
         return true;
     }
 
     /// <summary>SERVER. Empties a slot (drop, trade, death). Returns the item ID that was there.</summary>
     public string ServerRemoveAt(int index)
     {
-        if (!isServer || index < 0 || index >= slots.Count || slots[index].IsEmpty) return null;
+        if (!NetworkMode.HasServerAuthority(this) || index < 0 || index >= slots.Count || slots[index].IsEmpty) return null;
         string removed = slots[index].itemId;
         slots[index] = InventorySlot.Empty;
         if (voice != null) voice.ServerRefreshRadio();

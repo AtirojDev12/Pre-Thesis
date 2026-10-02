@@ -23,6 +23,8 @@ public static class ItemCatalog
         public int price;
         /// <summary>Permanent item: max 1 copy, kept between runs, LOST if you die in a match.</summary>
         public bool permanent;
+        public bool throwable;
+        public string worldPrefabPath;
         public string description;
     }
 
@@ -35,6 +37,8 @@ public static class ItemCatalog
         {
             id = WalkieTalkie, displayName = "Walkie-Talkie", isRadio = true,
             price = 100, permanent = true,
+            throwable = true,
+            worldPrefabPath = PlayerItemThrow.WorldPrefabPath,
             description = "Talk to every teammate who carries a switched-on walkie, at any distance. Lost if you die.",
         },
     };

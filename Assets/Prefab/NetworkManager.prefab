@@ -66,6 +66,7 @@ MonoBehaviour:
   playerSpawnMethod: 1
   spawnPrefabs:
   - {fileID: 4503036079441966393, guid: cb5750ddc7811dd4ba57618d6a758e7d, type: 3}
+  - {fileID: 5903929465438551305, guid: 668faa53730bebb4a8a139fb317c6f50, type: 3}
   exceptionsDisconnect: 1
   snapshotSettings:
     bufferTimeMultiplier: 2
@@ -89,6 +90,7 @@ MonoBehaviour:
   _allPlayersReady: 0
   clientIndex: 0
   roomPlayerLimit: 6
+  lobbyBodies: 1
 --- !u!114 &8389901566596097399
 MonoBehaviour:
   m_ObjectHideFlags: 0

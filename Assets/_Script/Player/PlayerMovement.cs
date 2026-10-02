@@ -62,6 +62,7 @@ public class PlayerMovement : NetworkBehaviour
     private PlayerHealth playerHealth;
     private PlayerStamina playerStamina;
     private bool isSprinting;
+    private PlayerItemThrow itemThrow;
     private bool localCrouch;
     [SyncVar] private bool networkCrouch;
     private float standingHeight;
@@ -94,7 +95,7 @@ public class PlayerMovement : NetworkBehaviour
             Vector2 direction = AnimationDirection.normalized;
             float forwardScale = direction.y < 0f ? backwardSpeedMultiplier : 1f;
             float scale = new Vector2(direction.x * strafeSpeedMultiplier, direction.y * forwardScale).magnitude;
-            return (isSprinting ? sprintSpeed : moveSpeed) * scale * (IsCrouching ? crouchSpeedMultiplier : 1f);
+            return (isSprinting ? sprintSpeed : moveSpeed) * scale * (IsCrouching ? crouchSpeedMultiplier : 1f) * (itemThrow != null ? itemThrow.MovementMultiplier : 1f);
         }
     }
 
@@ -135,6 +136,7 @@ public class PlayerMovement : NetworkBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        itemThrow = GetComponent<PlayerItemThrow>();
         bodyCollider = GetComponent<CapsuleCollider>();
         if (bodyCollider != null) { standingHeight = bodyCollider.height; standingCenter = bodyCollider.center; }
         playerHealth = GetComponent<PlayerHealth>();
@@ -256,7 +258,7 @@ public class PlayerMovement : NetworkBehaviour
 
         bool shift = (Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed) ||
                      (Gamepad.current != null && Gamepad.current.leftStickButton.isPressed);
-        bool wantsToSprint = !localCrouch && movement.sqrMagnitude > 0.01f && shift &&
+        bool wantsToSprint = (itemThrow == null || !itemThrow.IsCharging) && !localCrouch && movement.sqrMagnitude > 0.01f && shift &&
                              (vertical > 0f || Mathf.Abs(horizontal) > 0.01f);
         SetSprinting(playerStamina != null
             ? playerStamina.UpdateSprint(wantsToSprint, Time.deltaTime)

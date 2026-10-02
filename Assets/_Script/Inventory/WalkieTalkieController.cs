@@ -18,7 +18,8 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerInventory), typeof(PlayerVoice))]
 public class WalkieTalkieController : MonoBehaviour
 {
-    [Header("Held model (placeholder box until there is a real model; material: Resources/WalkieTalkieBody)")]
+    [Header("Held walkie-talkie prefab")]
+    [SerializeField] private GameObject heldPrefab;
     [SerializeField] private Vector3 heldPosition = new Vector3(0.28f, -0.28f, 0.5f);
     [SerializeField] private Vector3 heldRotation = new Vector3(-10f, -15f, 0f);
 
@@ -28,14 +29,8 @@ public class WalkieTalkieController : MonoBehaviour
     private readonly BoundButton talkButton = new BoundButton();
     private readonly BoundButton powerButton = new BoundButton();
 
-    // Build-included URP material (Assets/Resources/WalkieTalkieBody.mat), same idea as
-    // CustomerAppearance. CreatePrimitive's default material is NOT in builds -> purple.
-    private const string BodyMaterialPath = "WalkieTalkieBody";
-    private static Material bodyMaterial;
-
     private GameObject heldModel;
-    private Renderer ledRenderer;
-    private MaterialPropertyBlock ledProperties;
+    private WalkieTalkieVisual visual;
 
     private void Awake()
     {
@@ -46,7 +41,7 @@ public class WalkieTalkieController : MonoBehaviour
 
     private void Update()
     {
-        if (!inventory.isLocalPlayer) return;
+        if (!NetworkMode.IsLocalController(inventory)) return;
 
         bool canUseHands = !GameplayInput.Blocked
             && Cursor.lockState == CursorLockMode.Locked
@@ -63,7 +58,7 @@ public class WalkieTalkieController : MonoBehaviour
         UpdateHeldModel();
     }
 
-    // ---- Placeholder model -------------------------------------------------
+    // ---- Held prefab -------------------------------------------------------
 
     private void UpdateHeldModel()
     {
@@ -74,11 +69,7 @@ public class WalkieTalkieController : MonoBehaviour
         if (heldModel.activeSelf != show) heldModel.SetActive(show);
         if (!show) return;
 
-        Color led = !inventory.HeldSlot.poweredOn ? new Color(0.25f, 0.05f, 0.05f)
-            : voice.RadioTransmitting ? new Color(1f, 0.2f, 0.15f) : new Color(0.2f, 1f, 0.3f);
-        ledProperties.SetColor("_BaseColor", led);
-        ledProperties.SetColor("_Color", led);
-        ledRenderer.SetPropertyBlock(ledProperties);
+        if (visual != null) visual.SetPower(inventory.HeldSlot.poweredOn, voice.RadioTransmitting);
     }
 
     private void BuildHeldModel()
@@ -86,42 +77,15 @@ public class WalkieTalkieController : MonoBehaviour
         Camera cam = GetComponentInChildren<Camera>();
         if (cam == null) return;
 
-        heldModel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        if (heldPrefab == null) heldPrefab = Resources.Load<GameObject>("Items/WalkieTalkie");
+        if (heldPrefab == null) { Debug.LogError("Missing held walkie-talkie prefab.", this); return; }
+        heldModel = Instantiate(heldPrefab, cam.transform, false);
         heldModel.name = "Held Walkie-Talkie";
-        Destroy(heldModel.GetComponent<Collider>());
-        heldModel.transform.SetParent(cam.transform, false);
         heldModel.transform.localPosition = heldPosition;
         heldModel.transform.localRotation = Quaternion.Euler(heldRotation);
-        heldModel.transform.localScale = new Vector3(0.07f, 0.16f, 0.04f);
-        var body = new MaterialPropertyBlock();
-        body.SetColor("_BaseColor", new Color(0.12f, 0.12f, 0.13f));
-        body.SetColor("_Color", new Color(0.12f, 0.12f, 0.13f));
-        heldModel.GetComponent<Renderer>().SetPropertyBlock(body);
-
-        GameObject antenna = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        Destroy(antenna.GetComponent<Collider>());
-        antenna.transform.SetParent(heldModel.transform, false);
-        antenna.transform.localPosition = new Vector3(0.3f, 0.75f, 0f);
-        antenna.transform.localScale = new Vector3(0.15f, 0.35f, 0.3f);
-        antenna.GetComponent<Renderer>().SetPropertyBlock(body);
-
-        GameObject led = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        Destroy(led.GetComponent<Collider>());
-        led.transform.SetParent(heldModel.transform, false);
-        led.transform.localPosition = new Vector3(-0.25f, 0.42f, -0.55f);
-        led.transform.localScale = new Vector3(0.25f, 0.1f, 0.3f);
-        ledRenderer = led.GetComponent<Renderer>();
-        ledProperties = new MaterialPropertyBlock();
-
-        if (bodyMaterial == null) bodyMaterial = Resources.Load<Material>(BodyMaterialPath);
-        if (bodyMaterial == null) Debug.LogError("[Walkie] Missing Resources/" + BodyMaterialPath + " material (shows purple in builds).", this);
-
-        // Seen only by this player (first-person); never casts a shadow into the world.
-        foreach (Renderer r in heldModel.GetComponentsInChildren<Renderer>())
-        {
-            if (bodyMaterial != null) r.sharedMaterial = bodyMaterial; // colours come from the property blocks
-            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        }
+        visual = heldModel.GetComponent<WalkieTalkieVisual>();
+        foreach (Renderer renderer in heldModel.GetComponentsInChildren<Renderer>())
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
     }
 
     private void OnDisable()

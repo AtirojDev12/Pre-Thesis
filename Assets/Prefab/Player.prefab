@@ -224,6 +224,7 @@ GameObject:
   - component: {fileID: 7397698309218730996}
   - component: {fileID: 3020241743421449484}
   - component: {fileID: 8240591739302916471}
+  - component: {fileID: 3343788926170827003}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -422,9 +423,9 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0
   reviveRange: 2.5
-  reviveFacingHalfAngle: 60
   reviveHoldSeconds: 5
   reviveMarkerSize: 38
+  reviveFacingHalfAngle: 60
   rayOrigin: {fileID: 0}
   interactionRange: 3
   interactableLayers:
@@ -607,6 +608,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fea2668a698c649459949b534a046c3a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WalkieTalkieController
+  heldPrefab: {fileID: 69171586978064587, guid: e3d60b47b758d03418e76311ea29a92f, type: 3}
   heldPosition: {x: 0.28, y: -0.28, z: 0.5}
   heldRotation: {x: -10, y: -15, z: 0}
 --- !u!114 &8240591739302916471
@@ -637,6 +639,25 @@ MonoBehaviour:
   FootTouchedGround:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &3343788926170827003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3873886348749462617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 299c12436e886564aaf2ff1f24f847ee, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerItemThrow
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  tapDuration: 0.2
+  fullChargeDuration: 1.5
+  maximumLaunchSpeed: 9
+  movementMultiplier: 0.5
 --- !u!1001 &4241667098483019941
 PrefabInstance:
   m_ObjectHideFlags: 0

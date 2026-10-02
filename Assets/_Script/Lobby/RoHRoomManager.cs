@@ -34,6 +34,14 @@ using UnityEngine.SceneManagement;
 [AddComponentMenu("Network/13RoH Room Manager")]
 public class RoHRoomManager : NetworkRoomManager
 {
+    public override void Awake()
+    {
+        // Register before Mirror starts a host/client, including scene manager overrides.
+        GameObject worldRadio = Resources.Load<GameObject>(PlayerItemThrow.WorldPrefabPath);
+        if (worldRadio != null && !spawnPrefabs.Contains(worldRadio)) spawnPrefabs.Add(worldRadio);
+        base.Awake();
+    }
+
     /// <summary>Typed access to the running manager, or null if there is none / it is another type.</summary>
     public static RoHRoomManager Instance => singleton as RoHRoomManager;
 

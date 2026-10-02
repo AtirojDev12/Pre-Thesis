@@ -1,0 +1,30 @@
+PASS Real held visual prefab exists
+PASS World physics transform uses server authority
+PASS World prefab persists a network asset ID for standalone builds
+PASS Pickup uses first empty slot and preserves powered-off state
+PASS Successful pickup immediately disables world visuals, collider and interaction
+PASS Second pickup of the same world object grants nothing
+PASS Duplicate radio rejection leaves the world object available
+PASS Another eligible player can pick up a previously rejected object
+PASS Tap Q drop removes inventory item and gives only minimal launch speed
+PASS Holding beyond full charge clamps launch speed to maximum
+PASS Repeated release cannot create another world item
+PASS Wall-blocked drop preserves inventory and spawns nothing
+PASS Server-side obstruction rejects pickup through a wall
+PASS Full inventory rejection does not hide or consume the pickup
+PASS Pickup fills the first available slot, not necessarily the selected slot
+PASS Repeated loadout request cannot recreate a dropped item
+PASS Charging applies the configured walking-speed reduction
+PASS Cancellation restores speed and cannot release the held item afterward
+PASS Expired charge heartbeat cannot throw an item
+PASS Invalid aim values preserve inventory
+PASS Player prefab contains the throw controller
+PASS Actual Q press starts charging the selected radio
+PASS Holding Q at maximum does not automatically throw
+PASS Actual Q release throws once and clears the selected slot
+PASS Blocked gameplay cancels actual Q charge and release does not drop the item
+PASS Full charge UI remains visible with release hint
+PASS Charge UI hides after release/cancellation
+PASS Mirror host: competing pickup grants exactly one inventory item
+PASS Mirror host: claimed object is immediately unspawned and disabled
+PASS Mirror client observes pickup despawn
