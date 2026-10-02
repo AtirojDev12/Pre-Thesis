@@ -8,6 +8,8 @@ public partial class PlayerInteractor
     [SerializeField] private float reviveRange = 2.5f;
     [SerializeField] private float reviveHoldSeconds = 5f;
     [SerializeField] private float reviveMarkerSize = 38f;
+    [Tooltip("Height above the downed model's hips for the revive prompt (metres).")]
+    [SerializeField] private float revivePromptHeight = 0.25f;
     [SerializeField, Range(0f, 89f)] private float reviveFacingHalfAngle = 60f;
     private PlayerHealth _localReviveTarget;
     private GUIStyle _reviveInstructionStyle;
@@ -20,6 +22,9 @@ public partial class PlayerInteractor
     [SyncVar] private float _reviveProgress;
     private Texture2D _reviveCircle;
     private GUIStyle _reviveKeyStyle;
+    private Camera _revivePromptCamera;
+    private PlayerHealth _revivePromptTarget;
+    private Transform _revivePromptAnchor;
 
     private void UpdateRevival()
     {
@@ -135,6 +140,25 @@ public partial class PlayerInteractor
     private void OnGUI()
     {
         if (!NetworkMode.IsLocalController(this) || _reviveLookTarget == null || GameplayInput.Blocked) return;
+        if (_revivePromptCamera == null)
+            _revivePromptCamera = GetComponentInChildren<Camera>(true);
+        if (_revivePromptCamera == null || !_revivePromptCamera.isActiveAndEnabled) return;
+
+        if (_revivePromptTarget != _reviveLookTarget)
+        {
+            _revivePromptTarget = _reviveLookTarget;
+            Animator animator = _revivePromptTarget.GetComponentInChildren<Animator>();
+            _revivePromptAnchor = animator != null && animator.isHuman
+                ? animator.GetBoneTransform(HumanBodyBones.Hips) : null;
+        }
+        // Follow the animated body, using this player's camera rather than Camera.main.
+        Vector3 anchor = _revivePromptAnchor != null ? _revivePromptAnchor.position
+            : _reviveLookTarget.transform.position + Vector3.up * 0.45f;
+        Vector3 screen = _revivePromptCamera.WorldToScreenPoint(anchor + Vector3.up * revivePromptHeight);
+        Rect viewport = _revivePromptCamera.pixelRect;
+        if (screen.z <= 0f || !viewport.Contains(new Vector2(screen.x, screen.y))) return;
+        float guiY = Screen.height - screen.y;
+
         bool facing = IsFacingReviveTarget(_reviveLookTarget);
         bool clear = HasReviveLineOfSight(_reviveLookTarget);
         if (_reviveInstructionStyle == null)
@@ -145,10 +169,17 @@ public partial class PlayerInteractor
         string arrow = Vector3.Dot(transform.right, direction) >= 0f ? ">" : "<";
         string instruction = !facing ? arrow + " Turn toward teammate to revive " + arrow :
             !clear ? "Path to teammate blocked" : "Hold " + interactKey + " to revive teammate";
-        GUI.Label(new Rect(0f, Screen.height - 145f, Screen.width, 40f), instruction, _reviveInstructionStyle);
-        Vector3 screen = new Vector3(Screen.width * 0.5f, 90f, 1f);
+        Vector2 instructionSize = _reviveInstructionStyle.CalcSize(new GUIContent(instruction));
+        Rect instructionRect = new Rect(screen.x - instructionSize.x / 2f,
+            guiY - reviveMarkerSize / 2f - instructionSize.y - 8f,
+            instructionSize.x, instructionSize.y);
+        // A shadow keeps the instruction readable against the model and scenery.
+        _reviveInstructionStyle.normal.textColor = Color.black;
+        GUI.Label(new Rect(instructionRect.x + 1f, instructionRect.y + 1f,
+            instructionRect.width, instructionRect.height), instruction, _reviveInstructionStyle);
+        _reviveInstructionStyle.normal.textColor = Color.white;
+        GUI.Label(instructionRect, instruction, _reviveInstructionStyle);
         bool inRange = facing && clear;
-        float proximity = 1f;
         float size = reviveMarkerSize;
         if (_reviveCircle == null)
         {
@@ -163,8 +194,8 @@ public partial class PlayerInteractor
             _reviveCircle.Apply();
         }
         Color previous = GUI.color;
-        GUI.color = new Color(1f, 1f, 1f, Mathf.Lerp(0f, 0.9f, proximity));
-        Rect circle = new Rect(screen.x - size / 2f, Screen.height - screen.y - size / 2f, size, size);
+        GUI.color = new Color(1f, 1f, 1f, 0.9f);
+        Rect circle = new Rect(screen.x - size / 2f, guiY - size / 2f, size, size);
         GUI.DrawTexture(circle, _reviveCircle);
         if (inRange)
         {
