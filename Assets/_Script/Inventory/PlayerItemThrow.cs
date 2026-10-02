@@ -167,6 +167,19 @@ public sealed class PlayerItemThrow : NetworkBehaviour
     }
 
     /// <summary>
+    /// SERVER (3 Oct, bug #1). This player left a running match: drop their items
+    /// where they stood, like a death, so teammates can still pick them up.
+    /// Called by RoHRoomManager before the body is destroyed.
+    /// </summary>
+    public void ServerDropOnLeave()
+    {
+        if (droppedOnDeath || !NetworkMode.HasServerAuthority(this)) return;
+        droppedOnDeath = true;
+        serverCharging = false;
+        ServerDropAll();
+    }
+
+    /// <summary>
     /// SERVER. Every item in the hotbar becomes a WorldInventoryItem around the body
     /// (same pickup as a thrown item). Items without a world prefab are simply lost.
     /// </summary>
@@ -199,7 +212,7 @@ public sealed class PlayerItemThrow : NetworkBehaviour
             body.linearVelocity = offset * 2f + Vector3.up * 1f;
             dropped++;
         }
-        if (dropped > 0) Debug.Log($"[PlayerItemThrow] {name} died: dropped {dropped} item(s).", this);
+        if (dropped > 0) Debug.Log($"[PlayerItemThrow] {name}: dropped {dropped} item(s).", this);
     }
 
     /// <summary>How far out an item can go before a wall (never inside the body: min 0.55 m).</summary>

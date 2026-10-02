@@ -90,6 +90,54 @@ public sealed class MatchResultsUI : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => instance = null;
 
+    // ---- Leaving a running match (3 Oct, bug #1) -------------------------------
+    // Leaving on purpose before your result arrives = the same as dying: the
+    // permanent items you brought in are lost (the server drops them where you
+    // stood, so teammates can still pick them up).
+    // NOT a loss: the host quitting, a lost connection, or a real crash (Mr.k, 3 Oct).
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void HookQuit()
+    {
+        Application.quitting -= OnGameClosing;
+        Application.quitting += OnGameClosing;
+    }
+
+    // Alt-F4 / closing the window. In the Editor this also fires on Stop, which is
+    // not a player leaving, so it only counts in builds.
+    private static void OnGameClosing()
+    {
+#if !UNITY_EDITOR
+        SettleLeftMatch();
+#endif
+    }
+
+    /// <summary>True if leaving right now would cost the items you brought (pause menu warning).</summary>
+    public static bool LeavingLosesItems()
+    {
+        if (instance != null) return false;                 // result already applied
+        if (SpectatorSession.Requested) return false;       // no body, no items
+        if (PlayerInventory.LastLoadout.Count == 0) return false;
+        MatchDirector match = MatchDirector.Instance;
+        if (match == null || !match.RoundRunning) return false; // lobby / round over
+        PlayerHealth me = PlayerHealth.LocalInstance;
+        if (me == null) return false;
+        // Escaped: the result (keep what you carried) is already on its way.
+        return me.IsDead || !match.IsFinished(me.netId);
+    }
+
+    /// <summary>
+    /// Call on the leaving player's machine BEFORE the session is torn down
+    /// (Leave match button, closing the game). Does nothing in the lobby, for a
+    /// spectator, or once this round's result has been settled.
+    /// </summary>
+    public static void SettleLeftMatch()
+    {
+        if (!LeavingLosesItems()) return;
+        string lost = LoseCarriedItems();
+        if (lost.Length > 0) Debug.Log($"[MatchResultsUI] Left the match: lost {lost}.");
+    }
+
     /// <summary>Open the results screen with this result (called on the owning player's machine).</summary>
     public static void Show(MatchResult result)
     {

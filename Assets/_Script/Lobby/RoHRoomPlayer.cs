@@ -20,6 +20,10 @@ public class RoHRoomPlayer : NetworkRoomPlayer
 
     [SyncVar] private string displayName = string.Empty;
     [SyncVar] private bool isHost;
+    // True when the HOST runs the Editor or a Development Build (2 Oct). Dev cheats
+    // that need the server are only sent then: a normal-build host has no handler
+    // for them and Mirror would disconnect the sender.
+    [SyncVar] private bool hostIsDevBuild;
 
     public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? $"Player {index + 1}" : displayName;
     public bool IsHost => isHost;
@@ -28,6 +32,19 @@ public class RoHRoomPlayer : NetworkRoomPlayer
     {
         // The host's own connection is the in-process local one.
         isHost = connectionToClient is LocalConnectionToClient;
+        hostIsDevBuild = Debug.isDebugBuild;
+    }
+
+    /// <summary>Every machine: does the host run the Editor / a Development Build?</summary>
+    public static bool HostIsDevBuild
+    {
+        get
+        {
+            if (NetworkServer.active || NetworkMode.IsOffline) return Debug.isDebugBuild;
+            foreach (RoHRoomPlayer seat in FindObjectsByType<RoHRoomPlayer>())
+                if (seat != null && seat.isHost) return seat.hostIsDevBuild;
+            return false;
+        }
     }
 
     // OnStartAuthority, not OnStartLocalPlayer: in the 3D lobby the walking

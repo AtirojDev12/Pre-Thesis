@@ -81,6 +81,8 @@ public static class PlayerRegistry
     ///
     /// Enemies use this rather than ClosestTo so that a player hiding behind a
     /// wall does not get picked as the target just for being nearest.
+    /// Downed players are skipped (3 Oct): a ghost may walk up to them
+    /// (ClosestTo) but not chase or jumpscare them.
     /// </summary>
     public static PlayerHealth ClosestVisibleTo(
         Vector3 position, float maxDistance, System.Func<PlayerHealth, bool> canSee)
@@ -93,7 +95,7 @@ public static class PlayerRegistry
         for (int i = 0; i < cache.Count; i++)
         {
             PlayerHealth candidate = cache[i];
-            if (candidate == null || candidate.IsDead || !IsInRound(candidate)) continue;
+            if (!IsHuntable(candidate)) continue;
 
             float sqr = (candidate.transform.position - position).sqrMagnitude;
             if (sqr > bestSqr) continue;
@@ -116,6 +118,13 @@ public static class PlayerRegistry
         MatchDirector director = MatchDirector.Instance;
         return director == null || player.netIdentity == null || !director.ServerIsFinished(player.netIdentity);
     }
+
+    /// <summary>
+    /// What a ghost may target (3 Oct, bug #3): in the round and NOT downed. A
+    /// downed player takes no damage, so a ghost reaching them would waste its
+    /// whole visit (and teammates could use the body as bait).
+    /// </summary>
+    public static bool IsHuntable(PlayerHealth player) => player != null && !player.IsDowned && IsInRound(player);
 
     /// <summary>Forces the next query to rebuild. Call after spawning a player if you need it visible immediately.</summary>
     public static void Invalidate() => nextRefreshTime = 0f;

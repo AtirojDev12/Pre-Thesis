@@ -174,16 +174,34 @@ public sealed class VoiceMicCapture
         Resample(available, onBlock);
     }
 
-    private float[] partBuffer = new float[4096];
+    // 3 Oct (bug #10, MAJOR): this used to make a NEW float[] almost every frame
+    // (GetData fills the whole array, and 'count' changes every frame), about
+    // 190 KB of garbage per second per player while the mic runs -> GC stutter.
+    // Now every read is exactly one reused chunk, so nothing is allocated.
+    private const int ReadChunk = 256;
+    private readonly float[] chunkBuffer = new float[ReadChunk];
 
+    /// <summary>Copies clip samples [offset, offset+count) into readBuffer at 'destination'. Never reads past the clip end.</summary>
     private void ReadPart(int offset, int count, int destination)
     {
         if (count <= 0) return;
-        if (partBuffer.Length < count) partBuffer = new float[Mathf.NextPowerOfTwo(count)];
-        // GetData fills the WHOLE array, so read into an array of exactly 'count'.
-        float[] exact = count == partBuffer.Length ? partBuffer : new float[count];
-        clip.GetData(exact, offset);
-        System.Array.Copy(exact, 0, readBuffer, destination, count);
+        int done = 0;
+        while (count - done >= ReadChunk)
+        {
+            clip.GetData(chunkBuffer, offset + done);
+            System.Array.Copy(chunkBuffer, 0, readBuffer, destination + done, ReadChunk);
+            done += ReadChunk;
+        }
+
+        int rest = count - done;
+        if (rest <= 0) return;
+        // The last piece: read the full chunk that ENDS where this part ends
+        // (or starts at 0), so the read stays inside the clip, then copy only
+        // the samples we need.
+        int end = offset + count;
+        int start = Mathf.Max(0, end - ReadChunk);
+        clip.GetData(chunkBuffer, start);
+        System.Array.Copy(chunkBuffer, offset + done - start, readBuffer, destination + done, rest);
     }
 
     private void Resample(int count, System.Action<short[]> onBlock)

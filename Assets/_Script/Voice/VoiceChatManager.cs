@@ -82,6 +82,8 @@ public sealed class VoiceChatManager : MonoBehaviour
     private bool? appliedSending;
     private ulong beforeRenderNotifyId;
     private float nextPoll;
+    private float nextMicRetry;
+    private const float MicRetrySeconds = 3f;
 
     // Held in a field so the delegate cannot be garbage-collected while EOS still calls it.
     private OnAudioBeforeRenderCallback beforeRenderCallback;
@@ -123,6 +125,7 @@ public sealed class VoiceChatManager : MonoBehaviour
         instance = this;
         beforeRenderCallback = OnAudioBeforeRender;
         VoiceNetwork.VoiceReceived += OnNetworkVoice;
+        VoiceNetwork.SpectatorVoiceReceived += OnSpectatorVoice;
         GameSettings.Changed += OnSettingsChanged;
     }
 
@@ -130,6 +133,7 @@ public sealed class VoiceChatManager : MonoBehaviour
     {
         if (instance != this) return;
         VoiceNetwork.VoiceReceived -= OnNetworkVoice;
+        VoiceNetwork.SpectatorVoiceReceived -= OnSpectatorVoice;
         GameSettings.Changed -= OnSettingsChanged;
         LeaveRoom();
         mic.Stop();
@@ -376,9 +380,18 @@ public sealed class VoiceChatManager : MonoBehaviour
         {
             if (mic.IsRecording) mic.Stop();
             MicLoudness = 0f;
+            nextMicRetry = 0f; // next time it is wanted, start at once
             return;
         }
-        if (!mic.IsRecording) StartMic();
+        // 3 Oct (bug #10, MAJOR): with no mic (none plugged in, blocked by Windows
+        // privacy, or busy in another app) this used to retry EVERY FRAME: each try
+        // asks Windows for the device list and calls Microphone.Start -> stutter for
+        // the whole match. Now: one try, then again every 3 s.
+        if (!mic.IsRecording && Time.unscaledTime >= nextMicRetry)
+        {
+            nextMicRetry = Time.unscaledTime + MicRetrySeconds;
+            StartMic();
+        }
 
         // EOS only gets the mic when Mirror voice is not available (backup path).
         bool sendEos = !viaMirror && inEosRoom && appliedSending == true;
@@ -512,17 +525,38 @@ public sealed class VoiceChatManager : MonoBehaviour
         }
 
         // In a match (we have a body) voices come from bodies. In the lobby there are none.
-        bool inMatch = PlayerVoice.Local != null;
+        // A spectator (2 Oct) has no body but a camera with the AudioListener: they
+        // also hear players 3D at their bodies, and every walkie transmission.
+        bool spectating = SpectatorSession.Active;
+        bool inMatch = PlayerVoice.Local != null || spectating;
         // My round is over (results screen): the server only sends me other
         // finished players, and they are played flat like the lobby, no radio.
         bool finished = inMatch && MatchResultsUI.IsShowing;
         PlayerInventory myInventory = PlayerInventory.Local;
-        bool iHearRadio = inMatch && !finished && myInventory != null && myInventory.HasPoweredRadio;
+        bool iHearRadio = spectating || (inMatch && !finished && myInventory != null && myInventory.HasPoweredRadio);
         PlayerNoise myNoise = PlayerNoise.Local;
 
         foreach (VoiceStream stream in snapshot)
         {
             if (stream.SampleRate <= 0) continue;
+
+            // Spectator voice (2 Oct): players hear it 3D at the spectator camera;
+            // another spectator hears it flat. Never on the radio.
+            if (stream.ParticipantId.StartsWith(SpectatorStreamPrefix))
+            {
+                Transform anchor = SpectatorAnchor(stream.ParticipantId);
+                VoicePlayback spectatorPlayback = FindPlayback(stream);
+                if (spectatorPlayback == null)
+                {
+                    spectatorPlayback = VoicePlayback.Create(stream, anchor);
+                    playbacks.Add(spectatorPlayback);
+                }
+                else if (spectatorPlayback.transform.parent != anchor) spectatorPlayback.transform.SetParent(anchor, false);
+                spectatorPlayback.SetSpatial(!SpectatorSession.Active);
+                spectatorPlayback.SetProximityMuted(false);
+                spectatorPlayback.SetRadio(false);
+                continue;
+            }
 
             bool fromNetwork = stream.ParticipantId.StartsWith(NetStreamPrefix);
             PlayerVoice talker = FindTalker(stream.ParticipantId);
@@ -569,6 +603,34 @@ public sealed class VoiceChatManager : MonoBehaviour
         GetOrCreateStream(NetStreamPrefix + talkerNetId).WriteMono(samples, count, VoiceCodec.NetworkRate,
             (flags & VoiceNetwork.FlagProximity) != 0,
             (flags & VoiceNetwork.FlagRadio) != 0);
+    }
+
+    // ---- Spectator voice (2 Oct) -------------------------------------------------
+
+    private const string SpectatorStreamPrefix = "spec:";
+
+    // One anchor per spectator, moved to where their camera was in the last packet.
+    // A List, not a Dictionary (project rule); at most a couple of spectators.
+    private readonly List<Transform> spectatorAnchors = new List<Transform>();
+
+    private void OnSpectatorVoice(int spectatorId, Vector3 position, short[] samples, int count)
+    {
+        string id = SpectatorStreamPrefix + spectatorId;
+        SpectatorAnchor(id).position = position;
+        GetOrCreateStream(id).WriteMono(samples, count, VoiceCodec.NetworkRate, true, false);
+    }
+
+    private Transform SpectatorAnchor(string streamId)
+    {
+        for (int i = spectatorAnchors.Count - 1; i >= 0; i--)
+        {
+            if (spectatorAnchors[i] == null) { spectatorAnchors.RemoveAt(i); continue; }
+            if (spectatorAnchors[i].name == streamId) return spectatorAnchors[i];
+        }
+        var go = new GameObject(streamId);
+        go.transform.SetParent(transform, false); // the manager is DontDestroyOnLoad
+        spectatorAnchors.Add(go.transform);
+        return go.transform;
     }
 
     private static PlayerVoice FindTalker(string participantId)

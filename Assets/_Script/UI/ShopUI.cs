@@ -85,6 +85,12 @@ public sealed class ShopUI : MonoBehaviour
         if (save == null) { Message("No save loaded.", Bad); return; }
 
         if (Owns(item.id)) { Message($"You already own the {item.displayName}.", Muted); return; }
+        // 3 Oct (bug #8): carrying one you picked up (ownership message not here yet) = no buy.
+        if (item.permanent && PlayerInventory.Local != null && PlayerInventory.Local.CountOf(item.id) > 0)
+        {
+            Message($"You already carry a {item.displayName}.", Muted);
+            return;
+        }
 
         if (!SaveManager.SpendCurrency(item.price))
         {

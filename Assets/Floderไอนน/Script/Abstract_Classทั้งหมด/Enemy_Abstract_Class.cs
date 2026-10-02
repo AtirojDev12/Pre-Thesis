@@ -145,8 +145,7 @@ public abstract class Enemy_Abstract_Class : NetworkBehaviour
         {
             // Give up only once they are genuinely out of range, not merely
             // behind a pillar for one frame.
-            bool targetStillClose = targetPlayer != null
-                && !targetPlayer.IsDead
+            bool targetStillClose = PlayerRegistry.IsHuntable(targetPlayer)
                 && Vector3.Distance(transform.position, targetPlayer.transform.position) <= viewDistance;
 
             if (!targetStillClose) OnPlayerLost();

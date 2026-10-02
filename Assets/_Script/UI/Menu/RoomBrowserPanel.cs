@@ -35,6 +35,7 @@ public class RoomBrowserPanel : MonoBehaviour
     private readonly List<RoomBrowserRow> rows = new List<RoomBrowserRow>();
     private LobbyController boundLobby;
     private RoomListEntry pendingLockedRoom;
+    private bool pendingSpectate;
     private List<RoomListEntry> lastFound;
     private readonly List<RoomListEntry> filtered = new List<RoomListEntry>();
 
@@ -124,17 +125,42 @@ public class RoomBrowserPanel : MonoBehaviour
         {
             bool used = i < count;
             rows[i].gameObject.SetActive(used);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (used) rows[i].Bind(found[i], OnJoinClicked, OnSpectateClicked);
+#else
             if (used) rows[i].Bind(found[i], OnJoinClicked);
+#endif
         }
 
         emptyText.gameObject.SetActive(count == 0);
         emptyText.text = emptyMessage;
     }
 
+    private void OnSpectateClicked(RoomListEntry entry)
+    {
+        if (entry.isLocked)
+        {
+            AskPassword(entry, true);
+            return;
+        }
+        menu.SpectateRoom(entry, null);
+    }
+
+    private void AskPassword(RoomListEntry entry, bool spectate)
+    {
+        pendingLockedRoom = entry;
+        pendingSpectate = spectate;
+        promptTitle.text = spectate ? $"Spectate \"{entry.roomName}\": password" : $"\"{entry.roomName}\" is private";
+        promptPasswordField.SetTextWithoutNotify(string.Empty);
+        passwordPrompt.SetActive(true);
+        promptPasswordField.ActivateInputField();
+    }
+
     private void OnJoinClicked(RoomListEntry entry)
     {
         if (entry.isLocked)
         {
+            pendingSpectate = false;
             pendingLockedRoom = entry;
             promptTitle.text = $"\"{entry.roomName}\" is private";
             promptPasswordField.SetTextWithoutNotify(string.Empty);
@@ -154,13 +180,16 @@ public class RoomBrowserPanel : MonoBehaviour
         if (string.IsNullOrEmpty(password)) return;
 
         RoomListEntry target = pendingLockedRoom;
+        bool spectate = pendingSpectate;
         ClosePrompt();
-        menu.JoinRoom(target, password);
+        if (spectate) menu.SpectateRoom(target, password);
+        else menu.JoinRoom(target, password);
     }
 
     private void ClosePrompt()
     {
         pendingLockedRoom = null;
+        pendingSpectate = false;
         passwordPrompt.SetActive(false);
     }
 }

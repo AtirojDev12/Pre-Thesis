@@ -122,7 +122,7 @@ public class PlayerHealth : NetworkBehaviour
 
         if (isDowned && !isDead)
         {
-            downedTimer = downedDuration - (Time.time - _downedStartTime);
+            downedTimer = _activeDownedDuration - (Time.time - _downedStartTime);
 
             if (downedTimer <= 0f)
             {
@@ -191,13 +191,25 @@ public class PlayerHealth : NetworkBehaviour
         if (currentHealth <= 0f) ServerDowned();
     }
 
+    // 3 Oct (bug #4): in a match you stay down for 1 IN-GAME HOUR, from the match
+    // clock (MatchDirector.DownedDurationSeconds), not the fixed Inspector value.
+    // The Inspector value is only the fallback where there is no match (lobby, tests).
+    private float _activeDownedDuration = 30f;
+
+    private float CurrentDownedDuration()
+    {
+        MatchDirector match = MatchDirector.Instance;
+        return match != null && match.DownedDurationSeconds > 0f ? match.DownedDurationSeconds : downedDuration;
+    }
+
     private void ServerDowned()
     {
         isDowned = true;
+        _activeDownedDuration = CurrentDownedDuration();
         _downedStartTime = Time.time;
-        downedTimer = downedDuration;
+        downedTimer = _activeDownedDuration;
         _lastTimerSyncTime = Time.time;
-        Debug.Log($"[PlayerHealth] ผู้เล่นล้มแล้ว ({name}) เริ่มนับถอยหลัง {downedDuration} วินาที");
+        Debug.Log($"[PlayerHealth] ผู้เล่นล้มแล้ว ({name}) เริ่มนับถอยหลัง {_activeDownedDuration:F0} วินาที");
 
         RaiseDowned();
 

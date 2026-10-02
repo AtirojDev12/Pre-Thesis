@@ -480,7 +480,7 @@ public class MatchDirector : NetworkBehaviour
         // Headcount at the moment the scene loads. Mirror has already brought the
         // connections across the scene change, so this is the real team size, not
         // the room's advertised limit.
-        int playerCount = Mathf.Max(1, NetworkServer.connections.Count);
+        int playerCount = Mathf.Max(1, NetworkServer.active ? RoHRoomManager.CountPlayerConnections() : 1); // spectators do not count
 
         ConfigureRound(config, playerCount);
     }

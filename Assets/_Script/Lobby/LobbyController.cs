@@ -198,6 +198,7 @@ public class LobbyController : EOSLobby
     public void CreateRoom(RoomConfig config)
     {
         if (!IsEosReady("Create room")) return;
+        SpectatorSession.Requested = false;
 
         if (isCreateRoomInFlight || isJoinInFlight)
         {
@@ -357,6 +358,7 @@ public class LobbyController : EOSLobby
         if (entry.IsFull) { Fail("That room is full."); return; }
         if (entry.isLocked && string.IsNullOrEmpty(password)) { Fail("This room needs a password."); return; }
 
+        SpectatorSession.Requested = false;
         RoomPasswordAuthenticator.ClientPassword = password ?? string.Empty;
         CurrentRoom = new RoomConfig
         {
@@ -370,6 +372,38 @@ public class LobbyController : EOSLobby
         isJoinInFlight = true;
         StatusChanged?.Invoke("Joining room...");
         JoinLobby(entry.details);
+    }
+
+    /// <summary>
+    /// Development Build "Spectate" (2 Oct): connect straight to the host as an
+    /// invisible spectator. Does NOT join the EOS lobby, so it uses no player
+    /// slot and works for full rooms and matches in progress.
+    /// </summary>
+    public void SpectateRoom(RoomListEntry entry, string password = null)
+    {
+        if (entry == null) return;
+        if (!IsEosReady("Spectate room")) return;
+        if (isJoinInFlight || isCreateRoomInFlight) return;
+
+        string address = TryReadUtf8Attribute(entry.details, hostAddressKey, null);
+        if (string.IsNullOrEmpty(address)) { Fail("That room has no host address."); return; }
+        if (entry.isLocked && string.IsNullOrEmpty(password)) { Fail("This room needs a password."); return; }
+
+        SpectatorSession.Requested = true;
+        RoomPasswordAuthenticator.ClientPassword = password ?? string.Empty;
+        CurrentRoom = new RoomConfig
+        {
+            roomName = entry.roomName,
+            mapID = entry.mapID,
+            difficulty = entry.difficulty,
+            playerLimit = entry.maxPlayers,
+            isPrivate = entry.isLocked,
+        };
+
+        RoHRoomManager.LastDisconnectReason = null;
+        StatusChanged?.Invoke("Connecting as spectator...");
+        netManager.networkAddress = address;
+        netManager.StartClient();
     }
 
     private void OnJoinLobbySuccess(List<Attribute> attributes)

@@ -140,6 +140,15 @@ public class MainMenuController : MonoBehaviour
         Lobby.JoinRoom(entry, password);
     }
 
+    /// <summary>Development Build: join as an invisible spectator.</summary>
+    public void SpectateRoom(RoomListEntry entry, string password)
+    {
+        if (Lobby == null) return;
+        waitingForResult = true;
+        busyText.text = "Joining as spectator...";
+        Lobby.SpectateRoom(entry, password);
+    }
+
     private void QuickJoin()
     {
         if (Lobby == null) return;

@@ -35,8 +35,16 @@ using UnityEngine.SceneManagement;
 [AddComponentMenu("Network/13RoH Room Manager")]
 public class RoHRoomManager : NetworkRoomManager
 {
+    /// <summary>Extra Mirror connections on top of the 6 players, for dev spectators (3 Oct, bug #6; 3 so a full room still takes 3).</summary>
+    public const int SpectatorConnections = 3;
+
     public override void Awake()
     {
+        // 3 Oct (bug #6): Mirror's cap counted spectators as players, so a spectator
+        // could not join a full room and could push the 6th player out. The real
+        // player limit is enforced by RoomPasswordAuthenticator (room setting).
+        // The EOS transport reads this same value when the server starts.
+        maxConnections = RoomConfig.MaxPlayers + SpectatorConnections;
         // Register before Mirror starts a host/client, including scene manager overrides.
         GameObject worldRadio = Resources.Load<GameObject>(PlayerItemThrow.WorldPrefabPath);
         if (worldRadio != null && !spawnPrefabs.Contains(worldRadio)) spawnPrefabs.Add(worldRadio);
@@ -113,18 +121,82 @@ public class RoHRoomManager : NetworkRoomManager
 
     // ---- Server --------------------------------------------------------------
 
+    public override void OnRoomStartServer() => serverStopping = false;
+
     public override void OnRoomStartHost()
     {
+        serverStopping = false;
         NetworkMode.SessionEnding = false;
         // Mirror's built-in lobby GUI is debug-only; ours replaces it.
         showRoomGUI = false;
+    }
+
+    // ---- Spectators (2 Oct) ----------------------------------------------------
+    // A spectator connection (RoomPasswordAuthenticator marks it) gets no seat
+    // and no body, is never counted as a player, may join mid-match, and leaving
+    // does not reset anyone's Ready.
+
+    public const string SpectatorTag = "spectator";
+
+    public static bool IsSpectator(NetworkConnectionToClient conn) =>
+        conn != null && conn.authenticationData is string tag && tag == SpectatorTag;
+
+    /// <summary>
+    /// SERVER. Connections that are real players: accepted by the password check
+    /// and not spectators. Connections still waiting for their check are not
+    /// counted (3 Oct): one of them may turn out to be a spectator.
+    /// </summary>
+    public static int CountPlayerConnections()
+    {
+        int n = 0;
+        foreach (NetworkConnectionToClient conn in NetworkServer.connections.Values)
+            if (conn != null && conn.isAuthenticated && !IsSpectator(conn)) n++;
+        return n;
+    }
+
+    public override void OnServerConnect(NetworkConnectionToClient conn)
+    {
+        // Spectators may join while the match runs (the base class refuses
+        // everyone outside the lobby scene). Mirror already sent them the scene.
+        if (IsSpectator(conn)) return;
+        base.OnServerConnect(conn);
+    }
+
+    public override void OnServerDisconnect(NetworkConnectionToClient conn)
+    {
+        // The base class would un-Ready everybody when anyone leaves.
+        if (IsSpectator(conn))
+        {
+            NetworkServer.DestroyPlayerForConnection(conn);
+            return;
+        }
+        DropItemsOfLeaver(conn);
+        base.OnServerDisconnect(conn);
+    }
+
+    // True from the moment the server starts shutting down (OnStopServer runs
+    // before Mirror disconnects everybody), so a closing room drops nothing.
+    private bool serverStopping;
+
+    /// <summary>
+    /// SERVER (3 Oct, bug #1). A player who leaves a running match drops their
+    /// hotbar where they stood, before their body is destroyed. Not when the room
+    /// is closing, not the host itself, and not a player whose round is already
+    /// over (escaped players keep what they carried out; dead ones already dropped).
+    /// </summary>
+    private void DropItemsOfLeaver(NetworkConnectionToClient conn)
+    {
+        if (serverStopping || conn == null || conn is LocalConnectionToClient || conn.identity == null) return;
+        MatchDirector match = MatchDirector.Instance;
+        if (match == null || !match.RoundRunning || match.ServerIsFinished(conn.identity)) return;
+        if (conn.identity.TryGetComponent(out PlayerItemThrow items)) items.ServerDropOnLeave();
     }
 
     public override void OnRoomServerConnect(NetworkConnectionToClient conn)
     {
         // RoomPasswordAuthenticator already refuses full rooms with a readable
         // reason. This is the safety net in case no authenticator is assigned.
-        if (NetworkServer.connections.Count > roomPlayerLimit)
+        if (CountPlayerConnections() > roomPlayerLimit)
         {
             Debug.Log($"[RoHRoomManager] Room is full ({roomPlayerLimit}). Disconnecting {conn}.");
             conn.Disconnect();
@@ -143,13 +215,17 @@ public class RoHRoomManager : NetworkRoomManager
     /// </summary>
     public bool AllGuestsReady()
     {
+        int seats = 0;
         foreach (NetworkRoomPlayer slot in roomSlots)
         {
             if (slot == null) continue;
+            seats++;
             if (slot is RoHRoomPlayer p && p.IsHost) continue;
             if (!slot.readyToBegin) return false;
         }
-        return true;
+        // 3 Oct (bug #7): a guest who passed the password check but is still
+        // loading the lobby has no seat yet. Starting now would drop them.
+        return seats >= CountPlayerConnections();
     }
 
     /// <summary>
@@ -235,6 +311,7 @@ public class RoHRoomManager : NetworkRoomManager
 
     public override void OnServerAddPlayer(NetworkConnectionToClient conn)
     {
+        if (IsSpectator(conn)) return; // no seat, no body: watches only
         base.OnServerAddPlayer(conn);
         if (InRoomScene) AttachLobbyBody(conn);
     }
@@ -341,6 +418,7 @@ public class RoHRoomManager : NetworkRoomManager
 
     public override void OnRoomStopServer()
     {
+        serverStopping = true;
         pendingSpares.Clear();
         BeginSessionEnd();
         if (LobbyController.Instance != null) LobbyController.Instance.LeaveRoom();
@@ -366,6 +444,7 @@ public class RoHRoomManager : NetworkRoomManager
 
     public override void OnRoomStopClient()
     {
+        SpectatorSession.Requested = false;
         BeginSessionEnd();
         // A client leaving the Mirror session must also leave the EOS lobby,
         // otherwise EOS still counts them and the room shows as fuller than it is.

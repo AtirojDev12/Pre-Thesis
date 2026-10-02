@@ -89,11 +89,14 @@ public class WaitingLobbyController : MonoBehaviour
     private void OnDestroy() => SetRegistered(false);
 
     private static bool HasBody => PlayerHealth.LocalInstance != null;
+    // A spectator (2 Oct) flies around with a camera: treat it like having a body
+    // (panel hidden, M opens it).
+    private static bool Walking => HasBody || SpectatorSession.Active;
 
     private void HandlePanelInput()
     {
         Keyboard keyboard = Keyboard.current;
-        if (!HasBody || keyboard == null) return;
+        if (!Walking || keyboard == null) return;
 
         // Esc menu / shop own the screen while open.
         if (PauseMenuController.IsOpen) return;
@@ -106,17 +109,17 @@ public class WaitingLobbyController : MonoBehaviour
     private void ApplyPanelVisibility()
     {
         // Visible = covers the screen and owns the mouse. Always up without a body.
-        bool visible = !HasBody || panelOpen;
+        bool visible = !Walking || panelOpen;
         if (hasApplied && visible == appliedVisible) return;
         hasApplied = true;
         appliedVisible = visible;
 
         if (panelCanvas != null) panelCanvas.enabled = visible;
-        if (hintRoot != null) hintRoot.SetActive(!visible && HasBody);
+        if (hintRoot != null) hintRoot.SetActive(!visible && Walking);
         SetRegistered(visible);
 
         if (visible) OverlayPanels.SetMouseForUi(true);
-        else if (HasBody) OverlayPanels.SetMouseForUi(false);
+        else if (Walking) OverlayPanels.SetMouseForUi(false);
 
         if (HasBody) DisableSceneCameras();
     }

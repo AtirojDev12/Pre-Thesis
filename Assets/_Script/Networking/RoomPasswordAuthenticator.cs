@@ -47,6 +47,8 @@ public class RoomPasswordAuthenticator : NetworkAuthenticator
     public struct RoomAuthRequest : NetworkMessage
     {
         public string password;
+        /// <summary>2 Oct: join as an invisible spectator (Development Build "Spectate" button).</summary>
+        public bool spectator;
     }
 
     public struct RoomAuthResponse : NetworkMessage
@@ -86,14 +88,29 @@ public class RoomPasswordAuthenticator : NetworkAuthenticator
 
         RoHRoomManager room = RoHRoomManager.Instance;
 
+        // Spectators (2 Oct) may join a full room or a match in progress; they
+        // take no seat and are not counted. The password still applies.
+        if (msg.spectator)
+        {
+            if (!string.IsNullOrEmpty(ServerPassword) && msg.password != ServerPassword)
+            {
+                Reject(conn, "Wrong password.");
+                return;
+            }
+            conn.authenticationData = RoHRoomManager.SpectatorTag;
+            Debug.Log($"[RoomPasswordAuthenticator] {conn} joined as a SPECTATOR.");
+            Accept(conn);
+            return;
+        }
+
         if (room != null && !room.InRoomScene)
         {
             Reject(conn, "The match has already started.");
             return;
         }
 
-        // connections already contains this one, so ">" not ">=".
-        if (room != null && NetworkServer.connections.Count > room.RoomPlayerLimit)
+        // Accepted players + this one (not accepted yet, so not in the count).
+        if (room != null && RoHRoomManager.CountPlayerConnections() + 1 > room.RoomPlayerLimit)
         {
             Reject(conn, "The room is full.");
             return;
@@ -144,7 +161,11 @@ public class RoomPasswordAuthenticator : NetworkAuthenticator
 
     public override void OnClientAuthenticate()
     {
-        NetworkClient.Send(new RoomAuthRequest { password = ClientPassword ?? string.Empty });
+        NetworkClient.Send(new RoomAuthRequest
+        {
+            password = ClientPassword ?? string.Empty,
+            spectator = SpectatorSession.Requested,
+        });
     }
 
     private void OnAuthResponse(RoomAuthResponse msg)

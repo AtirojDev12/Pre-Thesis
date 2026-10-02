@@ -128,9 +128,18 @@ public sealed class DevCheatPanel : MonoBehaviour
         if (keyboard != null && keyboard.f1Key.wasPressedThisFrame) SetOpen(!open);
         else if (open && keyboard != null && keyboard.escapeKey.wasPressedThisFrame) SetOpen(false);
 
-        // A new body (new scene / respawn): noclip and god do not carry over.
+        // A new body (new scene / respawn): noclip and god do not carry over
+        // (the server's DevGodMode lives on the old body).
+        if (PlayerHealth.LocalInstance != lastBody)
+        {
+            lastBody = PlayerHealth.LocalInstance;
+            god = false;
+        }
         if (noclip && (noclipBody == null || PlayerHealth.LocalInstance == null || noclipBody.gameObject != PlayerHealth.LocalInstance.gameObject))
             StopNoclip();
+
+        // Checked once per frame (it searches the seats), not on every GUI event.
+        serverCheatsAllowed = NetworkMode.IsOffline || NetworkServer.active || RoHRoomPlayer.HostIsDevBuild;
 
         if (noclip) MoveNoclip();
     }
@@ -140,7 +149,7 @@ public sealed class DevCheatPanel : MonoBehaviour
         if (open == value) return;
         open = value;
         if (open) OverlayPanels.Opened(); else OverlayPanels.Closed();
-        if (PlayerHealth.LocalInstance != null) OverlayPanels.SetMouseForUi(open);
+        if (PlayerHealth.LocalInstance != null || SpectatorSession.Active) OverlayPanels.SetMouseForUi(open);
         else { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
     }
 
@@ -162,29 +171,31 @@ public sealed class DevCheatPanel : MonoBehaviour
 
         GUILayout.BeginArea(new Rect(30f, 120f, 520f, 900f), GUI.skin.box);
         GUILayout.Label("<b>DEV CHEATS</b>   (F1 / Esc to close)");
+        if (SpectatorSession.Active) GUILayout.Label("<color=#7FD7FF>You are SPECTATING (no body).</color>");
+        if (!ServerCheatsAllowed) GUILayout.Label("<color=#FF8060>Host = normal build: only your own-PC cheats work.</color>");
         scroll = GUILayout.BeginScrollView(scroll);
 
         Header("Money + items  (your save)");
         Row(("+100 currency", () => AddMoney(100)), ("+1000 currency", () => AddMoney(1000)));
-        Row(("Give Walkie-Talkie", () => { Send(Cheat.GiveWalkie); Done("Walkie given (spare if you have one)"); }),
+        Row(("Give Walkie-Talkie", () => Do(Cheat.GiveWalkie, "Walkie given (spare if you have one)")),
             ("Reset save", ResetSave));
 
         Header("Player");
-        Row((god ? "God mode: ON" : "God mode: OFF", () => { god = !god; Send(god ? Cheat.GodOn : Cheat.GodOff); Done(god ? "God mode on" : "God mode off"); }),
-            ("Heal to full", () => { Send(Cheat.HealFull); Done("Healed"); }));
-        Row(("Go down", () => { Send(Cheat.GoDown); Done("Downed"); }),
-            ("Die", () => { Send(Cheat.Die); Done("Dead"); }));
+        Row((god ? "God mode: ON" : "God mode: OFF", () => { if (Do(god ? Cheat.GodOff : Cheat.GodOn, god ? "God mode off" : "God mode on")) god = !god; }),
+            ("Heal to full", () => Do(Cheat.HealFull, "Healed")));
+        Row(("Go down", () => Do(Cheat.GoDown, "Downed")),
+            ("Die", () => Do(Cheat.Die, "Dead")));
         Row((noclip ? "Noclip / fly: ON" : "Noclip / fly: OFF", ToggleNoclip), ("", null));
         if (noclip) GUILayout.Label("  WASD move, Space up, Ctrl down, Shift fast");
 
         Header("Match");
-        Row(("Clock +1 hour", () => { Send(Cheat.ClockPlusHour); Done("Clock +1 hour"); }),
-            ("Complete all boards", () => { Send(Cheat.CompleteBoards); Done("All zones done"); }));
-        Row(("Open the exit now", () => { Send(Cheat.OpenExit); Done("Zones done + 06:00"); }),
-            ("Lights on / off", () => { Send(Cheat.LightsToggle); Done("Lights toggled"); }));
+        Row(("Clock +1 hour", () => Do(Cheat.ClockPlusHour, "Clock +1 hour")),
+            ("Complete all boards", () => Do(Cheat.CompleteBoards, "All zones done")));
+        Row(("Open the exit now", () => Do(Cheat.OpenExit, "Zones done + 06:00")),
+            ("Lights on / off", () => Do(Cheat.LightsToggle, "Lights toggled")));
 
         Header("Ghost");
-        Row((frozen ? "Ghosts frozen: ON" : "Ghosts frozen: OFF", () => { frozen = !frozen; Send(frozen ? Cheat.GhostsFreeze : Cheat.GhostsUnfreeze); Done(frozen ? "Ghosts frozen" : "Ghosts move"); }),
+        Row((frozen ? "Ghosts frozen: ON" : "Ghosts frozen: OFF", () => { if (Do(frozen ? Cheat.GhostsUnfreeze : Cheat.GhostsFreeze, frozen ? "Ghosts move" : "Ghosts frozen")) frozen = !frozen; }),
             ("Teleport to ghost", TeleportToGhost));
         Row((ghostMarkers ? "Ghost markers: ON" : "Ghost markers: OFF", () => ghostMarkers = !ghostMarkers), ("", null));
 
@@ -211,6 +222,23 @@ public sealed class DevCheatPanel : MonoBehaviour
     }
 
     private void Done(string text) => lastAction = text;
+
+    /// <summary>
+    /// Server cheats need a host running the Editor / a Development Build. A
+    /// normal-build host has no handler and Mirror would disconnect us, so we
+    /// do not send at all then.
+    /// </summary>
+    private bool serverCheatsAllowed;
+    private PlayerHealth lastBody;
+    private bool ServerCheatsAllowed => serverCheatsAllowed;
+
+    private bool Do(Cheat cheat, string message)
+    {
+        if (!ServerCheatsAllowed) { Done("Host is a NORMAL build: server cheats are off."); return false; }
+        Send(cheat);
+        Done(message);
+        return true;
+    }
 
     // ---- Local cheats ------------------------------------------------------------
 
@@ -295,7 +323,7 @@ public sealed class DevCheatPanel : MonoBehaviour
     {
         Enemy_Abstract_Class best = null;
         float bestDistance = float.MaxValue;
-        foreach (Enemy_Abstract_Class ghost in FindObjectsByType<Enemy_Abstract_Class>(FindObjectsSortMode.None))
+        foreach (Enemy_Abstract_Class ghost in FindObjectsByType<Enemy_Abstract_Class>())
         {
             float d = (ghost.transform.position - from).sqrMagnitude;
             if (d < bestDistance) { bestDistance = d; best = ghost; }
@@ -311,7 +339,7 @@ public sealed class DevCheatPanel : MonoBehaviour
 
         GUI.matrix = Matrix4x4.identity;
         var style = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(22f * Screen.height / 1080f), richText = true };
-        foreach (Enemy_Abstract_Class ghost in FindObjectsByType<Enemy_Abstract_Class>(FindObjectsSortMode.None))
+        foreach (Enemy_Abstract_Class ghost in FindObjectsByType<Enemy_Abstract_Class>())
         {
             Vector3 p = cam.WorldToScreenPoint(ghost.transform.position + Vector3.up * 1.8f);
             if (p.z <= 0f) continue; // behind the camera

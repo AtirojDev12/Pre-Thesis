@@ -205,6 +205,13 @@ public sealed class LobbyBoard : MonoBehaviour
             statusText.text = allReady ? "Everyone is ready." : "Waiting for players to get ready...";
             hintText.text = "Host: HOLD <color=#FFCC4D>E</color> on a name to kick";
         }
+        else if (SpectatorSession.Active)
+        {
+            buttonText.text = "SPECTATING";
+            buttonImage.color = new Color(0.22f, 0.2f, 0.19f, 1f);
+            statusText.text = allReady ? "Everyone is ready." : "Waiting for players to get ready...";
+            hintText.text = "You are watching (no body)";
+        }
         else
         {
             bool ready = me != null && me.readyToBegin;

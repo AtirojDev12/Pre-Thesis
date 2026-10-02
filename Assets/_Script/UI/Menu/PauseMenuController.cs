@@ -132,7 +132,7 @@ public class PauseMenuController : MonoBehaviour
         if (!content.activeSelf)
         {
             // Only in a match: there must be a local player.
-            if (PlayerHealth.LocalInstance != null) Open();
+            if (PlayerHealth.LocalInstance != null || SpectatorSession.Active) Open();
             return;
         }
 
@@ -198,6 +198,8 @@ public class PauseMenuController : MonoBehaviour
         confirmText.text = IsHosting()
             ? "You are the host.\nLeaving ends the match and closes the room for everyone."
             : "Leave the match and go back to the main menu?";
+        if (MatchResultsUI.LeavingLosesItems())
+            confirmText.text += "\n<color=#FF6B5A>You will lose the items you brought.</color>";
         confirmPopup.SetActive(true);
         confirmPopup.transform.SetAsLastSibling();
     }
@@ -217,6 +219,9 @@ public class PauseMenuController : MonoBehaviour
     {
         if (leaving) return;
         leaving = true;
+
+        // Leaving a running match on purpose = like dying: lose the items you brought (3 Oct, bug #1).
+        MatchResultsUI.SettleLeftMatch();
 
         CloseWithoutCursor();
         Cursor.lockState = CursorLockMode.None;

@@ -172,7 +172,10 @@ public class PlayerInventory : NetworkBehaviour
         if (room != null && !room.InRoomScene) return;
         ItemCatalog.ItemInfo info = ItemCatalog.Find(itemId);
         if (info == null || !info.permanent) return;
-        ServerAddItem(itemId); // refuses duplicates / full hotbar; refreshes the radio itself
+        // 3 Oct (bug #8): buying never makes a spare. Already carrying one = refuse
+        // (ServerAddItem alone would add the second copy as a spare).
+        if (ServerCountOf(itemId) > 0) return;
+        ServerAddItem(itemId); // refuses a full hotbar; refreshes the radio itself
     }
 
     [Command]
@@ -308,7 +311,10 @@ public class PlayerInventory : NetworkBehaviour
     }
 
     /// <summary>SERVER. How many copies of this item are in the hotbar.</summary>
-    public int ServerCountOf(string itemId)
+    public int ServerCountOf(string itemId) => CountOf(itemId);
+
+    /// <summary>Any machine: how many copies of this item are in the hotbar (synced list).</summary>
+    public int CountOf(string itemId)
     {
         int n = 0;
         for (int i = 0; i < slots.Count; i++) if (slots[i].itemId == itemId) n++;

@@ -21,6 +21,24 @@ public struct VoiceDownMessage : NetworkMessage
     public ArraySegment<byte> data;
 }
 
+/// <summary>Spectator -> server (2 Oct): push-to-talk audio + where the spectator camera is.</summary>
+public struct SpectatorVoiceUpMessage : NetworkMessage
+{
+    public ushort sequence;
+    public Vector3 position;
+    public ArraySegment<byte> data;
+}
+
+/// <summary>Server -> player: a spectator's voice, played in 3D at <see cref="position"/>.</summary>
+public struct SpectatorVoiceDownMessage : NetworkMessage
+{
+    /// <summary>The spectator's connection id on the server (one stream per spectator).</summary>
+    public int spectatorId;
+    public ushort sequence;
+    public Vector3 position;
+    public ArraySegment<byte> data;
+}
+
 /// <summary>
 /// Voice through Mirror (the game's own network) instead of EOS.
 ///
@@ -68,6 +86,9 @@ public static class VoiceNetwork
     /// <summary>Raised on a client for every received packet (main thread).</summary>
     public static event Action<uint, byte, short[], int> VoiceReceived; // talkerNetId, flags, samples, count
 
+    /// <summary>Raised on a PLAYER's client for a spectator's voice (main thread).</summary>
+    public static event Action<int, Vector3, short[], int> SpectatorVoiceReceived; // spectatorId, position, samples, count
+
     private static bool serverRegistered, clientRegistered;
 
     // Client encoder state.
@@ -91,6 +112,7 @@ public static class VoiceNetwork
     {
         serverRegistered = clientRegistered = false;
         VoiceReceived = null;
+        SpectatorVoiceReceived = null;
         SentPackets = ReceivedPackets = RelayedPackets = 0;
         Speaking = false;
         downFill = 0;
@@ -110,6 +132,7 @@ public static class VoiceNetwork
         if (NetworkServer.active && !serverRegistered)
         {
             NetworkServer.ReplaceHandler<VoiceUpMessage>(OnServerVoice, true);
+            NetworkServer.ReplaceHandler<SpectatorVoiceUpMessage>(OnServerSpectatorVoice, true);
             serverRegistered = true;
             rates.Clear();
         }
@@ -118,6 +141,7 @@ public static class VoiceNetwork
         if (NetworkClient.active && !clientRegistered)
         {
             NetworkClient.ReplaceHandler<VoiceDownMessage>(OnClientVoice, true);
+            NetworkClient.ReplaceHandler<SpectatorVoiceDownMessage>(OnClientSpectatorVoice, true);
             clientRegistered = true;
         }
         else if (!NetworkClient.active) clientRegistered = false;
@@ -136,6 +160,10 @@ public static class VoiceNetwork
     /// </summary>
     public static void PushMicBlock(short[] block48k, float blockPeak, bool allowed)
     {
+        // Spectator (2 Oct): push-to-talk only; while the key is held everything is sent.
+        bool spectator = SpectatorSession.Active;
+        if (spectator) allowed = allowed && SpectatorSession.TalkHeld;
+
         if (!Active || !allowed)
         {
             downFill = 0;
@@ -144,7 +172,7 @@ public static class VoiceNetwork
         }
 
         if (blockPeak >= OpenLevel) lastLoudTime = Time.unscaledTime;
-        Speaking = Time.unscaledTime - lastLoudTime < HangoverSeconds;
+        Speaking = spectator || Time.unscaledTime - lastLoudTime < HangoverSeconds;
 
         downFill += VoiceCodec.Downsample48To16(block48k, block48k.Length, down, downFill);
         if (downFill < PacketSamples) return;
@@ -153,6 +181,17 @@ public static class VoiceNetwork
         if (!Speaking) return; // silence: send nothing
 
         int bytes = VoiceCodec.Encode(down, PacketSamples, encoded);
+        if (spectator)
+        {
+            NetworkClient.Send(new SpectatorVoiceUpMessage
+            {
+                sequence = sequence++,
+                position = SpectatorSession.VoicePosition,
+                data = new ArraySegment<byte>(encoded, 0, bytes)
+            }, Channels.Unreliable);
+            SentPackets++;
+            return;
+        }
         NetworkClient.Send(new VoiceUpMessage
         {
             sequence = sequence++,
@@ -186,7 +225,23 @@ public static class VoiceNetwork
 
         foreach (NetworkConnectionToClient listener in NetworkServer.connections.Values)
         {
-            if (listener == null || listener == sender || !listener.isReady || listener.identity == null) continue;
+            if (listener == null || listener == sender || !listener.isReady) continue;
+
+            // Spectator (2 Oct, no body): hears every talker, 3D at the talker
+            // (their camera holds the listener), plus radio traffic.
+            if (listener.identity == null)
+            {
+                if (!RoHRoomManager.IsSpectator(listener)) continue;
+                listener.Send(new VoiceDownMessage
+                {
+                    talkerNetId = talker.netId,
+                    sequence = message.sequence,
+                    flags = (byte)(FlagProximity | (onRadio ? FlagRadio : 0)),
+                    data = message.data
+                }, Channels.Unreliable);
+                RelayedPackets++;
+                continue;
+            }
 
             byte flags;
             if (!inMatch)
@@ -225,6 +280,42 @@ public static class VoiceNetwork
         }
     }
 
+    /// <summary>
+    /// SERVER. A spectator's push-to-talk: sent to PLAYERS (with a body) near the
+    /// spectator camera (played 3D there) and to every OTHER SPECTATOR (played
+    /// flat, any distance).
+    /// </summary>
+    private static void OnServerSpectatorVoice(NetworkConnectionToClient sender, SpectatorVoiceUpMessage message)
+    {
+        if (sender == null || !RoHRoomManager.IsSpectator(sender)) return;
+        if (message.data.Count <= VoiceCodec.HeaderBytes || message.data.Count > MaxPacketBytes) return;
+        Vector3 position = message.position;
+        if (!IsFinite(position.x) || !IsFinite(position.y) || !IsFinite(position.z)) return;
+        if (!AllowRate(sender.connectionId)) return;
+
+        float maxDistance = VoicePlayback.MaxHearingDistance + HearingMargin;
+        foreach (NetworkConnectionToClient listener in NetworkServer.connections.Values)
+        {
+            if (listener == null || listener == sender || !listener.isReady) continue;
+            if (listener.identity == null)
+            {
+                if (!RoHRoomManager.IsSpectator(listener)) continue; // other spectators: any distance
+            }
+            else if ((listener.identity.transform.position - position).sqrMagnitude > maxDistance * maxDistance) continue;
+
+            listener.Send(new SpectatorVoiceDownMessage
+            {
+                spectatorId = sender.connectionId,
+                sequence = message.sequence,
+                position = position,
+                data = message.data
+            }, Channels.Unreliable);
+            RelayedPackets++;
+        }
+    }
+
+    private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+
     private static bool AllowRate(int connectionId)
     {
         if (Time.unscaledTime - rateWindowStart >= 1f)
@@ -260,5 +351,18 @@ public static class VoiceNetwork
 
         ReceivedPackets++;
         VoiceReceived?.Invoke(message.talkerNetId, message.flags, decoded, samples);
+    }
+
+    private static void OnClientSpectatorVoice(SpectatorVoiceDownMessage message)
+    {
+        int length = message.data.Count;
+        if (length <= VoiceCodec.HeaderBytes || length > MaxPacketBytes) return;
+
+        Buffer.BlockCopy(message.data.Array, message.data.Offset, receiveCopy, 0, length);
+        int samples = VoiceCodec.Decode(receiveCopy, 0, length, decoded);
+        if (samples <= 0) return;
+
+        ReceivedPackets++;
+        SpectatorVoiceReceived?.Invoke(message.spectatorId, message.position, decoded, samples);
     }
 }

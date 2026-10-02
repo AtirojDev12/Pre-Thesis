@@ -165,7 +165,7 @@ public class TimedGhost : Enemy_Abstract_Class
         {
             PlayerHealth candidate = players[i];
             if (candidate == null || candidate.IsDead || candidate.netIdentity == null) continue;
-            if (!PlayerRegistry.IsInRound(candidate)) continue; // escaped / finished players are out
+            if (!PlayerRegistry.IsHuntable(candidate)) continue; // escaped / finished / downed players are out
 
             Vector3 position = candidate.transform.position;
             float sqr = (position - transform.position).sqrMagnitude;
@@ -244,9 +244,9 @@ public class TimedGhost : Enemy_Abstract_Class
     protected override void ChaseBehavior()
     {
         if (isJumpscareTriggered) return;
-        if (targetPlayer == null || targetPlayer.IsDead || !PlayerRegistry.IsInRound(targetPlayer))
+        if (!PlayerRegistry.IsHuntable(targetPlayer))
         {
-            // The person we were chasing died or left. Do not freeze — go back
+            // The person we were chasing died, went down (3 Oct) or left. Do not freeze — go back
             // to patrol and let CheckForPlayer pick somebody else.
             currentState = EnemyState.Patrol;
             return;
