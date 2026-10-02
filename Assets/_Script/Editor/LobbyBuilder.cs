@@ -66,9 +66,25 @@ public static class LobbyBuilder
             return;
         }
 
-        string walkieNote = MakeWalkieNotFree();
-
         Scene scene = EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
+
+        // 3 Oct: the team turned the greybox into a prefab ("3D Lobby (greybox) (1)" in
+        // the scene) and edited it (moved, shop + spawns removed). Rebuilding would add
+        // a SECOND full lobby next to it, so refuse while that version is in the scene.
+        foreach (GameObject candidate in scene.GetRootGameObjects())
+        {
+            if (!candidate.name.StartsWith(RootName)) continue;
+            if (candidate.name != RootName || PrefabUtility.IsPartOfPrefabInstance(candidate))
+            {
+                EditorUtility.DisplayDialog("Build 3D Lobby",
+                    "Lobby.unity now uses the team's edited lobby (\"" + candidate.name + "\", a prefab).\n\n" +
+                    "Rebuilding would place a second full lobby on top of it, so nothing was changed.\n\n" +
+                    "Edit the lobby by hand, or use Tools > Pre-Thesis > Lobby: Add Lights Sign (L).", "OK");
+                return;
+            }
+        }
+
+        string walkieNote = MakeWalkieNotFree();
         foreach (GameObject candidate in scene.GetRootGameObjects())
             if (candidate.name == RootName) Object.DestroyImmediate(candidate);
 
@@ -396,6 +412,64 @@ public static class LobbyBuilder
             "06-07 ghosts hunt. 07:00 = death\n" +
             "Dark: ghosts hear moves + loud voices\n" +
             "Pay: tasks x10.  Die: 10, lose items", 105f, false);
+    }
+
+    // =====================================================================
+    //  Lights sign (3 Oct): its own tool, so the team's edited lobby is kept
+    // =====================================================================
+
+    private const string LightSignRootName = "Lobby Light Sign";
+
+    /// <summary>
+    /// Adds (or replaces) ONE sign next to "HOW A NIGHT WORKS": L = lights.
+    /// Touches nothing else: it is its own root object in Lobby.unity, placed from
+    /// wherever the Match Rules sign is now, so it follows the team's layout.
+    /// </summary>
+    [MenuItem("Tools/Pre-Thesis/Lobby: Add Lights Sign (L)")]
+    private static void AddLightSign()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            EditorUtility.DisplayDialog("Lights Sign", "Stop Play mode first.", "OK");
+            return;
+        }
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+        Scene scene = EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
+
+        // The rules sign = the world-space Canvas named "Match Rules".
+        Transform rules = null;
+        foreach (GameObject top in scene.GetRootGameObjects())
+            foreach (Canvas canvas in top.GetComponentsInChildren<Canvas>(true))
+                if (canvas.name == "Match Rules") { rules = canvas.transform; break; }
+        if (rules == null)
+        {
+            EditorUtility.DisplayDialog("Lights Sign",
+                "Could not find the \"Match Rules\" (HOW A NIGHT WORKS) sign in Lobby.unity. Nothing was changed.", "OK");
+            return;
+        }
+
+        foreach (GameObject top in scene.GetRootGameObjects())
+            if (top.name == LightSignRootName) Object.DestroyImmediate(top);
+        root = new GameObject(LightSignRootName).transform; // at the world origin, so world = local
+
+        // Same wall, same height, to the reader's LEFT of the rules sign
+        // (its right side is the doorway): rules 2.4 m wide, this one 2.0 m, 0.2 m gap.
+        Vector3 position = rules.position - rules.right * 2.4f;
+        Sign(root, "Lights Sign", position, rules.rotation, 2000, 1400,
+            "<size=120%><color=#FFCC4D>GHOST NEAR?</color></size>\n" +
+            "<color=#FFCC4D>L</color>  Lights OFF / ON\n" +
+            "   (for the whole team)\n" +
+            "Dark: the ghost can't see you.\n" +
+            "It still finds you if:\n" +
+            "- your noise bar is FULL\n" +
+            "- you are within 3 m", 105f, false);
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeGameObject = root.gameObject;
+        EditorUtility.DisplayDialog("Lights Sign",
+            "Added \"" + LightSignRootName + "\" next to HOW A NIGHT WORKS and saved Lobby.unity.\n\n" +
+            "Move it freely; running this again puts it back next to the rules sign.", "OK");
     }
 
     // =====================================================================
