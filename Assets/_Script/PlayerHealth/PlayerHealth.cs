@@ -108,6 +108,8 @@ public class PlayerHealth : NetworkBehaviour
     public override void OnStartClient()
     {
         base.OnStartClient();
+        // Initial SyncVars may already describe a corpse when a client joins.
+        if (isDead) DisableDeadPlayerCollisions();
         // Late joiners must draw the health this player actually has, not the
         // prefab default.
         RaiseHealthChanged(currentHealth);
@@ -393,7 +395,31 @@ public class PlayerHealth : NetworkBehaviour
 
     private void RaiseDamaged() => OnDamaged?.Invoke();
 
-    private void RaiseDeath() => OnDeath?.Invoke();
+    private void RaiseDeath()
+    {
+        // Both the server death path and the replicated client hook come here.
+        DisableDeadPlayerCollisions();
+        OnDeath?.Invoke();
+    }
+
+    private void DisableDeadPlayerCollisions()
+    {
+        // Freeze the body before removing floor collisions so it stays visible
+        // where it died instead of falling through the map under gravity.
+        foreach (Rigidbody body in GetComponentsInChildren<Rigidbody>(true))
+        {
+            if (!body.isKinematic)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                body.isKinematic = true;
+            }
+        }
+
+        // Include child/disabled objects so all parts of the corpse are passable.
+        foreach (Collider playerCollider in GetComponentsInChildren<Collider>(true))
+            playerCollider.enabled = false;
+    }
 
     private void RaiseDowned() => OnDowned?.Invoke();
 }

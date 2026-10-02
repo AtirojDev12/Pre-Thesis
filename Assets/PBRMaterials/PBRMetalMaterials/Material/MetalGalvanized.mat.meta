@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4f873e0411479e045ac4fc76fde8e45f
+timeCreated: 1445797931
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 50290
+  packageName: Free PBR Materials - Wood & Metal
+  packageVersion: 1.0
+  assetPath: Assets/PBRMaterials/PBRMetalMaterials/Material/MetalGalvanized.mat
+  uploadId: 90586
