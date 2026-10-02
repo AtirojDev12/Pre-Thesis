@@ -108,6 +108,16 @@ public sealed class GhostFavorRecovery : MonoBehaviour
             favor.SetPositionAndRotation(visible.displaced ? visible.position : homePosition,
                 visible.displaced ? visible.rotation : homeRotation);
         bool carried = NetworkMode.IsOffline ? carrier != null : visible.carrierId != 0;
+        // Keep the owner's recovery view; observers see the existing prop beside the chest.
+        if (carried && !IsLocalCarrier && NetworkClient.spawned.TryGetValue(visible.carrierId, out NetworkIdentity remote))
+        {
+            Animator animator = remote.GetComponentInChildren<Animator>();
+            Transform chest = animator != null && animator.isHuman
+                ? animator.GetBoneTransform(HumanBodyBones.UpperChest) ?? animator.GetBoneTransform(HumanBodyBones.Chest) : null;
+            Vector3 centre = chest != null ? chest.position : remote.transform.position + Vector3.up * 1.3f;
+            favor.SetPositionAndRotation(centre + remote.transform.right * .42f + remote.transform.forward * .3f,
+                remote.transform.rotation);
+        }
         for (int i = 0; i < colliders.Length; i++)
             if (colliders[i] != null) colliders[i].enabled = colliderEnabled[i] && !carried;
     }

@@ -51,6 +51,7 @@ public static class PopcornRegressionRunner
     public static void Run()
     {
         if (!Application.isBatchMode) throw new InvalidOperationException("Use an isolated batch project.");
+        HeldItemsSetup.Install();
         EditorSceneManager.OpenScene("Assets/Scenes/Map/Cinema_GamePlay.unity");
         var sceneBootstrap = Object.FindAnyObjectByType<PopcornMinigameBootstrap>();
         var sceneMaker = (Transform)Get(sceneBootstrap, "refillMaker");
@@ -75,6 +76,22 @@ public static class PopcornRegressionRunner
         var inputManager = typeof(InputSystem).GetField("s_Manager", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
         inputManager.GetType().GetMethod("OnBeforeUpdate", Private).Invoke(inputManager, new object[] { InputUpdateType.Dynamic });
         InputState.Change(keyboard, held ? new KeyboardState(Key.E) : new KeyboardState(), InputUpdateType.Dynamic);
+    }
+    static void SeatOrder(PopcornNetSync sync, PopcornCustomerType type, PopcornFlavor first, PopcornFlavor second = PopcornFlavor.None)
+    {
+        if (slot.ActiveCustomer != null)
+        {
+            var previous = slot.ActiveCustomer;
+            slot.Vacate(previous);
+            previous.gameObject.SetActive(false);
+            Object.Destroy(previous.gameObject);
+        }
+        Set(sync, "currentOrder", PopcornOrderState.Create(sync.Order.id + 1, type, first, second));
+        Call(manager, "SeatCustomerFromSync");
+        var customer = slot.ActiveCustomer;
+        var stateField = typeof(PopcornCustomer).GetField("state", Private);
+        stateField.SetValue(customer, Enum.ToObject(stateField.FieldType, 1));
+        player.transform.position = customer.transform.position + Vector3.back;
     }
     static void Aim(PopcornStation station)
     {
@@ -352,17 +369,75 @@ public static class PopcornRegressionRunner
         Check(sync != null, "Scene initializes authoritative score system offline");
         int score = sync.Score;
         float health = player.CurrentHealth;
-        Set(sync, "currentCustomerType", PopcornCustomerType.Ghost);
-        Set(sync, "currentOrder", PopcornFlavor.Drink);
-        Set(sync, "customerWaiting", true);
-        sync.RequestServe(PopcornFlavor.Drink, false);
+        SeatOrder(sync, PopcornCustomerType.Ghost, PopcornFlavor.Drink);
+        var heldNetwork = player.GetComponent<PlayerHeldItems>();
+        uint revision = heldNetwork.Publish(new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Drink });
+        sync.RequestServe(sync.Order.id, revision);
         Check(sync.Score == score && player.CurrentHealth == health - 10f, "Missing ghost mix keeps original penalty and score");
-        Set(sync, "customerWaiting", true);
-        Set(sync, "currentOrder", PopcornFlavor.Drink);
-        sync.RequestServe(PopcornFlavor.Drink, true);
+        SeatOrder(sync, PopcornCustomerType.Ghost, PopcornFlavor.Drink);
+        revision = heldNetwork.Publish(new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Drink, ghostMixed = true });
+        sync.RequestServe(sync.Order.id, revision);
         Check(sync.Score == score + 1 && !sync.CustomerWaiting, "Correct ghost drink scores once and closes order");
-        sync.RequestServe(PopcornFlavor.Drink, true);
+        sync.RequestServe(sync.Order.id, revision);
         Check(sync.Score == score + 1, "Repeated serve cannot score twice");
+        UnityEngine.Random.InitState(314159);
+        int doubles = 0;
+        var pairs = new HashSet<string>();
+        for (uint i = 1; i <= 20000; i++)
+        {
+            var generated = PopcornRecipe.RandomCustomerOrder(i, PopcornCustomerType.Human);
+            if (generated.Count == 2) { doubles++; pairs.Add(generated.first + "/" + generated.second); }
+        }
+        Check(doubles > 5700 && doubles < 6300, "Order generation follows the 70/30 split over 20000 customers");
+        Check(pairs.Count == 49, "Every ordered pair is possible, including duplicate products and same-category pairs");
+        int beforeMulti = sync.Score;
+        SeatOrder(sync, PopcornCustomerType.Human, PopcornFlavor.BBQ, PopcornFlavor.Pepsi);
+        var originalCustomer = slot.ActiveCustomer;
+        var bbqBoard = Object.FindObjectsByType<ZoneTaskList>(FindObjectsSortMode.None).First(b => b.TaskCount > 0 && b.TaskAt(0).kind == ZoneTaskKind.Popcorn);
+        int bbqLine = Enumerable.Range(0, bbqBoard.TaskCount).First(i => bbqBoard.TaskAt(i).flavor == PopcornFlavor.BBQ);
+        int bbqBefore = bbqBoard.ProgressOf(bbqLine);
+        revision = heldNetwork.Publish(new TaskHeldState { hasItem = true, hasPopcorn = true, flavor = PopcornFlavor.BBQ });
+        uint multiId = sync.Order.id;
+        sync.RequestServe(multiId, revision);
+        Check(sync.CustomerWaiting && sync.Order.DeliveredCount == 1 && slot.ActiveCustomer == originalCustomer,
+            "First correct delivery preserves the original two-item NPC and partial progress");
+        Check(sync.Score == beforeMulti + 1 && bbqBoard.ProgressOf(bbqLine) == Mathf.Min(bbqBefore + 1, bbqBoard.TaskAt(bbqLine).target),
+            "Each accepted item retains existing score and flavor-task credit");
+        sync.RequestServe(multiId, revision);
+        Check(sync.CustomerWaiting && sync.Score == beforeMulti + 1, "Duplicate delivery request cannot consume or score a second item");
+        revision = heldNetwork.Publish(new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Pepsi });
+        sync.RequestServe(multiId, revision);
+        Check(!sync.CustomerWaiting && sync.Order.Complete && sync.Score == beforeMulti + 2,
+            "Second correct delivery completes the order and scores independently");
+        SeatOrder(sync, PopcornCustomerType.Human, PopcornFlavor.Pepsi, PopcornFlavor.Pepsi);
+        Check(sync.Order.Label().Contains("×2") && sync.Order.Label().Contains("0/2"), "Repeated product order groups as ×2 with quantity progress");
+        revision = heldNetwork.Publish(new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Pepsi });
+        sync.RequestServe(sync.Order.id, revision);
+        Check(sync.CustomerWaiting && sync.Order.Label().Contains("1/2"), "First of two identical drinks leaves one outstanding");
+        revision = heldNetwork.Publish(new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Pepsi });
+        sync.RequestServe(sync.Order.id, revision);
+        Check(!sync.CustomerWaiting && sync.Order.Complete, "Second identical drink fulfills the second entry exactly once");
+        SeatOrder(sync, PopcornCustomerType.Human, PopcornFlavor.BBQ, PopcornFlavor.Paprika);
+        revision = heldNetwork.Publish(new TaskHeldState { hasItem = true, hasPopcorn = true, flavor = PopcornFlavor.BBQ });
+        sync.RequestServe(sync.Order.id, revision);
+        int earnedBeforeMistake = sync.Score;
+        revision = heldNetwork.Publish(new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Drink });
+        sync.RequestServe(sync.Order.id, revision);
+        Check(!sync.CustomerWaiting && !sync.Order.Complete && sync.Score == earnedBeforeMistake && !heldNetwork.TaskItem.hasItem,
+            "Wrong second delivery consumes the item, sends NPC away and preserves earlier earned credit");
+        SeatOrder(sync, PopcornCustomerType.Human, PopcornFlavor.Drink);
+        revision = heldNetwork.Publish(new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Drink });
+        int beforeStale = sync.Score;
+        sync.RequestServe(multiId, revision);
+        Check(sync.CustomerWaiting && heldNetwork.TaskItem.IsReady && sync.Score == beforeStale,
+            "A stale order ID cannot consume a held item or serve the next customer");
+        var orderWriter = new NetworkWriter();
+        orderWriter.Write(sync.Order);
+        var orderSnapshot = new NetworkReader(orderWriter.ToArraySegment()).Read<PopcornOrderState>();
+        Check(orderSnapshot.id == sync.Order.id && orderSnapshot.first == sync.Order.first && orderSnapshot.waiting,
+            "Mirror serializes complete atomic order snapshots for remote and late-joining clients");
+        Check(!manager.GetComponentsInChildren<TMPro.TMP_Text>().Any(t => t.name == "Score Text" || t.text.Contains("+1")),
+            "Cashier has no score-total or +1 popup");
         Aim(water);
         Input(false);
         Call(interactor, "Update");
@@ -396,7 +471,8 @@ public static class PopcornRegressionRunner
         camera.transform.position = anchor.position - anchor.forward * 1.2f;
         camera.transform.LookAt(anchor.position, anchor.up);
         var orderText = (TMPro.TMP_Text)Get(manager, "orderText");
-        orderText.text = PopcornRecipe.OrderLabel(PopcornCustomerType.Ghost, PopcornFlavor.Paprika);
+        SeatOrder(sync, PopcornCustomerType.Ghost, PopcornFlavor.Paprika, PopcornFlavor.OrangeJuice);
+        ((TMPro.TMP_Text)Get(manager, "feedbackText")).text = "";
         for (int i = 0; i < 4; i++) yield return null;
         orderText.ForceMeshUpdate();
         Check(!orderText.isTextOverflowing, "Cashier order and ghost requirement fit the display");
@@ -457,6 +533,48 @@ public static class PopcornRegressionRunner
         var secondPlayer = Object.Instantiate(network.playerPrefab);
         NetworkServer.Spawn(secondPlayer);
         var secondHealth = secondPlayer.GetComponent<PlayerHealth>();
+        var secondHeld = secondPlayer.GetComponent<PlayerHeldItems>();
+        secondPlayer.GetComponent<PlayerInventory>().ServerAddItem(ItemCatalog.WalkieTalkie);
+        Call(secondHeld, "SetTask", new TaskHeldState { revision = 1, hasItem = true, hasPopcorn = true, flavor = PopcornFlavor.BBQ, ghostMixed = true });
+        Call(secondHeld, "LateUpdate");
+        var remoteTask = secondPlayer.transform.Find("Remote task item");
+        var remoteRadio = secondPlayer.transform.Find("Remote walkie-talkie");
+        Check(remoteTask != null && remoteRadio != null && remoteTask.gameObject.activeSelf && remoteRadio.gameObject.activeSelf,
+            "A remote player displays task item and radio together");
+        Transform chest = secondPlayer.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Chest);
+        Vector3 chestCentre = chest != null ? chest.position : secondPlayer.transform.position + Vector3.up * 1.3f;
+        Check(Vector3.Distance(remoteTask.position, chestCentre) < .5f && Vector3.Distance(remoteRadio.position, chestCentre) < .5f,
+            "Both remote visuals sit around the model chest rather than its camera or feet");
+        Check(!remoteTask.GetComponentsInChildren<Collider>().Any(c => c.enabled) && !remoteRadio.GetComponentsInChildren<Collider>().Any(c => c.enabled),
+            "Remote held visuals have no active pickup/physics colliders");
+        var heldWriter = new NetworkWriter();
+        secondHeld.OnSerialize(heldWriter, true);
+        Call(secondHeld, "SetTask", new TaskHeldState { revision = 2 });
+        secondHeld.OnDeserialize(new NetworkReader(heldWriter.ToArraySegment()), true);
+        Check(secondHeld.TaskItem.hasItem && secondHeld.TaskItem.flavor == PopcornFlavor.BBQ && secondHeld.TaskItem.ghostMixed,
+            "Mirror initial held-item snapshot preserves product and Ghost Flavor");
+        uint remoteRevision = 10;
+        foreach (var state in new[] {
+            new TaskHeldState { hasItem = true }, new TaskHeldState { hasItem = true, isCup = true },
+            new TaskHeldState { hasItem = true, isRefill = true },
+            new TaskHeldState { hasItem = true, hasPopcorn = true },
+            new TaskHeldState { hasItem = true, hasPopcorn = true, flavor = PopcornFlavor.Cheese },
+            new TaskHeldState { hasItem = true, hasPopcorn = true, flavor = PopcornFlavor.Paprika },
+            new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Drink },
+            new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Pepsi },
+            new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Fanta },
+            new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.OrangeJuice } })
+        {
+            var visible = state; visible.revision = ++remoteRevision;
+            Call(secondHeld, "SetTask", visible);
+            Call(secondHeld, "LateUpdate");
+            Check(secondPlayer.transform.Find("Remote task item") != null && secondPlayer.transform.Find("Remote walkie-talkie") != null,
+                "Remote chest models support " + (state.isRefill ? "refill supply" : state.flavor.ToString()) + " alongside radio");
+        }
+        Call(secondHeld, "SetTask", new TaskHeldState { revision = ++remoteRevision });
+        Call(secondHeld, "LateUpdate");
+        Check(!secondPlayer.GetComponentsInChildren<Transform>().Any(t => t.name == "Remote task item" && t.gameObject.activeSelf),
+            "Clearing held state immediately hides the remote task model");
         secondPlayer.transform.position = recovery.VisibleState.position;
         recovery.ServerInteract(secondHealth, false);
         Call(recovery, "Update");
@@ -543,6 +661,22 @@ public static class PopcornRegressionRunner
         Set(supply, "tankRemaining", 0);
         supply.OnDeserialize(new NetworkReader(stockWriter.ToArraySegment()), true);
         Check(supply.TankRemaining == 7 && supply.TankCapacity == 20, "Mirror initial snapshot carries remaining stock and capacity for joining clients");
+        holder.Consume();
+        SeatOrder(supply, PopcornCustomerType.Human, PopcornFlavor.Pepsi, PopcornFlavor.Pepsi);
+        var networkCustomer = slot.ActiveCustomer;
+        holder.PickUp(true);
+        holder.Hold(PopcornFlavor.Pepsi);
+        manager.TryServe(networkCustomer, player.gameObject);
+        Check(holder.SubmissionPending, "Network submission locks the prepared item until server acknowledgement");
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(!holder.SubmissionPending && !holder.HasItem && supply.CustomerWaiting && supply.Order.DeliveredCount == 1 && slot.ActiveCustomer == networkCustomer,
+            "Real Mirror serve consumes once, unlocks hands and updates the same partial-order NPC");
+        holder.PickUp(true);
+        holder.Hold(PopcornFlavor.Pepsi);
+        manager.TryServe(networkCustomer, player.gameObject);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(!holder.SubmissionPending && !holder.HasItem && !supply.CustomerWaiting && supply.Order.Complete,
+            "Real Mirror second delivery completes duplicate order and clears the owner's item");
         network.StopHost();
     }
     static void Capture(string path)
@@ -560,7 +694,8 @@ public static class PopcornRegressionRunner
         var previous = RenderTexture.active;
         camera.targetTexture = render;
         Canvas.ForceUpdateCanvases();
-        camera.Render();
+        UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(camera,
+            new UnityEngine.Rendering.RenderPipeline.StandardRequest { destination = render });
         RenderTexture.active = render;
         var image = new Texture2D(1280, 720, TextureFormat.RGB24, false);
         image.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0);

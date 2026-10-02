@@ -75,7 +75,7 @@ public sealed class PopcornPreparation : MonoBehaviour
 
     public void Interact(PopcornStation station)
     {
-        if (Holder == null || IsPreparing || GameplayInput.Blocked) return;
+        if (Holder == null || Holder.SubmissionPending || IsPreparing || GameplayInput.Blocked) return;
         if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier) return;
         PlayerHealth player = PlayerHealth.LocalInstance;
         if (player == null || player.IsDead || player.IsDowned) return;
@@ -150,7 +150,7 @@ public sealed class PopcornPreparation : MonoBehaviour
             return;
         }
         Keyboard keyboard = Keyboard.current;
-        if (!awaitingResult && !GameplayInput.Blocked && keyboard != null && keyboard.rKey.wasPressedThisFrame && Holder.HasItem &&
+        if (!Holder.SubmissionPending && !awaitingResult && !GameplayInput.Blocked && keyboard != null && keyboard.rKey.wasPressedThisFrame && Holder.HasItem &&
             (GhostFavorRecovery.Instance == null || !GhostFavorRecovery.Instance.DroppedThisFrame))
         {
             Cancel(false);

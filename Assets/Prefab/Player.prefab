@@ -43,7 +43,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7fd8f6fc5e193aa4681dff72185e5fae, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonCamera
   playerBody: {fileID: 6826038590600976497}
   cameraLocalPosition: {x: 0, y: 0.81, z: 0.05}
@@ -165,7 +165,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a79441f348de89743a2939f4d699eac1, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalCameraData
   m_RenderShadows: 1
   m_RequiresDepthTextureOption: 2
@@ -225,6 +225,7 @@ GameObject:
   - component: {fileID: 3020241743421449484}
   - component: {fileID: 8240591739302916471}
   - component: {fileID: 3343788926170827003}
+  - component: {fileID: 3150478487085866311}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -454,7 +455,7 @@ MonoBehaviour:
   isDead: 0
   isDowned: 0
   invincibilityDuration: 0.5
-  downedDuration: 30
+  downedDuration: 150
   timerSyncInterval: 0.1
   downedTimer: 0
   OnHealthChanged:
@@ -658,6 +659,23 @@ MonoBehaviour:
   fullChargeDuration: 1.5
   maximumLaunchSpeed: 9
   movementMultiplier: 0.5
+--- !u!114 &3150478487085866311
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3873886348749462617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5197ea5d7f3761b41a5b450bc1be643e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHeldItems
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  taskOffset: {x: -0.18, y: -0.1, z: 0.3}
+  radioOffset: {x: 0.18, y: -0.08, z: 0.3}
 --- !u!1001 &4241667098483019941
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -61,22 +61,22 @@ public class PopcornNetSync : NetworkBehaviour
     [Header("Punishment")]
     [Tooltip("Damage for serving a ghost the wrong thing. The Ticket Zone rule table calls for HP and Sanity loss; sanity lands here once that system exists.")]
     [SerializeField] private float wrongGhostOrderDamage = 10f;
+    [Header("Order size")]
+    [Range(0f, 1f)] [SerializeField] private float twoItemOrderChance = 0.3f;
 
     // ---- Replicated shared state ------------------------------------------
 
-    // Three separate hooks rather than three SyncVars pointing at one overloaded
-    // method: Mirror's weaver resolves a hook by name, and giving it three
-    // same-named candidates is a good way to get a confusing weave error.
-    [SyncVar(hook = nameof(OnCustomerTypeChanged))] private PopcornCustomerType currentCustomerType;
-    [SyncVar(hook = nameof(OnCurrentOrderChanged))] private PopcornFlavor currentOrder = PopcornFlavor.None;
-    [SyncVar(hook = nameof(OnCustomerWaitingChanged))] private bool customerWaiting;
+    // One snapshot keeps order identity, products and partial progress consistent.
+    [SyncVar(hook = nameof(OnOrderChanged))] private PopcornOrderState currentOrder;
+    private uint nextOrderId;
 
     /// <summary>Correct orders served by the whole team. The zone's quest progress.</summary>
     [SyncVar(hook = nameof(OnScoreChanged))] private int score;
 
-    public PopcornCustomerType CurrentCustomerType => currentCustomerType;
-    public PopcornFlavor CurrentOrder => currentOrder;
-    public bool CustomerWaiting => customerWaiting;
+    public PopcornCustomerType CurrentCustomerType => currentOrder.customerType;
+    public PopcornFlavor CurrentOrder => currentOrder.first;
+    public PopcornOrderState Order => currentOrder;
+    public bool CustomerWaiting => currentOrder.waiting;
     public int Score => score;
     public int OrdersToComplete => ordersToComplete;
     public string ZoneID => zoneID;
@@ -309,11 +309,7 @@ public class PopcornNetSync : NetworkBehaviour
 
         PopcornCustomerType type = Random.value < 0.5f ? PopcornCustomerType.Human : PopcornCustomerType.Ghost;
 
-        PopcornFlavor order = PopcornRecipe.RandomOrder();
-
-        currentCustomerType = type;
-        currentOrder = order;
-        customerWaiting = true;
+        currentOrder = PopcornRecipe.RandomCustomerOrder(++nextOrderId, type, twoItemOrderChance);
 
         // Hooks do not fire on the machine that made the change, so the host
         // raises its own event or the host's screens would sit on stale text.
@@ -325,8 +321,9 @@ public class PopcornNetSync : NetworkBehaviour
     {
         if (!HasAuthority) return;
 
-        customerWaiting = false;
-        currentOrder = PopcornFlavor.None;
+        PopcornOrderState order = currentOrder;
+        order.waiting = false;
+        currentOrder = order;
         OrderChanged?.Invoke();
     }
 
@@ -337,54 +334,61 @@ public class PopcornNetSync : NetworkBehaviour
     /// Routes to the server, which is the only thing allowed to decide whether
     /// the order was right.
     /// </summary>
-    public void RequestServe(PopcornFlavor heldFlavor, bool ghostMixed = false)
+    public void RequestServe(uint orderId, uint heldRevision)
     {
         if (NetworkMode.IsOffline)
         {
-            ServerResolveServe(heldFlavor, ghostMixed, PlayerHealth.LocalInstance, null);
+            ServerResolveServe(orderId, heldRevision, PlayerHealth.LocalInstance, null);
             return;
         }
 
-        CmdServe(heldFlavor, ghostMixed);
+        CmdServe(orderId, heldRevision);
     }
 
     [Command(requiresAuthority = false)]
-    private void CmdServe(PopcornFlavor heldFlavor, bool ghostMixed, NetworkConnectionToClient sender = null)
+    private void CmdServe(uint orderId, uint heldRevision, NetworkConnectionToClient sender = null)
     {
         PlayerHealth health = sender != null && sender.identity != null
             ? sender.identity.GetComponent<PlayerHealth>()
             : null;
 
-        ServerResolveServe(heldFlavor, ghostMixed, health, sender);
+        ServerResolveServe(orderId, heldRevision, health, sender);
     }
 
     /// <summary>
     /// SERVER ONLY. The whole decision lives here: was it right, who gets paid,
     /// who gets hurt, is the zone finished.
     ///
-    /// Note it trusts the CLIENT for which flavour they were holding. That is
-    /// the one soft spot left, and it is deliberate for the demo — the held
-    /// item is per-player local state that the server does not model yet. If
-    /// order-faking ever matters, the fix is a server-side inventory, not a
-    /// check bolted on here.
+    /// Uses the player's replicated task state and consumes that revision once.
+    /// Preparation remains owner-driven; recipe state is validated on receipt.
     /// </summary>
-    private void ServerResolveServe(PopcornFlavor heldFlavor, bool ghostMixed, PlayerHealth health, NetworkConnectionToClient sender)
+    private void ServerResolveServe(uint orderId, uint heldRevision, PlayerHealth health, NetworkConnectionToClient sender)
     {
         if (!HasAuthority) return;
 
-        if (!customerWaiting)
+        if (!currentOrder.waiting || currentOrder.id != orderId)
         {
-            SendResult(sender, false, "No one is waiting");
+            SendResult(sender, false, "This order is no longer available", heldRevision, false);
             return;
         }
-
-        if (!PopcornRecipe.IsOrder(heldFlavor))
+        PlayerHeldItems held = health != null ? health.GetComponent<PlayerHeldItems>() : null;
+        if (health == null || health.IsDead || health.IsDowned || held == null ||
+            held.TaskItem.revision != heldRevision || !held.TaskItem.IsReady)
         {
-            SendResult(sender, false, "Fill a bucket or cup first");
+            SendResult(sender, false, "Fill a bucket or cup first", heldRevision, false);
             return;
         }
-
-        bool correct = PopcornRecipe.Matches(heldFlavor, ghostMixed, currentOrder, currentCustomerType);
+        CounterSlot counter = PopcornPreparation.Instance != null ? PopcornPreparation.Instance.GetComponent<CounterSlot>() : null;
+        PopcornCustomer customer = counter != null ? counter.ActiveCustomer : null;
+        if (customer == null || !customer.CanInteract() || (customer.transform.position - health.transform.position).sqrMagnitude > 4.5f * 4.5f)
+        {
+            SendResult(sender, false, "Move closer to the waiting customer", heldRevision, false);
+            return;
+        }
+        PopcornFlavor heldFlavor = held.TaskItem.flavor;
+        int entry = currentOrder.Match(heldFlavor, held.TaskItem.ghostMixed);
+        bool correct = entry >= 0;
+        if (!held.ServerConsume(heldRevision)) return;
 
         if (correct)
         {
@@ -393,17 +397,22 @@ public class PopcornNetSync : NetworkBehaviour
             // Prototype loop: count it on the task boards (per flavor / water, human / ghost).
             ZoneTaskList.ServerReportSale(
                 PopcornRecipe.IsDrink(heldFlavor) ? ZoneTaskKind.Water : ZoneTaskKind.Popcorn,
-                heldFlavor, -1, currentCustomerType == PopcornCustomerType.Ghost);
-            SendResult(sender, true, "Correct!  +1 Point");
+                heldFlavor, -1, currentOrder.customerType == PopcornCustomerType.Ghost);
+            PopcornOrderState order = currentOrder;
+            order.Accept(entry);
+            currentOrder = order;
+            OrderChanged?.Invoke();
+            SendResult(sender, true, order.Complete ? "Order complete" : "Item delivered · More items needed", heldRevision, true);
+            if (!order.Complete) return;
         }
         else
         {
             // Ticket Zone rule 2: ghost food without the special ingredient
             // costs HP. Applied on the server so a client cannot decline it.
-            if (currentCustomerType == PopcornCustomerType.Ghost && health != null)
+            if (currentOrder.customerType == PopcornCustomerType.Ghost && health != null)
                 health.TakeDamage(wrongGhostOrderDamage);
 
-            SendResult(sender, false, "Incorrect");
+            SendResult(sender, false, "Incorrect", heldRevision, true);
         }
 
         ServerClearCustomer();
@@ -435,29 +444,35 @@ public class PopcornNetSync : NetworkBehaviour
         ScoreChanged?.Invoke(score, ordersToComplete);
     }
 
-    private void SendResult(NetworkConnectionToClient target, bool correct, string message)
+    private void SendResult(NetworkConnectionToClient target, bool correct, string message, uint revision, bool consumed)
     {
         if (NetworkMode.IsOffline || target == null)
         {
-            LocalServeResult?.Invoke(correct, message);
+            FinishLocalServe(correct, message, revision, consumed);
             return;
         }
 
-        TargetServeResult(target, correct, message);
+        TargetServeResult(target, correct, message, revision, consumed);
     }
 
     /// <summary>Feedback goes to the player who served, not to the whole team.</summary>
     [TargetRpc]
-    private void TargetServeResult(NetworkConnectionToClient target, bool correct, string message)
+    private void TargetServeResult(NetworkConnectionToClient target, bool correct, string message, uint revision, bool consumed)
     {
+        FinishLocalServe(correct, message, revision, consumed);
+    }
+
+    private void FinishLocalServe(bool correct, string message, uint revision, bool consumed)
+    {
+        if (PopcornPreparation.Instance != null) PopcornPreparation.Instance.Holder.FinishSubmission(revision, consumed);
+        if (consumed && (!correct || message == "Order complete"))
+            TaskTimer.Complete(zoneID, zoneID, PlayerHealth.LocalInstance != null ? PlayerHealth.LocalInstance.name : "player", correct);
         LocalServeResult?.Invoke(correct, message);
     }
 
     // ---- Hooks (remote clients) --------------------------------------------
 
-    private void OnCurrentOrderChanged(PopcornFlavor _, PopcornFlavor __) => OrderChanged?.Invoke();
-    private void OnCustomerWaitingChanged(bool _, bool __) => OrderChanged?.Invoke();
-    private void OnCustomerTypeChanged(PopcornCustomerType _, PopcornCustomerType __) => OrderChanged?.Invoke();
+    private void OnOrderChanged(PopcornOrderState _, PopcornOrderState __) => OrderChanged?.Invoke();
 
     private void OnScoreChanged(int _, int newScore) => ScoreChanged?.Invoke(newScore, ordersToComplete);
 }
