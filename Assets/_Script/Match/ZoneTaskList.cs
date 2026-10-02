@@ -187,6 +187,25 @@ public class ZoneTaskList : NetworkBehaviour
         }
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>SERVER. Dev cheat: fill every line of every task board (and report the zones).</summary>
+    public static void ServerDevCompleteAll()
+    {
+        for (int b = 0; b < active.Count; b++)
+        {
+            ZoneTaskList board = active[b];
+            if (board == null || !NetworkMode.HasServerAuthority(board)) continue;
+            if (!board.ProgressReady) board.ServerInit();
+            for (int i = 0; i < board.tasks.Count; i++) board.SetProgress(i, board.tasks[i].target);
+            if (!board.zoneReported)
+            {
+                board.zoneReported = true;
+                if (MatchDirector.Instance != null) MatchDirector.Instance.ServerReportZoneCompleted(board.zoneID);
+            }
+        }
+    }
+#endif
+
     // ---- Board (every machine) -----------------------------------------------
 
     private const float PixelsPerMetre = 500f;

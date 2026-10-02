@@ -98,6 +98,8 @@ public sealed class HotbarHUD : MonoBehaviour
                 frames[i].color = selected ? SelectedColor : SlotColor;
 
                 if (slot.IsEmpty) labels[i].text = string.Empty;
+                else if (slot.spare)
+                    labels[i].text = ItemCatalog.DisplayName(slot.itemId) + "\n" + Colour("SPARE", OffColor);
                 else if (ItemCatalog.IsRadio(slot.itemId))
                     labels[i].text = ItemCatalog.DisplayName(slot.itemId) + "\n" +
                         (slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor));
@@ -105,7 +107,9 @@ public sealed class HotbarHUD : MonoBehaviour
                 labels[i].color = selected ? Color.black : TextColor;
             }
 
-            hintText.text = inventory.IsHoldingRadio
+            hintText.text = inventory.IsHoldingSpare
+                ? "Spare copy: you cannot use it.   [Q] drop it for a friend"
+                : inventory.IsHoldingRadio
                 ? $"Hold [{BoundButton.DisplayName(GameSettings.WalkieTalkBinding)}] talk on radio   ·   " +
                   $"[{BoundButton.DisplayName(GameSettings.WalkiePowerBinding)}] on / off"
                 : string.Empty;

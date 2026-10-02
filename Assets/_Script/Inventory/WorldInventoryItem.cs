@@ -39,7 +39,21 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
     private void OnClaimedChanged(bool oldValue, bool newValue) { if (newValue) Hide(); }
     private void UpdateVisual() { if (visual != null) visual.SetPower(item.poweredOn); }
 
-    public string GetInteractionPrompt() => "[E] Pick up " + ItemCatalog.DisplayName(item.itemId);
+    public string GetInteractionPrompt()
+    {
+        // You already carry one: this becomes a SPARE (only to give away).
+        if (LocalCarries(item.itemId)) return "[E] Pick up " + ItemCatalog.DisplayName(item.itemId) + " (spare)";
+        return "[E] Pick up " + ItemCatalog.DisplayName(item.itemId);
+    }
+
+    private static bool LocalCarries(string itemId)
+    {
+        PlayerInventory local = PlayerInventory.Local;
+        if (local == null || string.IsNullOrEmpty(itemId)) return false;
+        for (int i = 0; i < local.Count; i++)
+            if (local.GetSlot(i).itemId == itemId) return true;
+        return false;
+    }
     public bool CanInteract() => !claimed && !pickupInProgress && isActiveAndEnabled && !item.IsEmpty;
     public Transform GetTransform() => transform;
 
@@ -57,6 +71,8 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
                      ~0, QueryTriggerInteraction.Ignore))
         {
             if (hit.transform.IsChildOf(interactor.transform) || hit.transform.IsChildOf(transform)) continue;
+            // Player bodies (e.g. the dead owner lying next to the item) do not block a pickup.
+            if (hit.collider.GetComponentInParent<PlayerHealth>() != null) continue;
             return;
         }
 

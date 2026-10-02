@@ -174,7 +174,7 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
-        if (isDead || isDowned || amount <= 0f || IsInvincible) return;
+        if (isDead || isDowned || amount <= 0f || IsInvincible || DevGodMode) return;
 
         currentHealth = Mathf.Clamp(currentHealth - amount, 0f, maxHealth);
         _invincibleUntil = Time.time + invincibilityDuration;
@@ -280,6 +280,21 @@ public class PlayerHealth : NetworkBehaviour
     /// the death consequences (no money, items lost) are identical however you
     /// died.
     /// </summary>
+    /// <summary>
+    /// SERVER. Dev cheat "God mode" (F1 panel, Editor / Development Build only):
+    /// no damage. Always false in a normal build (nothing sets it).
+    /// </summary>
+    [System.NonSerialized] public bool DevGodMode;
+
+    /// <summary>SERVER. Dev cheat: go down right now (ignores the hit cooldown and god mode).</summary>
+    public void ServerDevGoDown()
+    {
+        if (!NetworkMode.HasServerAuthority(this) || isDead || isDowned) return;
+        currentHealth = 0f;
+        RaiseHealthChanged(currentHealth);
+        ServerDowned();
+    }
+
     public void ServerKill(string reason = null)
     {
         if (!NetworkMode.HasServerAuthority(this))

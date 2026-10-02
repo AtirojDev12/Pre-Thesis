@@ -253,6 +253,8 @@ public class RoHRoomManager : NetworkRoomManager
         if (InRoomScene && newSceneName != RoomScene)
         {
             DetachLobbyBodies();
+            // Match start: spares do not go into the match (max 1 per item there).
+            pendingSpares.Clear();
             // Seats queued while in the lobby (after returning from a match)
             // would be replayed when the map loads, including players who have
             // left since. Every player instead gets their game body when their
@@ -275,6 +277,53 @@ public class RoHRoomManager : NetworkRoomManager
         body.name = $"{playerPrefab.name} (lobby) [connId={conn.connectionId}]";
 
         NetworkServer.ReplacePlayerForConnection(conn, body, ReplacePlayerOptions.KeepAuthority);
+        GiveBackSpares(conn, body);
+    }
+
+    // ---- Spares carried back from a match (2 Oct, Mr.k) ----------------------
+    //
+    // A survivor who carried 2 of the same item (e.g. their own walkie + a dead
+    // friend's) keeps BOTH when the round ends and they come back to the lobby,
+    // so they can drop (Q) the spare for that friend. The save still holds only
+    // 1 per item; the spare lives only here, on the server, until the lobby
+    // body exists. When the next MATCH starts, spares are cleared: everyone
+    // starts the match with at most 1 of each item (the loadout from the save).
+
+    private struct PendingSpare
+    {
+        public int connectionId;
+        public string itemId;
+    }
+
+    private readonly List<PendingSpare> pendingSpares = new List<PendingSpare>();
+
+    /// <summary>SERVER. Called by MatchDirector for a survivor: the extra copies they carried out.</summary>
+    public void ServerRememberSpares(NetworkConnectionToClient conn, List<string> spareItemIds)
+    {
+        if (conn == null || spareItemIds == null) return;
+        pendingSpares.RemoveAll(p => p.connectionId == conn.connectionId);
+        foreach (string id in spareItemIds)
+            if (!string.IsNullOrEmpty(id)) pendingSpares.Add(new PendingSpare { connectionId = conn.connectionId, itemId = id });
+    }
+
+    private void GiveBackSpares(NetworkConnectionToClient conn, GameObject body)
+    {
+        PlayerInventory inventory = body != null ? body.GetComponent<PlayerInventory>() : null;
+        if (inventory == null) return;
+        for (int i = pendingSpares.Count - 1; i >= 0; i--)
+        {
+            if (pendingSpares[i].connectionId != conn.connectionId) continue;
+            // The loadout (from the save) arrives a moment later; whichever comes
+            // second is marked SPARE by ServerAddItem.
+            inventory.ServerAddItem(InventorySlot.Of(pendingSpares[i].itemId, false));
+            pendingSpares.RemoveAt(i);
+        }
+    }
+
+    public override void OnRoomServerDisconnect(NetworkConnectionToClient conn)
+    {
+        if (conn != null) pendingSpares.RemoveAll(p => p.connectionId == conn.connectionId);
+        base.OnRoomServerDisconnect(conn);
     }
 
     private void DetachLobbyBodies()
@@ -292,6 +341,7 @@ public class RoHRoomManager : NetworkRoomManager
 
     public override void OnRoomStopServer()
     {
+        pendingSpares.Clear();
         BeginSessionEnd();
         if (LobbyController.Instance != null) LobbyController.Instance.LeaveRoom();
     }

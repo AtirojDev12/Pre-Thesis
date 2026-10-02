@@ -74,6 +74,10 @@ public abstract class Enemy_Abstract_Class : NetworkBehaviour
     /// </summary>
     protected bool HasAiAuthority => NetworkMode.HasServerAuthority(this);
 
+    /// <summary>SERVER. Dev cheat: every ghost stands still and ignores players. Always false in a normal build.</summary>
+    public static bool DevFrozen;
+    private bool stoppedByDevFreeze;
+
     protected virtual void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
@@ -95,6 +99,22 @@ public abstract class Enemy_Abstract_Class : NetworkBehaviour
         // Clients run no AI at all. They see the ghost move because the
         // NetworkTransform on the prefab is replicating the server's result.
         if (!HasAiAuthority) return;
+
+        // Dev cheat "Ghosts frozen" (F1 panel, Editor / Development Build only).
+        if (DevFrozen)
+        {
+            if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh && !agent.isStopped)
+            {
+                agent.isStopped = true;
+                stoppedByDevFreeze = true;
+            }
+            return;
+        }
+        if (stoppedByDevFreeze)
+        {
+            stoppedByDevFreeze = false;
+            if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh) agent.isStopped = false;
+        }
 
         CheckForPlayer();
         SwitchStateBehavior();
