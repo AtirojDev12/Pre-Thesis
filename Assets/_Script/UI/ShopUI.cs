@@ -12,7 +12,7 @@ using UnityEngine.UI;
 /// Lists every item in <see cref="ItemCatalog"/> with a price. Buying:
 ///   - spends currency from YOUR save (SaveManager.Current is the only source of truth),
 ///   - marks the permanent item as owned (max 1 per type) and saves to disk,
-///   - asks the server to put it in your hotbar now (PlayerInventory.SendLoadout).
+///   - asks the server to put it in your hotbar now (PlayerInventory.RequestAddOwned).
 /// Permanent items are LOST if you die in a match (MatchResultsUI).
 ///
 /// Built in code; Esc or Close shuts it.
@@ -106,7 +106,7 @@ public sealed class ShopUI : MonoBehaviour
         SaveManager.SaveToDisk();
 
         // Into the hotbar right away (the server checks it).
-        if (PlayerInventory.Local != null) PlayerInventory.Local.SendLoadout();
+        if (PlayerInventory.Local != null) PlayerInventory.Local.RequestAddOwned(item.id);
 
         Message($"Bought the {item.displayName}!", Good);
         Refresh();

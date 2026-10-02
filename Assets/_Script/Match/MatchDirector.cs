@@ -949,6 +949,35 @@ public class MatchDirector : NetworkBehaviour
         }
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    // ---- Dev cheats (F1 panel). Not in a normal build. ------------------------
+
+    /// <summary>SERVER. Move the clock forward (e.g. one in-game hour).</summary>
+    public void ServerDevSkipSeconds(float seconds)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || phase == MatchPhase.Ended || phase == MatchPhase.Overtime) return;
+        secondsRemaining = Mathf.Max(0.01f, secondsRemaining - seconds); // 0.01: the next frame advances the phase
+        if (NetworkServer.active) RpcSyncClock(secondsRemaining);
+    }
+
+    /// <summary>SERVER. Every registered zone counts as done (task boards are filled first).</summary>
+    public void ServerDevCompleteAllZones()
+    {
+        if (!NetworkMode.HasServerAuthority(this) || phase == MatchPhase.Ended) return;
+        ZoneTaskList.ServerDevCompleteAll();
+        foreach (string id in new List<string>(registeredZones))
+            if (!completedZones.Contains(id)) ServerReportZoneCompleted(id);
+    }
+
+    /// <summary>SERVER. All zones done + jump to 06:00, so the exit opens now.</summary>
+    public void ServerDevOpenExitNow()
+    {
+        if (!NetworkMode.HasServerAuthority(this) || phase == MatchPhase.Ended) return;
+        ServerDevCompleteAllZones();
+        if (phase != MatchPhase.Escape) EnterPhase(MatchPhase.Escape, EscapeWindowInGameHours * SecondsPerInGameHour);
+    }
+#endif
+
     [ClientRpc]
     private void RpcSyncClock(float remaining)
     {
@@ -1340,6 +1369,11 @@ public class MatchDirector : NetworkBehaviour
             carriedItems = dead ? System.Array.Empty<string>() : CarriedPermanentItems(health)
         };
 
+        // Survivor carrying 2 of the same item: the extra copy comes back to the
+        // lobby with them (to give back to a friend). Removed again at match start.
+        if (!dead && RoHRoomManager.Instance != null && health.connectionToClient != null)
+            RoHRoomManager.Instance.ServerRememberSpares(health.connectionToClient, CarriedSpares(health));
+
         if (logRoundSetup)
             Debug.Log($"[MatchDirector] Result for {health.name}: {outcome}, downed {downs}x, tasks {tasks}, currency +{result.currency}.", this);
 
@@ -1349,6 +1383,17 @@ public class MatchDirector : NetworkBehaviour
 
     [TargetRpc]
     private void TargetShowResult(NetworkConnectionToClient target, MatchResult result) => MatchResultsUI.Show(result);
+
+    /// <summary>SERVER. One entry per EXTRA copy of a permanent item (2 walkies = 1 spare).</summary>
+    private static List<string> CarriedSpares(PlayerHealth health)
+    {
+        var spares = new List<string>();
+        PlayerInventory inventory = health != null ? health.GetComponent<PlayerInventory>() : null;
+        if (inventory == null) return spares;
+        foreach (string id in CarriedPermanentItems(health))
+            for (int n = inventory.ServerCountOf(id); n > 1; n--) spares.Add(id);
+        return spares;
+    }
 
     /// <summary>SERVER. The permanent items in this player's hotbar right now.</summary>
     private static string[] CarriedPermanentItems(PlayerHealth health)

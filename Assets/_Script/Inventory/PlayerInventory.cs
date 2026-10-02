@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// In-match hotbar: 4 slots. The SELECTED slot is the item in your hand; the
@@ -13,7 +14,11 @@ using UnityEngine.InputSystem;
 /// is what the Walkie-Talkie needs ("does this player carry a radio that is on?").
 ///
 /// Rules already enforced (project spec):
-///   - An item ID can only be in the inventory once (1 copy per type).
+///   - 2 Oct: you may carry MORE than one copy of an item, but only the first is
+///     usable; the others are SPARES (InventorySlot.spare) you can only drop (Q)
+///     for a friend. If your usable copy goes, a spare becomes usable.
+///   - In the LOBBY your save follows your hotbar: drop your last copy = you no
+///     longer own it (you may buy a new one); pick one up = you own it.
 ///   - Items are identified by ItemCatalog string IDs (same IDs as the save).
 ///
 /// Owned shop items come from the save/loadout. PlayerItemThrow handles dropping
@@ -56,7 +61,9 @@ public class PlayerInventory : NetworkBehaviour
     public InventorySlot HeldSlot => GetSlot(selectedSlot);
 
     public bool IsHoldingRadio => !HeldSlot.IsEmpty && ItemCatalog.IsRadio(HeldSlot.itemId);
-    public bool IsHoldingPoweredRadio => IsHoldingRadio && HeldSlot.poweredOn;
+    public bool IsHoldingPoweredRadio => IsHoldingRadio && !HeldSlot.spare && HeldSlot.poweredOn;
+    /// <summary>The item in your hand is a spare copy (cannot be used).</summary>
+    public bool IsHoldingSpare => !HeldSlot.IsEmpty && HeldSlot.spare;
 
     /// <summary>Carries a switched-on radio in ANY slot: hears Walkie-Talkie traffic.</summary>
     public bool HasPoweredRadio
@@ -64,7 +71,7 @@ public class PlayerInventory : NetworkBehaviour
         get
         {
             for (int i = 0; i < slots.Count; i++)
-                if (!slots[i].IsEmpty && slots[i].poweredOn && ItemCatalog.IsRadio(slots[i].itemId)) return true;
+                if (!slots[i].IsEmpty && !slots[i].spare && slots[i].poweredOn && ItemCatalog.IsRadio(slots[i].itemId)) return true;
             return false;
         }
     }
@@ -141,6 +148,31 @@ public class PlayerInventory : NetworkBehaviour
         }
         if (NetworkMode.IsOffline) ApplyLoadout(LastLoadout.ToArray());
         else CmdLoadout(LastLoadout.ToArray());
+    }
+
+    /// <summary>
+    /// Owner, after buying in the lobby shop (2 Oct): put that one item in the hotbar NOW.
+    /// (SendLoadout only works once per body, so a purchase used to need a reconnect.)
+    /// </summary>
+    public void RequestAddOwned(string itemId)
+    {
+        if (!NetworkMode.IsLocalController(this) || string.IsNullOrEmpty(itemId)) return;
+        if (!LastLoadout.Contains(itemId)) LastLoadout.Add(itemId);
+        if (NetworkMode.IsOffline) AddOwned(itemId);
+        else CmdAddOwned(itemId);
+    }
+
+    [Command]
+    private void CmdAddOwned(string itemId) => AddOwned(itemId);
+
+    private void AddOwned(string itemId)
+    {
+        // Lobby only (the shop is there). In a match this would let a client spawn items.
+        RoHRoomManager room = RoHRoomManager.Instance;
+        if (room != null && !room.InRoomScene) return;
+        ItemCatalog.ItemInfo info = ItemCatalog.Find(itemId);
+        if (info == null || !info.permanent) return;
+        ServerAddItem(itemId); // refuses duplicates / full hotbar; refreshes the radio itself
     }
 
     [Command]
@@ -239,7 +271,7 @@ public class PlayerInventory : NetworkBehaviour
     {
         if (index < 0 || index >= slots.Count) return;
         InventorySlot slot = slots[index];
-        if (slot.IsEmpty || !ItemCatalog.IsRadio(slot.itemId)) return;
+        if (slot.IsEmpty || slot.spare || !ItemCatalog.IsRadio(slot.itemId)) return;
 
         slot.poweredOn = !slot.poweredOn;
         slots[index] = slot;
@@ -257,25 +289,106 @@ public class PlayerInventory : NetworkBehaviour
         if (!NetworkMode.HasServerAuthority(this) || !ItemCatalog.Exists(itemId)) return false;
 
         int empty = -1;
+        bool alreadyHave = false;
         for (int i = 0; i < slots.Count; i++)
         {
-            if (slots[i].itemId == itemId) return false; // max 1 copy per item type
+            if (slots[i].itemId == itemId) alreadyHave = true;
             if (empty < 0 && slots[i].IsEmpty) empty = i;
         }
-        if (empty < 0) return false;
+        if (empty < 0) return false; // hotbar full
+
+        // A second copy is a spare: carried only to give away (2 Oct).
+        item.spare = alreadyHave;
+        if (item.spare) item.poweredOn = false;
 
         slots[empty] = item;
         if (voice != null) voice.ServerRefreshRadio();
+        ServerLobbyOwnershipChanged(itemId);
         return true;
+    }
+
+    /// <summary>SERVER. How many copies of this item are in the hotbar.</summary>
+    public int ServerCountOf(string itemId)
+    {
+        int n = 0;
+        for (int i = 0; i < slots.Count; i++) if (slots[i].itemId == itemId) n++;
+        return n;
     }
 
     /// <summary>SERVER. Empties a slot (drop, trade, death). Returns the item ID that was there.</summary>
     public string ServerRemoveAt(int index)
     {
         if (!NetworkMode.HasServerAuthority(this) || index < 0 || index >= slots.Count || slots[index].IsEmpty) return null;
-        string removed = slots[index].itemId;
+        InventorySlot old = slots[index];
+        string removed = old.itemId;
         slots[index] = InventorySlot.Empty;
+
+        // The usable copy left: the first spare of the same item becomes usable.
+        if (!old.spare)
+        {
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (slots[i].itemId != removed || !slots[i].spare) continue;
+                InventorySlot promoted = slots[i];
+                promoted.spare = false;
+                slots[i] = promoted;
+                break;
+            }
+        }
+
         if (voice != null) voice.ServerRefreshRadio();
+        ServerLobbyOwnershipChanged(removed);
         return removed;
+    }
+
+    // ---- Lobby ownership (2 Oct) ----------------------------------------------
+    //
+    // In the lobby the save follows the hotbar: carrying at least one copy = owned.
+    // Drop (Q) your last copy -> not owned -> the shop sells you a new one.
+    // Pick one up (also a friend's) -> owned. In a MATCH nothing changes here;
+    // the results screen settles the save (MatchResultsUI).
+
+    /// <summary>True in the waiting lobby (also the offline Lobby test scene).</summary>
+    public static bool InLobby
+    {
+        get
+        {
+            RoHRoomManager room = RoHRoomManager.Instance;
+            return room != null ? room.InRoomScene : SceneManager.GetActiveScene().name == "Lobby";
+        }
+    }
+
+    private void ServerLobbyOwnershipChanged(string itemId)
+    {
+        if (!InLobby || string.IsNullOrEmpty(itemId)) return;
+        ItemCatalog.ItemInfo info = ItemCatalog.Find(itemId);
+        if (info == null || !info.permanent) return;
+
+        bool owned = ServerCountOf(itemId) > 0;
+        if (NetworkMode.IsOffline) ApplyOwnershipToSave(itemId, owned);
+        else if (connectionToClient != null) TargetOwnership(connectionToClient, itemId, owned);
+    }
+
+    [TargetRpc]
+    private void TargetOwnership(NetworkConnectionToClient target, string itemId, bool owned) => ApplyOwnershipToSave(itemId, owned);
+
+    /// <summary>OWNER'S PC. Writes owned / not owned into this player's own save.</summary>
+    private static void ApplyOwnershipToSave(string itemId, bool owned)
+    {
+        SaveData save = SaveManager.Current;
+        if (save == null) return;
+        if (save.permanentItems == null) save.permanentItems = new List<PermanentItemData>();
+
+        PermanentItemData entry = null;
+        for (int i = 0; i < save.permanentItems.Count; i++)
+            if (save.permanentItems[i] != null && save.permanentItems[i].itemID == itemId) { entry = save.permanentItems[i]; break; }
+
+        if ((entry != null && entry.isOwned) == owned) return; // nothing to change
+        if (entry != null) entry.isOwned = owned;
+        else save.permanentItems.Add(new PermanentItemData(itemId, true));
+
+        if (owned) { if (!LastLoadout.Contains(itemId)) LastLoadout.Add(itemId); }
+        else LastLoadout.Remove(itemId);
+        SaveManager.SaveToDisk();
     }
 }

@@ -184,9 +184,11 @@ public sealed class PlayerItemThrow : NetworkBehaviour
             if (inventory.ServerRemoveAt(i) == null) continue;
             if (prefab == null) continue;
 
-            // Spread them a little so they do not stack inside each other.
+            // Around the body, OUTSIDE its capsule (radius 0.5), or the dead body
+            // blocks the pickup ray. Pulled in if a wall is closer.
             float angle = dropped * 137.5f * Mathf.Deg2Rad;
-            Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * 0.35f;
+            Vector3 direction = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Vector3 offset = direction * DropDistance(basePosition, direction, 0.85f);
             GameObject world = Instantiate(prefab, basePosition + offset, Quaternion.Euler(0f, dropped * 70f, 0f));
             WorldInventoryItem pickup = world.GetComponent<WorldInventoryItem>();
             Rigidbody body = world.GetComponent<Rigidbody>();
@@ -198,6 +200,18 @@ public sealed class PlayerItemThrow : NetworkBehaviour
             dropped++;
         }
         if (dropped > 0) Debug.Log($"[PlayerItemThrow] {name} died: dropped {dropped} item(s).", this);
+    }
+
+    /// <summary>How far out an item can go before a wall (never inside the body: min 0.55 m).</summary>
+    private float DropDistance(Vector3 origin, Vector3 direction, float wanted)
+    {
+        float distance = wanted;
+        foreach (RaycastHit hit in Physics.RaycastAll(origin, direction, wanted + 0.15f, ~0, QueryTriggerInteraction.Ignore))
+        {
+            if (hit.transform.IsChildOf(transform)) continue;
+            distance = Mathf.Min(distance, hit.distance - 0.15f);
+        }
+        return Mathf.Max(0.55f, distance);
     }
 
     private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);

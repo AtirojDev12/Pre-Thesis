@@ -16,6 +16,9 @@ namespace EpicTransport {
         private Dictionary<ProductUserId, SocketId> epicToSocketIds;
         private int maxConnections;
         private int nextConnectionID;
+        // 13RoH (2 Oct): users we just disconnected (kick). Their last packets
+        // still arrive for a moment; ignore them quietly instead of red errors.
+        private readonly HashSet<ProductUserId> recentlyDisconnected = new HashSet<ProductUserId>();
 
         public static Server CreateServer(EosTransport transport, int maxConnections) {
             Server s = new Server(transport, maxConnections);
@@ -72,6 +75,7 @@ namespace EpicTransport {
 
                     SendInternal(clientUserId, socketId, InternalMessages.ACCEPT_CONNECT);
 
+                    recentlyDisconnected.Remove(clientUserId);
                     int connectionId = nextConnectionID++;
                     epicToMirrorIds.Add(clientUserId, connectionId);
                     epicToSocketIds.Add(clientUserId, socketId);
@@ -106,6 +110,8 @@ namespace EpicTransport {
 
             if (epicToMirrorIds.TryGetValue(clientUserId, out int connectionId)) {
                 OnReceivedData.Invoke(connectionId, data, channel);
+            } else if (recentlyDisconnected.Contains(clientUserId)) {
+                // Leftover packets from a player we just disconnected: drop them.
             } else {
                 SocketId socketId;
                 epicToSocketIds.TryGetValue(clientUserId, out socketId);
@@ -132,6 +138,7 @@ namespace EpicTransport {
                 SendInternal(userId, socketId, InternalMessages.DISCONNECT);
                 epicToMirrorIds.Remove(userId);
                 epicToSocketIds.Remove(userId);
+                recentlyDisconnected.Add(userId);
                 if (notifyMirror) OnDisconnected?.Invoke(connectionId);
             } else {
                 Debug.LogWarning("Trying to disconnect unknown connection id: " + connectionId);
