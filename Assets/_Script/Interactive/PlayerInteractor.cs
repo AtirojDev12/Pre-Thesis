@@ -106,7 +106,7 @@ public partial class PlayerInteractor : NetworkBehaviour
         UpdatePrompt();
 
         if (_currentTarget != null
-            && _reviveLookTarget == null
+            && !CanRevive(_reviveLookTarget)
             && !GameplayInput.Blocked
             && Keyboard.current != null
             && Keyboard.current[interactKey].wasPressedThisFrame

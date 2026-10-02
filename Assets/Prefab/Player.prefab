@@ -422,7 +422,7 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0
   reviveRange: 2.5
-  reviveMarkerDistance: 18
+  reviveFacingHalfAngle: 60
   reviveHoldSeconds: 5
   reviveMarkerSize: 38
   rayOrigin: {fileID: 0}

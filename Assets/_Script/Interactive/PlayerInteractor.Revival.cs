@@ -6,9 +6,11 @@ public partial class PlayerInteractor
 {
     [Header("Teammate revival")]
     [SerializeField] private float reviveRange = 2.5f;
-    [SerializeField] private float reviveMarkerDistance = 18f;
     [SerializeField] private float reviveHoldSeconds = 5f;
     [SerializeField] private float reviveMarkerSize = 38f;
+    [SerializeField, Range(0f, 89f)] private float reviveFacingHalfAngle = 60f;
+    private PlayerHealth _localReviveTarget;
+    private GUIStyle _reviveInstructionStyle;
 
     private PlayerHealth _reviveLookTarget;
     private PlayerHealth _serverReviveTarget;
@@ -41,22 +43,27 @@ public partial class PlayerInteractor
         if (!NetworkMode.IsLocalController(this)) return;
 
         _reviveLookTarget = null;
-        if (_health == null || _health.IsDead || _health.IsDowned || GameplayInput.Blocked) return;
-        RaycastHit[] hits = Physics.RaycastAll(rayOrigin.position, rayOrigin.forward,
-            reviveMarkerDistance, interactableLayers, QueryTriggerInteraction.Ignore);
-        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-        foreach (RaycastHit hit in hits)
+        bool canAct = _health != null && !_health.IsDead && !_health.IsDowned && !GameplayInput.Blocked;
+        bool keyHeld = Keyboard.current != null && Keyboard.current[interactKey].isPressed;
+        if (!keyHeld || !canAct) _localReviveTarget = null;
+        if (canAct && _localReviveTarget != null)
         {
-            if (hit.transform.IsChildOf(transform)) continue;
-            PlayerHealth candidate = hit.collider.GetComponentInParent<PlayerHealth>();
-            if (candidate != null && candidate != _health && candidate.IsDowned && !candidate.IsDead)
-                _reviveLookTarget = candidate;
-            break; // Walls and other characters occlude the marker.
+            if (IsNearbyDowned(_localReviveTarget)) _reviveLookTarget = _localReviveTarget;
         }
-
-        bool holding = _reviveLookTarget != null && Keyboard.current != null &&
-            Keyboard.current[interactKey].isPressed &&
-            Vector3.Distance(transform.position, _reviveLookTarget.transform.position) <= reviveRange;
+        else if (canAct)
+        {
+            float closest = reviveRange * reviveRange;
+            foreach (PlayerHealth candidate in PlayerRegistry.All)
+            {
+                if (!IsNearbyDowned(candidate)) continue;
+                float distance = (candidate.transform.position - transform.position).sqrMagnitude;
+                if (distance > closest) continue;
+                closest = distance;
+                _reviveLookTarget = candidate;
+            }
+        }
+        bool holding = canAct && keyHeld && CanRevive(_reviveLookTarget);
+        if (holding) _localReviveTarget = _reviveLookTarget;
         if (!holding && !_wasReviveHolding) return;
         if (!holding)
         {
@@ -89,10 +96,27 @@ public partial class PlayerInteractor
     private bool CanRevive(PlayerHealth target)
     {
         if (_health == null || _health.IsDead || _health.IsDowned || target == null ||
-            target == _health || target.IsDead || !target.IsDowned ||
-            Vector3.Distance(transform.position, target.transform.position) > reviveRange) return false;
-        Vector3 origin = rayOrigin.position;
-        Vector3 destination = ReviveAnchor(target);
+            !IsNearbyDowned(target) || !IsFacingReviveTarget(target)) return false;
+        return HasReviveLineOfSight(target);
+    }
+
+    private bool IsNearbyDowned(PlayerHealth target)
+    {
+        return target != null && target != _health && !target.IsDead && target.IsDowned &&
+            Vector3.Distance(transform.position, target.transform.position) <= reviveRange;
+    }
+
+    private bool IsFacingReviveTarget(PlayerHealth target)
+    {
+        Vector3 direction = Vector3.ProjectOnPlane(target.transform.position - transform.position, Vector3.up);
+        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+        return direction.sqrMagnitude < 0.0001f || Vector3.Angle(forward, direction) <= reviveFacingHalfAngle;
+    }
+
+    private bool HasReviveLineOfSight(PlayerHealth target)
+    {
+        Vector3 origin = transform.position + Vector3.up * 0.45f;
+        Vector3 destination = target.transform.position + Vector3.up * 0.45f;
         foreach (RaycastHit hit in Physics.RaycastAll(origin, destination - origin,
             Vector3.Distance(origin, destination), interactableLayers, QueryTriggerInteraction.Ignore))
         {
@@ -108,26 +132,24 @@ public partial class PlayerInteractor
         _reviveProgress = 0f;
     }
 
-    private static Vector3 ReviveAnchor(PlayerHealth target)
-    {
-        Animator animator = target.GetComponentInChildren<Animator>();
-        Transform hips = animator != null && animator.isHuman ? animator.GetBoneTransform(HumanBodyBones.Hips) : null;
-        return hips != null ? hips.position + Vector3.up * 0.2f : target.transform.position + Vector3.up * 0.45f;
-    }
-
     private void OnGUI()
     {
         if (!NetworkMode.IsLocalController(this) || _reviveLookTarget == null || GameplayInput.Blocked) return;
-        Camera camera = rayOrigin.GetComponent<Camera>();
-        if (camera == null) camera = GetComponentInChildren<Camera>();
-        if (camera == null) return;
-        Vector3 screen = camera.WorldToScreenPoint(ReviveAnchor(_reviveLookTarget));
-        if (screen.z <= 0f) return;
-        float distance = Vector3.Distance(transform.position, _reviveLookTarget.transform.position);
-        if (distance >= reviveMarkerDistance) return;
-        bool inRange = distance <= reviveRange;
-        float proximity = Mathf.InverseLerp(reviveMarkerDistance, reviveRange, distance);
-        float size = Mathf.Lerp(12f, reviveMarkerSize, proximity);
+        bool facing = IsFacingReviveTarget(_reviveLookTarget);
+        bool clear = HasReviveLineOfSight(_reviveLookTarget);
+        if (_reviveInstructionStyle == null)
+            _reviveInstructionStyle = new GUIStyle(GUI.skin.label)
+            { alignment = TextAnchor.MiddleCenter, fontSize = 22, fontStyle = FontStyle.Bold };
+        _reviveInstructionStyle.normal.textColor = Color.white;
+        Vector3 direction = _reviveLookTarget.transform.position - transform.position;
+        string arrow = Vector3.Dot(transform.right, direction) >= 0f ? ">" : "<";
+        string instruction = !facing ? arrow + " Turn toward teammate to revive " + arrow :
+            !clear ? "Path to teammate blocked" : "Hold " + interactKey + " to revive teammate";
+        GUI.Label(new Rect(0f, Screen.height - 145f, Screen.width, 40f), instruction, _reviveInstructionStyle);
+        Vector3 screen = new Vector3(Screen.width * 0.5f, 90f, 1f);
+        bool inRange = facing && clear;
+        float proximity = 1f;
+        float size = reviveMarkerSize;
         if (_reviveCircle == null)
         {
             _reviveCircle = new Texture2D(64, 64, TextureFormat.RGBA32, false);
