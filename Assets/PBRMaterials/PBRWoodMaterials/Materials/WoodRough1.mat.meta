@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 0ad2e8d2c7f13e249b9738772eb1151d
+timeCreated: 1447280165
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 50290
+  packageName: Free PBR Materials - Wood & Metal
+  packageVersion: 1.0
+  assetPath: Assets/PBRMaterials/PBRWoodMaterials/Materials/WoodRough1.mat
+  uploadId: 90586
