@@ -57,6 +57,7 @@ public static class WalkieTalkiePrefabSetup
         try
         {
             if (root.GetComponent<PlayerItemThrow>() == null) root.AddComponent<PlayerItemThrow>();
+            if (root.GetComponent<PlayerHeldItems>() == null) root.AddComponent<PlayerHeldItems>();
             SerializedObject controller = new SerializedObject(root.GetComponent<WalkieTalkieController>());
             controller.FindProperty("heldPrefab").objectReferenceValue = visualPrefab;
             controller.ApplyModifiedPropertiesWithoutUndo();

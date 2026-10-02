@@ -3,6 +3,16 @@ using UnityEngine;
 /// <summary>Shared recipe rules for local play and the server's order resolution.</summary>
 public static class PopcornRecipe
 {
+    public static PopcornOrderState RandomCustomerOrder(uint id, PopcornCustomerType type, float doubleChance = 0.3f)
+    {
+        PopcornFlavor first = RandomOrder();
+        PopcornFlavor second = Random.value < Mathf.Clamp01(doubleChance) ? RandomOrder() : PopcornFlavor.None;
+        return PopcornOrderState.Create(id, type, first, second);
+    }
+
+    public static string ItemLabel(PopcornFlavor flavor) => IsDrink(flavor)
+        ? UiFactory.FlavorName(flavor).ToUpperInvariant()
+        : UiFactory.FlavorName(flavor).ToUpperInvariant() + " POPCORN";
     public static bool IsDrink(PopcornFlavor flavor) => flavor == PopcornFlavor.Drink ||
         flavor == PopcornFlavor.Pepsi || flavor == PopcornFlavor.Fanta || flavor == PopcornFlavor.OrangeJuice;
     public static bool IsOrder(PopcornFlavor flavor) => flavor == PopcornFlavor.Cheese ||

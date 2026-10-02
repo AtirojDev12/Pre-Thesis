@@ -257,6 +257,10 @@ public sealed class ItemHoldingSystem : MonoBehaviour
     public bool IsReady => HasItem && PopcornRecipe.IsOrder(HeldFlavor);
     public bool HasPopcorn { get; private set; }
     public bool IsRefill { get; private set; }
+    public bool SubmissionPending { get; private set; }
+    public uint StateRevision { get; private set; }
+    public TaskHeldState State => new TaskHeldState { revision = StateRevision, hasItem = HasItem, isCup = IsCup,
+        hasPopcorn = HasPopcorn, isRefill = IsRefill, flavor = HeldFlavor, ghostMixed = GhostMixed };
     public event System.Action RefillDiscarded;
     private GameObject refillPrefab, fantaPrefab, orangeJuicePrefab, pepsiPrefab;
 
@@ -268,8 +272,8 @@ public sealed class ItemHoldingSystem : MonoBehaviour
         pepsiPrefab = pepsi;
     }
 
-    public bool CanScoop => HasItem && !IsCup && !IsRefill && !HasPopcorn && heldPrefab != null;
-    public bool CanMakeRefill => !HasItem && refillPrefab != null;
+    public bool CanScoop => !SubmissionPending && HasItem && !IsCup && !IsRefill && !HasPopcorn && heldPrefab != null;
+    public bool CanMakeRefill => !SubmissionPending && !HasItem && refillPrefab != null;
 
     public bool Scoop()
     {
@@ -300,7 +304,7 @@ public sealed class ItemHoldingSystem : MonoBehaviour
 
     public bool PickUp(bool cup)
     {
-        if (HasItem || !ShowVisual(cup ? cupPrefab : bucketPrefab)) return false;
+        if (SubmissionPending || HasItem || !ShowVisual(cup ? cupPrefab : bucketPrefab)) return false;
         IsCup = cup;
         HeldFlavor = PopcornFlavor.None;
         GhostMixed = false;
@@ -312,7 +316,7 @@ public sealed class ItemHoldingSystem : MonoBehaviour
     public bool MixGhost()
     {
         if (GhostFavorRecovery.Instance != null && !GhostFavorRecovery.Instance.IsHome) return false;
-        if (!IsReady || GhostMixed) return false;
+        if (SubmissionPending || !IsReady || GhostMixed) return false;
         if (IsCup && !ShowVisual(ghostWaterPrefab)) return false;
         GhostMixed = true;
         TintPopcorn();
@@ -328,6 +332,33 @@ public sealed class ItemHoldingSystem : MonoBehaviour
                 "POPCORN\nChoose a flavor station" : "EMPTY BUCKET\nScoop from PopCornTank") :
                 UiFactory.ItemName(HeldFlavor) + (GhostMixed ? "\n+ GHOST FLAVOR" : "\nReady - Ghosts need mix");
         if (heldItemPanel != null) heldItemPanel.SetActive(HasItem);
+        PlayerHeldItems network = itemOwner != null ? itemOwner.GetComponent<PlayerHeldItems>() : null;
+        if (network != null) StateRevision = network.Publish(State);
+    }
+
+    public bool BeginSubmission()
+    {
+        if (!IsReady || SubmissionPending) return false;
+        SubmissionPending = true;
+        return true;
+    }
+
+    public void FinishSubmission(uint revision, bool consumed)
+    {
+        if (!SubmissionPending || StateRevision != revision) return;
+        SubmissionPending = false;
+        if (consumed) Consume();
+    }
+
+    public GameObject PrefabFor(TaskHeldState state)
+    {
+        if (!state.hasItem) return null;
+        if (state.isRefill) return refillPrefab;
+        if (!state.isCup) return state.hasPopcorn ? heldPrefab : bucketPrefab;
+        if (!state.IsReady) return cupPrefab;
+        if (state.ghostMixed) return ghostWaterPrefab;
+        return state.flavor == PopcornFlavor.Pepsi ? pepsiPrefab : state.flavor == PopcornFlavor.Fanta ? fantaPrefab :
+            state.flavor == PopcornFlavor.OrangeJuice ? orangeJuicePrefab : waterPrefab;
     }
 
     private GameObject heldItemPanel;
@@ -397,7 +428,7 @@ public sealed class ItemHoldingSystem : MonoBehaviour
 
     public bool Hold(PopcornFlavor flavor)
     {
-        if (!HasItem || IsReady || IsRefill || !PopcornRecipe.IsOrder(flavor) || IsCup != PopcornRecipe.IsDrink(flavor)) return false;
+        if (SubmissionPending || !HasItem || IsReady || IsRefill || !PopcornRecipe.IsOrder(flavor) || IsCup != PopcornRecipe.IsDrink(flavor)) return false;
         if (!IsCup && !HasPopcorn) return false;
         GameObject visual = flavor == PopcornFlavor.Pepsi ? pepsiPrefab : flavor == PopcornFlavor.Fanta ? fantaPrefab :
             flavor == PopcornFlavor.OrangeJuice ? orangeJuicePrefab : waterPrefab;
@@ -411,13 +442,18 @@ public sealed class ItemHoldingSystem : MonoBehaviour
     private void TintPopcorn()
     {
         if (IsCup || heldVisual == null) return;
-        Color tint = GhostMixed ? new Color(0.35f, 0.95f, 1f) : HeldFlavor == PopcornFlavor.BBQ
-            ? new Color(0.65f, 0.24f, 0.09f) : HeldFlavor == PopcornFlavor.Paprika
+        TintVisual(heldVisual, HeldFlavor, GhostMixed);
+    }
+
+    public static void TintVisual(GameObject model, PopcornFlavor flavor, bool ghostMixed)
+    {
+        Color tint = ghostMixed ? new Color(0.35f, 0.95f, 1f) : flavor == PopcornFlavor.BBQ
+            ? new Color(0.65f, 0.24f, 0.09f) : flavor == PopcornFlavor.Paprika
             ? new Color(1f, 0.35f, 0.12f) : new Color(1f, 0.8f, 0.2f);
         MaterialPropertyBlock properties = new MaterialPropertyBlock();
         properties.SetColor("_BaseColor", tint);
         properties.SetColor("_Color", tint);
-        foreach (Renderer renderer in heldVisual.GetComponentsInChildren<Renderer>())
+        foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>())
             if (renderer.name.StartsWith("Popcorn ")) renderer.SetPropertyBlock(properties);
     }
 
@@ -450,6 +486,8 @@ public sealed class ItemHoldingSystem : MonoBehaviour
 
     public PopcornFlavor Consume()
     {
+        PlayerHeldItems network = itemOwner != null ? itemOwner.GetComponent<PlayerHeldItems>() : null;
+        SubmissionPending = false;
         PopcornFlavor result = HeldFlavor;
         if (IsRefill) RefillDiscarded?.Invoke();
         IsRefill = false;
@@ -459,6 +497,7 @@ public sealed class ItemHoldingSystem : MonoBehaviour
         IsCup = false;
         itemOwner = null;
         HasItem = false;
+        if (network != null) StateRevision = network.Publish(State);
         ClearVisual();
         if (heldItemPanel != null) heldItemPanel.SetActive(false);
         return result;
@@ -503,19 +542,22 @@ public sealed class CounterSlot : MonoBehaviour
     }
 
     public PopcornCustomer Occupy(PopcornGameManager manager, PopcornCustomerType type, PopcornFlavor order)
+        => Occupy(manager, PopcornOrderState.Create(0, type, order));
+
+    public PopcornCustomer Occupy(PopcornGameManager manager, PopcornOrderState order)
     {
         if (IsOccupied) return null;
 
         GameObject customerObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        customerObject.name = $"{type} Customer";
+        customerObject.name = $"{order.customerType} Customer";
         customerObject.transform.position = spawnPosition;
         customerObject.transform.localScale = new Vector3(0.75f, 1f, 0.75f);
 
         Renderer renderer = customerObject.GetComponent<Renderer>();
-        CustomerAppearance.Apply(renderer, type == PopcornCustomerType.Ghost);
+        CustomerAppearance.Apply(renderer, order.customerType == PopcornCustomerType.Ghost);
 
         ActiveCustomer = customerObject.AddComponent<PopcornCustomer>();
-        ActiveCustomer.Configure(manager, this, type, order, waitPosition, exitPosition);
+        ActiveCustomer.Configure(manager, this, order, waitPosition, exitPosition);
         ActiveCustomer.ConfigureRoute(approachPath, departurePath, facing);
         return ActiveCustomer;
     }
@@ -530,8 +572,10 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
 {
     private enum CustomerState { WalkingIn, Waiting, WalkingOut }
 
-    public PopcornCustomerType CustomerType { get; private set; }
-    public PopcornFlavor Order { get; private set; }
+    public PopcornOrderState OrderState { get; private set; }
+    public PopcornCustomerType CustomerType => OrderState.customerType;
+    public PopcornFlavor Order => OrderState.first;
+    public void UpdateOrder(PopcornOrderState order) => OrderState = order;
 
     private PopcornGameManager manager;
     private CounterSlot slot;
@@ -553,13 +597,11 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
         waitFacing = facing;
     }
 
-    public void Configure(PopcornGameManager owner, CounterSlot ownerSlot, PopcornCustomerType type,
-        PopcornFlavor order, Vector3 wait, Vector3 exit)
+    public void Configure(PopcornGameManager owner, CounterSlot ownerSlot, PopcornOrderState order, Vector3 wait, Vector3 exit)
     {
         manager = owner;
         slot = ownerSlot;
-        CustomerType = type;
-        Order = order;
+        OrderState = order;
         waitPosition = wait;
         exitPosition = exit;
         state = CustomerState.WalkingIn;
@@ -660,9 +702,9 @@ public sealed class PopcornGameManager : MonoBehaviour
     private ItemHoldingSystem holder;
     private CounterSlot counterSlot;
     private TMP_Text orderText;
-    private TMP_Text scoreText;
     private TMP_Text feedbackText;
     private int score;
+    private uint localOrderId;
     private float delayBetweenCustomers;
     private Coroutine feedbackRoutine;
     private Canvas cashierCanvas;
@@ -690,15 +732,14 @@ public sealed class PopcornGameManager : MonoBehaviour
         GameObject panel = UiFactory.CreatePanel("Cashier Display", cashierCanvas.transform, new Color(0.025f, 0.08f, 0.085f, 0.97f));
         UiFactory.Stretch(panel.GetComponent<RectTransform>());
 
-        orderText = UiFactory.CreateText("Order Text", panel.transform, "WAITING FOR CUSTOMER...", 44f, new Color(0.8f, 1f, 0.9f));
+        orderText = UiFactory.CreateText("Order Text", panel.transform, "WAITING FOR CUSTOMER...", 36f, new Color(0.8f, 1f, 0.9f));
         orderText.alignment = TextAlignmentOptions.Center;
-        UiFactory.SetRect(orderText.rectTransform, new Vector2(0.05f, 0.43f), new Vector2(0.95f, 0.94f));
+        orderText.enableAutoSizing = true;
+        orderText.fontSizeMin = 24f;
+        orderText.fontSizeMax = 36f;
+        UiFactory.SetRect(orderText.rectTransform, new Vector2(0.04f, 0.24f), new Vector2(0.96f, 0.96f));
 
-        scoreText = UiFactory.CreateText("Score Text", panel.transform, "SCORE: 0", 46f, Color.white);
-        scoreText.alignment = TextAlignmentOptions.Center;
-        UiFactory.SetRect(scoreText.rectTransform, new Vector2(0.05f, 0.23f), new Vector2(0.95f, 0.44f));
-
-        feedbackText = UiFactory.CreateText("Feedback Text", panel.transform, string.Empty, 44f, Color.white);
+        feedbackText = UiFactory.CreateText("Feedback Text", panel.transform, string.Empty, 30f, Color.white);
         feedbackText.alignment = TextAlignmentOptions.Center;
         UiFactory.SetRect(feedbackText.rectTransform, new Vector2(0.05f, 0.03f), new Vector2(0.95f, 0.23f));
     }
@@ -729,7 +770,11 @@ public sealed class PopcornGameManager : MonoBehaviour
     {
         if (counterSlot == null) return;
         PopcornNetSync sync = PopcornNetSync.Instance;
-        if (boundSync == sync) return;
+        if (boundSync == sync)
+        {
+            if (sync != null && sync.CustomerWaiting) SeatCustomerFromSync();
+            return;
+        }
         UnbindSync();
         if (sync == null) return;
         boundSync = sync;
@@ -779,11 +824,11 @@ public sealed class PopcornGameManager : MonoBehaviour
 
         // No net sync in the scene (a pure sandbox test): behave as before.
         PopcornCustomerType type = Random.value < 0.5f ? PopcornCustomerType.Human : PopcornCustomerType.Ghost;
-        PopcornFlavor order = PopcornRecipe.RandomOrder();
+        PopcornOrderState order = PopcornRecipe.RandomCustomerOrder(++localOrderId, type);
 
-        counterSlot.Occupy(this, type, order);
+        counterSlot.Occupy(this, order);
         TaskTimer.Begin(TimerKey);
-        orderText.text = PopcornRecipe.OrderLabel(type, order);
+        orderText.text = order.Label();
     }
 
     /// <summary>
@@ -804,11 +849,20 @@ public sealed class PopcornGameManager : MonoBehaviour
     {
         PopcornNetSync sync = PopcornNetSync.Instance;
         if (sync == null || !sync.CustomerWaiting || sync.CurrentOrder == PopcornFlavor.None) return;
-        if (counterSlot.IsOccupied) return;
+        if (counterSlot.IsOccupied)
+        {
+            if (counterSlot.ActiveCustomer.OrderState.id == sync.Order.id)
+            {
+                counterSlot.ActiveCustomer.UpdateOrder(sync.Order);
+                orderText.text = sync.Order.Label();
+            }
+            else counterSlot.ActiveCustomer.BeginLeaving();
+            return;
+        }
 
-        counterSlot.Occupy(this, sync.CurrentCustomerType, sync.CurrentOrder);
+        counterSlot.Occupy(this, sync.Order);
         TaskTimer.Begin(TimerKey);
-        orderText.text = PopcornRecipe.OrderLabel(sync.CurrentCustomerType, sync.CurrentOrder);
+        orderText.text = sync.Order.Label();
     }
 
     private void OnSyncOrderChanged()
@@ -819,7 +873,7 @@ public sealed class PopcornGameManager : MonoBehaviour
         if (sync.CustomerWaiting) SeatCustomerFromSync();
         else if (counterSlot.ActiveCustomer != null)
         {
-            orderText.text = "ORDER COMPLETE";
+            orderText.text = sync.Order.Complete ? "ORDER COMPLETE" : "ORDER ENDED";
             counterSlot.ActiveCustomer.BeginLeaving();
         }
     }
@@ -827,7 +881,6 @@ public sealed class PopcornGameManager : MonoBehaviour
     private void OnSyncScoreChanged(int newScore, int target)
     {
         score = newScore;
-        if (scoreText != null) scoreText.text = $"SCORE: {newScore} / {target}";
     }
 
     private void OnSyncServeResult(bool correct, string message)
@@ -837,24 +890,19 @@ public sealed class PopcornGameManager : MonoBehaviour
 
     public void CustomerReady(PopcornCustomer customer)
     {
-        orderText.text = PopcornRecipe.OrderLabel(customer.CustomerType, customer.Order);
+        orderText.text = customer.OrderState.Label();
     }
 
     public void TryServe(PopcornCustomer customer, GameObject interactor)
     {
         if (customer == null || customer != counterSlot.ActiveCustomer || !customer.CanInteract()) return;
-        if (!holder.IsReady)
+        if (!holder.IsReady || holder.SubmissionPending)
         {
             ShowFeedback("Pick up and fill a bucket or cup first", new Color(1f, 0.78f, 0.15f));
             return;
         }
 
-        bool ghostMixed = holder.GhostMixed;
-        PopcornFlavor served = holder.Consume();
-        bool correct = PopcornRecipe.Matches(served, ghostMixed, customer.Order, customer.CustomerType);
-
         PlayerHealth server = interactor != null ? interactor.GetComponentInParent<PlayerHealth>() : PlayerHealth.LocalInstance;
-        TaskTimer.Complete(TimerKey, TimerKey, server != null ? server.name : "player", correct);
 
         // MULTIPLAYER: this machine no longer decides whether the order was
         // right. It reports what the player handed over and the SERVER answers
@@ -863,18 +911,29 @@ public sealed class PopcornGameManager : MonoBehaviour
         // whether the team survives the night.
         if (PopcornNetSync.Instance != null)
         {
-            PopcornNetSync.Instance.RequestServe(served, ghostMixed);
+            if (holder.BeginSubmission()) PopcornNetSync.Instance.RequestServe(customer.OrderState.id, holder.StateRevision);
             return;
         }
 
         // No net sync present (pure sandbox): original local behaviour.
 
 
+        PopcornOrderState order = customer.OrderState;
+        bool ghostMixed = holder.GhostMixed;
+        PopcornFlavor served = holder.Consume();
+        int entry = order.Match(served, ghostMixed);
+        bool correct = entry >= 0;
         if (correct)
         {
             score++;
-            scoreText.text = $"SCORE: {score}";
-            ShowFeedback("Correct!  +1 Point", new Color(0.22f, 1f, 0.35f));
+            order.Accept(entry);
+            customer.UpdateOrder(order);
+            ZoneTaskList.ServerReportSale(PopcornRecipe.IsDrink(served) ? ZoneTaskKind.Water : ZoneTaskKind.Popcorn,
+                served, -1, order.customerType == PopcornCustomerType.Ghost);
+            if (MatchDirector.Instance != null && server != null) MatchDirector.Instance.ServerReportTaskCompleted(server.netIdentity);
+            orderText.text = order.Label();
+            ShowFeedback(order.Complete ? "Order complete" : "Item delivered · More items needed", new Color(0.22f, 1f, 0.35f));
+            if (!order.Complete) return;
         }
         else
         {
@@ -888,7 +947,8 @@ public sealed class PopcornGameManager : MonoBehaviour
             }
         }
 
-        orderText.text = "ORDER COMPLETE";
+        TaskTimer.Complete(TimerKey, TimerKey, server != null ? server.name : "player", correct);
+        orderText.text = correct ? "ORDER COMPLETE" : "ORDER ENDED";
         customer.BeginLeaving();
     }
 

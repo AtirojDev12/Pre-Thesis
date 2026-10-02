@@ -14224,7 +14224,7 @@ MonoBehaviour:
   popcornTank: {fileID: 1212395110}
   refillMaker: {fileID: 1548584528}
   newPopcornPrefab: {fileID: 2919478932277611772, guid: d4b433559df88234aaf69a3160c6aa95, type: 3}
-  tankCapacity: 20
+  tankCapacity: 10
   refillServings: 10
   fantaDispensers:
   - {fileID: 1706381867}
@@ -21044,6 +21044,7 @@ MonoBehaviour:
   zoneID: zone_ticket_counter
   ordersToComplete: 5
   wrongGhostOrderDamage: 10
+  twoItemOrderChance: 0.3
 --- !u!114 &993463012
 MonoBehaviour:
   m_ObjectHideFlags: 0
