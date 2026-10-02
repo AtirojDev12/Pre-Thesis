@@ -80,6 +80,7 @@ public static class LobbyBuilder
         BuildPopcornPractice();
         BuildTicketPractice();
         BuildSigns();
+        BuildLobbyBoard();
         PlaceSceneCamera(scene);
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -92,7 +93,7 @@ public static class LobbyBuilder
             "- Shop counter (E)\n" +
             "- Practice: popcorn & drinks (tank + refill machine) + ticket booth, with signs (no currency, no damage)\n" +
             "- " + walkieNote + "\n\n" +
-            "Players walk around in the lobby; M opens Ready / Start / Leave (TAB frees the mouse).";
+            "Players walk around in the lobby; M or the Lobby Board (E) = Ready / Start; host holds E on a name to kick.";
         Debug.Log("[LobbyBuilder] " + message);
         EditorUtility.DisplayDialog("3D Lobby built", message, "OK");
     }
@@ -364,6 +365,7 @@ public static class LobbyBuilder
             "<color=#FFCC4D>M</color>  Ready / Start / Leave\n" +   // = WaitingLobbyController.panelKey
             "<color=#FFCC4D>E</color>  Use / Shop\n" +
             "<color=#FFCC4D>TAB</color>  Free / lock mouse\n" +
+            "Board (right): Ready / Start\n" +
             "Shop: left.  Practice: ahead", 110f, true);
 
         // Standing boards at the walkway end of each counter (read looking north).
@@ -394,6 +396,33 @@ public static class LobbyBuilder
             "06-07 ghosts hunt. 07:00 = death\n" +
             "Dark: ghosts hear moves + loud voices\n" +
             "Pay: tasks x10.  Die: 10, lose items", 105f, false);
+    }
+
+    // =====================================================================
+    //  Lobby board (2 Oct): the M menu as a board you walk up to
+    // =====================================================================
+
+    private static void BuildLobbyBoard()
+    {
+        Transform group = Group("Lobby Board");
+        // Right of the spawn row, facing west (read while looking east from the spawns).
+        Vector3 position = new Vector3(6.5f, 1.55f, -7.5f);
+        Quaternion rotation = Quaternion.Euler(0f, 90f, 0f);
+        const float width = 2.2f, height = 1.65f; // = LobbyBoard canvas (1000 px = 1 m)
+
+        var board = new GameObject("Lobby Board (E: Ready / Start, host hold E: kick)");
+        board.transform.SetParent(group, false);
+        board.transform.SetPositionAndRotation(position, rotation);
+        board.AddComponent<LobbyBoard>(); // builds its display, rows and button at runtime
+
+        Material dark = Mat("Lobby_SignBack", new Color(0.08f, 0.07f, 0.07f));
+        GameObject back = Box(group, "Lobby Board Back", position + rotation * new Vector3(0f, 0f, 0.04f),
+            new Vector3(width + 0.08f, height + 0.08f, 0.04f), dark);
+        back.transform.rotation = rotation;
+        float bottom = position.y - height * 0.5f;
+        GameObject post = Box(group, "Lobby Board Post", new Vector3(position.x, bottom * 0.5f, position.z) + rotation * new Vector3(0f, 0f, 0.04f),
+            new Vector3(0.12f, bottom, 0.12f), dark);
+        post.transform.rotation = rotation;
     }
 
     // =====================================================================

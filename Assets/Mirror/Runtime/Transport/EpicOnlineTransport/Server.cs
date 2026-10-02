@@ -119,24 +119,33 @@ namespace EpicTransport {
             }
         }
 
-        public void Disconnect(int connectionId) {
+        // 13RoH fix (2 Oct): a server-side disconnect (kick, wrong password, room full)
+        // never told Mirror the connection was gone, so Mirror kept the player,
+        // its lobby body and seat alive forever ("Trying to send on unknown
+        // connection"). Now Mirror is told, like every other transport does.
+        public void Disconnect(int connectionId) => Disconnect(connectionId, true);
+
+        private void Disconnect(int connectionId, bool notifyMirror) {
             if (epicToMirrorIds.TryGetValue(connectionId, out ProductUserId userId)) {
                 SocketId socketId;
                 epicToSocketIds.TryGetValue(userId, out socketId);
                 SendInternal(userId, socketId, InternalMessages.DISCONNECT);
                 epicToMirrorIds.Remove(userId);
                 epicToSocketIds.Remove(userId);
+                if (notifyMirror) OnDisconnected?.Invoke(connectionId);
             } else {
                 Debug.LogWarning("Trying to disconnect unknown connection id: " + connectionId);
             }
         }
 
         public void Shutdown() {
-            foreach (KeyValuePair<ProductUserId, int> client in epicToMirrorIds) {
-                Disconnect(client.Value);
+            // Copy first: Disconnect removes entries while we walk the list.
+            foreach (ProductUserId userId in new List<ProductUserId>(epicToMirrorIds.FirstTypes)) {
+                if (!epicToMirrorIds.TryGetValue(userId, out int connectionId)) continue;
+                Disconnect(connectionId, false);
                 SocketId socketId;
-                epicToSocketIds.TryGetValue(client.Key, out socketId);
-                WaitForClose(client.Key, socketId);
+                epicToSocketIds.TryGetValue(userId, out socketId);
+                WaitForClose(userId, socketId);
             }
 
             ignoreAllMessages = true;

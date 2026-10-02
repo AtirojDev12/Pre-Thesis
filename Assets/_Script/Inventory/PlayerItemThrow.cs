@@ -2,7 +2,11 @@ using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-/// <summary>Owner reads Q and draws charge; server transfers inventory and simulates the throw.</summary>
+/// <summary>
+/// Owner reads Q and draws charge; server transfers inventory and simulates the throw.
+/// Also (2 Oct): when the player DIES (not downed), the server drops every hotbar
+/// item on the floor where they fell, so teammates can pick them up (E).
+/// </summary>
 [RequireComponent(typeof(PlayerInventory))]
 public sealed class PlayerItemThrow : NetworkBehaviour
 {
@@ -36,6 +40,7 @@ public sealed class PlayerItemThrow : NetworkBehaviour
         health = GetComponent<PlayerHealth>();
         Camera camera = GetComponentInChildren<Camera>(true);
         aim = camera != null ? camera.transform : transform;
+        if (health != null && health.OnDeath != null) health.OnDeath.AddListener(OnDied);
     }
 
     private bool CanAct => health == null || (!health.IsDead && !health.IsDowned);
@@ -144,6 +149,55 @@ public sealed class PlayerItemThrow : NetworkBehaviour
         body.linearVelocity = tap || charge <= 0f ? forward * 0.35f
             : (direction + Vector3.up * 0.25f).normalized * Mathf.Lerp(2f, maximumLaunchSpeed, charge);
         body.angularVelocity = tap ? Vector3.zero : new Vector3(2f, 3f, 1f);
+    }
+
+    // ---- Death drop (2 Oct) ---------------------------------------------------
+
+    private bool droppedOnDeath;
+
+    public override void OnStartServer() => droppedOnDeath = false;
+
+    /// <summary>OnDeath runs on every machine; only the server drops the items, once.</summary>
+    private void OnDied()
+    {
+        if (droppedOnDeath || !NetworkMode.HasServerAuthority(this)) return;
+        droppedOnDeath = true;
+        serverCharging = false;
+        ServerDropAll();
+    }
+
+    /// <summary>
+    /// SERVER. Every item in the hotbar becomes a WorldInventoryItem around the body
+    /// (same pickup as a thrown item). Items without a world prefab are simply lost.
+    /// </summary>
+    private void ServerDropAll()
+    {
+        Vector3 basePosition = transform.position + Vector3.up * 0.6f;
+        int dropped = 0;
+        for (int i = 0; i < PlayerInventory.SlotCount; i++)
+        {
+            InventorySlot state = inventory.GetSlot(i);
+            if (state.IsEmpty) continue;
+            ItemCatalog.ItemInfo info = ItemCatalog.Find(state.itemId);
+            GameObject prefab = info != null && !string.IsNullOrEmpty(info.worldPrefabPath)
+                ? Resources.Load<GameObject>(info.worldPrefabPath) : null;
+            if (inventory.ServerRemoveAt(i) == null) continue;
+            if (prefab == null) continue;
+
+            // Spread them a little so they do not stack inside each other.
+            float angle = dropped * 137.5f * Mathf.Deg2Rad;
+            Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * 0.35f;
+            GameObject world = Instantiate(prefab, basePosition + offset, Quaternion.Euler(0f, dropped * 70f, 0f));
+            WorldInventoryItem pickup = world.GetComponent<WorldInventoryItem>();
+            Rigidbody body = world.GetComponent<Rigidbody>();
+            if (pickup == null || body == null) { Destroy(world); continue; }
+            pickup.Initialize(state);
+            if (!NetworkMode.IsOffline) NetworkServer.Spawn(world);
+            body.isKinematic = false;
+            body.linearVelocity = offset * 2f + Vector3.up * 1f;
+            dropped++;
+        }
+        if (dropped > 0) Debug.Log($"[PlayerItemThrow] {name} died: dropped {dropped} item(s).", this);
     }
 
     private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);

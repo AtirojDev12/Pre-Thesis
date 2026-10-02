@@ -50,6 +50,16 @@ public class RoHRoomPlayer : NetworkRoomPlayer
         CmdChangeReadyState(ready);
     }
 
+    /// <summary>
+    /// SERVER -> the kicked guest only. Sets the message the main menu shows
+    /// ("You were kicked by the host."); RoHRoomManager disconnects them right after.
+    /// </summary>
+    [TargetRpc]
+    public void TargetKicked(NetworkConnectionToClient target)
+    {
+        RoHRoomManager.LastDisconnectReason = "You were kicked by the host.";
+    }
+
     public static string SanitizeName(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return string.Empty;

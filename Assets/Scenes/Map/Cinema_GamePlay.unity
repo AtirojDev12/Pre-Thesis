@@ -37061,37 +37061,37 @@ MonoBehaviour:
     flavor: 2
     movie: 0
     customer: 0
-    target: 3
+    target: 1
   - label: Sell Cheese popcorn
     kind: 0
     flavor: 1
     movie: 0
     customer: 0
-    target: 3
+    target: 1
   - label: Sell Paprika popcorn
     kind: 0
     flavor: 4
     movie: 0
     customer: 0
-    target: 3
+    target: 1
   - label: Sell Water
     kind: 1
     flavor: 5
     movie: 0
     customer: 0
-    target: 3
+    target: 1
   - label: SellPepsi
     kind: 1
     flavor: 6
     movie: 0
     customer: 0
-    target: 3
+    target: 1
   - label: Sell Ornge juice
     kind: 1
     flavor: 8
     movie: 0
     customer: 0
-    target: 3
+    target: 1
   - label: 'Sell Fanta '
     kind: 1
     flavor: 7
@@ -38464,37 +38464,37 @@ MonoBehaviour:
     flavor: 0
     movie: 1
     customer: 1
-    target: 3
+    target: 1
   - label: Sell Ticket 1 to Ghosts
     kind: 2
     flavor: 0
     movie: 1
     customer: 2
-    target: 3
+    target: 1
   - label: Sell Ticket 2 to Humans
     kind: 2
     flavor: 0
     movie: 2
     customer: 1
-    target: 3
+    target: 1
   - label: Sell Ticket 2 to Ghosts
     kind: 2
     flavor: 0
     movie: 2
     customer: 2
-    target: 3
+    target: 1
   - label: Sell Ticket 3 to Humans
     kind: 2
     flavor: 0
     movie: 3
     customer: 1
-    target: 3
+    target: 1
   - label: Sell Ticket 3 to Ghosts
     kind: 2
     flavor: 0
     movie: 3
     customer: 2
-    target: 3
+    target: 1
   boardWidth: 1.6
 --- !u!114 &1816630816
 MonoBehaviour:

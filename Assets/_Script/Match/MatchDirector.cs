@@ -1334,7 +1334,10 @@ public class MatchDirector : NetworkBehaviour
             tasksDone = tasks,
             currencyPerTask = currencyPerTask,
             currency = dead ? consolationPrize : tasks * currencyPerTask,
-            consolation = dead
+            consolation = dead,
+            // Survivors keep exactly the permanent items they carry out (2 Oct):
+            // picked-up items are gained, thrown-away ones are lost. Dead: nothing.
+            carriedItems = dead ? System.Array.Empty<string>() : CarriedPermanentItems(health)
         };
 
         if (logRoundSetup)
@@ -1346,6 +1349,21 @@ public class MatchDirector : NetworkBehaviour
 
     [TargetRpc]
     private void TargetShowResult(NetworkConnectionToClient target, MatchResult result) => MatchResultsUI.Show(result);
+
+    /// <summary>SERVER. The permanent items in this player's hotbar right now.</summary>
+    private static string[] CarriedPermanentItems(PlayerHealth health)
+    {
+        PlayerInventory inventory = health != null ? health.GetComponent<PlayerInventory>() : null;
+        if (inventory == null) return System.Array.Empty<string>();
+        var carried = new List<string>(PlayerInventory.SlotCount);
+        for (int i = 0; i < inventory.Count; i++)
+        {
+            InventorySlot slot = inventory.GetSlot(i);
+            ItemCatalog.ItemInfo info = slot.IsEmpty ? null : ItemCatalog.Find(slot.itemId);
+            if (info != null && info.permanent && !carried.Contains(info.id)) carried.Add(info.id);
+        }
+        return carried.ToArray();
+    }
 
     [ClientRpc]
     private void RpcPlayerLeftBuilding(uint playerNetId)

@@ -17,8 +17,9 @@ using UnityEngine.InputSystem;
 ///   - Items are identified by ItemCatalog string IDs (same IDs as the save).
 ///
 /// Owned shop items come from the save/loadout. PlayerItemThrow handles dropping
-/// and WorldInventoryItem handles pickup; permanent-item loss on death remains
-/// separate. Popcorn buckets are still held by Atiroj's ItemHoldingSystem, which
+/// (Q, and every item when the player DIES) and WorldInventoryItem handles pickup.
+/// The save is settled on the results screen (MatchResultsUI): dead = lose what you
+/// brought; survived = you own exactly the permanent items you carried out. Popcorn buckets are still held by Atiroj's ItemHoldingSystem, which
 /// is separate from this hotbar.
 /// </summary>
 [RequireComponent(typeof(NetworkIdentity))]

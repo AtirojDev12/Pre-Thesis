@@ -19,6 +19,7 @@ public struct MatchResult
     public int currencyPerTask;   // 10 in the prototype
     public int currency;          // what this player earns this round
     public bool consolation;      // true = died, flat consolation prize
+    public string[] carriedItems; // survivors: permanent items carried out (2 Oct). Dead: empty
 }
 
 /// <summary>Where one player is in the round, for the results screen's player list.</summary>
@@ -74,6 +75,7 @@ public sealed class MatchResultsUI : MonoBehaviour
     private TMP_Text lobbyLabel;
     private bool leaving;
     private string lostItems = "";
+    private string foundItems = "";
 
     private const int MaxRows = 6;
     private readonly TMP_Text[] playerRows = new TMP_Text[MaxRows];
@@ -113,6 +115,9 @@ public sealed class MatchResultsUI : MonoBehaviour
 
         // Died: the permanent items you brought into this match are lost (1 Oct).
         if (r.consolation) lostItems = LoseCarriedItems();
+        // Survived (2 Oct): your save = the permanent items you carried out.
+        // Picked up from a fallen teammate = yours now; thrown away = gone.
+        else ApplyCarriedItems(r.carriedItems, out lostItems, out foundItems);
 
         // Your round is over: your body stays exactly where it is.
         if (PlayerHealth.LocalInstance != null) MatchDirector.FreezeBody(PlayerHealth.LocalInstance.gameObject);
@@ -127,6 +132,58 @@ public sealed class MatchResultsUI : MonoBehaviour
         instance = null;
         PersistentHUD.PopHidden();
         GameplayInput.Blocked = false;
+    }
+
+    /// <summary>
+    /// Survivor: makes the save's owned permanent items match what was carried out.
+    /// Brought in but not carried out = lost. Carried out but not owned = found.
+    /// </summary>
+    private static void ApplyCarriedItems(string[] carried, out string lost, out string found)
+    {
+        lost = found = "";
+        SaveData save = SaveManager.Current;
+        if (save == null) return;
+        if (save.permanentItems == null) save.permanentItems = new System.Collections.Generic.List<PermanentItemData>();
+        if (carried == null) carried = System.Array.Empty<string>();
+
+        var lostNames = new System.Text.StringBuilder();
+        var foundNames = new System.Text.StringBuilder();
+
+        foreach (string id in PlayerInventory.LastLoadout)
+        {
+            if (System.Array.IndexOf(carried, id) >= 0) continue;
+            for (int i = 0; i < save.permanentItems.Count; i++)
+            {
+                PermanentItemData item = save.permanentItems[i];
+                if (item == null || item.itemID != id || !item.isOwned) continue;
+                item.isOwned = false;
+                Append(lostNames, id);
+            }
+        }
+
+        foreach (string id in carried)
+        {
+            ItemCatalog.ItemInfo info = ItemCatalog.Find(id);
+            if (info == null || !info.permanent) continue;
+            PermanentItemData entry = null;
+            for (int i = 0; i < save.permanentItems.Count; i++)
+                if (save.permanentItems[i] != null && save.permanentItems[i].itemID == id) { entry = save.permanentItems[i]; break; }
+            if (entry != null && entry.isOwned) continue; // already yours (max 1 per type)
+            if (entry != null) entry.isOwned = true;
+            else save.permanentItems.Add(new PermanentItemData(id, true));
+            Append(foundNames, id);
+        }
+
+        PlayerInventory.LastLoadout.Clear();
+        SaveManager.SaveToDisk();
+        lost = lostNames.ToString();
+        found = foundNames.ToString();
+    }
+
+    private static void Append(System.Text.StringBuilder names, string id)
+    {
+        if (names.Length > 0) names.Append(", ");
+        names.Append(ItemCatalog.DisplayName(id));
     }
 
     /// <summary>Removes the permanent items brought into this match from the save. Returns their names.</summary>
@@ -208,8 +265,12 @@ public sealed class MatchResultsUI : MonoBehaviour
         }
         else
         {
-            Row(left, NewText("Formula", left,
-                $"{result.tasksDone} tasks x {result.currencyPerTask} = {result.currency}", 34f, Muted, FontStyles.Normal), ref y, 100f);
+            string items = (foundItems.Length > 0 ? $"\n<color=#73FF8C>Found: {foundItems}</color>" : "") +
+                           (lostItems.Length > 0 ? $"\n<color=#FF594D>Left behind: {lostItems}</color>" : "");
+            TMP_Text formula = NewText("Formula", left,
+                $"{result.tasksDone} tasks x {result.currencyPerTask} = {result.currency}" + items, 34f, Muted, FontStyles.Normal);
+            formula.textWrappingMode = TextWrappingModes.Normal;
+            Row(left, formula, ref y, items.Length > 0 ? 140f : 100f);
         }
 
         currencyText = NewText("Currency", left, "+0", 60f, Gold, FontStyles.Bold);

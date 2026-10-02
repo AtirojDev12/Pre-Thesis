@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
@@ -177,6 +178,45 @@ public class RoHRoomManager : NetworkRoomManager
 
         ServerChangeScene(GameplayScene);
         return true;
+    }
+
+    // ---- Kick (2 Oct): host removes a guest from the waiting lobby ----------
+    //
+    // Used by the lobby board (hold E on a name) and the M panel (Kick button).
+    // The guest is told why (TargetKicked -> main menu message), then
+    // disconnected a moment later so that message arrives first. A kicked
+    // player may join again (Mr.k, 2 Oct).
+
+    private readonly HashSet<int> kicking = new HashSet<int>();
+
+    /// <summary>SERVER (host). Removes a guest from the waiting lobby. False if not allowed.</summary>
+    public bool KickPlayer(RoHRoomPlayer seat)
+    {
+        if (!NetworkServer.active || !InRoomScene || seat == null || seat.IsHost) return false;
+        NetworkConnectionToClient conn = seat.connectionToClient;
+        if (conn == null || conn is LocalConnectionToClient || !kicking.Add(conn.connectionId)) return false;
+
+        Debug.Log($"[RoHRoomManager] Host kicked '{seat.DisplayName}' ({conn}).");
+        seat.TargetKicked(conn);
+        StartCoroutine(DisconnectSoon(conn));
+        return true;
+    }
+
+    private IEnumerator DisconnectSoon(NetworkConnectionToClient conn)
+    {
+        yield return new WaitForSecondsRealtime(0.3f);
+        kicking.Remove(conn.connectionId);
+        if (!NetworkServer.connections.TryGetValue(conn.connectionId, out NetworkConnectionToClient live) || live != conn) yield break;
+        conn.Disconnect();
+
+        // Safety net: if the transport did not report the disconnect, tell Mirror
+        // ourselves, so the player's seat and lobby body are removed for everyone.
+        yield return null;
+        if (NetworkServer.connections.TryGetValue(conn.connectionId, out live) && live == conn && Transport.active != null)
+        {
+            Debug.LogWarning($"[RoHRoomManager] Transport did not report the kick of {conn}; cleaning up.");
+            Transport.active.OnServerDisconnected?.Invoke(conn.connectionId);
+        }
     }
 
     // ---- 3D lobby (1 Oct): every player walks around with a real body -------

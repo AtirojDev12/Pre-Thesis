@@ -55,6 +55,14 @@ public class WaitingLobbyController : MonoBehaviour
     private GameObject hintRoot;
     private readonly List<LobbyPlayerRow> rows = new List<LobbyPlayerRow>(RoomConfig.MaxPlayers);
 
+    // ---- Kick (2 Oct): host-only Kick button on each guest row -------------
+    // First click turns it into "Sure?" for 3 s; a second click kicks.
+    private readonly List<Button> kickButtons = new List<Button>(RoomConfig.MaxPlayers);
+    private readonly List<TMP_Text> kickLabels = new List<TMP_Text>(RoomConfig.MaxPlayers);
+    private readonly RoHRoomPlayer[] rowSeats = new RoHRoomPlayer[RoomConfig.MaxPlayers];
+    private int armedKickRow = -1;
+    private float armedKickUntil;
+
     private void Awake()
     {
         rowTemplate.gameObject.SetActive(false);
@@ -63,6 +71,7 @@ public class WaitingLobbyController : MonoBehaviour
             LobbyPlayerRow row = Instantiate(rowTemplate, playerListContent);
             row.gameObject.SetActive(false);
             rows.Add(row);
+            AddKickButton(row, i);
         }
 
         readyButton.onClick.AddListener(ToggleReady);
@@ -241,6 +250,9 @@ public class WaitingLobbyController : MonoBehaviour
 
     private void DrawSeats(RoHRoomManager room, RoHRoomPlayer local)
     {
+        bool isHost = NetworkServer.active;
+        if (armedKickRow >= 0 && Time.unscaledTime > armedKickUntil) armedKickRow = -1;
+
         RoomConfig config = LobbyController.Instance != null ? LobbyController.Instance.CurrentRoom : null;
         int seats = Mathf.Clamp(config != null ? config.playerLimit : room.RoomPlayerLimit, 1, rows.Count);
 
@@ -252,7 +264,62 @@ public class WaitingLobbyController : MonoBehaviour
 
             if (i < players.Count) rows[i].Bind(players[i], players[i] == local);
             else rows[i].BindEmpty();
+
+            // Kick: host only, on guests only.
+            RoHRoomPlayer seat = i < players.Count ? players[i] : null;
+            if (rowSeats[i] != seat && armedKickRow == i) armedKickRow = -1;
+            rowSeats[i] = seat;
+            bool canKick = isHost && room.InRoomScene && seat != null && !seat.IsHost;
+            if (kickButtons[i].gameObject.activeSelf != canKick) kickButtons[i].gameObject.SetActive(canKick);
+            if (canKick) kickLabels[i].text = armedKickRow == i ? "Sure?" : "Kick";
         }
+    }
+
+    private void AddKickButton(LobbyPlayerRow row, int index)
+    {
+        var go = new GameObject("Kick Button", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+        go.transform.SetParent(row.transform, false);
+        go.transform.SetAsLastSibling();
+        LayoutElement layout = go.GetComponent<LayoutElement>();
+        layout.minWidth = layout.preferredWidth = 120f;
+        layout.flexibleWidth = 0f;
+        layout.minHeight = layout.preferredHeight = 44f;
+        go.GetComponent<Image>().color = new Color(0.45f, 0.1f, 0.08f, 1f);
+
+        var labelGo = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+        labelGo.transform.SetParent(go.transform, false);
+        var labelRt = (RectTransform)labelGo.transform;
+        labelRt.anchorMin = Vector2.zero;
+        labelRt.anchorMax = Vector2.one;
+        labelRt.offsetMin = labelRt.offsetMax = Vector2.zero;
+        var label = labelGo.GetComponent<TextMeshProUGUI>();
+        label.text = "Kick";
+        label.fontSize = 22f;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = new Color(1f, 0.92f, 0.88f);
+        label.raycastTarget = false;
+
+        go.GetComponent<Button>().onClick.AddListener(() => OnKickClicked(index));
+        go.SetActive(false);
+        kickButtons.Add(go.GetComponent<Button>());
+        kickLabels.Add(label);
+    }
+
+    private void OnKickClicked(int index)
+    {
+        RoHRoomManager room = RoHRoomManager.Instance;
+        RoHRoomPlayer seat = index >= 0 && index < rowSeats.Length ? rowSeats[index] : null;
+        if (room == null || seat == null) return;
+
+        if (armedKickRow != index || Time.unscaledTime > armedKickUntil)
+        {
+            armedKickRow = index;              // first click: ask once more
+            armedKickUntil = Time.unscaledTime + 3f;
+            return;
+        }
+        armedKickRow = -1;
+        room.KickPlayer(seat);
     }
 
     private void ToggleReady()
