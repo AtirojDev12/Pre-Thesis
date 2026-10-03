@@ -21,6 +21,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
     readonly Dictionary<PlayerHealth, List<string>> footsteps = new Dictionary<PlayerHealth, List<string>>();
     readonly Dictionary<PlayerHealth, int> previousClip = new Dictionary<PlayerHealth, int>();
     readonly Dictionary<PlayerHealth, float[]> lastFootTime = new Dictionary<PlayerHealth, float[]>();
+    float lastOwnerContact = -999f;
     void CapturePose(PlayerMovement player, string name)
     {
         var cameraObject = new GameObject("Pose review camera");
@@ -135,6 +136,11 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
             lastFootTime[p] = new[] { -999f, -999f };
             var stepper = p.GetComponent<PlayerFootsteps>();
             Check(stepper != null, "Player prefab has footsteps");
+            if (p.isLocalPlayer) stepper.FootTouchedGround.AddListener(foot => {
+                float minimum = p.GetComponent<PlayerMovement>().IsSprinting ? 0.19f : 0.29f;
+                Check(Time.time - lastOwnerContact >= minimum, "Alternating foot contacts have natural spacing");
+                lastOwnerContact = Time.time;
+            });
             stepper.FootstepPlayed += (foot, clip) => {
                 if (clip == previousClip[p]) Check(false, "Footstep repeated the previous clip");
                 if (Time.time - lastFootTime[p][foot] < 0.22f) Check(false, "Rapid repeated foot contact");
@@ -213,6 +219,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                     InputSystem.QueueStateEvent(keyboard, inputs[i]);
                     yield return null;
                 }
+                int steadySteps = footsteps[mover.GetComponent<PlayerHealth>()].Count;
                 Vector3 start = mover.transform.position;
                 float began = Time.time;
                 Transform left = mover.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.LeftFoot);
@@ -220,7 +227,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 Vector3 lastLeft = left.position, lastRight = right.position;
                 int plantedSamples = 0;
                 float footSeparation = 0f;
-                for (float until = Time.time + 0.5f; Time.time < until;)
+                for (float until = Time.time + 2f; Time.time < until;)
                 {
                     InputSystem.QueueStateEvent(keyboard, inputs[i]);
                     yield return null;
@@ -235,6 +242,10 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                     Check(plantedSamples > 5 && footSeparation > 0.04f, "Backward gait plants a support foot and lifts the swing foot: planted=" + plantedSamples + " lift=" + footSeparation);
                 }
                 Vector3 displacement = mover.transform.InverseTransformDirection(mover.transform.position - start);
+                int cadenceSteps = footsteps[mover.GetComponent<PlayerHealth>()].Count - steadySteps;
+                if (directions[i] != Vector2.zero)
+                    Check(cadenceSteps >= 2 && cadenceSteps <= 5,
+                        "Walking cadence direction " + i + ": " + cadenceSteps + " contacts in " + (Time.time - began) + "s");
                 Vector2 travelled = new Vector2(displacement.x, displacement.z);
                 Check((mover.AnimationDirection - directions[i]).magnitude < 0.05f, "Input direction " + i);
                 Check(directions[i] == Vector2.zero ? travelled.magnitude < 0.05f :

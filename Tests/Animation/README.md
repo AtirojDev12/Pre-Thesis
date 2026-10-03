@@ -39,6 +39,18 @@ The initial build diagnostics confirmed all four clips were included and moved t
 
 ## Directional locomotion and grounding
 
+Procedural steps retain distance-based stopping but cap alternating contacts at
+0.52 seconds while walking and 0.34 seconds while running. Tune these separately
+from `stepLength` on PlayerMovement: shorter visual strides no longer force rapid
+backpedalling steps. Authored strafe clips handle diagonal ties with a shared
+0.05 direction tolerance in state selection and the IK bypass, avoiding flicker
+between two different leg poses. The travel reference updates even during strafe
+and crouch poses so returning to IK cannot advance by accumulated travel.
+Footstep contact filtering also enforces spacing across both feet (0.30 seconds
+walking, 0.20 seconds running), rejecting simultaneous sole contacts during blends.
+The probe measures two seconds of each walking direction and checks contact counts
+and owner contact spacing as well as host/client playback agreement.
+
 Backward and strafe movement now use a procedural humanoid IK gait over the existing Walking clip. Each foot alternates between a planted support phase and a lifted swing toward the movement direction. Gait phase advances with actual planar travel, and direction/IK weights blend over the animation damping interval. The project has no authored backward/strafe clips; the forward clip is neither reversed nor used unchanged for the legs when backing up. The visual model's offset below the Animator root is explicitly converted when positioning IK goals.
 
 Opposing keys cancel, diagonals remain normalized, and camera pitch does not affect the movement plane. Backpedalling uses 55% of forward walking speed and sideways movement 80%, configurable on PlayerMovement. Sprint is allowed only with forward input. Direction is replicated along with the existing moving/sprinting state; death/downing still take priority.

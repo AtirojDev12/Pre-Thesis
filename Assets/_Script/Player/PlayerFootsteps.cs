@@ -33,6 +33,8 @@ public sealed class PlayerFootsteps : NetworkBehaviour
     private int lastClip = -1;
     private readonly double[] nextServerStep = new double[2];
     private readonly float[] nextLocalStep = new float[2];
+    private float nextLocalContact;
+    private double nextServerContact;
 
     private void Awake()
     {
@@ -71,10 +73,13 @@ public sealed class PlayerFootsteps : NetworkBehaviour
             bool contact = supported && gap <= (planted[foot] ? Mathf.Max(contactHeight, releaseHeight) : contactHeight);
             bool landed = initialized && contact && !planted[foot];
             planted[foot] = contact;
-            if (!landed || !moving || Time.time < nextLocalStep[foot]) continue;
+            if (!landed || !moving || Time.time < nextLocalStep[foot] || Time.time < nextLocalContact) continue;
             // Each clip plants a given foot once per cycle (1.03 s walk,
             // 0.67 s strafe run). This also rejects threshold bounce.
             nextLocalStep[foot] = Time.time + (movement.IsSprinting ? 0.28f : 0.42f);
+            // Grounding and clip transitions can plant both soles together.
+            // Keep contact-driven playback but reject a second near-simultaneous hit.
+            nextLocalContact = Time.time + (movement.IsSprinting ? 0.2f : 0.3f);
             FootTouchedGround.Invoke(foot);
             if (NetworkMode.IsOffline) ChooseAndPlay(foot);
             else if (isLocalPlayer && NetworkClient.ready) CmdFootContact(foot);
@@ -88,8 +93,10 @@ public sealed class PlayerFootsteps : NetworkBehaviour
     private void CmdFootContact(int foot)
     {
         // Mirror enforces ownership. Reject invalid/spammed contacts and dead players.
-        if (foot < 0 || foot > 1 || movement.IsCrouching || Incapacitated || NetworkTime.time < nextServerStep[foot]) return;
+        if (foot < 0 || foot > 1 || movement.IsCrouching || Incapacitated ||
+            NetworkTime.time < nextServerStep[foot] || NetworkTime.time < nextServerContact) return;
         nextServerStep[foot] = NetworkTime.time + (movement.IsSprinting ? 0.25 : 0.38);
+        nextServerContact = NetworkTime.time + (movement.IsSprinting ? 0.16 : 0.26);
         ChooseAndPlay(foot);
     }
 

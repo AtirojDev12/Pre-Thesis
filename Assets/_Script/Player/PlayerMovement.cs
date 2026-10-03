@@ -101,6 +101,9 @@ public class PlayerMovement : NetworkBehaviour
 
     [Header("Directional steps and grounding")]
     [Min(0.1f)] [SerializeField] private float stepLength = 0.7f;
+    [Tooltip("Minimum time between alternating procedural steps. Matches the authored walk/run cadence.")]
+    [Min(0.1f)] [SerializeField] private float walkingStepInterval = 0.52f;
+    [Min(0.1f)] [SerializeField] private float runningStepInterval = 0.34f;
     [Min(0f)] [SerializeField] private float stepHeight = 0.12f;
     [Min(0f)] [SerializeField] private float groundProbeDistance = 0.2f;
     [Range(0f, 80f)] [SerializeField] private float maximumGroundAngle = 50f;
@@ -346,13 +349,18 @@ public class PlayerMovement : NetworkBehaviour
         if (direction.sqrMagnitude > 0.01f)
         {
             if (crouching) state = 7;
-            else if (Mathf.Abs(direction.x) >= Mathf.Abs(direction.y) && Mathf.Abs(direction.x) > 0.1f)
+            else if (UsesStrafeAnimation(direction))
                 state = direction.x < 0f ? (isSprinting ? 4 : 2) : (isSprinting ? 5 : 3);
             else state = isSprinting ? 6 : 1;
         }
         else if (crouching) state = 8;
         playerAnimator.SetInteger(LocomotionParameter, state);
     }
+
+    // Normalized diagonals can differ by a few floating-point bits after camera
+    // rotation. Use the same tolerance for state selection and the IK bypass.
+    private static bool UsesStrafeAnimation(Vector2 direction) =>
+        Mathf.Abs(direction.x) > 0.1f && Mathf.Abs(direction.x) + 0.05f >= Mathf.Abs(direction.y);
 
     private bool IsGroundedForStance() => rb != null && Mathf.Abs(rb.linearVelocity.y) < 1.5f &&
         TryGround(transform.position, groundProbeDistance, out _);
@@ -565,8 +573,13 @@ public class PlayerMovement : NetworkBehaviour
         if (layerIndex != 0 || playerAnimator == null || !playerAnimator.isHuman || leftFoot == null || rightFoot == null) return;
         bool incapacitated = playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead);
         Vector2 direction = incapacitated ? Vector2.zero : AnimationDirection;
+        Vector3 stepDelta = transform.position - lastStepPosition;
+        stepDelta.y = 0f;
+        float distance = hasStepPosition ? Mathf.Min(stepDelta.magnitude, 1f) : 0f;
+        lastStepPosition = transform.position;
+        hasStepPosition = true;
         // The authored lateral and crouch clips supply their own leg motion.
-        if (IsCrouching || Mathf.Abs(direction.x) >= Mathf.Abs(direction.y) && Mathf.Abs(direction.x) > 0.1f)
+        if (IsCrouching || UsesStrafeAnimation(direction))
         {
             playerAnimator.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 0f);
             playerAnimator.SetIKPositionWeight(AvatarIKGoal.RightFoot, 0f);
@@ -575,11 +588,6 @@ public class PlayerMovement : NetworkBehaviour
             directionalWeight = 0f;
             return;
         }
-        Vector3 stepDelta = transform.position - lastStepPosition;
-        stepDelta.y = 0f;
-        float distance = hasStepPosition ? Mathf.Min(stepDelta.magnitude, 1f) : 0f;
-        lastStepPosition = transform.position;
-        hasStepPosition = true;
         float blend = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.01f, animationDampTime));
         blendedDirection = Vector2.Lerp(blendedDirection, direction, blend);
         // Forward uses the authored walk/run; sideways and backward use an
@@ -597,7 +605,14 @@ public class PlayerMovement : NetworkBehaviour
         }
         // Advance by actual travel, so blocked players and interpolated remote
         // players cannot keep sliding their planted feet at the requested speed.
-        stepPhase = Mathf.Repeat(stepPhase + distance / (2f * Mathf.Max(0.1f, stepLength)), 1f);
+        // Short IK strides must not turn 2.75 m/s backpedalling into nearly
+        // four steps per second. Keep travel-based stopping, but cap cadence
+        // to the authored gait. Updating the position above the IK bypass also
+        // avoids a phase jump when returning from a lateral/crouch clip.
+        float interval = isSprinting ? runningStepInterval : walkingStepInterval;
+        float phaseAdvance = Mathf.Min(distance / (2f * Mathf.Max(0.1f, stepLength)),
+            Time.deltaTime / (2f * Mathf.Max(0.1f, interval)));
+        stepPhase = Mathf.Repeat(stepPhase + phaseAdvance, 1f);
         // A small knee bend gives the solver room to lift/reach a stepping foot.
         playerAnimator.bodyPosition -= Vector3.up * (0.08f * directionalWeight);
         PlaceFoot(AvatarIKGoal.LeftFoot, leftFootRest, stepPhase, playerAnimator.leftFeetBottomHeight);

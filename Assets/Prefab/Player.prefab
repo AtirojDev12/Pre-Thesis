@@ -385,6 +385,8 @@ MonoBehaviour:
   runningHipStability: 1
   runningSoleClearance: 0.08
   stepLength: 0.7
+  walkingStepInterval: 0.52
+  runningStepInterval: 0.34
   stepHeight: 0.12
   groundProbeDistance: 0.2
   maximumGroundAngle: 50
