@@ -49,6 +49,22 @@ public static class TicketRegressionRunner
     public static void Build()
     {
         if (!Application.isBatchMode) throw new InvalidOperationException("Use an isolated batch project.");
+        EditorSceneManager.OpenScene("Assets/Scenes/Map/Cinema_GamePlay.unity");
+        var spawner = Object.FindObjectOfType<TicketGhostSpawner>();
+        Check(spawner != null && Get(spawner, "minigame") is TicketMinigame,
+            "Cinema ticket ghost references its ticket minigame");
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Floderไอนน/Prefab/Enemy/TicketPunish.prefab");
+        var networkManager = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefab/NetworkManager.prefab").GetComponent<NetworkManager>();
+        Check(networkManager.spawnPrefabs.Contains(prefab), "Ticket ghost registered for client spawning");
+        Check(prefab.GetComponent<NetworkTransformReliable>() != null, "Ticket ghost replicates rising position");
+        Check(!prefab.GetComponent<Collider>().enabled, "Stationary ghost cannot block the booth");
+        var hud = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefab/GAME HUD.prefab");
+        var hudOverlay = hud.GetComponentsInChildren<UnityEngine.UI.Image>(true)
+            .Single(image => image.CompareTag("JumpscareUI"));
+        Check(!hudOverlay.gameObject.activeSelf && hudOverlay.sprite != null && !hudOverlay.raycastTarget,
+            "Shared HUD owns an inactive jumpscare image for menu-to-game scene loads");
+        SessionState.SetString("TicketAssetChecks", string.Join("\n", results));
+        SessionState.SetInt("TicketAssetFailures", failures);
         var scene = EditorSceneManager.OpenScene("Assets/Scenes/Z1_EnemyTest.unity");
         Transform root = GameObject.Find("TicketSell").transform;
         if (root.GetComponent<TicketMinigame>() != null)
@@ -123,6 +139,9 @@ public static class TicketRegressionRunner
     {
         if (!SessionState.GetBool("TicketChecks", false)) return;
         SessionState.SetBool("TicketChecks", false);
+        results.Clear();
+        results.AddRange(SessionState.GetString("TicketAssetChecks", "").Split('\n'));
+        failures = SessionState.GetInt("TicketAssetFailures", 0);
         try
         {
             var manager = GameObject.Find("TicketSell").GetComponent<TicketMinigame>();
@@ -134,6 +153,15 @@ public static class TicketRegressionRunner
                 if (typeof(UnityEngine.Events.UnityEventBase).IsAssignableFrom(field.FieldType))
                     field.SetValue(player, Activator.CreateInstance(field.FieldType));
             Call(player, "Start");
+            int saleEvents = 0;
+            PlayerHealth observedSeller = null;
+            bool observedCorrect = false;
+            manager.SaleResolved += (seller, correct) =>
+            {
+                saleEvents++;
+                observedSeller = seller;
+                observedCorrect = correct;
+            };
             var interactor = playerObject.AddComponent<PlayerInteractor>();
             player.transform.position = human.transform.position;
             Check(manager.enabled && human.GetComponent<Collider>() != null && ghost.GetComponent<Collider>() != null, "Scene references and both physical buttons are wired");
@@ -215,6 +243,7 @@ public static class TicketRegressionRunner
                     Object.Destroy(cameraObject);
                 }
                 int round = manager.State.round;
+                int previousEvents = saleEvents;
                 int selectedMovie = movieMatches == 1 ? preference : (preference + 1) % titles.Length;
                 Call(interactor, "RequestInteract", movieControls[selectedMovie]);
                 int expectedScore = correct == 1 && movieMatches == 1 ? 1 : 0;
@@ -226,23 +255,115 @@ public static class TicketRegressionRunner
                 player.transform.position += Vector3.one * 100;
                 manager.ResolveSale(ticket, round, player);
                 Check(manager.CanServe, "Remote button press rejected");
+                Check(saleEvents == previousEvents, "Rejected sales do not notify ticket ghost");
                 player.transform.position = human.transform.position;
                 (ticket ? ghost : human).Interact(playerObject);
                 Check(manager.State.score == expectedScore, $"Type={type}, ticketMatch={correct}, movieMatch={movieMatches}: both must match to score");
+                Check(saleEvents == previousEvents + 1 && observedSeller == player && observedCorrect == (expectedScore > 0),
+                    "Accepted sale reports the actual seller and correctness once");
                 Check(Mathf.Approximately(player.CurrentHealth, hp - (type == 1 && expectedScore == 0 ? 10 : 0)), "Incorrect movie or ticket damages ghosts only, once per sale");
                 Check(manager.State.stage == TicketCustomerStage.WalkingOut && !((Canvas)Get(manager, "bubble")).enabled, "Sale hides bubble and starts departure");
                 Check(!manager.State.hasMovie && !manager.CanServe, "Sale clears movie selection for the next customer");
                 manager.ResolveSale(ticket, round, player);
                 Check(manager.State.score == expectedScore, "Duplicate sale rejected");
+                Check(saleEvents == previousEvents + 1, "Duplicate sale cannot advance punishment");
                 for (int step = 0; step < 20 && manager.State.stage != TicketCustomerStage.BetweenCustomers; step++) Call(manager, "Advance", 1f);
                 Check(manager.State.stage == TicketCustomerStage.BetweenCustomers, "Customer follows departure route and vacates counter");
                 Call(manager, "Advance", 0.1f);
                 Check(manager.State.stage == TicketCustomerStage.BetweenCustomers, "Delay between customers respected");
             }
+            CheckTicketPunishment(manager, player);
         }
         catch (Exception e) { Check(false, e.ToString()); }
         SessionState.SetBool("TicketChecks", false);
         File.WriteAllLines("ticket-results.txt", results);
         EditorApplication.Exit(failures == 0 ? 0 : 1);
+    }
+
+    static void CheckTicketPunishment(TicketMinigame manager, PlayerHealth seller)
+    {
+        Set(seller, "currentHealth", 100f);
+        Set(seller, "isDowned", false);
+        Set(seller, "isDead", false);
+        Set(seller, "_invincibleUntil", float.NegativeInfinity);
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Floderไอนน/Prefab/Enemy/TicketPunish.prefab");
+        var root = new GameObject("Ticket Spawner Test", typeof(NetworkIdentity), typeof(TicketGhostSpawner));
+        var spawner = root.GetComponent<TicketGhostSpawner>();
+        root.transform.position = new Vector3(20, -1.2f, 20);
+        Set(spawner, "minigame", manager);
+        Set(spawner, "ticketGhostPrefab", prefab);
+        Call(spawner, "Start");
+        var ghost = (TicketPunisherGhost)Get(spawner, "currentGhost");
+        var otherOverlays = Resources.FindObjectsOfTypeAll<GameObject>()
+            .Where(obj => obj.scene.IsValid() && obj.scene.isLoaded && obj.CompareTag("JumpscareUI")).ToList();
+        foreach (var existing in otherOverlays) existing.tag = "Untagged";
+        var overlay = new GameObject("Ticket Ghost Test Overlay");
+        overlay.tag = "JumpscareUI";
+        Object.DontDestroyOnLoad(overlay);
+        overlay.SetActive(false);
+        Call(ghost, "Start");
+        Check(overlay.scene != ghost.gameObject.scene && ReferenceEquals(Get(ghost, "jumpscareUI"), overlay),
+            "Ghost discovers inactive jumpscare UI in the persistent HUD scene");
+        Set(ghost, "jumpscareUI", null);
+        Call(ghost, "ShowJumpscare");
+        Check(overlay.activeSelf && ReferenceEquals(Get(ghost, "jumpscareUI"), overlay),
+            "Scare resolves persistent UI again when no reference is cached");
+        Call(ghost, "HideJumpscare");
+        ghost.CancelInvoke("HideJumpscare");
+        var roamingManager = Object.FindObjectOfType<GhostManager>();
+        roamingManager.Invoke("DespawnGhost", 60f);
+        Vector3 hidden = ghost.transform.position;
+        Check(hidden == root.transform.position, "Ghost uses authored hidden height without another downward offset");
+        spawner.SpawnNewGhost();
+        Check(ReferenceEquals(ghost, Get(spawner, "currentGhost")), "Repeated spawn does not create another ghost");
+        Call(spawner, "OnSaleResolved", seller, true);
+        Check((int)Get(ghost, "currentWrongCount") == 0, "Correct sale does not raise ghost");
+        Set(seller, "isDowned", true);
+        Call(spawner, "OnSaleResolved", seller, false);
+        Check((int)Get(ghost, "currentWrongCount") == 0, "Downed seller cannot trigger punishment");
+        Set(seller, "isDowned", false);
+        var bystanderObject = new GameObject("Bystander", typeof(NetworkIdentity), typeof(PlayerHealth));
+        var bystander = bystanderObject.GetComponent<PlayerHealth>();
+        foreach (var field in typeof(PlayerHealth).GetFields())
+            if (typeof(UnityEngine.Events.UnityEventBase).IsAssignableFrom(field.FieldType))
+                field.SetValue(bystander, Activator.CreateInstance(field.FieldType));
+        Call(bystander, "Start");
+        bystander.transform.position = hidden;
+        float bystanderHealth = bystander.CurrentHealth;
+        seller.transform.position = hidden + Vector3.right * 10f;
+        Call(spawner, "OnSaleResolved", seller, false);
+        Call(spawner, "OnSaleResolved", seller, false);
+        Check(Mathf.Approximately(seller.CurrentHealth, 100f) &&
+              Mathf.Approximately(ghost.transform.position.y, hidden.y + 2f), "Two mistakes raise ghost without attacking");
+        seller.transform.position = ((TicketSellButton)Get(manager, "humanButton")).transform.position;
+        Set(manager, "state", new TicketCustomerState
+        {
+            stage = TicketCustomerStage.Waiting, ghost = true, round = 100,
+            hasMovie = true, movieIndex = 0, requestedMovieIndex = 0
+        });
+        manager.ResolveSale(false, 100, seller);
+        Check(Mathf.Approximately(seller.CurrentHealth, 60f) && bystander.CurrentHealth == bystanderHealth,
+            "Third accepted sale attacks the seller for 40 before customer damage cooldown");
+        Check(overlay.activeSelf && roamingManager.IsInvoking("DespawnGhost"),
+            "Ticket scare displays overlay without cancelling roaming ghost despawn");
+        Set(seller, "_invincibleUntil", float.NegativeInfinity);
+        Call(spawner, "OnSaleResolved", seller, false);
+        Check(Mathf.Approximately(seller.CurrentHealth, 60f), "Attack fires only once before respawn");
+        Call(ghost, "DestroySelfOnServer");
+        Call(ghost, "OnDestroy");
+        Check(!overlay.activeSelf, "Client despawn cleanup hides its jumpscare overlay");
+        Check(Get(spawner, "currentGhost") == null && spawner.IsInvoking("SpawnNewGhost"), "Ghost schedules its owner's respawn");
+        spawner.SpawnNewGhost();
+        var replacement = (TicketPunisherGhost)Get(spawner, "currentGhost");
+        Check(replacement != ghost && (int)Get(replacement, "currentWrongCount") == 0 && replacement.transform.position == hidden,
+            "Respawn resets mistake count and hidden position");
+        Call(spawner, "StopSpawning");
+        Check(!spawner.IsInvoking("SpawnNewGhost"), "Teardown cancels pending respawn");
+        Object.Destroy(root);
+        Object.Destroy(replacement.gameObject);
+        Object.Destroy(bystanderObject);
+        roamingManager.CancelInvoke("DespawnGhost");
+        Object.Destroy(overlay);
+        foreach (var existing in otherOverlays) if (existing != null) existing.tag = "JumpscareUI";
     }
 }

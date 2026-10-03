@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
 using TMPro;
@@ -97,3 +98,4 @@ public class FontReplacer : EditorWindow
         return count;
     }
 }
+#endif

@@ -22,3 +22,31 @@ Online customers and points are server-controlled. Commands validate the sending
 Ticket points are independent of the popcorn score and do not change the existing zone quest target.
 
 Run `Tests/Tickets/Run-TicketChecks.ps1` with the project's Unity version. Checks run in an isolated copy under `.utmp`.
+
+Cinema_GamePlay also has a stationary TicketPunish ghost. Its spawner references
+the scene's TicketMinigame directly. Every accepted incorrect sale (human or
+ghost, wrong movie or ticket type) adds one shared mistake; correct sales do not
+reset the count. The third mistake attacks that sale's seller for 40 damage,
+then the ghost disappears after 3 seconds and respawns 2 seconds later with a
+fresh count. Normal PlayerHealth immunity rules still apply. The existing
+10-damage ghost-customer penalty remains; the threshold attack runs first so
+the small hit cannot suppress it with a new immunity cooldown.
+
+TicketPunish is registered on NetworkManager and has a server-authoritative
+NetworkTransformReliable for its rising position. It uses the spawn point's
+authored hidden height directly and does not affect GhostManager's timer.
+The capsule is still a placeholder visual; an attack animation requires an
+Animator/controller with the configured Attack trigger.
+
+The regression run also checks Cinema's references, prefab registration,
+accepted/rejected/duplicate sale notifications, seller attribution, downed
+exclusion, height, threshold damage ordering, respawn, overlay cleanup and
+independence from the roaming ghost's despawn timer. It does not launch a
+separate remote client; verify rising visuals and victim-only jumpscares in a
+host/client play session before release.
+
+The inactive JumpUi image belongs to GAME HUD so it survives entry from the
+menu as well as direct Cinema play. TicketPunish searches loaded scenes,
+including DontDestroyOnLoad, and resolves the overlay again when showing a
+scare. Regression checks reproduce an inactive overlay in that persistent
+scene without assigning the ghost's UI field manually.

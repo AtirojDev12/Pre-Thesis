@@ -75,6 +75,8 @@ public sealed class TicketMinigame : MonoBehaviour
     private WorldButtonInteractable[] movieHighlights;
 
     public TicketCustomerState State => state;
+    /// <summary>Server/offline only, once per accepted sale, with the actual seller.</summary>
+    public event System.Action<PlayerHealth, bool> SaleResolved;
     public Transform GhostFavorDestination => counterPoint;
     private PopcornNetSync ZoneCounter => zoneCounter != null ? zoneCounter : PopcornNetSync.Instance;
     private string ZoneID => ZoneCounter != null ? ZoneCounter.ZoneID : FallbackZoneID;
@@ -268,12 +270,16 @@ public sealed class TicketMinigame : MonoBehaviour
             state.score += Mathf.Max(1, pointsPerSale);
             ReportSale(player);
         }
-        else if (state.ghost) player.TakeDamage(wrongGhostDamage);
         state.stage = TicketCustomerStage.WalkingOut;
         state.hasMovie = false;
         waypoint = 0;
         if (bubble != null) bubble.enabled = false;
         if (networkSync != null && networkSync.IsServerReady) networkSync.Publish(state);
+        // Consume the round first; duplicate requests must not punish twice.
+        // Notify before the customer hit so its health cooldown cannot block
+        // the ghost's threshold attack in the same sale.
+        SaleResolved?.Invoke(player, correct);
+        if (!correct && state.ghost) player.TakeDamage(wrongGhostDamage);
     }
 
     private void DrawCustomer(TicketCustomerState visible)
