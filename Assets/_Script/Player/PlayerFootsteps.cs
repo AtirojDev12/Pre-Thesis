@@ -5,7 +5,7 @@ using UnityEngine.Events;
 
 /// <summary>
 /// The owner detects rendered sole contacts after PlayerMovement's IK/grounding.
-/// The server chooses one clip per contact; every observer plays that same choice.
+/// The owner plays immediately and sends the chosen clip to every observer.
 /// Remote animation never generates a second set of steps.
 /// </summary>
 [DefaultExecutionOrder(100)]
@@ -81,8 +81,7 @@ public sealed class PlayerFootsteps : NetworkBehaviour
             // Keep contact-driven playback but reject a second near-simultaneous hit.
             nextLocalContact = Time.time + (movement.IsSprinting ? 0.2f : 0.3f);
             FootTouchedGround.Invoke(foot);
-            if (NetworkMode.IsOffline) ChooseAndPlay(foot);
-            else if (isLocalPlayer && NetworkClient.ready) CmdFootContact(foot);
+            if (NetworkMode.IsOffline || (isLocalPlayer && NetworkClient.ready)) ChooseAndPlay(foot);
         }
         initialized = true;
     }
@@ -90,14 +89,15 @@ public sealed class PlayerFootsteps : NetworkBehaviour
     private bool Incapacitated => health != null && (health.IsDead || health.IsDowned);
 
     [Command]
-    private void CmdFootContact(int foot)
+    private void CmdFootContact(int foot, int clip)
     {
         // Mirror enforces ownership. Reject invalid/spammed contacts and dead players.
-        if (foot < 0 || foot > 1 || movement.IsCrouching || Incapacitated ||
+        if (foot < 0 || foot > 1 || carpetClips == null || clip < 0 || clip >= carpetClips.Length ||
+            carpetClips[clip] == null || movement.IsCrouching || Incapacitated ||
             NetworkTime.time < nextServerStep[foot] || NetworkTime.time < nextServerContact) return;
         nextServerStep[foot] = NetworkTime.time + (movement.IsSprinting ? 0.25 : 0.38);
         nextServerContact = NetworkTime.time + (movement.IsSprinting ? 0.16 : 0.26);
-        ChooseAndPlay(foot);
+        RpcFootstep(foot, clip);
     }
 
     private void ChooseAndPlay(int foot)
@@ -107,11 +107,12 @@ public sealed class PlayerFootsteps : NetworkBehaviour
         int clip = UnityEngine.Random.Range(0, lastClip >= 0 && count > 1 ? count - 1 : count);
         if (count > 1 && lastClip >= 0 && clip >= lastClip) clip++;
         lastClip = clip;
-        if (NetworkMode.IsOffline) PlayFootstep(foot, clip);
-        else RpcFootstep(foot, clip);
+        // Do not wait for a network round trip to hear this player's landing.
+        PlayFootstep(foot, clip);
+        if (!NetworkMode.IsOffline) CmdFootContact(foot, clip);
     }
 
-    [ClientRpc]
+    [ClientRpc(includeOwner = false)]
     private void RpcFootstep(int foot, int clip) => PlayFootstep(foot, clip);
 
     private void PlayFootstep(int foot, int clip)

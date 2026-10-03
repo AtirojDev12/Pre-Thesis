@@ -102,13 +102,14 @@ public class PlayerMovement : NetworkBehaviour
     [Header("Directional steps and grounding")]
     [Min(0.1f)] [SerializeField] private float stepLength = 0.7f;
     [Tooltip("Minimum time between alternating procedural steps. Matches the authored walk/run cadence.")]
-    [Min(0.1f)] [SerializeField] private float walkingStepInterval = 0.52f;
+    [Min(0.1f)] [SerializeField] private float walkingStepInterval = 0.5f;
     [Min(0.1f)] [SerializeField] private float runningStepInterval = 0.34f;
     [Min(0f)] [SerializeField] private float stepHeight = 0.12f;
     [Min(0f)] [SerializeField] private float groundProbeDistance = 0.2f;
     [Range(0f, 80f)] [SerializeField] private float maximumGroundAngle = 50f;
     private readonly RaycastHit[] groundHits = new RaycastHit[24];
     private float stepPhase;
+    private float pendingStepPhase;
     private float directionalWeight;
     private Vector2 blendedDirection;
     private Vector3 leftFootRest;
@@ -581,6 +582,7 @@ public class PlayerMovement : NetworkBehaviour
         // The authored lateral and crouch clips supply their own leg motion.
         if (IsCrouching || UsesStrafeAnimation(direction))
         {
+            pendingStepPhase = 0f;
             playerAnimator.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 0f);
             playerAnimator.SetIKPositionWeight(AvatarIKGoal.RightFoot, 0f);
             playerAnimator.SetIKRotationWeight(AvatarIKGoal.LeftFoot, 0f);
@@ -610,8 +612,14 @@ public class PlayerMovement : NetworkBehaviour
         // to the authored gait. Updating the position above the IK bypass also
         // avoids a phase jump when returning from a lateral/crouch clip.
         float interval = isSprinting ? runningStepInterval : walkingStepInterval;
-        float phaseAdvance = Mathf.Min(distance / (2f * Mathf.Max(0.1f, stepLength)),
-            Time.deltaTime / (2f * Mathf.Max(0.1f, interval)));
+        // Physics travel arrives in fixed ticks, not on every rendered frame.
+        // Carry a small travel credit across frames: discarding it with a
+        // per-frame Min made backpedalling slower than the forward clip.
+        float maximumAdvance = Time.deltaTime / (2f * Mathf.Max(0.1f, interval));
+        if (direction.sqrMagnitude <= 0.01f) pendingStepPhase = 0f;
+        else pendingStepPhase = Mathf.Min(pendingStepPhase + distance / (2f * Mathf.Max(0.1f, stepLength)), 0.06f);
+        float phaseAdvance = Mathf.Min(pendingStepPhase, maximumAdvance);
+        pendingStepPhase -= phaseAdvance;
         stepPhase = Mathf.Repeat(stepPhase + phaseAdvance, 1f);
         // A small knee bend gives the solver room to lift/reach a stepping foot.
         playerAnimator.bodyPosition -= Vector3.up * (0.08f * directionalWeight);
