@@ -14832,6 +14832,7 @@ GameObject:
   - component: {fileID: 682732019}
   - component: {fileID: 682732018}
   - component: {fileID: 682732017}
+  - component: {fileID: 682732020}
   m_Layer: 0
   m_Name: GhostLightOutMng
   m_TagString: Untagged
@@ -14896,6 +14897,25 @@ Transform:
   - {fileID: 1259619220}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &682732020
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 682732016}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb7570d78e57e5d48a5069d8f7264241, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TicketGhostSpawner
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  ticketGhostPrefab: {fileID: 0}
+  minigame: {fileID: 0}
+  spawnPoint: {fileID: 0}
+  respawnDelay: 2
 --- !u!1 &683719927
 GameObject:
   m_ObjectHideFlags: 0
