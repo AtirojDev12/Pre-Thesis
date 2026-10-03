@@ -59,6 +59,21 @@ public class FirstPersonCamera : MonoBehaviour
 
     private float verticalRotation;
     private float downedHorizontalRotation;
+
+    // ---- Spectator first-person view (3 Oct, Mr.k) --------------------------
+    // Read-only. The owner's look angles are sent to everyone by PlayerVoice,
+    // so a spectator can look through this player's eyes.
+    /// <summary>Owner only: up/down look angle (degrees).</summary>
+    public float LookPitch => verticalRotation;
+    /// <summary>Owner only: extra left/right look while downed (degrees).</summary>
+    public float LookYawOffset => downedHorizontalRotation;
+
+    /// <summary>World position of this player's eyes, on any machine (crouch included).</summary>
+    public Vector3 EyePosition(bool crouching)
+    {
+        if (playerBody == null) return transform.position;
+        return playerBody.TransformPoint(cameraLocalPosition + Vector3.down * (crouching ? crouchCameraDrop : 0f));
+    }
     private float motionPhase;
     private Vector3 currentMotionOffset;
     private NetworkIdentity ownerIdentity;

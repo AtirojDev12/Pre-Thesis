@@ -45,6 +45,19 @@ public class PlayerVoice : NetworkBehaviour
     /// <summary>True while talking on the Walkie-Talkie.</summary>
     [SyncVar] private bool radioTransmitting;
 
+    // 3 Oct (Mr.k): where this player is looking, for the spectator's first-person
+    // view. Body yaw already syncs (NetworkTransform); this adds up/down + the
+    // downed head turn. Owner -> server (unreliable, max 10x/s, only on change).
+    [SyncVar] private float lookPitch;
+    [SyncVar] private float lookYawOffset;
+    private FirstPersonCamera ownView;
+    private float lastSentPitch = float.NaN, lastSentYaw, nextLookSend, lookResendAt;
+
+    /// <summary>Up/down look angle (degrees) on any machine.</summary>
+    public float LookPitch => isLocalPlayer && ownView != null ? ownView.LookPitch : lookPitch;
+    /// <summary>Extra left/right look while downed (degrees) on any machine.</summary>
+    public float LookYawOffset => isLocalPlayer && ownView != null ? ownView.LookYawOffset : lookYawOffset;
+
     private Transform mouth;
     private PlayerInventory inventory;
     private PlayerHealth health;
@@ -142,6 +155,33 @@ public class PlayerVoice : NetworkBehaviour
     // delays the value a little, and a slow reliable queue can never build up.
     [Command(channel = Channels.Unreliable)]
     private void CmdReportNoise(byte mic, byte game) => noise.ServerReceive(mic, game);
+
+    // ---- Look direction (spectator first-person view) ----------------------------
+
+    private void LateUpdate()
+    {
+        if (!isLocalPlayer || NetworkMode.IsOffline || !NetworkClient.ready) return;
+        if (ownView == null) ownView = GetComponentInChildren<FirstPersonCamera>(true);
+        if (ownView == null || Time.unscaledTime < nextLookSend) return;
+
+        float p = ownView.LookPitch, y = ownView.LookYawOffset;
+        bool changed = float.IsNaN(lastSentPitch) || Mathf.Abs(p - lastSentPitch) > 0.5f || Mathf.Abs(y - lastSentYaw) > 0.5f;
+        if (!changed && Time.unscaledTime < lookResendAt) return;
+
+        nextLookSend = Time.unscaledTime + 0.1f;  // max 10 per second
+        lookResendAt = Time.unscaledTime + 1f;    // and once a second anyway (unreliable)
+        lastSentPitch = p;
+        lastSentYaw = y;
+        CmdReportLook(p, y);
+    }
+
+    [Command(channel = Channels.Unreliable)]
+    private void CmdReportLook(float pitch, float yawOffset)
+    {
+        if (float.IsNaN(pitch) || float.IsInfinity(pitch) || float.IsNaN(yawOffset) || float.IsInfinity(yawOffset)) return;
+        lookPitch = Mathf.Clamp(pitch, -89f, 89f);
+        lookYawOffset = Mathf.Clamp(yawOffset, -180f, 180f);
+    }
 
     // ---- Walkie-Talkie ---------------------------------------------------------
 
