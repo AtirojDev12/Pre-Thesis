@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// SPECTATOR CAMERA (2 Oct, Development Build only). Active while this PC is
@@ -31,6 +32,15 @@ public sealed class DevSpectatorCamera : MonoBehaviour
     private float followDistance = 3f;
     private PlayerHealth followTarget;
     private float nextSceneSweep;
+
+    // 3 Oct: after joining and after every scene change (lobby <-> match) the old
+    // bodies are gone and the camera was left at a random spot. Now it jumps to a
+    // player by itself: the same place in the player list as before, else the first.
+    private bool autoFollow = true;
+    private float autoFollowUntil;
+    private float nextAutoFollowTry;
+    private int lastFollowIndex;
+    private bool wantFollow;    // false after F (free fly on purpose)
     private readonly List<PlayerHealth> players = new List<PlayerHealth>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -71,12 +81,45 @@ public sealed class DevSpectatorCamera : MonoBehaviour
         transform.position = new Vector3(0f, 3f, -10f);
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        // 3 Oct: no body = the player HUD (HP bar, stamina, prompts, downed text)
+        // only showed its "New Text" placeholders in the middle of the screen.
+        PersistentHUD.PushHidden();
+
+        SceneManager.activeSceneChanged += OnSceneChanged;
+        StartAutoFollow();
     }
 
     private void OnDestroy()
     {
         if (instance == this) instance = null;
         SpectatorSession.TalkHeld = false;
+        SceneManager.activeSceneChanged -= OnSceneChanged;
+        PersistentHUD.PopHidden();
+    }
+
+    private void OnSceneChanged(Scene from, Scene to)
+    {
+        followTarget = null;
+        StartAutoFollow();
+    }
+
+    private void StartAutoFollow()
+    {
+        autoFollow = true;
+        wantFollow = true;
+        autoFollowUntil = Time.unscaledTime + 30f; // players can take a while to load in
+        nextAutoFollowTry = 0f;
+    }
+
+    private void TryAutoFollow()
+    {
+        if (Time.unscaledTime < nextAutoFollowTry) return;
+        nextAutoFollowTry = Time.unscaledTime + 0.5f;
+        if (Time.unscaledTime > autoFollowUntil) { autoFollow = false; return; }
+        if (!CollectPlayers()) return;
+        Follow(Mathf.Clamp(lastFollowIndex, 0, players.Count - 1));
+        autoFollow = false;
     }
 
     private bool InputFree =>
@@ -119,7 +162,15 @@ public sealed class DevSpectatorCamera : MonoBehaviour
             float scroll = mouse.scroll.ReadValue().y;
             if (Mathf.Abs(scroll) > 0.01f) followDistance = Mathf.Clamp(followDistance - Mathf.Sign(scroll) * 0.5f, 1f, 10f);
         }
-        if (InputFree && k != null && k.fKey.wasPressedThisFrame) followTarget = null;
+        if (InputFree && k != null && k.fKey.wasPressedThisFrame)
+        {
+            followTarget = null;
+            wantFollow = false;
+            autoFollow = false;
+        }
+        // The followed player left / their body was replaced: find someone again.
+        if (followTarget == null && wantFollow && !autoFollow) StartAutoFollow();
+        if (autoFollow) TryAutoFollow();
 
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
         if (followTarget != null)
@@ -148,15 +199,31 @@ public sealed class DevSpectatorCamera : MonoBehaviour
 
     private void Cycle(int step)
     {
+        PlayerHealth current = followTarget;
+        if (!CollectPlayers()) { followTarget = null; return; }
+
+        int index = current != null ? players.IndexOf(current) : -1;
+        index = index < 0 ? (step > 0 ? 0 : players.Count - 1) : (index + step + players.Count) % players.Count;
+        Follow(index);
+        wantFollow = true;
+        autoFollow = false;
+    }
+
+    /// <summary>Fills 'players' (sorted by netId). False if there is nobody.</summary>
+    private bool CollectPlayers()
+    {
         players.Clear();
         foreach (PlayerHealth p in FindObjectsByType<PlayerHealth>())
             if (p != null) players.Add(p);
-        if (players.Count == 0) { followTarget = null; return; }
+        if (players.Count == 0) return false;
         players.Sort((a, b) => a.netId.CompareTo(b.netId));
+        return true;
+    }
 
-        int index = followTarget != null ? players.IndexOf(followTarget) : -1;
-        index = index < 0 ? (step > 0 ? 0 : players.Count - 1) : (index + step + players.Count) % players.Count;
+    private void Follow(int index)
+    {
         followTarget = players[index];
+        lastFollowIndex = index;
         yaw = followTarget.transform.eulerAngles.y;
         pitch = 15f;
     }
