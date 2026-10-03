@@ -171,9 +171,14 @@ MonoBehaviour:
   canDetectMic: 1
   jumpscareUI: {fileID: 0}
   jumpscareDuration: 3
+  jumpscareDamage: 25
+  killsOutright: 0
   movementThreshold: 0.1
-  randomPatrolRadius: 15
+  closeRange: 3
   micVolumeThreshold: 1
+  hearMicInLight: 0
+  randomPatrolRadius: 15
+  jumpscareRange: 1.5
   isSceneLightOn: 1
 --- !u!114 &4468844748897925227
 MonoBehaviour:
