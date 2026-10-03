@@ -319,8 +319,37 @@ public class RoHRoomManager : NetworkRoomManager
     public override void OnServerReady(NetworkConnectionToClient conn)
     {
         base.OnServerReady(conn);
+        if (IsSpectator(conn))
+        {
+            SpawnWorldForSpectator(conn);
+            return;
+        }
         // Back from a match: Mirror made the seat the main player again.
         if (InRoomScene) AttachLobbyBody(conn);
+    }
+
+    /// <summary>
+    /// SERVER (3 Oct fix: "spectators see no players but hear them").
+    /// Mirror's SetClientReady only sends the EXISTING world to a connection that
+    /// has a player object. A spectator has none, so it only ever received objects
+    /// spawned AFTER it joined: players already in the room/match stayed invisible
+    /// (voice still worked, it is plain messages). Here every existing object gets
+    /// the spectator as an observer, exactly like a normal player's ready.
+    /// Objects spawned later reach it normally (it is ready).
+    /// </summary>
+    private static void SpawnWorldForSpectator(NetworkConnectionToClient conn)
+    {
+        if (conn == null || !conn.isReady) return;
+        conn.Send(new ObjectSpawnStartedMessage());
+        foreach (NetworkIdentity identity in NetworkServer.spawned.Values)
+        {
+            if (identity == null || !identity.gameObject.activeSelf) continue;
+            if (identity.visibility == Visibility.ForceHidden) continue;
+            // No interest management in this project: adds every ready connection
+            // that is not observing yet (already-observing ones are skipped by Mirror).
+            NetworkServer.RebuildObservers(identity, true);
+        }
+        conn.Send(new ObjectSpawnFinishedMessage());
     }
 
     public override void ServerChangeScene(string newSceneName)
