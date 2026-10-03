@@ -14,10 +14,12 @@ blocked movement, crouching, airborne feet and incapacitated players do not prod
 Hold Left Ctrl (or gamepad button East) to crouch; release to stand when headroom is clear.
 No fixed timer or imported clip events are needed, including for procedural strafing.
 
-An ownership-required Mirror Command asks the server to select a clip excluding the
-previous index. A reliable ClientRpc sends that same foot/clip pair to all observers,
-including the owner, with no additional local playback on the host. Network latency
-therefore also delays the owner's sound. Offline test scenes play directly.
+The owner selects a clip excluding the previous index and plays it in the same
+LateUpdate as the sole contact, without waiting for a network round trip.
+An ownership-required Mirror Command validates the foot, clip and contact rate.
+A reliable ClientRpc sends that same pair to other observers, excluding the owner
+to prevent duplicate playback on the host or joining client. Observer playback
+still depends on network arrival; offline test scenes play directly.
 Each foot has a runtime 3D AudioSource, linear attenuation from 1 to 15 metres,
 zero volume beyond 15 metres, no Doppler, and SoundCategoryVolume set to SFX.
 Tune volume/range/contact thresholds on PlayerFootsteps in the prefab. Carpet is
@@ -40,7 +42,7 @@ The initial build diagnostics confirmed all four clips were included and moved t
 ## Directional locomotion and grounding
 
 Procedural steps retain distance-based stopping but cap alternating contacts at
-0.52 seconds while walking and 0.34 seconds while running. Tune these separately
+0.50 seconds while walking and 0.34 seconds while running. Tune these separately
 from `stepLength` on PlayerMovement: shorter visual strides no longer force rapid
 backpedalling steps. Authored strafe clips handle diagonal ties with a shared
 0.05 direction tolerance in state selection and the IK bypass, avoiding flicker
@@ -48,8 +50,12 @@ between two different leg poses. The travel reference updates even during strafe
 and crouch poses so returning to IK cannot advance by accumulated travel.
 Footstep contact filtering also enforces spacing across both feet (0.30 seconds
 walking, 0.20 seconds running), rejecting simultaneous sole contacts during blends.
-The probe measures two seconds of each walking direction and checks contact counts
-and owner contact spacing as well as host/client playback agreement.
+Travel credit carries across rendered frames instead of being discarded between
+physics ticks, keeping backward cadence close to forward even at high frame rates.
+The probe targets 120 FPS, measures two seconds of each walking direction and
+compares backward/forward step intervals. It verifies the sounding sole is touching
+the ground and owner playback occurs in the contact frame, as well as contact
+spacing and host/client playback agreement.
 
 Backward and strafe movement now use a procedural humanoid IK gait over the existing Walking clip. Each foot alternates between a planted support phase and a lifted swing toward the movement direction. Gait phase advances with actual planar travel, and direction/IK weights blend over the animation damping interval. The project has no authored backward/strafe clips; the forward clip is neither reversed nor used unchanged for the legs when backing up. The visual model's offset below the Animator root is explicitly converted when positioning IK goals.
 

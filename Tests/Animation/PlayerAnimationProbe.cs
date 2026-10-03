@@ -22,6 +22,8 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
     readonly Dictionary<PlayerHealth, int> previousClip = new Dictionary<PlayerHealth, int>();
     readonly Dictionary<PlayerHealth, float[]> lastFootTime = new Dictionary<PlayerHealth, float[]>();
     float lastOwnerContact = -999f;
+    readonly float[] ownerContactTime = { -999f, -999f };
+    readonly List<float> ownerContactTimes = new List<float>();
     void CapturePose(PlayerMovement player, string name)
     {
         var cameraObject = new GameObject("Pose review camera");
@@ -96,7 +98,8 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
     {
         Application.runInBackground = true;
         QualitySettings.vSyncCount = 0;
-        Application.targetFrameRate = 60;
+        // Render faster than the physics tick to catch lost travel credit in IK.
+        Application.targetFrameRate = 120;
         bool client = Array.IndexOf(Environment.GetCommandLineArgs(), "--client") >= 0;
         var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
         floor.name = "Grounding test floor";
@@ -140,8 +143,16 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 float minimum = p.GetComponent<PlayerMovement>().IsSprinting ? 0.19f : 0.29f;
                 Check(Time.time - lastOwnerContact >= minimum, "Alternating foot contacts have natural spacing");
                 lastOwnerContact = Time.time;
+                ownerContactTime[foot] = Time.time;
+                ownerContactTimes.Add(Time.time);
             });
             stepper.FootstepPlayed += (foot, clip) => {
+                if (p.isLocalPlayer)
+                {
+                    Check(Time.time - ownerContactTime[foot] < 0.001f, "Owner sound plays in the landing frame without network delay");
+                    Check(p.GetComponent<PlayerMovement>().TryGetFootGround(foot == 0, out _, out float clearance) && clearance <= 0.0121f,
+                        "Owner sound matches the sounding foot's sole contact");
+                }
                 if (clip == previousClip[p]) Check(false, "Footstep repeated the previous clip");
                 if (Time.time - lastFootTime[p][foot] < 0.22f) Check(false, "Rapid repeated foot contact");
                 lastFootTime[p][foot] = Time.time;
@@ -169,8 +180,10 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 var bone = animator.GetBoneTransform(HumanBodyBones.LeftLowerLeg);
                 bones[p] = bone; last[p] = bone.localRotation; angles[p] = 0;
             }
+            float forwardStepInterval = 0f;
             foreach (bool sprint in new[] { false, true })
             {
+                int contactStart = ownerContactTimes.Count;
                 var stepCounts = new Dictionary<PlayerHealth, int>();
                 foreach (var p in players) stepCounts[p] = footsteps[p].Count;
                 foreach (var p in players) angles[p] = 0;
@@ -189,6 +202,9 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                     }
                 }
                 if (sprint) Check(samples > 0 && remoteSprintFrames >= samples * 0.98f, "Remote sprint stays active between network snapshots: " + remoteSprintFrames + "/" + samples);
+                if (!sprint && ownerContactTimes.Count - contactStart >= 3)
+                    forwardStepInterval = (ownerContactTimes[ownerContactTimes.Count - 1] - ownerContactTimes[contactStart]) /
+                        (ownerContactTimes.Count - contactStart - 1);
                 Check(Vector3.Distance(start, NetworkClient.localPlayer.transform.position) > 1, "Local movement " + sprint);
                 foreach (var p in players)
                 {
@@ -220,6 +236,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                     yield return null;
                 }
                 int steadySteps = footsteps[mover.GetComponent<PlayerHealth>()].Count;
+                int directionContactStart = ownerContactTimes.Count;
                 Vector3 start = mover.transform.position;
                 float began = Time.time;
                 Transform left = mover.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.LeftFoot);
@@ -243,6 +260,13 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 }
                 Vector3 displacement = mover.transform.InverseTransformDirection(mover.transform.position - start);
                 int cadenceSteps = footsteps[mover.GetComponent<PlayerHealth>()].Count - steadySteps;
+                if (i == 0 && ownerContactTimes.Count - directionContactStart >= 3)
+                {
+                    float backwardInterval = (ownerContactTimes[ownerContactTimes.Count - 1] - ownerContactTimes[directionContactStart]) /
+                        (ownerContactTimes.Count - directionContactStart - 1);
+                    Check(forwardStepInterval > 0f && Mathf.Abs(backwardInterval - forwardStepInterval) <= 0.08f,
+                        "Backward cadence matches forward: backward=" + backwardInterval + " forward=" + forwardStepInterval);
+                }
                 if (directions[i] != Vector2.zero)
                     Check(cadenceSteps >= 2 && cadenceSteps <= 5,
                         "Walking cadence direction " + i + ": " + cadenceSteps + " contacts in " + (Time.time - began) + "s");
