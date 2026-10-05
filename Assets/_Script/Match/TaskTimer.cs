@@ -25,8 +25,12 @@ using UnityEngine.InputSystem;
 public class TaskTimer : MonoBehaviour
 {
     [Header("Display")]
-    [Tooltip("Show the live box in the top-left corner while playing.")]
+    [Tooltip("Allow the live box in the top-left corner. It starts HIDDEN; press the overlay key to show it.")]
     [SerializeField] private bool showOverlay = true;
+
+    [Tooltip("6 Oct: key that shows / hides the live box (hidden at start).")]
+    [SerializeField] private Key overlayKey = Key.F3;
+    private bool overlayVisible;
 
     [Tooltip("Key that dumps the full report to the Console.")]
     [SerializeField] private Key reportKey = Key.F9;
@@ -177,6 +181,7 @@ public class TaskTimer : MonoBehaviour
     {
         if (Keyboard.current == null) return;
         if (Keyboard.current[reportKey].wasPressedThisFrame) LogReport();
+        if (Keyboard.current[overlayKey].wasPressedThisFrame) overlayVisible = !overlayVisible;
     }
 
     /// <summary>
@@ -228,14 +233,14 @@ public class TaskTimer : MonoBehaviour
 
     private void OnGUI()
     {
-        if (!showOverlay) return;
+        if (!showOverlay || !overlayVisible) return;
 
         string text = samples.Count == 0
-            ? "TaskTimer: waiting for first task…"
+            ? $"TaskTimer: waiting for first task…\n{overlayKey} = hide"
             : $"TaskTimer   tasks {samples.Count}\n" +
               $"median {Median():F1}s   avg {Average():F1}s\n" +
               $"-> {(roundLengthMinutes * 60f * targetBusyFraction) / Mathf.Max(0.1f, Median()):F0} tasks/player\n" +
-              $"F9 = full report";
+              $"{reportKey} = full report   {overlayKey} = hide";
 
         GUI.Box(new Rect(10f, 10f, 260f, 74f), text);
     }

@@ -66,6 +66,11 @@ public class ZoneTask
 /// SERVER AUTHORITY: only the server counts sales (popcorn / ticket code calls
 /// <see cref="ServerReportSale"/>). Progress reaches clients through a SyncList.
 /// One sale adds +1 to EVERY unfinished line it matches.
+///
+/// DIFFICULTY (6 Oct): a line's 'target' in the Inspector is the BASE. Tonight's
+/// real target = base + the difficulty's per-line extra + random extras for each
+/// player past the first (DifficultyProfile). The server works it out at round
+/// start and sends it to everyone (SyncList 'targets').
 /// </summary>
 [RequireComponent(typeof(NetworkIdentity))]
 public class ZoneTaskList : NetworkBehaviour
@@ -86,11 +91,27 @@ public class ZoneTaskList : NetworkBehaviour
     // SyncList when no server/client runs, so offline uses a plain array.
     private int[] offlineProgress;
 
+    // 6 Oct: tonight's target per line (base + difficulty). Server writes, clients read.
+    private readonly SyncList<int> targets = new SyncList<int>();
+    private int[] offlineTargets;
+
     private static readonly List<ZoneTaskList> active = new List<ZoneTaskList>();
     private bool zoneReported;
 
     public string ZoneID => zoneID;
+    public string Title => title;
     public int TaskCount => tasks.Count;
+
+    /// <summary>Every task board in the scene (read only). Used by the dev overlay.</summary>
+    public static IReadOnlyList<ZoneTaskList> All => active;
+
+    /// <summary>Tonight's target for line i: base + difficulty. Falls back to the base until the server has sent it.</summary>
+    public int TargetOf(int i)
+    {
+        if (offlineTargets != null && i < offlineTargets.Length) return offlineTargets[i];
+        if (i < targets.Count) return targets[i];
+        return tasks[i].target;
+    }
     public ZoneTask TaskAt(int i) => tasks[i];
     public int ProgressOf(int i)
     {
@@ -100,14 +121,15 @@ public class ZoneTaskList : NetworkBehaviour
 
     private bool ProgressReady => NetworkMode.IsOffline
         ? offlineProgress != null && offlineProgress.Length == tasks.Count
-        : progress.Count == tasks.Count;
+          && offlineTargets != null && offlineTargets.Length == tasks.Count
+        : progress.Count == tasks.Count && targets.Count == tasks.Count;
 
     private void SetProgress(int i, int value)
     {
         if (offlineProgress != null) offlineProgress[i] = value;
         else progress[i] = value;
     }
-    public bool IsTaskDone(int i) => ProgressOf(i) >= tasks[i].target;
+    public bool IsTaskDone(int i) => ProgressOf(i) >= TargetOf(i);
 
     public bool AllDone
     {
@@ -123,7 +145,11 @@ public class ZoneTaskList : NetworkBehaviour
         active.Count > 0 || FindAnyObjectByType<ZoneTaskList>(FindObjectsInactive.Include) != null;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => active.Clear();
+    private static void ResetStatics()
+    {
+        active.Clear();
+        lastDifficultyLog = null;
+    }
 
     private void OnEnable() { if (!active.Contains(this)) active.Add(this); }
     private void OnDisable() => active.Remove(this);
@@ -139,15 +165,127 @@ public class ZoneTaskList : NetworkBehaviour
         if (NetworkMode.IsOffline)
         {
             if (offlineProgress == null || offlineProgress.Length != tasks.Count) offlineProgress = new int[tasks.Count];
+            if (offlineTargets == null || offlineTargets.Length != tasks.Count) offlineTargets = BaseTargets();
         }
-        else if (progress.Count != tasks.Count)
+        else
         {
-            progress.Clear();
-            for (int i = 0; i < tasks.Count; i++) progress.Add(0);
+            if (progress.Count != tasks.Count)
+            {
+                progress.Clear();
+                for (int i = 0; i < tasks.Count; i++) progress.Add(0);
+            }
+            if (targets.Count != tasks.Count)
+            {
+                targets.Clear();
+                for (int i = 0; i < tasks.Count; i++) targets.Add(Mathf.Max(1, tasks[i].target));
+            }
         }
 
         // Tell the match this zone exists (every zone is required).
         if (MatchDirector.Instance != null) MatchDirector.Instance.ServerRegisterZone(zoneID);
+
+        // Tonight's targets (works whichever of MatchDirector / this board starts first).
+        ServerApplyDifficulty();
+    }
+
+    private int[] BaseTargets()
+    {
+        var result = new int[tasks.Count];
+        for (int i = 0; i < tasks.Count; i++) result[i] = Mathf.Max(1, tasks[i].target);
+        return result;
+    }
+
+    private bool HasAnyProgress()
+    {
+        for (int i = 0; i < tasks.Count; i++) if (ProgressOf(i) > 0) return true;
+        return false;
+    }
+
+    private void ServerSetTargets(int[] values)
+    {
+        if (NetworkMode.IsOffline)
+        {
+            offlineTargets = values;
+            return;
+        }
+        if (targets.Count != values.Length)
+        {
+            targets.Clear();
+            for (int i = 0; i < values.Length; i++) targets.Add(values[i]);
+            return;
+        }
+        for (int i = 0; i < values.Length; i++)
+            if (targets[i] != values[i]) targets[i] = values[i]; // only changed lines are sent
+    }
+
+    private static string lastDifficultyLog;
+
+    /// <summary>
+    /// SERVER / OFFLINE (6 Oct). Sets every board's targets from tonight's difficulty:
+    ///   base + per-line extra on every line, then the random extras (one sale each)
+    ///   on random lines of random boards, at most 'cap' per board.
+    /// Same seed and same boards = same result, so calling it again is safe.
+    /// Boards that already have progress are left alone.
+    /// </summary>
+    public static void ServerApplyDifficulty()
+    {
+        MatchDirector director = MatchDirector.Instance;
+        int perLine = 0, extras = 0, cap = 0, seed = 0;
+        bool planned = director != null && director.ServerTaskPlan(out perLine, out extras, out cap, out seed);
+        if (!planned) return; // no round yet: the boards keep their base targets
+
+        var boards = new List<ZoneTaskList>();
+        for (int b = 0; b < active.Count; b++)
+        {
+            ZoneTaskList board = active[b];
+            if (board == null || board.tasks.Count == 0 || !NetworkMode.HasServerAuthority(board)) continue;
+            if (!board.ProgressReady || board.HasAnyProgress()) continue;
+            boards.Add(board);
+        }
+        if (boards.Count == 0) return;
+        boards.Sort((x, y) => string.CompareOrdinal(x.zoneID, y.zoneID));
+
+        var plan = new List<int[]>(boards.Count);
+        for (int b = 0; b < boards.Count; b++)
+        {
+            int[] values = boards[b].BaseTargets();
+            for (int i = 0; i < values.Length; i++) values[i] += perLine;
+            plan.Add(values);
+        }
+
+        int dropped = 0;
+        if (extras > 0)
+        {
+            var rng = new System.Random(seed);
+            var perBoard = new int[boards.Count];
+            var open = new List<int>(boards.Count);
+            for (int e = 0; e < extras; e++)
+            {
+                open.Clear();
+                for (int b = 0; b < boards.Count; b++)
+                    if (cap <= 0 || perBoard[b] < cap) open.Add(b);
+                if (open.Count == 0) { dropped = extras - e; break; }
+
+                int pick = open[rng.Next(open.Count)];
+                plan[pick][rng.Next(plan[pick].Length)]++;
+                perBoard[pick]++;
+            }
+        }
+
+        var summary = new System.Text.StringBuilder();
+        for (int b = 0; b < boards.Count; b++)
+        {
+            boards[b].ServerSetTargets(plan[b]);
+            summary.Append(" ").Append(boards[b].title).Append(" [").Append(string.Join(",", plan[b])).Append("]");
+        }
+
+        string log = $"[ZoneTaskList] Difficulty {director.Difficulty}: +{perLine} per line, {extras} random extras " +
+                     $"(max {cap}/board{(dropped > 0 ? $", {dropped} did not fit" : "")}).{summary}";
+        if (log != lastDifficultyLog)
+        {
+            lastDifficultyLog = log;
+            Debug.Log(log);
+        }
     }
 
     // ---- Server: counting ----------------------------------------------------
@@ -173,7 +311,7 @@ public class ZoneTaskList : NetworkBehaviour
         for (int i = 0; i < tasks.Count; i++)
         {
             int value = ProgressOf(i);
-            if (value >= tasks[i].target) continue;
+            if (value >= TargetOf(i)) continue;
             if (!tasks[i].Matches(kind, flavor, movieIndex, ghostCustomer)) continue;
             SetProgress(i, value + 1);
             changed = true;
@@ -196,7 +334,7 @@ public class ZoneTaskList : NetworkBehaviour
             ZoneTaskList board = active[b];
             if (board == null || !NetworkMode.HasServerAuthority(board)) continue;
             if (!board.ProgressReady) board.ServerInit();
-            for (int i = 0; i < board.tasks.Count; i++) board.SetProgress(i, board.tasks[i].target);
+            for (int i = 0; i < board.tasks.Count; i++) board.SetProgress(i, board.TargetOf(i));
             if (!board.zoneReported)
             {
                 board.zoneReported = true;
@@ -217,6 +355,7 @@ public class ZoneTaskList : NetworkBehaviour
     private RectTransform[] strikes;
     private float[] strikeStart;
     private int[] shownProgress;
+    private int[] shownTarget;
 
     private void BuildBoard()
     {
@@ -245,6 +384,7 @@ public class ZoneTaskList : NetworkBehaviour
         strikes = new RectTransform[tasks.Count];
         strikeStart = new float[tasks.Count];
         shownProgress = new int[tasks.Count];
+        shownTarget = new int[tasks.Count];
 
         for (int i = 0; i < tasks.Count; i++)
         {
@@ -273,13 +413,15 @@ public class ZoneTaskList : NetworkBehaviour
 
         for (int i = 0; i < lineTexts.Length; i++)
         {
-            int value = Mathf.Min(ProgressOf(i), tasks[i].target);
-            bool done = value >= tasks[i].target;
+            int target = TargetOf(i);
+            int value = Mathf.Min(ProgressOf(i), target);
+            bool done = value >= target;
 
-            if (value != shownProgress[i])
+            if (value != shownProgress[i] || target != shownTarget[i])
             {
                 shownProgress[i] = value;
-                lineTexts[i].text = $"{i + 1}. {tasks[i].label}   {value}/{tasks[i].target}";
+                shownTarget[i] = target;
+                lineTexts[i].text = $"{i + 1}. {tasks[i].label}   {value}/{target}";
                 lineTexts[i].color = done ? DoneColor : Color.white;
                 if (done && strikeStart[i] < 0f) strikeStart[i] = Time.time;
                 if (!done) { strikeStart[i] = -1f; strikes[i].sizeDelta = new Vector2(0f, 7f); }

@@ -224,8 +224,52 @@ public class MatchDirector : NetworkBehaviour
     /// quest system reads it when building the zones; MatchDirector only resolves
     /// the number.
     /// </summary>
-    private int extraTasksThisRound;
+    [SyncVar] private int extraTasksThisRound;
     public int ExtraTasksThisRound => extraTasksThisRound;
+
+    // ---- Difficulty, replicated for the dev overlay and for ghost scripts (6 Oct) ----
+    [SyncVar] private string profileName = "";
+    [SyncVar] private int taskExtraPerLine;
+    [SyncVar] private int maxExtraTasksPerBoard;
+    [SyncVar] private int randomGhostCount;
+    [SyncVar] private int guaranteedGhostCount;
+    [SyncVar] private int startPlayerCount = 1;
+    private bool roundConfigured; // server only
+
+    /// <summary>Name of the DifficultyProfile asset used tonight ("" = none, built-in defaults).</summary>
+    public string ProfileName => profileName;
+    /// <summary>Extra sales added to every task-board line tonight.</summary>
+    public int TaskExtraPerLine => taskExtraPerLine;
+    /// <summary>Cap on random extra sales per task board (0 = no cap).</summary>
+    public int MaxExtraTasksPerBoard => maxExtraTasksPerBoard;
+    /// <summary>How many random ghosts the difficulty ASKED for (the pool may hold fewer).</summary>
+    public int RandomGhostCountAsked => randomGhostCount;
+    /// <summary>The map's own ghosts (every difficulty).</summary>
+    public int GuaranteedGhostCount => guaranteedGhostCount;
+    /// <summary>Players counted when the round was configured (spectators excluded).</summary>
+    public int StartPlayerCount => startPlayerCount;
+
+    /// <summary>
+    /// FOR GHOST PROGRAMMERS (6 Oct, Mr.k). Tonight's difficulty, on EVERY machine.
+    /// Difficulty only decides how many ghosts appear. A ghost that wants to act
+    /// differently per difficulty reads this itself, in its own script:
+    ///   if (MatchDirector.CurrentDifficulty == DifficultyLevel.ThirteenRules) { ... }
+    /// Normal when no match is running (test scenes).
+    /// </summary>
+    public static DifficultyLevel CurrentDifficulty => Instance != null ? Instance.Difficulty : DifficultyLevel.Normal;
+
+    /// <summary>
+    /// SERVER / OFFLINE. The task-board plan for tonight (ZoneTaskList reads it).
+    /// False until the round is configured.
+    /// </summary>
+    public bool ServerTaskPlan(out int perLine, out int extras, out int capPerBoard, out int seed)
+    {
+        perLine = taskExtraPerLine;
+        extras = extraTasksThisRound;
+        capPerBoard = maxExtraTasksPerBoard;
+        seed = ghostSeed ^ 0x5EED;
+        return roundConfigured && NetworkMode.HasServerAuthority(this);
+    }
 
     /// <summary>How each player finished. Server-side; the payout screen reads it.</summary>
     private readonly Dictionary<uint, PlayerOutcome> outcomes = new Dictionary<uint, PlayerOutcome>();
@@ -418,8 +462,8 @@ public class MatchDirector : NetworkBehaviour
     /// <summary>
     /// Tonight's resolved difficulty profile. SERVER / OFFLINE ONLY — returns
     /// null on a remote client, and null until the round is configured.
-    /// Server systems (GhostManager) read their tuning from here so the
-    /// profile is resolved in one place only.
+    /// (6 Oct: ghosts do NOT take timing or strength from here. Ghost scripts
+    /// read MatchDirector.CurrentDifficulty themselves if they need it.)
     /// </summary>
     public DifficultyProfile ActiveProfile => NetworkMode.HasServerAuthority(this) ? activeProfile : null;
 
@@ -467,6 +511,9 @@ public class MatchDirector : NetworkBehaviour
     {
         // Clock + status line at the top of the screen, on every machine.
         MatchHUD.Ensure();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        DifficultyDebugHUD.Ensure(); // 6 Oct: what difficulty this round really runs on
+#endif
 
         // Offline sandbox: nobody is hosting, so OnStartServer never fires, but a
         // designer pressing Play in GamePlay still expects a working round.
@@ -504,9 +551,15 @@ public class MatchDirector : NetworkBehaviour
         // Random.Range itself, so a reported bug can be reproduced exactly.
         ghostSeed = Random.Range(int.MinValue, int.MaxValue);
 
+        startPlayerCount = playerCount;
+        profileName = profile != null ? profile.name : "";
+
         if (profile != null)
         {
             extraTasksThisRound = profile.ExtraTasksFor(playerCount);
+            taskExtraPerLine = Mathf.Max(0, profile.flatExtraTasksPerZone);
+            maxExtraTasksPerBoard = Mathf.Max(0, profile.maxExtraTasksPerZone);
+            randomGhostCount = Mathf.Max(0, profile.randomGhostCount);
             placeRuleCount = profile.placeRuleCount;
             nightLengthSeconds = profile.RoundLengthSeconds;
             sanityDrainMultiplier = profile.sanityDrainMultiplier;
@@ -516,6 +569,9 @@ public class MatchDirector : NetworkBehaviour
             // No profile assigned. Keep the round playable rather than dividing by
             // zero, but make it obvious in the console that balancing is missing.
             extraTasksThisRound = 0;
+            taskExtraPerLine = 0;
+            maxExtraTasksPerBoard = 0;
+            randomGhostCount = 0;
             placeRuleCount = 0;
             nightLengthSeconds = 15f * 60f;
             sanityDrainMultiplier = 1f;
@@ -540,6 +596,7 @@ public class MatchDirector : NetworkBehaviour
         totalGhostCount = activeGhostRoster != null && profile != null
             ? activeGhostRoster.TotalGhostsFor(profile.randomGhostCount)
             : 0;
+        guaranteedGhostCount = activeGhostRoster != null ? activeGhostRoster.guaranteedGhosts.Count : 0;
 
         zonesCompleted = 0;
         zonesRequired = registeredZones.Count;
@@ -561,6 +618,10 @@ public class MatchDirector : NetworkBehaviour
 
         EnterPhase(MatchPhase.Night, nightLengthSeconds);
 
+        // 6 Oct: the task boards take tonight's targets from the difficulty.
+        roundConfigured = true;
+        ZoneTaskList.ServerApplyDifficulty();
+
         // Mirror does not call a SyncVar hook on the machine that made the change,
         // so the host/server has to raise its own UI event directly or the host's
         // HUD would sit on stale values while every remote client updated fine.
@@ -573,7 +634,7 @@ public class MatchDirector : NetworkBehaviour
 
             Debug.Log(
                 $"[MatchDirector] Round configured — map={syncedMapID}, difficulty={syncedDifficulty}, " +
-                $"players={playerCount}, zones={zonesRequired} (all required), extraTasks=+{extraTasksThisRound}, " +
+                $"players={playerCount}, zones={zonesRequired} (all required), tasks=+{taskExtraPerLine} per line +{extraTasksThisRound} random (max {maxExtraTasksPerBoard}/board), " +
                 $"placeRules={placeRuleCount}, " +
                 $"night={nightLengthSeconds / 60f:F1} min ({StartHour:00}:00 → {EndHour:00}:00, " +
                 $"{SecondsPerInGameHour:F0}s per in-game hour), " +

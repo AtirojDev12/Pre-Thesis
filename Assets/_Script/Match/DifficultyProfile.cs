@@ -7,8 +7,8 @@ using UnityEngine;
 /// runtime.
 ///
 /// Create via: Assets > Create > 13RoH > Difficulty Profile.
-/// Make exactly three (Easy / Normal / Hard) and drop them into MatchDirector's
-/// profile list in the GamePlay scene.
+/// Make one per tier (Easy / Normal / Hard / 13 Rules) and drop them into
+/// MatchDirector's profile list in the GamePlay scene.
 ///
 /// Design owns these values, not programming. Once the three assets exist, the
 /// designer can rebalance the whole game from the Inspector without a programmer
@@ -78,13 +78,13 @@ public class DifficultyProfile : ScriptableObject
     [Tooltip("How many of the map's THIRTEEN place rules (กฎสถานที่) are in force. Place rules apply inside EVERY zone of the map, quest zones and rule-only zones alike — they are what the game is named after.\n\nEasy 0, Normal 0, Hard = a random subset of this size drawn from the thirteen, 13 Rules = 13.\n\nThese are separate from a zone's own rules. A zone's rules come from the zone; these come from the map and are layered on top, so on Hard a player has to hold both in their head at once.\n\nRandomising WHICH rules appear on Hard is what stops players memorising one correct routine: the cinema is the same building every night, but the laws it runs on are not.")]
     [Range(0, 13)] public int placeRuleCount = 0;
 
-    [Tooltip("Extra tasks added to EVERY quest zone on this difficulty, regardless of team size.\n\nThis is how a tier makes the work itself heavier rather than just more dangerous. A room that holds four tasks on Easy can hold six on Hard — same room, more to do in it.\n\nIt is the ONLY task lever that reaches a solo player: extraTasksPerAdditionalPlayer is zero at one player by definition, so without this a lone player faces identical zone contents on Easy and on Hard, and only the ghosts and the drain differ.\n\nSuggested: Easy 0, Normal 1, Hard 2. Tune from playtests.")]
+    [Tooltip("TASK BOARDS (6 Oct): extra SALES added to EVERY line of every task board on this difficulty, whatever the team size.\n\nExample: a line authored as 'Sell BBQ popcorn 0/15' with +4 here becomes 0/19.\n\nThis is the only task lever that reaches a solo player.")]
     [Min(0)] public int flatExtraTasksPerZone = 0;
 
-    [Tooltip("Extra TASKS added to the ROUND for every player past the first — not extra zones.\n\nThe extras are spread across the map unpredictably. They might all land in one zone, or scatter across several, and the team cannot know which in advance. A zone that took four tasks last run might take nine this time.\n\nWhat this buys: the team cannot pre-plan 'I'll take the ticket booth, it's the quick one'. They commit to a zone, read the quest paper on the wall, and only then find out how deep it goes. Whoever finishes light has to go help whoever is drowning, which is a coordination problem that only appears at larger team sizes — exactly where the round would otherwise get easy.\n\nSo bigger teams face more work without the objective ever changing shape.\n\nSuggested: Easy 1, Normal 2, Hard 3 per additional player. Tune from playtests.")]
+    [Tooltip("TASK BOARDS (6 Oct): extra SALES for every player past the first. They are spread AT RANDOM over the lines of all task boards, so the team cannot know in advance which board is heavy.\n\nExample: 3 players, value 4 -> 8 extra sales spread over the boards.\n\nThe cap per board is maxExtraTasksPerZone.")]
     [Min(0)] public int extraTasksPerAdditionalPlayer = 2;
 
-    [Tooltip("The most RANDOM extras any single zone may receive (flatExtraTasksPerZone is not capped — it applies to every zone by design).\n\nIt stops the spread dumping everything into one room and making it unfinishable before dawn. But set it too LOW and the opposite failure appears: the extras no longer fit anywhere except spread evenly, and 'which room is the bad one' becomes 'all of them are'.\n\nSix zones x this cap = total the map can absorb. Compare against the extras a full lobby generates (5 x extraTasksPerAdditionalPlayer):\n\n  cap 4  -> 24 slots. 20 extras must fill 5 of 6 zones. Nearly uniform.\n  cap 6  -> 36 slots. 20 extras need only 4 zones.\n  cap 8  -> 48 slots. 20 extras fit in 3 zones — half the map can stay light.\n\nThe surprise lives in the INEQUALITY between zones, not the total. If raising the cap makes single zones too big to finish, lower extraTasksPerAdditionalPlayer instead — fewer extras concentrate more sharply and keep zones a sane size.\n\n0 means no cap. Do not ship with 0.")]
+    [Tooltip("TASK BOARDS (6 Oct): the most RANDOM extra sales one task board may receive (the per-line extra above is not capped). Extras that fit nowhere are dropped and logged.\n\n0 = no cap.")]
     [Min(0)] public int maxExtraTasksPerZone = 4;
 
     // =======================================================================
@@ -103,25 +103,14 @@ public class DifficultyProfile : ScriptableObject
     [Tooltip("Scales EVERY sanity drain source in the game at once. 1.0 is the authored baseline — whatever each source is worth in the GDD, that is what a player loses at 1.0.\n\nThis is a coefficient, never a replacement. A source keeps its own authored value and its own trigger; this only decides how hard that value lands tonight. 0.5 = Easy, half as punishing. 2.0 = Hard, twice as punishing. 0 disables sanity entirely, which is useful for testing a zone's tasks without the horror layer fighting you.\n\nThe server resolves this once at round start and replicates it, so all six machines drain at the same rate. A client that owned this number could set it to 0 and become immune.")]
     [Min(0f)] public float sanityDrainMultiplier = 1f;
 
-    [Tooltip("How many ghosts the server draws AT RANDOM from the map's random pool.\n\nThis number does NOT include the map's guaranteed ghosts. Those live on the map's MapGhostRoster asset and appear on every difficulty, because they are part of what that cinema IS — remove them on Easy and Easy becomes a different building. Difficulty only decides how many unknowns get added on top.\n\nSo a map with 2 guaranteed ghosts running a profile with randomGhostCount = 3 spawns 5 ghosts: the 2 the players can learn, plus 3 they cannot predict.")]
+    [Tooltip("How many ghosts the server draws AT RANDOM from the map's random pool.\n\nDifficulty controls ONLY this count. When ghosts appear, how long they stay and how strong they are is decided by each ghost's own script (6 Oct, Mr.k).\n\nThis number does NOT include the map's guaranteed ghosts. Those live on the map's MapGhostRoster asset and appear on every difficulty, because they are part of what that cinema IS — remove them on Easy and Easy becomes a different building. Difficulty only decides how many unknowns get added on top.\n\nSo a map with 2 guaranteed ghosts running a profile with randomGhostCount = 3 spawns 5 ghosts: the 2 the players can learn, plus 3 they cannot predict.")]
     [Min(0)] public int randomGhostCount = 2;
 
-    // =======================================================================
-    //  GHOST CYCLE (GhostManager)
-    // =======================================================================
-    // GhostManager's lights-flicker -> countdown -> ghost -> despawn loop.
-    // Defaults are the old hard-coded Normal values. Placeholder numbers per
-    // tier until Game Design tunes them.
-
-    [Header("Ghost cycle (GhostManager)")]
-    [Tooltip("Seconds between the end of one ghost visit and the lights starting to flicker for the next. Lower = more visits per night.\n\nSuggested: Easy 90, Normal 60, Hard 45, 13 Rules 35.")]
-    [Min(5f)] public float ghostSpawnIntervalSeconds = 60f;
-
-    [Tooltip("Warning time after the flicker before the ghost appears. Lower = less time to hide.\n\nSuggested: Easy 12, Normal 10, Hard 7, 13 Rules 5.")]
-    [Min(0f)] public float ghostWarningSeconds = 10f;
-
-    [Tooltip("How long the ghost stays in the building each visit.\n\nSuggested: Easy 12, Normal 15, Hard 20, 13 Rules 25.")]
-    [Min(1f)] public float ghostActiveSeconds = 15f;
+    // NOTE (6 Oct, Mr.k): there is deliberately NO ghost timing or strength here.
+    // Difficulty only decides HOW MANY ghosts appear (randomGhostCount above).
+    // When a ghost appears, how long it stays and how strong it is belong to the
+    // ghost's own script. A ghost that wants to behave differently per difficulty
+    // reads MatchDirector.CurrentDifficulty itself.
 
     // NOTE: there is deliberately no downed-duration knob here. A downed player
     // survives exactly ONE in-game hour on every difficulty — a rule of the
@@ -178,6 +167,10 @@ public class DifficultyProfile : ScriptableObject
     /// </summary>
     public int ZoneTaskCount(int authoredTasksInZone) =>
         Mathf.Max(0, authoredTasksInZone) + flatExtraTasksPerZone;
+
+    /// <summary>One task-board line tonight: the authored sales target plus this tier's flat extra (6 Oct).</summary>
+    public int TaskLineTarget(int authoredTarget) =>
+        Mathf.Max(1, authoredTarget + flatExtraTasksPerZone);
 
     /// <summary>
     /// How many random extras the whole map can absorb at this cap. Compare
