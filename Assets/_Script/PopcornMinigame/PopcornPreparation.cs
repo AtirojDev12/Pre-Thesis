@@ -10,6 +10,7 @@ public sealed class PopcornPreparation : MonoBehaviour
     public static PopcornPreparation Instance { get; private set; }
     public const float PreparationSeconds = 3f;
     public ItemHoldingSystem Holder { get; private set; }
+    public PopcornStationAudio Audio { get; private set; }
     public bool IsPreparing => activeStation != null;
     public int Capacity { get; private set; } = 20;
     public int RefillServings { get; private set; } = 10;
@@ -39,6 +40,8 @@ public sealed class PopcornPreparation : MonoBehaviour
     {
         Instance = this;
         Holder = holder;
+        Audio = gameObject.AddComponent<PopcornStationAudio>();
+        Audio.Configure(this);
         Holder.RefillDiscarded += DiscardRefill;
         BuildUi();
     }
@@ -82,7 +85,9 @@ public sealed class PopcornPreparation : MonoBehaviour
         if (station.Kind == PopcornStationKind.Bucket || station.Kind == PopcornStationKind.Cup)
         {
             bool cup = station.Kind == PopcornStationKind.Cup;
-            ShowStatus(Holder.PickUp(cup) ? (cup ? "Cup picked up · Choose a drink dispenser" : "Bucket picked up · Scoop from PopCornTank") :
+            bool pickedUp = Holder.PickUp(cup);
+            if (pickedUp) Audio.OneShot(station, Holder.StateRevision);
+            ShowStatus(pickedUp ? (cup ? "Cup picked up · Choose a drink dispenser" : "Bucket picked up · Scoop from PopCornTank") :
                 Holder.HasItem ? "Hands full · R to discard" : "Cannot pick up container · Check prefab setup");
             return;
         }
@@ -94,7 +99,9 @@ public sealed class PopcornPreparation : MonoBehaviour
         }
         if (station.Kind == PopcornStationKind.Scoop)
         {
-            ShowStatus(Holder.Hold(station.Flavor) ? UiFactory.ItemName(station.Flavor) + " ready · Ghost customer? Add Ghost Flavor" : station.GetInteractionPrompt());
+            bool flavored = Holder.Hold(station.Flavor);
+            if (flavored) Audio.OneShot(station, Holder.StateRevision);
+            ShowStatus(flavored ? UiFactory.ItemName(station.Flavor) + " ready · Ghost customer? Add Ghost Flavor" : station.GetInteractionPrompt());
             return;
         }
         bool refill = station.Kind == PopcornStationKind.Tank && Holder.IsRefill;
@@ -133,11 +140,12 @@ public sealed class PopcornPreparation : MonoBehaviour
         progressFill.anchorMax = new Vector2(0f, 1f);
         progressPanel.SetActive(true);
         UpdateProgress();
-        if (!NetworkMode.IsOffline && station.Kind != PopcornStationKind.Water)
+        if (!NetworkMode.IsOffline)
         {
             awaitingStart = true;
             PopcornNetSync.Instance.RequestSupply(station.Id, requestId, PopcornSupplyAction.Begin);
         }
+        else Audio.Begin(0, new PopcornSoundAction { station = station.Id, request = requestId, started = Time.timeAsDouble });
     }
 
     private void Update()
@@ -176,7 +184,7 @@ public sealed class PopcornPreparation : MonoBehaviour
         elapsed += Time.deltaTime;
         UpdateProgress();
         if (elapsed < PreparationSeconds) return;
-        if (activeStation.Kind == PopcornStationKind.Water)
+        if (NetworkMode.IsOffline && activeStation.Kind == PopcornStationKind.Water)
         {
             PopcornFlavor flavor = activeStation.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : activeStation.Flavor;
             bool completed = Holder.Hold(flavor);
@@ -191,6 +199,7 @@ public sealed class PopcornPreparation : MonoBehaviour
         }
         else
         {
+            Audio.StopLocal(requestId);
             awaitingResult = true;
             progressText.text = "FINISHING · Waiting for server";
             PopcornNetSync.Instance.RequestSupply(activeStation.Id, requestId, PopcornSupplyAction.Complete);
@@ -205,8 +214,10 @@ public sealed class PopcornPreparation : MonoBehaviour
         if (success && refilling) Holder.Consume();
         else if (success && alive)
         {
-            success = activeStation.Kind == PopcornStationKind.Maker ? Holder.HoldRefill() : Holder.Scoop();
-            message = success ? (Holder.IsRefill ? "NewPopcorn ready · Press E at PopCornTank to refill" : "Popcorn scooped · Choose a flavor") : "Unable to hold item";
+            success = activeStation.Kind == PopcornStationKind.Maker ? Holder.HoldRefill() :
+                activeStation.Kind == PopcornStationKind.Water ? Holder.Hold(activeStation.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : activeStation.Flavor) : Holder.Scoop();
+            message = success ? (Holder.IsRefill ? "NewPopcorn ready · Press E at PopCornTank to refill" :
+                activeStation.Kind == PopcornStationKind.Water ? UiFactory.ItemName(Holder.HeldFlavor) + " ready · Ghost customer? Add Ghost Flavor" : "Popcorn scooped · Choose a flavor") : "Unable to hold item";
         }
         else if (success && activeStation.Kind == PopcornStationKind.Maker) DiscardRefill();
         Cancel(false, false);
@@ -256,12 +267,21 @@ public sealed class PopcornPreparation : MonoBehaviour
         }
     }
 
-    public void MixGhostAtHome() => ShowStatus(Holder.MixGhost() ? "Ghost flavor added · Ready to serve" : "Fill and flavor popcorn or fill a drink before mixing");
+    public void MixGhostAtHome()
+    {
+        bool mixed = Holder.MixGhost();
+        if (mixed)
+        {
+            var station = stations.Find(s => s.Kind == PopcornStationKind.Ghost);
+            if (station != null) Audio.OneShot(station, Holder.StateRevision);
+        }
+        ShowStatus(mixed ? "Ghost flavor added · Ready to serve" : "Fill and flavor popcorn or fill a drink before mixing");
+    }
 
     private void Cancel(bool notify, bool send = true)
     {
-        if (send && activeStation != null && !awaitingResult && !NetworkMode.IsOffline &&
-            activeStation.Kind != PopcornStationKind.Water && PopcornNetSync.Instance != null)
+        if (activeStation != null) Audio?.StopLocal(requestId);
+        if (send && activeStation != null && !awaitingResult && !NetworkMode.IsOffline && PopcornNetSync.Instance != null)
             PopcornNetSync.Instance.RequestSupply(activeStation.Id, requestId, PopcornSupplyAction.Cancel);
         activeStation = null;
         preparingPlayer = null;

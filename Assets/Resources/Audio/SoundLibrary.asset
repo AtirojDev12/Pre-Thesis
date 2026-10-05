@@ -67,3 +67,66 @@ MonoBehaviour:
     minDistance: 1
     maxDistance: 15
     cooldown: 0
+  - id: Popcorn_Pickup
+    clips:
+    - {fileID: 8300000, guid: b02811d29b2167e489ff96164ca6460d, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: Popcorn_Flavor
+    clips:
+    - {fileID: 8300000, guid: 2f3badcdaf957634f9d99069a173b416, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: Popcorn_WaterStart
+    clips:
+    - {fileID: 8300000, guid: 07247a9cebb768a4fa52f02521b1c0ce, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: Popcorn_WaterPour
+    clips:
+    - {fileID: 8300000, guid: b77da33449abb654ba9378a162042e73, type: 3}
+    category: 1
+    volume: 0.65
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: Popcorn_WaterEnd
+    clips:
+    - {fileID: 8300000, guid: 5d5902bcf5fbcdf42ab2810d7f23d8ca, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: Popcorn_Scoop
+    clips:
+    - {fileID: 8300000, guid: 86c6f037e42586d4b96fd959019d27e9, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: Popcorn_Making
+    clips:
+    - {fileID: 8300000, guid: b4223409c9736e04bbd7d573900ce922, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0

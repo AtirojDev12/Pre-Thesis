@@ -46,7 +46,7 @@ using UnityEngine;
 /// on every machine at once.
 /// </summary>
 [RequireComponent(typeof(NetworkIdentity))]
-public class PopcornNetSync : NetworkBehaviour
+public partial class PopcornNetSync : NetworkBehaviour
 {
     public static PopcornNetSync Instance { get; private set; }
 
@@ -184,6 +184,7 @@ public class PopcornNetSync : NetworkBehaviour
     {
         public int station, request;
         public double started;
+        public uint actor;
     }
     private readonly Dictionary<NetworkConnectionToClient, SupplyWork> supplyWork = new Dictionary<NetworkConnectionToClient, SupplyWork>();
     private readonly HashSet<NetworkConnectionToClient> heldRefills = new HashSet<NetworkConnectionToClient>();
@@ -197,6 +198,7 @@ public class PopcornNetSync : NetworkBehaviour
         tankRemaining = tankCapacity;
         supplyWork.Clear();
         heldRefills.Clear();
+        ResetStationSounds();
     }
 
     public void RequestSupply(int station, int request, PopcornSupplyAction action) => CmdSupply(station, request, action);
@@ -228,19 +230,30 @@ public class PopcornNetSync : NetworkBehaviour
         if (action == PopcornSupplyAction.Cancel)
         {
             if (supplyWork.TryGetValue(sender, out SupplyWork cancelled) && cancelled.request == request)
+            {
                 supplyWork.Remove(sender);
+                EndStationSound(cancelled.actor);
+            }
             return;
         }
         PopcornStation station = PopcornPreparation.Instance != null ? PopcornPreparation.Instance.StationAt(stationId) : null;
         bool valid = CanUseSupply(sender, station) &&
-            (station.Kind == PopcornStationKind.Tank || station.Kind == PopcornStationKind.Maker);
+            (station.Kind == PopcornStationKind.Tank || station.Kind == PopcornStationKind.Maker || station.Kind == PopcornStationKind.Water);
         string message = "Cannot use this station · Move closer and try again";
         if (action == PopcornSupplyAction.Begin)
         {
             valid = valid && !heldRefills.Contains(sender) && (station.Kind == PopcornStationKind.Maker || tankRemaining > 0);
+            // Water does not consume tank stock. All sound-producing holds need
+            // the corresponding replicated held item, not just proximity.
+            if (station != null && station.Kind == PopcornStationKind.Water)
+                valid = CanUseSupply(sender, station) && !heldRefills.Contains(sender);
+            valid = valid && CanHoldAtStation(sender, station) && AcceptNewSoundRequest(sender, request);
             if (valid)
             {
-                supplyWork[sender] = new SupplyWork { station = stationId, request = request, started = NetworkTime.time };
+                if (supplyWork.TryGetValue(sender, out SupplyWork previous)) EndStationSound(previous.actor);
+                var startedWork = new SupplyWork { station = stationId, request = request, started = NetworkTime.time, actor = sender.identity.netId };
+                supplyWork[sender] = startedWork;
+                BeginStationSound(startedWork.actor, stationId, request, startedWork.started);
                 TargetSupplyBeginAccepted(sender, request);
             }
             else TargetSupplyBeginRejected(sender, request, tankRemaining == 0 && station != null && station.Kind == PopcornStationKind.Tank ? "Tank empty · Make NewPopcorn first" : message);
@@ -261,17 +274,21 @@ public class PopcornNetSync : NetworkBehaviour
         }
         if (action != PopcornSupplyAction.Complete) return;
         bool hasWork = supplyWork.TryGetValue(sender, out SupplyWork work) && work.station == stationId && work.request == request;
-        valid = valid && hasWork && NetworkTime.time - work.started >= PopcornPreparation.PreparationSeconds - 0.05;
+        valid = valid && hasWork && CanHoldAtStation(sender, station) && NetworkTime.time - work.started >= PopcornPreparation.PreparationSeconds - 0.05;
         // A completion is consumed exactly once, even if another player emptied
         // the tank first. Reliable ordered commands serialize simultaneous scoops.
-        if (hasWork) supplyWork.Remove(sender);
+        if (hasWork)
+        {
+            supplyWork.Remove(sender);
+            EndStationSound(work.actor);
+        }
         if (valid && station.Kind == PopcornStationKind.Tank)
         {
             valid = tankRemaining > 0 && !heldRefills.Contains(sender);
             if (valid) tankRemaining--;
             else message = "Tank empty · Make NewPopcorn first";
         }
-        else if (valid)
+        else if (valid && station.Kind == PopcornStationKind.Maker)
         {
             valid = heldRefills.Add(sender);
         }
