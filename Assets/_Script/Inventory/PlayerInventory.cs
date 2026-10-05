@@ -65,6 +65,11 @@ public class PlayerInventory : NetworkBehaviour
     /// <summary>The item in your hand is a spare copy (cannot be used).</summary>
     public bool IsHoldingSpare => !HeldSlot.IsEmpty && HeldSlot.spare;
 
+    /// <summary>5 Oct: a usable flashlight is in your hand.</summary>
+    public bool IsHoldingFlashlight => !HeldSlot.IsEmpty && !HeldSlot.spare && ItemCatalog.IsFlashlight(HeldSlot.itemId);
+    /// <summary>The flashlight in your hand is switched on AND has battery: the beam is shining.</summary>
+    public bool IsFlashlightShining => IsHoldingFlashlight && HeldSlot.poweredOn && HeldSlot.charge > 0f;
+
     /// <summary>Carries a switched-on radio in ANY slot: hears Walkie-Talkie traffic.</summary>
     public bool HasPoweredRadio
     {
@@ -82,6 +87,9 @@ public class PlayerInventory : NetworkBehaviour
     private void Awake()
     {
         voice = GetComponent<PlayerVoice>();
+        // 5 Oct: the flashlight beam/battery lives beside the hotbar. Added here so
+        // the Player prefab needs no manual edit.
+        if (GetComponent<FlashlightController>() == null) gameObject.AddComponent<FlashlightController>();
         // Mirror's default SyncList guard throws when neither server nor client is running.
         // Permit the project's offline test mode, preserving Mirror's guard in real sessions.
         System.Func<bool> mirrorCanWrite = slots.IsWritable;
@@ -141,13 +149,23 @@ public class PlayerInventory : NetworkBehaviour
         if (!NetworkMode.IsLocalController(this) || SaveManager.Current == null || SaveManager.Current.permanentItems == null) return;
 
         LastLoadout.Clear();
+        var send = new List<string>();
         foreach (PermanentItemData item in SaveManager.Current.permanentItems)
         {
             if (item == null || !item.isOwned || !ItemCatalog.Exists(item.itemID)) continue;
-            if (!LastLoadout.Contains(item.itemID)) LastLoadout.Add(item.itemID);
+            if (!LastLoadout.Contains(item.itemID)) { LastLoadout.Add(item.itemID); send.Add(item.itemID); }
         }
-        if (NetworkMode.IsOffline) ApplyLoadout(LastLoadout.ToArray());
-        else CmdLoadout(LastLoadout.ToArray());
+        // 5 Oct: consumables (Batteries) come along too, one ID per unit, at most a full stack.
+        if (SaveManager.Current.consumables != null)
+            foreach (ConsumableItemData item in SaveManager.Current.consumables)
+            {
+                ItemCatalog.ItemInfo info = item != null ? ItemCatalog.Find(item.itemID) : null;
+                if (info == null || !info.Consumable || item.quantity <= 0 || LastLoadout.Contains(item.itemID)) continue;
+                LastLoadout.Add(item.itemID);
+                for (int n = Mathf.Min(item.quantity, Mathf.Max(1, info.maxStack)); n > 0; n--) send.Add(item.itemID);
+            }
+        if (NetworkMode.IsOffline) ApplyLoadout(send.ToArray());
+        else CmdLoadout(send.ToArray());
     }
 
     /// <summary>
@@ -171,7 +189,10 @@ public class PlayerInventory : NetworkBehaviour
         RoHRoomManager room = RoHRoomManager.Instance;
         if (room != null && !room.InRoomScene) return;
         ItemCatalog.ItemInfo info = ItemCatalog.Find(itemId);
-        if (info == null || !info.permanent) return;
+        if (info == null) return;
+        // 5 Oct: a bought Battery joins its stack (max 3).
+        if (info.Stackable) { ServerAddStack(InventorySlot.Of(itemId)); return; }
+        if (!info.permanent) return;
         // 3 Oct (bug #8): buying never makes a spare. Already carrying one = refuse
         // (ServerAddItem alone would add the second copy as a spare).
         if (ServerCountOf(itemId) > 0) return;
@@ -189,18 +210,21 @@ public class PlayerInventory : NetworkBehaviour
         if (loadoutApplied || itemIds == null) return;
         loadoutApplied = true;
         int added = 0;
+        // A full hotbar simply refuses the rest (ServerAddItem returns false).
+        // Owners send their own save; the caps below still hold (co-op, trusted like before).
+        if (itemIds.Length > 32) return;
         foreach (string id in itemIds)
         {
-            if (added >= SlotCount) break;
             ItemCatalog.ItemInfo info = ItemCatalog.Find(id);
-            if (info == null || !info.permanent) continue;
-            if (ServerAddItem(id)) added++;
+            if (info == null) continue;
+            if (info.permanent ? ServerAddItem(id) : info.Stackable && ServerAddStack(InventorySlot.Of(id)) > 0) added++;
         }
         if (added > 0 && voice != null) voice.ServerRefreshRadio();
     }
 
     private void OnDestroy()
     {
+        FreezeProbe.Mark($"destroyed: {name}");
         if (Local == this) Local = null;
         if (hud != null) Destroy(hud.gameObject);
     }
@@ -274,11 +298,95 @@ public class PlayerInventory : NetworkBehaviour
     {
         if (index < 0 || index >= slots.Count) return;
         InventorySlot slot = slots[index];
-        if (slot.IsEmpty || slot.spare || !ItemCatalog.IsRadio(slot.itemId)) return;
+        // 5 Oct: flashlights have the same on/off switch as radios.
+        if (slot.IsEmpty || slot.spare || !ItemCatalog.HasPowerSwitch(slot.itemId)) return;
 
         slot.poweredOn = !slot.poweredOn;
         slots[index] = slot;
         if (voice != null) voice.ServerRefreshRadio();
+    }
+
+    // ---- Flashlight battery (5 Oct) -------------------------------------------
+    //
+    // SERVER-AUTHORITATIVE like the rest of the hotbar: the battery is a field of
+    // the slot (InventorySlot.charge), so every machine sees the same beam and the
+    // battery travels with the item when it is dropped. The owner only ASKS to
+    // charge (one Command per Space press); the server limits how fast presses count.
+
+    /// <summary>Fastest the server counts Space presses (presses per second).</summary>
+    public const float MaxCranksPerSecond = 12f;
+    private double lastCrank;
+
+    /// <summary>Owner: one Space press while holding a flashlight.</summary>
+    public void RequestCrank()
+    {
+        if (!NetworkMode.IsLocalController(this) || !IsHoldingFlashlight) return;
+        if (NetworkMode.IsOffline) Crank();
+        else CmdCrank();
+    }
+
+    [Command]
+    private void CmdCrank() => Crank();
+
+    private void Crank()
+    {
+        if (!IsHoldingFlashlight) return;
+        PlayerHealth health = GetComponent<PlayerHealth>();
+        if (health != null && health.IsDead) return;
+        double now = Time.unscaledTimeAsDouble;
+        if (now - lastCrank < 1.0 / MaxCranksPerSecond) return; // auto-clickers gain nothing
+        lastCrank = now;
+
+        ItemCatalog.ItemInfo info = ItemCatalog.Find(HeldSlot.itemId);
+        if (info == null || info.secondsPerCrank <= 0f || info.batterySeconds <= 0f) return;
+        ServerSetCharge(selectedSlot, HeldSlot.charge + info.secondsPerCrank / info.batterySeconds);
+    }
+
+    // ---- Battery swap (5 Oct): paid flashlight + R --------------------------------
+
+    private double lastReload;
+
+    /// <summary>Owner: press R with a battery-powered flashlight in hand.</summary>
+    public void RequestReload()
+    {
+        if (!NetworkMode.IsLocalController(this) || !IsHoldingFlashlight) return;
+        if (NetworkMode.IsOffline) Reload();
+        else CmdReload();
+    }
+
+    [Command]
+    private void CmdReload() => Reload();
+
+    private void Reload()
+    {
+        if (!IsHoldingFlashlight) return;
+        PlayerHealth health = GetComponent<PlayerHealth>();
+        if (health != null && health.IsDead) return;
+        ItemCatalog.ItemInfo info = ItemCatalog.Find(HeldSlot.itemId);
+        if (info == null || !info.usesBatteries || HeldSlot.charge >= 0.999f) return;
+        double now = Time.unscaledTimeAsDouble;
+        if (now - lastReload < 0.5) return; // one battery per press, no double-use
+        for (int i = 0; i < slots.Count; i++)
+        {
+            if (slots[i].itemId != ItemCatalog.Battery || slots[i].spare) continue;
+            lastReload = now;
+            int flashlight = selectedSlot;
+            if (!ServerTakeOne(i)) return;
+            ServerSetCharge(flashlight, 1f);
+            return;
+        }
+    }
+
+    /// <summary>SERVER. Sets a flashlight's battery (0..1). Ignores other items.</summary>
+    public void ServerSetCharge(int index, float charge)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || index < 0 || index >= slots.Count) return;
+        InventorySlot slot = slots[index];
+        if (slot.IsEmpty || !ItemCatalog.IsFlashlight(slot.itemId)) return;
+        charge = Mathf.Clamp01(charge);
+        if (Mathf.Approximately(slot.charge, charge)) return;
+        slot.charge = charge;
+        slots[index] = slot;
     }
 
     // ---- Server API (shop, pickups, death) ---------------------------------
@@ -290,6 +398,7 @@ public class PlayerInventory : NetworkBehaviour
     {
         string itemId = item.itemId;
         if (!NetworkMode.HasServerAuthority(this) || !ItemCatalog.Exists(itemId)) return false;
+        if (ItemCatalog.MaxStack(itemId) > 1) return ServerAddStack(item) > 0; // 5 Oct: Batteries
 
         int empty = -1;
         bool alreadyHave = false;
@@ -319,6 +428,74 @@ public class PlayerInventory : NetworkBehaviour
         int n = 0;
         for (int i = 0; i < slots.Count; i++) if (slots[i].itemId == itemId) n++;
         return n;
+    }
+
+    // ---- Stacks (5 Oct: Batteries, max 3 in ONE slot) --------------------------
+
+    /// <summary>Any machine: how many UNITS of this item you carry (a stack of 3 = 3).</summary>
+    public int UnitsOf(string itemId)
+    {
+        int n = 0;
+        for (int i = 0; i < slots.Count; i++) if (slots[i].itemId == itemId) n += slots[i].Units;
+        return n;
+    }
+
+    /// <summary>Any machine: could one more of this item go into the hotbar right now?</summary>
+    public bool CanTake(string itemId)
+    {
+        int max = ItemCatalog.MaxStack(itemId);
+        bool hasEmpty = false;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            if (slots[i].IsEmpty) hasEmpty = true;
+            else if (max > 1 && slots[i].itemId == itemId) return slots[i].Units < max;
+        }
+        return hasEmpty;
+    }
+
+    /// <summary>
+    /// SERVER. Adds a stackable item (all units of <paramref name="item"/>) into its ONE slot,
+    /// up to the item's max stack. Returns how many units went in (0 = none: full).
+    /// </summary>
+    public int ServerAddStack(InventorySlot item)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || item.IsEmpty || !ItemCatalog.Exists(item.itemId)) return 0;
+        int max = ItemCatalog.MaxStack(item.itemId);
+        int incoming = item.Units;
+        int empty = -1;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            if (slots[i].itemId == item.itemId)
+            {
+                InventorySlot stack = slots[i];
+                int take = Mathf.Min(incoming, max - stack.Units);
+                if (take <= 0) return 0;
+                stack.count = stack.Units + take;
+                slots[i] = stack;
+                ServerLobbyOwnershipChanged(item.itemId);
+                return take;
+            }
+            if (empty < 0 && slots[i].IsEmpty) empty = i;
+        }
+        if (empty < 0) return 0;
+        InventorySlot fresh = item;
+        fresh.spare = false;
+        fresh.count = Mathf.Min(incoming, max);
+        slots[empty] = fresh;
+        ServerLobbyOwnershipChanged(item.itemId);
+        return fresh.count;
+    }
+
+    /// <summary>SERVER. Takes ONE unit from a slot (a stack of 3 becomes 2; the last one empties it).</summary>
+    public bool ServerTakeOne(int index)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || index < 0 || index >= slots.Count || slots[index].IsEmpty) return false;
+        InventorySlot slot = slots[index];
+        if (slot.Units <= 1) return ServerRemoveAt(index) != null;
+        slot.count = slot.Units - 1;
+        slots[index] = slot;
+        ServerLobbyOwnershipChanged(slot.itemId);
+        return true;
     }
 
     /// <summary>SERVER. Empties a slot (drop, trade, death). Returns the item ID that was there.</summary>
@@ -368,7 +545,15 @@ public class PlayerInventory : NetworkBehaviour
     {
         if (!InLobby || string.IsNullOrEmpty(itemId)) return;
         ItemCatalog.ItemInfo info = ItemCatalog.Find(itemId);
-        if (info == null || !info.permanent) return;
+        if (info == null) return;
+        if (info.Consumable)
+        {
+            // 5 Oct: in the lobby the save's quantity follows the hotbar (drop one = own one less).
+            int units = UnitsOf(itemId);
+            if (NetworkMode.IsOffline) ApplyConsumableToSave(itemId, units);
+            else if (connectionToClient != null) TargetConsumable(connectionToClient, itemId, units);
+            return;
+        }
 
         bool owned = ServerCountOf(itemId) > 0;
         if (NetworkMode.IsOffline) ApplyOwnershipToSave(itemId, owned);
@@ -377,6 +562,27 @@ public class PlayerInventory : NetworkBehaviour
 
     [TargetRpc]
     private void TargetOwnership(NetworkConnectionToClient target, string itemId, bool owned) => ApplyOwnershipToSave(itemId, owned);
+
+    [TargetRpc]
+    private void TargetConsumable(NetworkConnectionToClient target, string itemId, int units) => ApplyConsumableToSave(itemId, units);
+
+    /// <summary>OWNER'S PC. Sets how many of a consumable this player's own save holds.</summary>
+    private static void ApplyConsumableToSave(string itemId, int units)
+    {
+        SaveData save = SaveManager.Current;
+        if (save == null) return;
+        if (save.consumables == null) save.consumables = new List<ConsumableItemData>();
+        units = Mathf.Clamp(units, 0, ItemCatalog.MaxStack(itemId));
+        ConsumableItemData entry = save.consumables.Find(c => c != null && c.itemID == itemId);
+        int had = entry != null ? entry.quantity : 0;
+        if (had == units) return;
+        if (units <= 0) save.consumables.Remove(entry);
+        else if (entry != null) entry.quantity = units;
+        else save.consumables.Add(new ConsumableItemData(itemId, units));
+        if (units > 0) { if (!LastLoadout.Contains(itemId)) LastLoadout.Add(itemId); }
+        else LastLoadout.Remove(itemId);
+        SaveManager.SaveToDisk();
+    }
 
     /// <summary>OWNER'S PC. Writes owned / not owned into this player's own save.</summary>
     private static void ApplyOwnershipToSave(string itemId, bool owned)

@@ -9,12 +9,14 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
     [SyncVar(hook = nameof(OnClaimedChanged))] private bool claimed;
     private Rigidbody body;
     private WalkieTalkieVisual visual;
+    private FlashlightVisual flashlight; // 5 Oct: a dropped flashlight that is on keeps shining
     private bool pickupInProgress;
 
     private void Awake()
     {
         body = GetComponent<Rigidbody>();
         visual = GetComponentInChildren<WalkieTalkieVisual>();
+        flashlight = GetComponentInChildren<FlashlightVisual>();
     }
 
     public void Initialize(InventorySlot state)
@@ -37,13 +39,22 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
 
     private void OnItemChanged(InventorySlot oldItem, InventorySlot newItem) => UpdateVisual();
     private void OnClaimedChanged(bool oldValue, bool newValue) { if (newValue) Hide(); }
-    private void UpdateVisual() { if (visual != null) visual.SetPower(item.poweredOn); }
+    private void UpdateVisual()
+    {
+        if (visual != null) visual.SetPower(item.poweredOn);
+        if (flashlight != null) flashlight.Show(item, true);
+    }
 
     public string GetInteractionPrompt()
     {
         // You already carry one: this becomes a SPARE (only to give away).
-        if (LocalCarries(item.itemId)) return "[E] Pick up " + ItemCatalog.DisplayName(item.itemId) + " (spare)";
-        return "[E] Pick up " + ItemCatalog.DisplayName(item.itemId);
+        string label = ItemCatalog.DisplayName(item.itemId) + (item.Units > 1 ? " x" + item.Units : "");
+        // 5 Oct: stackable (Battery) joins your stack; says so when it is full.
+        if (ItemCatalog.MaxStack(item.itemId) > 1)
+            return PlayerInventory.Local != null && !PlayerInventory.Local.CanTake(item.itemId)
+                ? label + " (you carry the max)" : "[E] Pick up " + label;
+        if (LocalCarries(item.itemId)) return "[E] Pick up " + label + " (spare)";
+        return "[E] Pick up " + label;
     }
 
     private static bool LocalCarries(string itemId)
@@ -76,9 +87,26 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
             return;
         }
 
-        // Latch before granting: a second command can never grant this item again.
-        pickupInProgress = true;
-        if (!inventory.ServerAddItem(item)) { pickupInProgress = false; return; }
+        // 5 Oct: a stack (Batteries) may only partly fit: take what fits, leave the rest here.
+        if (ItemCatalog.MaxStack(item.itemId) > 1)
+        {
+            int taken = inventory.ServerAddStack(item);
+            if (taken <= 0) return;
+            if (taken < item.Units)
+            {
+                InventorySlot rest = item;
+                rest.count = item.Units - taken;
+                item = rest; // SyncVar: everyone sees the smaller pile
+                return;
+            }
+            pickupInProgress = true;
+        }
+        else
+        {
+            // Latch before granting: a second command can never grant this item again.
+            pickupInProgress = true;
+            if (!inventory.ServerAddItem(item)) { pickupInProgress = false; return; }
+        }
         claimed = true;
         Hide();
         if (NetworkServer.active)
@@ -93,6 +121,7 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
 
     private void Hide()
     {
+        if (flashlight != null) flashlight.Show(InventorySlot.Empty, false);
         // Disable physics, visuals and interaction immediately, before deferred destruction.
         foreach (Collider collider in GetComponentsInChildren<Collider>()) collider.enabled = false;
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>()) renderer.enabled = false;

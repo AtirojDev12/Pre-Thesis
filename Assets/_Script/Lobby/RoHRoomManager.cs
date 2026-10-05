@@ -240,7 +240,7 @@ public class RoHRoomManager : NetworkRoomManager
             return false;
         }
 
-        if (!InRoomScene) return false;
+        if (!InRoomScene || startingMatch) return false;
 
         if (!AllGuestsReady())
         {
@@ -252,8 +252,35 @@ public class RoHRoomManager : NetworkRoomManager
         // joiners anyway (OnServerConnect), this just stops people trying.
         if (LobbyController.Instance != null) LobbyController.Instance.MarkRoomInProgress(true);
 
-        ServerChangeScene(GameplayScene);
+        FreezeProbe.Mark("host pressed Start");
+        FreezeProbe.Watch(15);
+        StartCoroutine(StartMatchAfterBodiesAreGone());
         return true;
+    }
+
+    // 5 Oct (Mr.k, Editor freeze): the lobby bodies used to be destroyed in the SAME
+    // frame the map's LoadSceneAsync started. FreezeProbe showed the Editor hanging
+    // inside that destroy (the bodies' audio sources), every 2nd Start per Unity
+    // session. Now the bodies are removed first, Unity finishes destroying them in a
+    // frame where nothing is loading, and only then does the map load begin.
+    // Costs 2 frames. Same order in builds (harmless there).
+    private bool startingMatch;
+
+    private IEnumerator StartMatchAfterBodiesAreGone()
+    {
+        startingMatch = true;
+        try
+        {
+            FreezeProbe.Mark("removing lobby bodies (before the map load)");
+            DetachLobbyBodies();
+            yield return null; // the destroy happens at the end of this frame
+            yield return null;
+            if (!NetworkServer.active || !InRoomScene) yield break; // host left meanwhile
+            FreezeProbe.Mark("lobby bodies gone -> ServerChangeScene(" + GameplayScene + ")");
+            ServerChangeScene(GameplayScene);
+            FreezeProbe.Mark("ServerChangeScene returned (map now loading)");
+        }
+        finally { startingMatch = false; }
     }
 
     // ---- Kick (2 Oct): host removes a guest from the waiting lobby ----------
@@ -318,6 +345,7 @@ public class RoHRoomManager : NetworkRoomManager
 
     public override void OnServerReady(NetworkConnectionToClient conn)
     {
+        FreezeProbe.Mark($"server: connection {(conn != null ? conn.connectionId : -1)} ready in '{UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}'");
         base.OnServerReady(conn);
         if (IsSpectator(conn))
         {
@@ -358,7 +386,9 @@ public class RoHRoomManager : NetworkRoomManager
         // again, or Mirror cannot swap it for the game player.
         if (InRoomScene && newSceneName != RoomScene)
         {
+            FreezeProbe.Mark("detaching lobby bodies");
             DetachLobbyBodies();
+            FreezeProbe.Mark("lobby bodies detached");
             // Match start: spares do not go into the match (max 1 per item there).
             pendingSpares.Clear();
             // Seats queued while in the lobby (after returning from a match)
@@ -441,6 +471,7 @@ public class RoHRoomManager : NetworkRoomManager
             if (conn == null || conn.identity == null || conn.identity == seat.netIdentity) continue;
 
             // Seat back as the main player; the lobby body is destroyed everywhere.
+            FreezeProbe.TagForDestroy(conn.identity.gameObject); // 5 Oct: log each part as it is destroyed
             NetworkServer.ReplacePlayerForConnection(conn, seat.gameObject, ReplacePlayerOptions.Destroy);
         }
     }

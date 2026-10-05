@@ -26,6 +26,8 @@ public sealed class DevCheatPanel : MonoBehaviour
     {
         GiveWalkie = 1, GodOn, GodOff, HealFull, GoDown, Die,
         ClockPlusHour, CompleteBoards, OpenExit, LightsToggle, GhostsFreeze, GhostsUnfreeze,
+        GiveFlashlights, // 5 Oct: added at the END so older numbers keep their meaning
+        GiveBatteries,
     }
 
     private static bool serverHandlerReady;
@@ -48,6 +50,18 @@ public sealed class DevCheatPanel : MonoBehaviour
             case Cheat.GiveWalkie:
                 PlayerInventory inventory = player != null ? player.GetComponent<PlayerInventory>() : null;
                 if (inventory != null) inventory.ServerAddItem(InventorySlot.Of(ItemCatalog.WalkieTalkie));
+                break;
+            case Cheat.GiveFlashlights:
+                PlayerInventory pockets = player != null ? player.GetComponent<PlayerInventory>() : null;
+                if (pockets != null)
+                {
+                    pockets.ServerAddItem(InventorySlot.Of(ItemCatalog.FlashlightBasic));
+                    pockets.ServerAddItem(InventorySlot.Of(ItemCatalog.Flashlight));
+                }
+                break;
+            case Cheat.GiveBatteries:
+                PlayerInventory bag = player != null ? player.GetComponent<PlayerInventory>() : null;
+                if (bag != null) { InventorySlot three = InventorySlot.Of(ItemCatalog.Battery); three.count = 3; bag.ServerAddStack(three); }
                 break;
             case Cheat.GodOn: if (health != null) health.DevGodMode = true; break;
             case Cheat.GodOff: if (health != null) health.DevGodMode = false; break;
@@ -179,6 +193,8 @@ public sealed class DevCheatPanel : MonoBehaviour
         Row(("+100 currency", () => AddMoney(100)), ("+1000 currency", () => AddMoney(1000)));
         Row(("Give Walkie-Talkie", () => Do(Cheat.GiveWalkie, "Walkie given (spare if you have one)")),
             ("Reset save", ResetSave));
+        Row(("Give both flashlights", () => Do(Cheat.GiveFlashlights, "Basic + paid flashlight given")),
+            ("Give 3 batteries", () => Do(Cheat.GiveBatteries, "Batteries filled to 3")));
 
         Header("Player");
         Row((god ? "God mode: ON" : "God mode: OFF", () => { if (Do(god ? Cheat.GodOff : Cheat.GodOn, god ? "God mode off" : "God mode on")) god = !god; }),
@@ -193,6 +209,7 @@ public sealed class DevCheatPanel : MonoBehaviour
             ("Complete all boards", () => Do(Cheat.CompleteBoards, "All zones done")));
         Row(("Open the exit now", () => Do(Cheat.OpenExit, "Zones done + 06:00")),
             ("Lights on / off", () => Do(Cheat.LightsToggle, "Lights toggled")));
+        DarknessSliders();
 
         Header("Ghost");
         Row((frozen ? "Ghosts frozen: ON" : "Ghosts frozen: OFF", () => { if (Do(frozen ? Cheat.GhostsUnfreeze : Cheat.GhostsFreeze, frozen ? "Ghosts move" : "Ghosts frozen")) frozen = !frozen; }),
@@ -206,6 +223,31 @@ public sealed class DevCheatPanel : MonoBehaviour
     }
 
     private static void Header(string text) => GUILayout.Label("\n<b>" + text + "</b>");
+
+    // 5 Oct: tune the darkness live (this PC only, visuals only). Copy the numbers
+    // you like into the map's DarknessController (Tools > Pre-Thesis > Darkness).
+    private DarknessController darkness;
+
+    private void DarknessSliders()
+    {
+        if (darkness == null) darkness = FindAnyObjectByType<DarknessController>();
+        if (darkness == null) return;
+        Header("Darkness  (this PC only, try values)");
+        darkness.previewDark = GUILayout.Toggle(darkness.previewDark, " Preview dark (without turning lights off)");
+        darkness.visibleDistance = Slider("See without light (m)", darkness.visibleDistance, 1f, 30f);
+        darkness.nearBrightness = Slider("Near brightness", darkness.nearBrightness, 0f, 3f);
+        darkness.fogDistance = Slider("Black fog distance (m)", darkness.fogDistance, 5f, 100f);
+        darkness.reflectionsLeft = Slider("Reflections left", darkness.reflectionsLeft, 0f, 1f);
+    }
+
+    private static float Slider(string label, float value, float min, float max)
+    {
+        GUILayout.BeginHorizontal();
+        GUILayout.Label($"{label}: {value:0.##}", GUILayout.Width(250f));
+        value = GUILayout.HorizontalSlider(value, min, max, GUILayout.Width(220f));
+        GUILayout.EndHorizontal();
+        return value;
+    }
 
     private static void Row((string label, System.Action action) a, (string label, System.Action action) b)
     {

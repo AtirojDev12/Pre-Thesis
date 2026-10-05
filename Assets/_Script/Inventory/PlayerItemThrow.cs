@@ -138,12 +138,16 @@ public sealed class PlayerItemThrow : NetworkBehaviour
         foreach (Collider collider in Physics.OverlapSphere(position, 0.19f, ~0, QueryTriggerInteraction.Ignore))
             if (!collider.transform.IsChildOf(transform)) return;
         InventorySlot state = inventory.HeldSlot;
+        // 5 Oct: Q on a stack (Batteries) throws ONE, the rest stay in your hand.
+        bool oneFromStack = state.Units > 1;
+        if (oneFromStack) state.count = 1;
         GameObject world = Instantiate(prefab, position, Quaternion.LookRotation(forward));
         WorldInventoryItem pickup = world.GetComponent<WorldInventoryItem>();
         Rigidbody body = world.GetComponent<Rigidbody>();
         if (pickup == null || body == null) { Destroy(world); return; }
         pickup.Initialize(state);
-        if (inventory.ServerRemoveAt(serverSlot) == null) { Destroy(world); return; }
+        bool removed = oneFromStack ? inventory.ServerTakeOne(serverSlot) : inventory.ServerRemoveAt(serverSlot) != null;
+        if (!removed) { Destroy(world); return; }
         if (!NetworkMode.IsOffline) NetworkServer.Spawn(world);
         body.isKinematic = false;
         body.linearVelocity = tap || charge <= 0f ? forward * 0.35f

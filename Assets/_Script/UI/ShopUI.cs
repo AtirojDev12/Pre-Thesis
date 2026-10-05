@@ -85,6 +85,13 @@ public sealed class ShopUI : MonoBehaviour
         if (save == null) { Message("No save loaded.", Bad); return; }
 
         if (Owns(item.id)) { Message($"You already own the {item.displayName}.", Muted); return; }
+        // 5 Oct: consumables (Battery) have a max you can own, and need hotbar room.
+        if (item.Consumable)
+        {
+            int max = Mathf.Max(1, item.maxStack);
+            if (SaveManager.GetConsumableQuantity(item.id) >= max) { Message($"You can carry at most {max} {item.displayName}.", Muted); return; }
+            if (PlayerInventory.Local != null && !PlayerInventory.Local.CanTake(item.id)) { Message("Your hotbar is full. Drop something first (Q).", Bad); return; }
+        }
         // 3 Oct (bug #8): carrying one you picked up (ownership message not here yet) = no buy.
         if (item.permanent && PlayerInventory.Local != null && PlayerInventory.Local.CountOf(item.id) > 0)
         {
@@ -92,7 +99,7 @@ public sealed class ShopUI : MonoBehaviour
             return;
         }
 
-        if (!SaveManager.SpendCurrency(item.price))
+        if (item.price > 0 && !SaveManager.SpendCurrency(item.price))
         {
             Message($"Not enough currency. You need {item.price}.", Bad);
             return;
@@ -106,7 +113,7 @@ public sealed class ShopUI : MonoBehaviour
         }
         else
         {
-            save.consumables.Add(new ConsumableItemData(item.id, 1));
+            SaveManager.AddConsumable(item.id, 1); // one entry per item, quantity goes up
         }
 
         SaveManager.SaveToDisk();
@@ -114,7 +121,7 @@ public sealed class ShopUI : MonoBehaviour
         // Into the hotbar right away (the server checks it).
         if (PlayerInventory.Local != null) PlayerInventory.Local.RequestAddOwned(item.id);
 
-        Message($"Bought the {item.displayName}!", Good);
+        Message(item.price > 0 ? $"Bought the {item.displayName}!" : $"Claimed the {item.displayName} (free)!", Good);
         Refresh();
     }
 
@@ -141,9 +148,21 @@ public sealed class ShopUI : MonoBehaviour
         foreach (Row row in rows)
         {
             bool owned = row.item.permanent && Owns(row.item.id);
+            if (row.item.Consumable)
+            {
+                // 5 Oct: "x2 / 3" and the price; the button hides at the max.
+                int have = SaveManager.GetConsumableQuantity(row.item.id);
+                int max = Mathf.Max(1, row.item.maxStack);
+                row.buy.gameObject.SetActive(have < max);
+                row.buy.interactable = money >= row.item.price;
+                row.status.text = have >= max ? $"<color=#73FF8C>x{have} (MAX)</color>"
+                    : $"<size=70%>x{have}/{max}</size>  <color=#FFCC4D>{row.item.price}</color>";
+                continue;
+            }
             row.buy.gameObject.SetActive(!owned);
             row.buy.interactable = money >= row.item.price;
-            row.status.text = owned ? "<color=#73FF8C>OWNED</color>" : $"<color=#FFCC4D>{row.item.price}</color>";
+            row.status.text = owned ? "<color=#73FF8C>OWNED</color>"
+                : row.item.price > 0 ? $"<color=#FFCC4D>{row.item.price}</color>" : "<color=#73FF8C>FREE</color>";
         }
     }
 
@@ -179,7 +198,8 @@ public sealed class ShopUI : MonoBehaviour
 
         RectTransform card = NewImage("Card", transform, Panel).rectTransform;
         card.anchorMin = card.anchorMax = card.pivot = new Vector2(0.5f, 0.5f);
-        int count = ItemCatalog.All.Count;
+        int count = 0;
+        foreach (ItemCatalog.ItemInfo listed in ItemCatalog.All) if (listed.inShop) count++;
         card.sizeDelta = new Vector2(1100f, 330f + 130f * Mathf.Max(1, count));
 
         float y = 30f;
@@ -190,7 +210,7 @@ public sealed class ShopUI : MonoBehaviour
 
         foreach (ItemCatalog.ItemInfo item in ItemCatalog.All)
         {
-            if (item.price <= 0) continue; // not for sale
+            if (!item.inShop) continue; // not for sale (5 Oct: price 0 + inShop = FREE)
 
             RectTransform rowRt = NewImage("Item " + item.id, card, RowColor).rectTransform;
             rowRt.anchorMin = new Vector2(0f, 1f);
@@ -200,7 +220,8 @@ public sealed class ShopUI : MonoBehaviour
             rowRt.offsetMax = new Vector2(-40f, -y);
             y += 130f;
 
-            TMP_Text name = NewText("Name", rowRt, item.displayName + (item.permanent ? "  <size=70%><color=#A6A09A>(permanent, lost if you die)</color></size>" : ""),
+            TMP_Text name = NewText("Name", rowRt, item.displayName + (item.permanent ? "  <size=70%><color=#A6A09A>(permanent, lost if you die)</color></size>"
+                    : "  <size=70%><color=#A6A09A>(max " + item.maxStack + ", lost if you die)</color></size>"),
                 34f, TextColor, FontStyles.Bold, TextAlignmentOptions.TopLeft);
             Anchor(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0.72f, 1f), new Vector2(20f, 0f), new Vector2(0f, -10f));
 
@@ -211,7 +232,7 @@ public sealed class ShopUI : MonoBehaviour
             TMP_Text status = NewText("Status", rowRt, "", 34f, TextColor, FontStyles.Bold, TextAlignmentOptions.Center);
             Anchor(status.rectTransform, new Vector2(0.72f, 0.5f), new Vector2(1f, 1f), Vector2.zero, new Vector2(-20f, -8f));
 
-            Button buy = NewButton("Buy", rowRt, "Buy");
+            Button buy = NewButton("Buy", rowRt, item.price > 0 ? "Buy" : "Claim");
             Anchor((RectTransform)buy.transform, new Vector2(0.74f, 0f), new Vector2(1f, 0.5f), new Vector2(0f, 10f), new Vector2(-20f, -4f));
             ItemCatalog.ItemInfo captured = item;
             buy.onClick.AddListener(() => Buy(captured));

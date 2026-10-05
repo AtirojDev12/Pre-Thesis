@@ -103,6 +103,12 @@ public sealed class HotbarHUD : MonoBehaviour
                 else if (ItemCatalog.IsRadio(slot.itemId))
                     labels[i].text = ItemCatalog.DisplayName(slot.itemId) + "\n" +
                         (slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor));
+                else if (ItemCatalog.IsFlashlight(slot.itemId)) // 5 Oct
+                    labels[i].text = ItemCatalog.DisplayName(slot.itemId) + "\n" +
+                        (slot.charge <= 0f ? Colour("EMPTY", OffColor)
+                            : (slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor)) + " " + Mathf.CeilToInt(slot.charge * 100f) + "%");
+                else if (ItemCatalog.MaxStack(slot.itemId) > 1) // 5 Oct: Battery x3
+                    labels[i].text = ItemCatalog.DisplayName(slot.itemId) + "\n" + Colour("x" + slot.Units, OnColor);
                 else labels[i].text = ItemCatalog.DisplayName(slot.itemId);
                 labels[i].color = selected ? Color.black : TextColor;
             }
@@ -112,6 +118,9 @@ public sealed class HotbarHUD : MonoBehaviour
                 : inventory.IsHoldingRadio
                 ? $"Hold [{BoundButton.DisplayName(GameSettings.WalkieTalkBinding)}] talk on radio   ·   " +
                   $"[{BoundButton.DisplayName(GameSettings.WalkiePowerBinding)}] on / off"
+                : inventory.IsHoldingFlashlight
+                ? $"[{FlashlightController.ToggleHint}] light on / off   ·   " +
+                  (ItemCatalog.Find(inventory.HeldSlot.itemId)?.usesBatteries == true ? "[R] new battery" : "Mash [Space] to charge")
                 : string.Empty;
         }
 

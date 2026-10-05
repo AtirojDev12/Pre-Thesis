@@ -20,6 +20,7 @@ public struct MatchResult
     public int currency;          // what this player earns this round
     public bool consolation;      // true = died, flat consolation prize
     public string[] carriedItems; // survivors: permanent items carried out (2 Oct). Dead: empty
+    public string[] carriedConsumables; // survivors: consumable units carried out, one ID each (5 Oct). Dead: empty
 }
 
 /// <summary>Where one player is in the round, for the results screen's player list.</summary>
@@ -165,7 +166,11 @@ public sealed class MatchResultsUI : MonoBehaviour
         if (r.consolation) lostItems = LoseCarriedItems();
         // Survived (2 Oct): your save = the permanent items you carried out.
         // Picked up from a fallen teammate = yours now; thrown away = gone.
-        else ApplyCarriedItems(r.carriedItems, out lostItems, out foundItems);
+        else
+        {
+            ApplyCarriedConsumables(r.carriedConsumables); // before LastLoadout is cleared
+            ApplyCarriedItems(r.carriedItems, out lostItems, out foundItems);
+        }
 
         // Your round is over: your body stays exactly where it is.
         if (PlayerHealth.LocalInstance != null) MatchDirector.FreezeBody(PlayerHealth.LocalInstance.gameObject);
@@ -228,6 +233,50 @@ public sealed class MatchResultsUI : MonoBehaviour
         found = foundNames.ToString();
     }
 
+    /// <summary>
+    /// 5 Oct. Survivor: the save's consumables (Batteries) = what was carried out.
+    /// Brought in and used/dropped = gone; picked up = yours. Capped at the item's max.
+    /// </summary>
+    private static void ApplyCarriedConsumables(string[] units)
+    {
+        SaveData save = SaveManager.Current;
+        if (save == null) return;
+        if (save.consumables == null) save.consumables = new System.Collections.Generic.List<ConsumableItemData>();
+        if (units == null) units = System.Array.Empty<string>();
+
+        var ids = new System.Collections.Generic.List<string>();
+        foreach (string id in PlayerInventory.LastLoadout) if (ItemCatalog.Find(id)?.Consumable == true) ids.Add(id);
+        foreach (string id in units) if (!ids.Contains(id) && ItemCatalog.Find(id)?.Consumable == true) ids.Add(id);
+
+        foreach (string id in ids)
+        {
+            int count = 0;
+            foreach (string u in units) if (u == id) count++;
+            count = Mathf.Min(count, ItemCatalog.MaxStack(id));
+            ConsumableItemData entry = save.consumables.Find(c => c != null && c.itemID == id);
+            if (count <= 0) { if (entry != null) save.consumables.Remove(entry); }
+            else if (entry != null) entry.quantity = count;
+            else save.consumables.Add(new ConsumableItemData(id, count));
+        }
+        SaveManager.SaveToDisk();
+    }
+
+    /// <summary>Died / left the match: the consumables brought in are gone from the save.</summary>
+    private static void LoseCarriedConsumables(System.Text.StringBuilder names)
+    {
+        SaveData save = SaveManager.Current;
+        if (save == null || save.consumables == null) return;
+        foreach (string id in PlayerInventory.LastLoadout)
+        {
+            if (ItemCatalog.Find(id)?.Consumable != true) continue;
+            ConsumableItemData entry = save.consumables.Find(c => c != null && c.itemID == id);
+            if (entry == null || entry.quantity <= 0) continue;
+            save.consumables.Remove(entry);
+            if (names.Length > 0) names.Append(", ");
+            names.Append(ItemCatalog.DisplayName(id) + " x" + entry.quantity);
+        }
+    }
+
     private static void Append(System.Text.StringBuilder names, string id)
     {
         if (names.Length > 0) names.Append(", ");
@@ -241,6 +290,7 @@ public sealed class MatchResultsUI : MonoBehaviour
         if (save == null || save.permanentItems == null || PlayerInventory.LastLoadout.Count == 0) return "";
 
         var names = new System.Text.StringBuilder();
+        LoseCarriedConsumables(names); // 5 Oct: Batteries too
         foreach (string id in PlayerInventory.LastLoadout)
         {
             for (int i = 0; i < save.permanentItems.Count; i++)

@@ -52,6 +52,15 @@ namespace EpicTransport {
 
         public bool checkForEpicLauncherAndRestart = false;
         public bool delayedInitialization = false;
+
+        // 13RoH (5 Oct, Mr.k): the Editor froze on the 2nd+ Play of a Unity session when
+        // the host pressed Start (destroying the lobby body's audio). The 1st Play after
+        // opening Unity always worked; builds (one session per process) always work.
+        // EOS voice (RTC + XAudio2) is the native part that survives between Plays in the
+        // Editor process, so in the Editor it is OFF by default. Mirror voice still works;
+        // only the EOS *backup* voice is missing in the Editor. Builds are unchanged.
+        [Tooltip("Editor only. ON = start EOS voice (RTC) in Play mode too. OFF (default) avoids the Editor freeze on the 2nd Play.")]
+        [SerializeField] private bool eosVoiceInEditor = false;
         public float platformTickIntervalInSeconds = 0.0f;
         private float platformTickTimer = 0f;
         public uint tickBudgetInMilliseconds = 0;
@@ -261,6 +270,12 @@ namespace EpicTransport {
             VoiceAvailable = false;
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             string xaudioPath = FindXAudioDll();
+#if UNITY_EDITOR
+            if (!eosVoiceInEditor) {
+                xaudioPath = null; // no RTC in the Editor (see eosVoiceInEditor)
+                Debug.Log("[Voice] Editor: EOS backup voice is OFF (EOSSDKComponent > eosVoiceInEditor). Mirror voice still works.");
+            }
+#endif
             if (xaudioPath != null) {
                 EOS = PlatformInterface.Create(new WindowsOptions() {
                     ProductId = options.ProductId,
@@ -277,7 +292,7 @@ namespace EpicTransport {
                 });
                 VoiceAvailable = EOS != null;
                 if (EOS == null) Debug.LogWarning("[Voice] EOS could not start with voice (" + xaudioPath + "). Starting without voice.");
-            } else {
+            } else if (!Application.isEditor || eosVoiceInEditor) {
                 Debug.LogWarning("[Voice] xaudio2_9redist.dll not found, so voice chat is OFF. Put it next to EOSSDK-Win64-Shipping.dll (see claude/voice-and-hotbar.md).");
             }
 #endif

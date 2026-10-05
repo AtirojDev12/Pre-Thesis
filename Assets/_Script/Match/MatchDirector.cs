@@ -1366,7 +1366,9 @@ public class MatchDirector : NetworkBehaviour
             consolation = dead,
             // Survivors keep exactly the permanent items they carry out (2 Oct):
             // picked-up items are gained, thrown-away ones are lost. Dead: nothing.
-            carriedItems = dead ? System.Array.Empty<string>() : CarriedPermanentItems(health)
+            carriedItems = dead ? System.Array.Empty<string>() : CarriedPermanentItems(health),
+            // 5 Oct: consumables carried out (Batteries), one ID per unit. Dead: nothing.
+            carriedConsumables = dead ? System.Array.Empty<string>() : CarriedConsumableUnits(health)
         };
 
         // Survivor carrying 2 of the same item: the extra copy comes back to the
@@ -1393,6 +1395,22 @@ public class MatchDirector : NetworkBehaviour
         foreach (string id in CarriedPermanentItems(health))
             for (int n = inventory.ServerCountOf(id); n > 1; n--) spares.Add(id);
         return spares;
+    }
+
+    /// <summary>SERVER. Consumable units in this player's hotbar (a stack of 2 Batteries = 2 IDs).</summary>
+    private static string[] CarriedConsumableUnits(PlayerHealth health)
+    {
+        PlayerInventory inventory = health != null ? health.GetComponent<PlayerInventory>() : null;
+        if (inventory == null) return System.Array.Empty<string>();
+        var units = new List<string>();
+        for (int i = 0; i < inventory.Count; i++)
+        {
+            InventorySlot slot = inventory.GetSlot(i);
+            ItemCatalog.ItemInfo info = slot.IsEmpty ? null : ItemCatalog.Find(slot.itemId);
+            if (info == null || !info.Consumable) continue;
+            for (int n = slot.Units; n > 0; n--) units.Add(info.id);
+        }
+        return units.ToArray();
     }
 
     /// <summary>SERVER. The permanent items in this player's hotbar right now.</summary>
