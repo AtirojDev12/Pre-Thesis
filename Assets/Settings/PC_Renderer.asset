@@ -71,16 +71,16 @@ MonoBehaviour:
   m_Active: 1
   settings:
     enabled: 1
-    pixelBlockSize: 3.48
-    scanlineIntensity: 0.25
-    scanlineCount: 240
-    chromaticAberration: 0.6
-    vignetteIntensity: 0.5
-    vignetteSmoothness: 0.4
+    pixelBlockSize: 2.5
+    scanlineIntensity: 0.103
+    scanlineCount: 295
+    chromaticAberration: 0
+    vignetteIntensity: 1
+    vignetteSmoothness: 0.045
     grainIntensity: 0
-    grainSize: 2
-    flickerIntensity: 0.05
-    desaturation: 0.3
+    grainSize: 1.29
+    flickerIntensity: 0
+    desaturation: 0
     colorTint: {r: 1, g: 1, b: 1, a: 1}
   shader: {fileID: 4800000, guid: d5ba607617fa8ac47a78726a8db3f637, type: 3}
 --- !u!114 &7833122117494664109
