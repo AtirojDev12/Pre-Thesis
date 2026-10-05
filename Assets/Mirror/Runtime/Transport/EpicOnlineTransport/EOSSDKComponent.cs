@@ -53,14 +53,13 @@ namespace EpicTransport {
         public bool checkForEpicLauncherAndRestart = false;
         public bool delayedInitialization = false;
 
-        // 13RoH (5 Oct, Mr.k): the Editor froze on the 2nd+ Play of a Unity session when
-        // the host pressed Start (destroying the lobby body's audio). The 1st Play after
-        // opening Unity always worked; builds (one session per process) always work.
-        // EOS voice (RTC + XAudio2) is the native part that survives between Plays in the
-        // Editor process, so in the Editor it is OFF by default. Mirror voice still works;
-        // only the EOS *backup* voice is missing in the Editor. Builds are unchanged.
-        [Tooltip("Editor only. ON = start EOS voice (RTC) in Play mode too. OFF (default) avoids the Editor freeze on the 2nd Play.")]
-        [SerializeField] private bool eosVoiceInEditor = false;
+        // 13RoH (5 Oct, Mr.k): Editor-only switch for the EOS backup voice (RTC).
+        // It was turned OFF while hunting the Editor freeze, but EOS was NOT the cause
+        // (the real fix is in RoHRoomManager.StartMatch), so it is ON again, as before.
+        // OFF = no EOS backup voice in Play mode (Mirror voice still works). Builds ignore it.
+        // (New name, so an old saved OFF value from the previous field cannot stick.)
+        [Tooltip("Editor only. ON (default) = start the EOS backup voice (RTC) in Play mode too, like a build.")]
+        [SerializeField] private bool startEosVoiceInEditor = true;
         public float platformTickIntervalInSeconds = 0.0f;
         private float platformTickTimer = 0f;
         public uint tickBudgetInMilliseconds = 0;
@@ -271,9 +270,9 @@ namespace EpicTransport {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             string xaudioPath = FindXAudioDll();
 #if UNITY_EDITOR
-            if (!eosVoiceInEditor) {
-                xaudioPath = null; // no RTC in the Editor (see eosVoiceInEditor)
-                Debug.Log("[Voice] Editor: EOS backup voice is OFF (EOSSDKComponent > eosVoiceInEditor). Mirror voice still works.");
+            if (!startEosVoiceInEditor) {
+                xaudioPath = null; // no RTC in the Editor (see startEosVoiceInEditor)
+                Debug.Log("[Voice] Editor: EOS backup voice is OFF (EOSSDKComponent > Start Eos Voice In Editor). Mirror voice still works.");
             }
 #endif
             if (xaudioPath != null) {
@@ -292,7 +291,7 @@ namespace EpicTransport {
                 });
                 VoiceAvailable = EOS != null;
                 if (EOS == null) Debug.LogWarning("[Voice] EOS could not start with voice (" + xaudioPath + "). Starting without voice.");
-            } else if (!Application.isEditor || eosVoiceInEditor) {
+            } else if (!Application.isEditor || startEosVoiceInEditor) {
                 Debug.LogWarning("[Voice] xaudio2_9redist.dll not found, so voice chat is OFF. Put it next to EOSSDK-Win64-Shipping.dll (see claude/voice-and-hotbar.md).");
             }
 #endif
