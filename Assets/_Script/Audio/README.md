@@ -64,7 +64,42 @@ state restore playback for new observers. Do not send an additional loop RPC.
 Footsteps keep their existing immediate owner playback and validated Mirror
 replication. Voice chat also retains its independent playback pipeline.
 
-## Room ambience
+## Popcorn zone in Cinema_GamePlay
+
+The existing station bindings supply all audio positions; no additional scene
+NetworkIdentity or runtime NetworkBehaviour is added. All seven new library
+entries are 3D SFX, audible from 2 to 15 metres, with preloaded clips:
+
+| Interaction | Sound |
+| --- | --- |
+| Successful bucket/cup pickup | `pickupPOPcorn1` |
+| Successful Cheese/BBQ/Paprika/Ghost Flavor selection | `pickUPitem2` |
+| Accepted drink hold, including all eight dispenser controls | `ClickDispenserWaterStart`, then looping `Pouring_water` |
+| Drink hold release, cancellation or completion | `ClickDispenserWaterEnd` |
+| Accepted bucket scoop from tank | Looping `PopCornScoopong` |
+| Accepted maker hold | One-shot `PopCornISMaking`, stopped if work is cancelled |
+
+Controls remain hold E. Online water now uses the same server acknowledgement
+and timed completion flow as tank/maker work. Container pickup and flavor state
+remain owner-driven as before; their sound requests validate range, health,
+station, held-item revision and expected resulting item state on the server.
+Those sounds are never broadcast directly by an arbitrary client sound ID.
+
+The existing `PopcornNetSync` scene identity replicates active work through a
+SyncDictionary keyed by player netId. Each client has separate local emitters
+per actor, so cancelling one user cannot silence another. The owner stops audio
+immediately on release or when the local hold finishes; server removal stops
+other observers and cannot replay the owner's end click. Joining observers
+restore the current loop position without replaying the initial click. Server
+cleanup removes work on disconnect, death/downing, out-of-range movement,
+invalid held items, or a six-second safety timeout. Request/revision checks
+and short server cooldowns reject duplicate or rapid sound requests.
+
+Tank refill is an immediate stock operation and does not play the bucket-scoop
+sound. Station audio is distinct from the shared 24-voice one-shot pool. MainMenu,
+footsteps, voice, order scoring and the authored tank capacity are unchanged.
+
+## Room ambience configuration
 
 Add one `AmbientController` to the scene and assign its default clip and zones.
 For each room add `AmbientZone` with a trigger BoxCollider, clip, volume and

@@ -166,7 +166,8 @@ public static class PopcornRegressionRunner
         var bootstrapSetup = Object.FindAnyObjectByType<PopcornMinigameBootstrap>();
         var makerReference = (Transform)Get(bootstrapSetup, "refillMaker");
         Check(makerReference.name == "Popcorn_Maker", "Refill station binds the authored maker instance checked before Play mode");
-        Check(preparation.TankRemaining == 20 && preparation.TankCapacity == 20, "Tank starts full at configured capacity");
+        int configuredCapacity = preparation.Capacity;
+        Check(preparation.TankRemaining == configuredCapacity && preparation.TankCapacity == configuredCapacity, "Tank starts full at configured capacity");
         var tankCanvas = (Canvas)Get(preparation, "tankCanvas");
         Check(tankCanvas != null && tankCanvas.renderMode == RenderMode.WorldSpace &&
             tankCanvas.transform.parent == Station(PopcornStationKind.Tank).transform,
@@ -197,7 +198,7 @@ public static class PopcornRegressionRunner
         Check(!preparation.IsPreparing && !holder.IsReady, "Releasing E cancels scooping without filling");
         var filling = Fill(tank);
         while (filling.MoveNext()) yield return null;
-        Check(holder.HasPopcorn && !holder.IsReady && holder.HeldFlavor == PopcornFlavor.None && preparation.TankRemaining == 19,
+        Check(holder.HasPopcorn && !holder.IsReady && holder.HeldFlavor == PopcornFlavor.None && preparation.TankRemaining == configuredCapacity - 1,
             "Tank gives unflavored HeldPopcorn and consumes exactly one serving");
         Check(((GameObject)Get(holder, "heldVisual")).name.Contains("HeldPopcorn"), "Scoop uses authored HeldPopcorn prefab");
         Press(cheese);
@@ -318,11 +319,11 @@ public static class PopcornRegressionRunner
         Check(holder.IsRefill && !holder.IsReady && ((GameObject)Get(holder, "heldVisual")).name.Contains("NewPopcorn"),
             "Maker gives authored NewPopcorn batch, which cannot be served");
         Press(tank);
-        Check(preparation.TankRemaining == 20 && !holder.HasItem, "Top-up caps stock at maximum and consumes batch");
+        Check(preparation.TankRemaining == configuredCapacity && !holder.HasItem, "Top-up caps stock at maximum and consumes batch");
         filling = Fill(maker);
         while (filling.MoveNext()) yield return null;
         Press(tank);
-        Check(preparation.TankRemaining == 20 && holder.IsRefill, "Full tank rejects refill and retains held batch");
+        Check(preparation.TankRemaining == configuredCapacity && holder.IsRefill, "Full tank rejects refill and retains held batch");
         Set(preparation, "offlineRemaining", 0);
         Press(tank);
         Check(preparation.TankRemaining == 10 && !holder.HasItem, "Empty tank accepts ten-serving refill");
@@ -331,7 +332,7 @@ public static class PopcornRegressionRunner
         Press(tank);
         Check(!preparation.IsPreparing && !holder.HasPopcorn, "Empty tank rejects scooping without granting popcorn");
         holder.Consume();
-        Set(preparation, "offlineRemaining", 20);
+        Set(preparation, "offlineRemaining", configuredCapacity);
         foreach (var drink in new[] { PopcornFlavor.Fanta, PopcornFlavor.OrangeJuice, PopcornFlavor.Pepsi })
         {
             holder.PickUp(true);
@@ -458,7 +459,7 @@ public static class PopcornRegressionRunner
         for (int i = 0; i < 4; i++) yield return null;
         var remainingText = (TMPro.TMP_Text)Get(preparation, "tankText");
         remainingText.ForceMeshUpdate();
-        Check(!remainingText.isTextOverflowing && remainingText.text.Contains("20 / 20"),
+        Check(!remainingText.isTextOverflowing && remainingText.text.Contains(configuredCapacity + " / " + configuredCapacity),
             "World-space tank stock label fits and shows current supply");
         Capture("popcorn-tank.png");
 
@@ -510,6 +511,9 @@ public static class PopcornRegressionRunner
         player = PlayerHealth.LocalInstance;
         player.GetComponent<PlayerMovement>().enabled = false;
         player.GetComponent<Rigidbody>().isKinematic = true;
+        camera = player.GetComponentInChildren<Camera>();
+        interactor = player.GetComponent<PlayerInteractor>();
+        player.GetComponentInChildren<FirstPersonCamera>().enabled = false;
         ghostManager.PlayerToggleLights(false);
         Set(recovery, "darkSeconds", 0.6f);
         Call(recovery, "Update");
@@ -592,26 +596,26 @@ public static class PopcornRegressionRunner
         preparation.enabled = true;
         holder.Consume();
         var supply = PopcornNetSync.Instance;
-        Check(supply.TankRemaining == 20 && supply.TankCapacity == 20, "Host initializes authoritative tank full");
+        Check(supply.TankRemaining == configuredCapacity && supply.TankCapacity == configuredCapacity, "Host initializes authoritative tank full");
         player.transform.position = new Vector3(1000, 3, 1000);
         supply.RequestSupply(tank.Id, 900, PopcornSupplyAction.Begin);
         supply.RequestSupply(tank.Id, 900, PopcornSupplyAction.Complete);
         for (int i = 0; i < 8; i++) yield return null;
-        Check(supply.TankRemaining == 20, "Out-of-range supply requests cannot change stock");
+        Check(supply.TankRemaining == configuredCapacity, "Out-of-range supply requests cannot change stock");
         player.transform.position = tank.GetComponent<Collider>().bounds.center;
         supply.RequestSupply(tank.Id, 901, PopcornSupplyAction.Complete);
         for (int i = 0; i < 8; i++) yield return null;
-        Check(supply.TankRemaining == 20, "Completion without a server-started action is rejected");
+        Check(supply.TankRemaining == configuredCapacity, "Completion without a server-started action is rejected");
         supply.RequestSupply(tank.Id, 902, PopcornSupplyAction.Begin);
         supply.RequestSupply(tank.Id, 902, PopcornSupplyAction.Complete);
         for (int i = 0; i < 8; i++) yield return null;
-        Check(supply.TankRemaining == 20, "Server rejects skipping preparation duration");
+        Check(supply.TankRemaining == configuredCapacity, "Server rejects skipping preparation duration");
         supply.RequestSupply(tank.Id, 903, PopcornSupplyAction.Begin);
         supply.RequestSupply(tank.Id, 903, PopcornSupplyAction.Cancel);
         for (double until = NetworkTime.time + 3.2; NetworkTime.time < until;) yield return null;
         supply.RequestSupply(tank.Id, 903, PopcornSupplyAction.Complete);
         for (int i = 0; i < 8; i++) yield return null;
-        Check(supply.TankRemaining == 20, "Cancelled server action consumes no popcorn");
+        Check(supply.TankRemaining == configuredCapacity, "Cancelled server action consumes no popcorn");
         holder.PickUp(false);
         Set(preparation, "activeStation", tank);
         Set(preparation, "preparingPlayer", player);
@@ -621,14 +625,23 @@ public static class PopcornRegressionRunner
         supply.RequestSupply(tank.Id, 904, PopcornSupplyAction.Begin);
         for (int i = 0; i < 8; i++) yield return null;
         Check(!(bool)Get(preparation, "awaitingStart"), "Server acknowledgement starts local preparation timer");
+        Check(supply.SoundActions.TryGetValue(player.netId, out var scoopSound) && scoopSound.station == tank.Id && scoopSound.request == 904,
+            "Server-approved scoop publishes one sound action keyed by the requesting player");
+        var soundWriter = new NetworkWriter();
+        supply.SoundActions.OnSerializeAll(soundWriter);
+        var observerSounds = new SyncDictionary<uint, PopcornSoundAction>();
+        observerSounds.OnDeserializeAll(new NetworkReader(soundWriter.ToArraySegment()));
+        Check(observerSounds.TryGetValue(player.netId, out var observerSound) && observerSound.station == tank.Id && observerSound.started == scoopSound.started,
+            "Joining observer snapshot restores the active station and shared sound start time");
         for (double until = NetworkTime.time + 3.2; NetworkTime.time < until;) yield return null;
         supply.RequestSupply(tank.Id, 904, PopcornSupplyAction.Complete);
         for (int i = 0; i < 8; i++) yield return null;
-        Check(supply.TankRemaining == 19 && holder.HasPopcorn && !holder.IsReady,
+        Check(supply.TankRemaining == configuredCapacity - 1 && holder.HasPopcorn && !holder.IsReady,
             "Real Mirror completion decrements stock and gives plain popcorn only to requesting player");
+        Check(!supply.SoundActions.ContainsKey(player.netId), "Scoop completion removes the shared loop exactly once");
         supply.RequestSupply(tank.Id, 904, PopcornSupplyAction.Complete);
         for (int i = 0; i < 8; i++) yield return null;
-        Check(supply.TankRemaining == 19, "Repeated completion cannot decrement twice");
+        Check(supply.TankRemaining == configuredCapacity - 1, "Repeated completion cannot decrement twice");
         player.transform.position = maker.GetComponentInChildren<Collider>().bounds.center;
         holder.Consume();
         Set(preparation, "activeStation", maker);
@@ -642,14 +655,14 @@ public static class PopcornRegressionRunner
         Check(holder.IsRefill && ((GameObject)Get(holder, "heldVisual")).name.Contains("NewPopcorn"),
             "Mirror maker response gives requesting player authored NewPopcorn");
         player.transform.position = tank.GetComponent<Collider>().bounds.center;
-        Set(supply, "tankRemaining", 20);
+        Set(supply, "tankRemaining", configuredCapacity);
         supply.RequestSupply(tank.Id, 906, PopcornSupplyAction.Refill);
         for (int i = 0; i < 8; i++) yield return null;
-        Check(supply.TankRemaining == 20, "Server refuses topping up full tank");
-        Set(supply, "tankRemaining", 19);
+        Check(supply.TankRemaining == configuredCapacity, "Server refuses topping up full tank");
+        Set(supply, "tankRemaining", configuredCapacity - 1);
         preparation.Interact(tank);
         for (int i = 0; i < 8; i++) yield return null;
-        Check(supply.TankRemaining == 20 && !holder.HasItem,
+        Check(supply.TankRemaining == configuredCapacity && !holder.HasItem,
             "Full-tank rejection preserves batch; accepted Mirror top-up caps stock and consumes local NewPopcorn");
         Set(supply, "tankRemaining", 0);
         supply.RequestSupply(tank.Id, 908, PopcornSupplyAction.Refill);
@@ -660,7 +673,49 @@ public static class PopcornRegressionRunner
         supply.OnSerialize(stockWriter, true);
         Set(supply, "tankRemaining", 0);
         supply.OnDeserialize(new NetworkReader(stockWriter.ToArraySegment()), true);
-        Check(supply.TankRemaining == 7 && supply.TankCapacity == 20, "Mirror initial snapshot carries remaining stock and capacity for joining clients");
+        Check(supply.TankRemaining == 7 && supply.TankCapacity == configuredCapacity, "Mirror initial snapshot carries remaining stock and capacity for joining clients");
+        holder.Consume();
+        holder.PickUp(true);
+        Aim(water);
+        player.transform.position = water.GetComponentInChildren<Collider>().bounds.center;
+        for (int i = 0; i < 8; i++) yield return null;
+        Set(preparation, "activeStation", water);
+        Set(preparation, "preparingPlayer", player);
+        Set(preparation, "requestId", 910);
+        Set(preparation, "awaitingStart", true);
+        Set(preparation, "awaitingResult", true);
+        supply.RequestSupply(water.Id, 910, PopcornSupplyAction.Begin);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(supply.SoundActions.TryGetValue(player.netId, out var waterSound) && waterSound.station == water.Id,
+            "Water hold waits for server approval and publishes its dispenser sound sequence");
+        supply.RequestSupply(water.Id, 910, PopcornSupplyAction.Cancel);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(!supply.SoundActions.ContainsKey(player.netId) && !holder.IsReady, "Water release removes pouring state without filling the cup");
+        Call(preparation, "Cancel", false, false);
+        for (double until = NetworkTime.time + 0.25; NetworkTime.time < until;) yield return null;
+        Set(preparation, "activeStation", water);
+        Set(preparation, "preparingPlayer", player);
+        Set(preparation, "requestId", 911);
+        Set(preparation, "awaitingResult", true);
+        supply.RequestSupply(water.Id, 911, PopcornSupplyAction.Begin);
+        for (double until = NetworkTime.time + 3.2; NetworkTime.time < until;) yield return null;
+        supply.RequestSupply(water.Id, 911, PopcornSupplyAction.Complete);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(holder.IsReady && holder.IsCup && !supply.SoundActions.ContainsKey(player.netId) && supply.TankRemaining == 7,
+            "Server-approved water completion fills the cup, stops pouring and consumes no popcorn stock");
+        holder.Consume();
+        for (int i = 0; i < 8; i++) yield return null;
+        supply.RequestSupply(water.Id, 912, PopcornSupplyAction.Begin);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(!supply.SoundActions.ContainsKey(player.netId), "Water without an empty cup cannot broadcast pouring audio");
+
+        var soundLibrary = Resources.Load<SoundLibrary>("Audio/SoundLibrary");
+        foreach (string id in new[] { "Popcorn_Pickup", "Popcorn_Flavor", "Popcorn_WaterStart", "Popcorn_WaterPour", "Popcorn_WaterEnd", "Popcorn_Scoop", "Popcorn_Making" })
+        {
+            var entry = soundLibrary != null ? soundLibrary.Find(id) : null;
+            Check(entry != null && entry.spatial && entry.category == SoundCategory.Sfx && entry.clips.Length == 1 && entry.clips[0] != null,
+                "Popcorn sound library resolves a spatial SFX clip for " + id);
+        }
         holder.Consume();
         SeatOrder(supply, PopcornCustomerType.Human, PopcornFlavor.Pepsi, PopcornFlavor.Pepsi);
         var networkCustomer = slot.ActiveCustomer;
