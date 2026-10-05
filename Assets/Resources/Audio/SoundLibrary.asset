@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d0ca5687b7f4c4f88e14d5fce47b1ad, type: 3}
+  m_Name: SoundLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::SoundLibrary
+  sounds:
+  - id: UI_Click
+    clips:
+    - {fileID: 8300000, guid: 223649032966bc5439f3b5c5e00a7dbc, type: 3}
+    category: 1
+    volume: 0.7
+    spatial: 0
+    minDistance: 1
+    maxDistance: 15
+    cooldown: 0.025
+  - id: UI_Hover
+    clips:
+    - {fileID: 8300000, guid: 36260855fddd9f5478f46c1931acf16a, type: 3}
+    category: 1
+    volume: 0.45
+    spatial: 0
+    minDistance: 1
+    maxDistance: 15
+    cooldown: 0.06
+  - id: Menu_LightFlicker1
+    clips:
+    - {fileID: 8300000, guid: 0a82ffacbe2f7eb4fad0a8c6738cfab6, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 0
+    minDistance: 1
+    maxDistance: 15
+    cooldown: 0
+  - id: Menu_LightFlicker2
+    clips:
+    - {fileID: 8300000, guid: 1adc232544d47d94e8674786d879946f, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 0
+    minDistance: 1
+    maxDistance: 15
+    cooldown: 0
+  - id: Menu_LightFlicker3
+    clips:
+    - {fileID: 8300000, guid: ba0830247f3c8134092def8ebb18ecb8, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 0
+    minDistance: 1
+    maxDistance: 15
+    cooldown: 0
+  - id: Menu_LampHum
+    clips:
+    - {fileID: 8300000, guid: 095da69a751fa9648ac1fa5737be3bfc, type: 3}
+    category: 2
+    volume: 0.35
+    spatial: 0
+    minDistance: 1
+    maxDistance: 15
+    cooldown: 0

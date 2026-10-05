@@ -981,17 +981,34 @@ public static class MainMenuBuilder
         // Menu scenes must never show the default sky behind the UI. Existing
         // cameras are switched to plain black too, not only new ones.
         bool found = false;
+        bool hasListener = false;
+        Camera listenerCamera = null;
         foreach (GameObject root in scene.GetRootGameObjects())
         {
+            foreach (AudioListener listener in root.GetComponentsInChildren<AudioListener>(true))
+                if (listener.isActiveAndEnabled) hasListener = true;
             foreach (Camera existing in root.GetComponentsInChildren<Camera>(true))
             {
                 existing.clearFlags = CameraClearFlags.SolidColor;
                 existing.backgroundColor = Color.black;
                 EditorUtility.SetDirty(existing);
                 found = true;
+                if (existing.isActiveAndEnabled &&
+                    (listenerCamera == null || existing.CompareTag("MainCamera"))) listenerCamera = existing;
             }
         }
-        if (found) return;
+        if (found)
+        {
+            // An existing camera may have no listener. Menu sounds still need one.
+            if (!hasListener && listenerCamera != null)
+            {
+                AudioListener listener = listenerCamera.GetComponent<AudioListener>();
+                if (listener == null) listener = listenerCamera.gameObject.AddComponent<AudioListener>();
+                listener.enabled = true;
+                EditorUtility.SetDirty(listener);
+            }
+            return;
+        }
 
         var go = new GameObject("Main Camera");
         go.tag = "MainCamera";
@@ -1194,6 +1211,7 @@ public static class MainMenuBuilder
         float height = 68f, float width = -1f)
     {
         GameObject go = TMP_DefaultControls.CreateButton(tmpRes);
+        go.AddComponent<UISoundEmitter>();
         go.name = name;
         go.transform.SetParent(parent, false);
 

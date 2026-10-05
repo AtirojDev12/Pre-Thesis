@@ -459,6 +459,7 @@ public class RoHRoomManager : NetworkRoomManager
     {
         leftOnPurpose = false;
         NetworkMode.SessionEnding = false;
+        NetworkAudioRelay.RegisterClient();
     }
 
     public override void OnRoomClientDisconnect()
@@ -473,6 +474,7 @@ public class RoHRoomManager : NetworkRoomManager
 
     public override void OnRoomStopClient()
     {
+        NetworkAudioRelay.UnregisterClient();
         SpectatorSession.Requested = false;
         BeginSessionEnd();
         // A client leaving the Mirror session must also leave the EOS lobby,
