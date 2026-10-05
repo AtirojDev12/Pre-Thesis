@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a0fb743375a517458c7abf32785493e, type: 3}
+  m_Name: FlashlightTuning
+  m_EditorClassIdentifier: Assembly-CSharp::FlashlightTuning
+  basic:
+    displayName: Basic Flashlight
+    description: Free. Weak beam, short battery. Mash SPACE to charge it. Lost if
+      you die (claim a new one).
+    price: 0
+    range: 9
+    brightness: 3
+    coneAngle: 40
+    batterySeconds: 45
+    secondsPerSpacePress: 1.5
+    usesBatteries: 0
+  paid:
+    displayName: Flashlight
+    description: 'Bright, long beam, big battery. Cannot be charged by hand: press
+      R to put in a new Battery. Lost if you die.'
+    price: 150
+    range: 20
+    brightness: 8
+    coneAngle: 50
+    batterySeconds: 240
+    secondsPerSpacePress: 0
+    usesBatteries: 1
+  battery:
+    displayName: Battery
+    description: Flashlight in hand + R = full battery. Stack in one slot. Unused
+      ones are kept if you survive.
+    price: 25
+    maxCarry: 3
+    refill: 1
+  look:
+    beamColor: {r: 1, g: 0.95, b: 0.82, a: 1}
+    brightCentre: 0.55
+    flickerBelow: 0.15
+    dimWhenEmpty: 0.55
+    ownBeamShadows: 1
+  controls:
+    maxSpacePressesPerSecond: 12
+    reloadCooldown: 0.5

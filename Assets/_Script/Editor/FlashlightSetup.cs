@@ -12,6 +12,10 @@ using UnityEngine;
 ///       (dropped / thrown), and registers the world ones in NetworkManager.spawnPrefabs. Simple shapes for now:
 ///       swap the model inside the prefab when the art is ready (keep FlashlightVisual).
 ///
+///   Tools > Pre-Thesis > Flashlight Settings
+///       Creates (first time) and selects Resources/Tuning/FlashlightTuning.asset:
+///       the game designer's page for every flashlight / battery number.
+///
 ///   Tools > Pre-Thesis > Darkness: Add To Open Scene
 ///       Adds a DarknessController to the open map so its sliders are saved with it.
 /// </summary>
@@ -116,6 +120,24 @@ public static class FlashlightSetup
 
         AssetDatabase.SaveAssets();
         Debug.Log("[FlashlightSetup] Built " + HeldPath + ", " + WorldPath + " and " + BatteryPath + ", and registered the world ones with Mirror.");
+    }
+
+    [MenuItem("Tools/Pre-Thesis/Flashlight Settings")]
+    public static void OpenFlashlightSettings()
+    {
+        FlashlightTuning asset = AssetDatabase.LoadAssetAtPath<FlashlightTuning>(FlashlightTuning.AssetPath);
+        if (asset == null)
+        {
+            if (!AssetDatabase.IsValidFolder("Assets/Resources")) AssetDatabase.CreateFolder("Assets", "Resources");
+            if (!AssetDatabase.IsValidFolder("Assets/Resources/Tuning")) AssetDatabase.CreateFolder("Assets/Resources", "Tuning");
+            asset = ScriptableObject.CreateInstance<FlashlightTuning>(); // the default numbers
+            AssetDatabase.CreateAsset(asset, FlashlightTuning.AssetPath);
+            AssetDatabase.SaveAssets();
+            FlashlightTuning.Use(asset);
+            Debug.Log("[FlashlightSetup] Created " + FlashlightTuning.AssetPath + ". Commit it with your changes.", asset);
+        }
+        Selection.activeObject = asset;
+        EditorGUIUtility.PingObject(asset);
     }
 
     [MenuItem("Tools/Pre-Thesis/Darkness: Add To Open Scene")]

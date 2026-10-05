@@ -38,7 +38,7 @@ public static class ItemCatalog
         public string worldPrefabPath;
         public string description;
 
-        // ---- Flashlight (5 Oct). Edit these numbers to balance the two lights. ----
+        // ---- Flashlight (5 Oct). Values come from FlashlightTuning (designer asset). ----
         public bool isFlashlight;
         /// <summary>How far the beam reaches (metres).</summary>
         public float lightRange;
@@ -74,51 +74,85 @@ public static class ItemCatalog
             worldPrefabPath = PlayerItemThrow.WorldPrefabPath,
             description = "Talk to every teammate who carries a switched-on walkie, at any distance. Lost if you die.",
         },
-        // 5 Oct (Mr.k): free starter light. Short battery; mash Space to charge it.
+        // 5 Oct (Mr.k): flashlights + battery. Name, price, text and all numbers
+        // are in the designer asset FlashlightTuning (Tools > Pre-Thesis > Flashlight Settings).
         new ItemInfo
         {
-            id = FlashlightBasic, displayName = "Basic Flashlight", isFlashlight = true,
-            price = 0, permanent = true, inShop = true,
-            throwable = true,
+            id = FlashlightBasic, isFlashlight = true,
+            permanent = true, inShop = true, throwable = true,
             worldPrefabPath = WorldFlashlightPath,
-            lightRange = 9f, lightIntensity = 3f, spotAngle = 40f,
-            batterySeconds = 45f, secondsPerCrank = 1.5f,
-            description = "Free. Weak beam, short battery. Mash SPACE to charge it. Lost if you die (claim a new one).",
         },
-        // 5 Oct (Mr.k): the paid version of the same light.
         new ItemInfo
         {
-            id = Flashlight, displayName = "Flashlight", isFlashlight = true,
-            price = 150, permanent = true, inShop = true,
-            throwable = true,
+            id = Flashlight, isFlashlight = true,
+            permanent = true, inShop = true, throwable = true,
             worldPrefabPath = WorldFlashlightPath,
-            lightRange = 20f, lightIntensity = 8f, spotAngle = 50f,
-            batterySeconds = 240f, secondsPerCrank = 0f, usesBatteries = true,
-            description = "Bright, long beam, big battery. Cannot be charged by hand: press R to put in a new Battery. Lost if you die.",
         },
-        // 5 Oct (Mr.k): refill for the paid Flashlight. Stacks in one slot.
         new ItemInfo
         {
-            id = Battery, displayName = "Battery",
-            price = 25, permanent = false, inShop = true, maxStack = 3,
-            throwable = true,
+            id = Battery,
+            permanent = false, inShop = true, throwable = true,
             worldPrefabPath = WorldBatteryPath,
-            description = "Flashlight in hand + R = full battery. Max 3, stack in one slot. Unused ones are kept if you survive.",
         },
     };
 
-    public static ItemInfo Find(string id)
+    // ---- Designer values (FlashlightTuning) --------------------------------------
+
+    private static int syncedChanges = int.MinValue;
+
+    /// <summary>Copies the designer asset into the items. Cheap when nothing changed.</summary>
+    private static void SyncTuning()
     {
-        if (string.IsNullOrEmpty(id)) return null;
+        if (syncedChanges == FlashlightTuning.Changes) return;
+        FlashlightTuning t = FlashlightTuning.Current; // may bump Changes once while loading
+        syncedChanges = FlashlightTuning.Changes;
+        CopyTorch(FindRaw(FlashlightBasic), t.basic);
+        CopyTorch(FindRaw(Flashlight), t.paid);
+        ItemInfo battery = FindRaw(Battery);
+        if (battery != null)
+        {
+            battery.displayName = t.battery.displayName;
+            battery.description = t.battery.description;
+            battery.price = Mathf.Max(0, t.battery.price);
+            battery.maxStack = Mathf.Max(1, t.battery.maxCarry);
+        }
+    }
+
+    private static void CopyTorch(ItemInfo item, FlashlightTuning.Torch torch)
+    {
+        if (item == null || torch == null) return;
+        item.displayName = torch.displayName;
+        item.description = torch.description;
+        item.price = Mathf.Max(0, torch.price);
+        item.lightRange = torch.range;
+        item.lightIntensity = torch.brightness;
+        item.spotAngle = torch.coneAngle;
+        item.batterySeconds = Mathf.Max(1f, torch.batterySeconds);
+        item.secondsPerCrank = Mathf.Max(0f, torch.secondsPerSpacePress);
+        item.usesBatteries = torch.usesBatteries;
+    }
+
+    private static ItemInfo FindRaw(string id)
+    {
         for (int i = 0; i < items.Count; i++)
             if (items[i].id == id) return items[i];
         return null;
     }
 
+    public static ItemInfo Find(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return null;
+        SyncTuning();
+        return FindRaw(id);
+    }
+
     public static bool Exists(string id) => Find(id) != null;
 
     /// <summary>Every item, in shop order. Read only.</summary>
-    public static IReadOnlyList<ItemInfo> All => items;
+    public static IReadOnlyList<ItemInfo> All
+    {
+        get { SyncTuning(); return items; }
+    }
 
     public static string DisplayName(string id)
     {

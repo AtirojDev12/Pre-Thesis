@@ -313,8 +313,7 @@ public class PlayerInventory : NetworkBehaviour
     // battery travels with the item when it is dropped. The owner only ASKS to
     // charge (one Command per Space press); the server limits how fast presses count.
 
-    /// <summary>Fastest the server counts Space presses (presses per second).</summary>
-    public const float MaxCranksPerSecond = 12f;
+    // Fastest Space presses that count, and the R cooldown: FlashlightTuning.controls.
     private double lastCrank;
 
     /// <summary>Owner: one Space press while holding a flashlight.</summary>
@@ -334,7 +333,8 @@ public class PlayerInventory : NetworkBehaviour
         PlayerHealth health = GetComponent<PlayerHealth>();
         if (health != null && health.IsDead) return;
         double now = Time.unscaledTimeAsDouble;
-        if (now - lastCrank < 1.0 / MaxCranksPerSecond) return; // auto-clickers gain nothing
+        float maxPresses = Mathf.Max(1f, FlashlightTuning.Current.controls.maxSpacePressesPerSecond);
+        if (now - lastCrank < 1.0 / maxPresses) return; // auto-clickers gain nothing
         lastCrank = now;
 
         ItemCatalog.ItemInfo info = ItemCatalog.Find(HeldSlot.itemId);
@@ -365,14 +365,14 @@ public class PlayerInventory : NetworkBehaviour
         ItemCatalog.ItemInfo info = ItemCatalog.Find(HeldSlot.itemId);
         if (info == null || !info.usesBatteries || HeldSlot.charge >= 0.999f) return;
         double now = Time.unscaledTimeAsDouble;
-        if (now - lastReload < 0.5) return; // one battery per press, no double-use
+        if (now - lastReload < FlashlightTuning.Current.controls.reloadCooldown) return; // no double-use
         for (int i = 0; i < slots.Count; i++)
         {
             if (slots[i].itemId != ItemCatalog.Battery || slots[i].spare) continue;
             lastReload = now;
             int flashlight = selectedSlot;
             if (!ServerTakeOne(i)) return;
-            ServerSetCharge(flashlight, 1f);
+            ServerSetCharge(flashlight, slots[flashlight].charge + FlashlightTuning.Current.battery.refill);
             return;
         }
     }

@@ -25,8 +25,6 @@ public sealed class FlashlightController : MonoBehaviour
     /// <summary>Shown in the hotbar hint.</summary>
     public const string ToggleHint = "Left Click / F";
 
-    /// <summary>Below this battery the beam starts to flicker (0..1).</summary>
-    private const float LowBattery = 0.15f;
     /// <summary>How often the server writes the drained battery into the SyncList (seconds).</summary>
     private const float DrainWriteInterval = 0.5f;
 
@@ -34,7 +32,6 @@ public sealed class FlashlightController : MonoBehaviour
     // like a light held in the right hand.
     private static readonly Vector3 BeamOffset = new Vector3(0.18f, -0.16f, 0.25f);
     private static readonly Vector3 HeldModelPosition = new Vector3(0.24f, -0.26f, 0.45f);
-    private static readonly Color BeamColor = new Color(1f, 0.95f, 0.82f);
 
     private PlayerInventory inventory;
     private PlayerHealth health;
@@ -164,19 +161,23 @@ public sealed class FlashlightController : MonoBehaviour
         PlaceBeam();
         beam.range = info.lightRange;
         beam.spotAngle = info.spotAngle;
-        beam.innerSpotAngle = info.spotAngle * 0.55f;
-        beam.intensity = info.lightIntensity * FlickerFactor(inventory.HeldSlot.charge);
+        FlashlightTuning.Look look = FlashlightTuning.Current.look; // designer values, live
+        beam.innerSpotAngle = info.spotAngle * look.brightCentre;
+        beam.intensity = info.lightIntensity * FlickerFactor(inventory.HeldSlot.charge, look);
+        beam.color = look.beamColor;
+        LightShadows shadows = IsLocal && look.ownBeamShadows ? LightShadows.Soft : LightShadows.None;
+        if (beam.shadows != shadows) beam.shadows = shadows;
         beam.enabled = true;
     }
 
-    /// <summary>1 = steady. Below LowBattery the light stutters, worse as it empties.</summary>
-    private float FlickerFactor(float charge)
+    /// <summary>1 = steady. Below look.flickerBelow the light stutters, worse as it empties.</summary>
+    private float FlickerFactor(float charge, FlashlightTuning.Look look)
     {
-        if (charge >= LowBattery) return 1f;
-        float weak = 1f - charge / LowBattery; // 0 -> 1 as the battery empties
+        if (look.flickerBelow <= 0f || charge >= look.flickerBelow) return 1f;
+        float weak = 1f - charge / look.flickerBelow; // 0 -> 1 as the battery empties
         float noise = Mathf.PerlinNoise(flickerSeed, Time.time * 9f);
         float dip = noise < 0.25f * weak ? 0.15f : 1f; // short drop-outs
-        return Mathf.Lerp(1f, 0.55f, weak) * dip;
+        return Mathf.Lerp(1f, look.dimWhenEmpty, weak) * dip;
     }
 
     private void CreateBeam()
@@ -198,9 +199,9 @@ public sealed class FlashlightController : MonoBehaviour
 
         beam = go.AddComponent<Light>();
         beam.type = LightType.Spot;
-        beam.color = BeamColor;
-        // Only YOUR beam casts shadows: six shadowed spot lights would cost too much.
-        beam.shadows = IsLocal ? LightShadows.Soft : LightShadows.None;
+        // Colour and shadows are set every frame in UpdateBeam (designer can change them live).
+        // Only YOUR beam may cast shadows: six shadowed spot lights would cost too much.
+        beam.shadows = LightShadows.None;
     }
 
     /// <summary>Remote players: aim the beam with their synced look angles.</summary>
