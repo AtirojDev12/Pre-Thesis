@@ -93,9 +93,16 @@ public class GhostManager : NetworkBehaviour
     private void Start()
     {
         timer = 0f;
-        ApplyLights(true);
-
         if (HasAuthority) lightsOn = true;
+        // A late joiner may already have received lightsOn=false before Start.
+        // Apply that state instead of forcing its lamps back on locally.
+        ApplyLights(lightsOn);
+    }
+
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+        ApplyLights(lightsOn);
     }
 
     private void Update()
