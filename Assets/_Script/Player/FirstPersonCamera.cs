@@ -8,6 +8,7 @@ using UnityEngine.InputSystem;
 /// controller rather than an animated bone, preventing authored head motion
 /// from being transferred directly to the viewer.
 /// </summary>
+[RequireComponent(typeof(PlayerGhostWarningController))]
 public class FirstPersonCamera : MonoBehaviour
 {
     private const string PlayerBodyLayerName = "LocalPlayerBody";
@@ -86,6 +87,8 @@ public class FirstPersonCamera : MonoBehaviour
     private bool wasIncapacitated;
     private bool isMoving;
     private bool isSprinting;
+    private PlayerGhostWarningController ghostWarning;
+    private float locomotionFov;
 
     // A rig without a NetworkIdentity is a standalone test rig and therefore
     // belongs to this machine.
@@ -100,7 +103,8 @@ public class FirstPersonCamera : MonoBehaviour
         playerMovement = GetComponentInParent<PlayerMovement>();
         viewCamera = GetComponent<Camera>();
         if (viewCamera == null) viewCamera = GetComponentInChildren<Camera>(true);
-
+        ghostWarning = GetComponent<PlayerGhostWarningController>();
+        locomotionFov = defaultFOV;
     }
 
     private void Start()
@@ -288,7 +292,9 @@ public class FirstPersonCamera : MonoBehaviour
         {
             float targetFOV = isSprinting ? sprintFOV : defaultFOV;
             float fovBlend = 1f - Mathf.Exp(-fovLerpSpeed * Time.deltaTime);
-            viewCamera.fieldOfView = Mathf.Lerp(viewCamera.fieldOfView, targetFOV, fovBlend);
+            locomotionFov = Mathf.Lerp(locomotionFov, targetFOV, fovBlend);
+            viewCamera.fieldOfView = Mathf.Clamp(locomotionFov -
+                (ghostWarning != null ? ghostWarning.FovReduction : 0f), 1f, 179f);
         }
     }
 

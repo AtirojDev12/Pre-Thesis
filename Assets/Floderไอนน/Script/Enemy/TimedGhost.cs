@@ -273,6 +273,7 @@ public class TimedGhost : Enemy_Abstract_Class
         if (!HasAiAuthority || isJumpscareTriggered) return;
 
         isJumpscareTriggered = true;
+        GetComponent<GhostWarningSource>()?.SetWarningActive(false);
 
         if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh)
             agent.isStopped = true;
@@ -305,6 +306,7 @@ public class TimedGhost : Enemy_Abstract_Class
 
     private void ShowJumpscare()
     {
+        PlayerGhostWarningController.SuppressLocal(jumpscareDuration);
         if (jumpscareUI != null) jumpscareUI.SetActive(true);
         Invoke(nameof(HideJumpscare), jumpscareDuration);
     }

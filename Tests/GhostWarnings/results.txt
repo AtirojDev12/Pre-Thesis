@@ -1,0 +1,27 @@
+PASS Player prefab has warning controller
+PASS Player prefab has editable effect
+PASS Moving ghost uses proximity
+PASS Stationary ticket ghost uses events
+PASS Mirror generated targeted RPC receiver
+PASS Mirror generated synced danger gate
+PASS Far player receives no warning
+PASS Entering range starts a pulse
+PASS Peak reduces FOV by six degrees
+PASS Walking FOV includes warning once
+PASS Sprint base and warning compose without accumulation
+PASS Stationary nearby ghost does not repeat after cooldown
+PASS Boundary hysteresis prevents re-trigger
+PASS Leaving outer radius rearms entry
+PASS Another ghost does not stack or restart active pulse
+PASS Jumpscare immediately cancels warning
+PASS Still-near ghost does not replay after jumpscare
+PASS New dangerous state inside range can warn again
+PASS Source destruction cancels pulse
+PASS Zone includes player inside
+PASS Zone exit margin prevents boundary flicker
+PASS Event ghost never warns from proximity
+PASS Explicit event uses the same non-stacking effect
+PASS Remote player copy cannot display warning
+PASS Owning network player can display targeted event
+PASS Spectator does not display player warning
+PASS Session ending clears local effect

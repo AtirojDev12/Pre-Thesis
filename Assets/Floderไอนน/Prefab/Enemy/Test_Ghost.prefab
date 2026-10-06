@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: 4468844748897925227}
   - component: {fileID: 4027776634746782673}
   - component: {fileID: 2861021045632651619}
+  - component: {fileID: 710010000000000001}
   m_Layer: 0
   m_Name: Test_Ghost
   m_TagString: Untagged
@@ -258,3 +259,22 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &710010000000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4503036079441966393}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d723e3c32114897999dd4e87c716301, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::GhostWarningSource
+  category: 1
+  warningActive: 1
+  enterRadius: 5
+  exitRadius: 6
+  dangerZone: {fileID: 0}
+  zoneExitMargin: 1
+  priority: 0

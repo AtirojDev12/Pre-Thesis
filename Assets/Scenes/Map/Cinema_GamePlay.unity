@@ -1299,6 +1299,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TaskTimer
   showOverlay: 1
+  overlayKey: 96
   reportKey: 102
   roundLengthMinutes: 15
   targetBusyFraction: 0.57

@@ -64,6 +64,7 @@ public class TicketPunisherGhost : Enemy_Abstract_Class
         currentWrongCount++;
         transform.position = initialPosition + Vector3.up * (currentWrongCount * riseAmountPerMistake);
         if (currentWrongCount >= Mathf.Max(1, maxWrongAttempts)) TriggerJumpscare(seller);
+        else GetComponent<GhostWarningSource>()?.WarnPlayer(seller);
     }
 
     protected override void CheckForPlayer() { }
@@ -75,6 +76,7 @@ public class TicketPunisherGhost : Enemy_Abstract_Class
     {
         if (!HasAiAuthority || isAttackTriggered || !PlayerRegistry.IsHuntable(victim)) return;
         isAttackTriggered = true;
+        GetComponent<GhostWarningSource>()?.SetWarningActive(false);
         if (killsOutright) victim.ServerKill("ticket ghost jumpscare");
         else victim.TakeDamage(attackDamage);
         if (NetworkMode.IsOffline)
@@ -95,6 +97,7 @@ public class TicketPunisherGhost : Enemy_Abstract_Class
 
     private void ShowJumpscare()
     {
+        PlayerGhostWarningController.SuppressLocal(jumpscareDuration);
         // Resolve again for late-created HUDs and RPCs arriving before Start.
         ResolveJumpscareUI();
         if (jumpscareUI != null)
