@@ -60,7 +60,12 @@ public sealed class LightSwitchInteractable : InteractableBase
     protected override void OnInteracted(GameObject interactor)
     {
         GhostManager manager = GhostManager.Instance;
-        if (manager != null) manager.PlayerToggleLights(!manager.areLightsOnCurrently);
+        if (manager == null) return;
+        bool wasOn = manager.areLightsOnCurrently;
+        manager.PlayerToggleLights(!wasOn);
+        // Only an accepted switch interaction makes a click, never ghost flickers or late joins.
+        if (manager.areLightsOnCurrently != wasOn)
+            NetworkAudioRelay.Play(manager.areLightsOnCurrently ? "LightSwitch_On" : "LightSwitch_Off", transform.position);
     }
 
     public override void SetHighlighted(bool highlighted) { }

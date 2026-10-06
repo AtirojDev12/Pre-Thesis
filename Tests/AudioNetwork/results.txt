@@ -1,0 +1,48 @@
+PASS Client registers audio receiver
+PASS World audio uses reliable delivery
+PASS Mirror accepts audio batch
+PASS Audio message has correct Mirror identifier
+PASS LightSwitch_On reaches host exactly once with source position
+PASS LightSwitch_On reaches ready guest exactly once with correct clip
+PASS Loading guest receives no one-shot audio
+PASS World audio uses reliable delivery
+PASS Mirror accepts audio batch
+PASS Audio message has correct Mirror identifier
+PASS LightSwitch_Off reaches host exactly once with source position
+PASS LightSwitch_Off reaches ready guest exactly once with correct clip
+PASS Loading guest receives no one-shot audio
+PASS World audio uses reliable delivery
+PASS Mirror accepts audio batch
+PASS Audio message has correct Mirror identifier
+PASS Ticket_MovieClick reaches host exactly once with source position
+PASS Ticket_MovieClick reaches ready guest exactly once with correct clip
+PASS Loading guest receives no one-shot audio
+PASS World audio uses reliable delivery
+PASS Mirror accepts audio batch
+PASS Audio message has correct Mirror identifier
+PASS Ticket_SubmitClick reaches host exactly once with source position
+PASS Ticket_SubmitClick reaches ready guest exactly once with correct clip
+PASS Loading guest receives no one-shot audio
+PASS Joining guest does not replay old clicks
+PASS Client-only and ending-session calls cannot broadcast audio
+PASS Every pause/settings button has exactly one sound emitter
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS In-game button hover is disabled
+PASS Main menu hover remains enabled by default
+PASS Pause/settings clicks never send network messages
+PASS Client removes audio receiver on stop
+NOTE Remote guest capture uses real Mirror batching/serialization, not a second running game. Audible playback is not tested in batch mode.

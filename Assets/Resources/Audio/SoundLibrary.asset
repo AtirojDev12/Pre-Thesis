@@ -13,11 +13,47 @@ MonoBehaviour:
   m_Name: SoundLibrary
   m_EditorClassIdentifier: Assembly-CSharp::SoundLibrary
   sounds:
+  - id: Ticket_MovieClick
+    clips:
+    - {fileID: 8300000, guid: fae445c8d9ea510439d84a1d6303a304, type: 3}
+    category: 1
+    volume: 0.5
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: Ticket_SubmitClick
+    clips:
+    - {fileID: 8300000, guid: 615ddfd36b9f59c479424b57b6648e19, type: 3}
+    category: 1
+    volume: 0.2
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: LightSwitch_On
+    clips:
+    - {fileID: 8300000, guid: 0bfa4d6fd8dce744182daeda7382d0c4, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: LightSwitch_Off
+    clips:
+    - {fileID: 8300000, guid: 94d9ddfd46b5fd641b587413586e8668, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
   - id: UI_Click
     clips:
     - {fileID: 8300000, guid: 223649032966bc5439f3b5c5e00a7dbc, type: 3}
     category: 1
-    volume: 0.7
+    volume: 0.5
     spatial: 0
     minDistance: 1
     maxDistance: 15

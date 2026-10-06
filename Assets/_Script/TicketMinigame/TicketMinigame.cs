@@ -182,6 +182,7 @@ public sealed class TicketMinigame : MonoBehaviour
             Vector3.Distance(player.transform.position, movieUiAnchor.position) > serverInteractionDistance) return;
         state.movieIndex = movieIndex;
         state.hasMovie = true;
+        NetworkAudioRelay.Play("Ticket_MovieClick", movieUiAnchor.position);
         if (networkSync != null && networkSync.IsServerReady) networkSync.Publish(state);
     }
 
@@ -263,6 +264,8 @@ public sealed class TicketMinigame : MonoBehaviour
             player == null || player.IsDead || player.IsDowned) return;
         Transform button = ghostTicket ? ghostButton.transform : humanButton.transform;
         if (Vector3.Distance(player.transform.position, button.position) > serverInteractionDistance) return;
+        // Both ticket types click on accepted submission, whether the order is correct or not.
+        NetworkAudioRelay.Play("Ticket_SubmitClick", button.position);
         bool correct = ghostTicket == state.ghost && state.movieIndex == state.requestedMovieIndex;
         TaskTimer.Complete(TimerKey, ZoneID, player.name, correct);
         if (correct)

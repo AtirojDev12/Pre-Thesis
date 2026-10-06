@@ -11,6 +11,11 @@ Hover fires on pointer entry; disabled buttons are silent. The menu builder also
 adds the component to newly generated buttons. UI uses 2D SFX sources and may
 finish playing after a scene transition.
 
+The ESC pause menu also ensures every child button, including inactive settings
+pages and leave confirmation, has one `UISoundEmitter` at startup. It uses the
+same `UI_Click` sound, with hover disabled on these buttons, without rebuilding
+the existing prefab. MainMenu buttons keep `UI_Hover` enabled.
+
 The existing `AdvancedLightLoop` in MainMenu controls its configured light group:
 
 - `LongRun` loops on a separate, scene-owned 2D Ambient source.
@@ -99,7 +104,27 @@ Tank refill is an immediate stock operation and does not play the bucket-scoop
 sound. Station audio is distinct from the shared 24-voice one-shot pool. MainMenu,
 footsteps, voice, order scoring and the authored tank capacity are unchanged.
 
+## Ticket counter clicks
+
+Accepted movie selections use `Ticket_MovieClick` (`Click1.wav`) at the movie
+panel. Accepted human/ghost ticket submissions use `Ticket_SubmitClick`
+(`Click3.wav`) at the corresponding sell button, for both correct and incorrect
+orders. Both are preloaded 3D SFX with 2–15 metre attenuation, sent once through
+the authoritative world-sound relay. Invalid requests and duplicate sales are
+silent; restoring the shared selection does not replay a click.
+
+## Light switches
+
+
+`LightSwitchInteractable` plays `LightSwitch_On` / `LightSwitch_Off` after an
+accepted interaction changes the light state. They use the existing
+`LIghtSwichOn.wav` / `LightSwichOff.wav` clips as preloaded 3D SFX at the switch,
+with 2–15 metre attenuation. The authoritative interaction sends one world-sound
+event, so the host and guests use the same playback path. Ghost flickers and
+initial state restoration do not play switch clicks.
+
 ## Room ambience configuration
+
 
 Add one `AmbientController` to the scene and assign its default clip and zones.
 For each room add `AmbientZone` with a trigger BoxCollider, clip, volume and

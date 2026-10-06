@@ -81,6 +81,15 @@ public class PauseMenuController : MonoBehaviour
         }
         instance = this;
 
+        // Include inactive settings pages and confirmation buttons in existing prefabs.
+        // Keep MainMenu's click sound, but silence hover in the in-game menu.
+        foreach (Button button in GetComponentsInChildren<Button>(true))
+        {
+            if (!button.TryGetComponent<UISoundEmitter>(out var emitter))
+                emitter = button.gameObject.AddComponent<UISoundEmitter>();
+            emitter.HoverEnabled = false;
+        }
+
         resumeButton.onClick.AddListener(Close);
         settingsButton.onClick.AddListener(ShowSettings);
         leaveButton.onClick.AddListener(AskLeave);
