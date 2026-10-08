@@ -17,8 +17,11 @@ using UnityEngine.SceneManagement;
 ///   - 2 Oct: you may carry MORE than one copy of an item, but only the first is
 ///     usable; the others are SPARES (InventorySlot.spare) you can only drop (Q)
 ///     for a friend. If your usable copy goes, a spare becomes usable.
-///   - In the LOBBY your save follows your hotbar: drop your last copy = you no
-///     longer own it (you may buy a new one); pick one up = you own it.
+///   - In the LOBBY your save follows your hotbar + STORAGE: drop your last copy = you
+///     no longer own it (you may buy a new one); pick one up = you own it.
+///   - 8 Oct: STORAGE (lobby only). Owned items that are not in the hotbar wait in
+///     your own storage (StorageUI, the lobby storage room). Buying with a full
+///     hotbar puts the item there. Only the hotbar is taken into a match.
 ///   - Items are identified by ItemCatalog string IDs (same IDs as the save).
 ///
 /// Owned shop items come from the save/loadout. PlayerItemThrow handles dropping
@@ -37,6 +40,8 @@ public class PlayerInventory : NetworkBehaviour
     [SerializeField] private List<string> startingItems = new List<string>(); // 1 Oct: walkie is bought now, not free
 
     private readonly SyncList<InventorySlot> slots = new SyncList<InventorySlot>();
+    /// <summary>8 Oct: owned items NOT in the hotbar (lobby only). Server writes, owner's UI reads.</summary>
+    private readonly SyncList<InventorySlot> storage = new SyncList<InventorySlot>();
 
     [SyncVar(hook = nameof(OnSelectedSlotChanged))]
     private int selectedSlot;
@@ -56,6 +61,36 @@ public class PlayerInventory : NetworkBehaviour
 
     public InventorySlot GetSlot(int index) =>
         index >= 0 && index < slots.Count ? slots[index] : InventorySlot.Empty;
+
+    /// <summary>8 Oct: how many entries your storage holds (a stack of batteries = 1 entry).</summary>
+    public int StoredCount => storage.Count;
+    public InventorySlot GetStored(int index) =>
+        index >= 0 && index < storage.Count ? storage[index] : InventorySlot.Empty;
+
+    /// <summary>Any machine: is this item in the storage?</summary>
+    public bool IsStored(string itemId)
+    {
+        for (int i = 0; i < storage.Count; i++) if (storage[i].itemId == itemId) return true;
+        return false;
+    }
+
+    /// <summary>Any machine: units of this item in the storage.</summary>
+    public int StoredUnitsOf(string itemId)
+    {
+        int n = 0;
+        for (int i = 0; i < storage.Count; i++) if (storage[i].itemId == itemId) n += storage[i].Units;
+        return n;
+    }
+
+    /// <summary>Any machine: is there an empty hotbar slot?</summary>
+    public bool HasEmptySlot
+    {
+        get
+        {
+            for (int i = 0; i < slots.Count; i++) if (slots[i].IsEmpty) return true;
+            return false;
+        }
+    }
 
     /// <summary>The item in your hand.</summary>
     public InventorySlot HeldSlot => GetSlot(selectedSlot);
@@ -94,6 +129,8 @@ public class PlayerInventory : NetworkBehaviour
         // Permit the project's offline test mode, preserving Mirror's guard in real sessions.
         System.Func<bool> mirrorCanWrite = slots.IsWritable;
         slots.IsWritable = () => NetworkMode.IsOffline || mirrorCanWrite();
+        System.Func<bool> mirrorCanWriteStorage = storage.IsWritable;
+        storage.IsWritable = () => NetworkMode.IsOffline || mirrorCanWriteStorage();
     }
 
     // ---- Lifecycle ---------------------------------------------------------
@@ -103,6 +140,7 @@ public class PlayerInventory : NetworkBehaviour
         loadoutApplied = false;
         slots.Clear();
         for (int i = 0; i < SlotCount; i++) slots.Add(InventorySlot.Empty);
+        storage.Clear();
         selectedSlot = 0;
 
         foreach (string id in startingItems) ServerAddItem(id);
@@ -111,10 +149,15 @@ public class PlayerInventory : NetworkBehaviour
     public override void OnStartClient()
     {
         slots.OnChange += OnSlotsChanged;
+        storage.OnChange += OnSlotsChanged;
         Changed?.Invoke();
     }
 
-    public override void OnStopClient() => slots.OnChange -= OnSlotsChanged;
+    public override void OnStopClient()
+    {
+        slots.OnChange -= OnSlotsChanged;
+        storage.OnChange -= OnSlotsChanged;
+    }
 
     public override void OnStartLocalPlayer()
     {
@@ -129,6 +172,7 @@ public class PlayerInventory : NetworkBehaviour
         OnStartServer();
         Local = this;
         slots.OnChange += OnSlotsChanged;
+        storage.OnChange += OnSlotsChanged;
         hud = HotbarHUD.Create(this);
         SendLoadout();
     }
@@ -143,30 +187,112 @@ public class PlayerInventory : NetworkBehaviour
     /// <summary>Items this PC brought into the current body (a match loses these on death).</summary>
     public static readonly List<string> LastLoadout = new List<string>();
 
-    /// <summary>Owner: put every owned permanent item from the save into the hotbar.</summary>
+    /// <summary>
+    /// 8 Oct: the items (own, not spares) this PC had in its LOBBY hotbar, in slot order.
+    /// The lobby puts these into the hotbar first; a match brings ONLY these.
+    /// Null = no lobby yet this session (tests, first launch): everything owned, first that fit.
+    /// </summary>
+    public static List<string> HotbarChoice { get; private set; }
+
+    /// <summary>8 Oct: consumable units in the lobby hotbar (the rest of the save's units were in storage).</summary>
+    private static readonly List<ConsumableItemData> hotbarChoiceUnits = new List<ConsumableItemData>();
+
+    /// <summary>
+    /// 8 Oct: consumable units that stayed home (storage) when this match started.
+    /// The results screen adds them back to the save (die or survive, they are safe).
+    /// </summary>
+    public static readonly List<ConsumableItemData> LeftAtHome = new List<ConsumableItemData>();
+
+    public static int LeftAtHomeOf(string itemId)
+    {
+        foreach (ConsumableItemData c in LeftAtHome) if (c != null && c.itemID == itemId) return c.quantity;
+        return 0;
+    }
+
+    private static int HotbarChoiceUnitsOf(string itemId)
+    {
+        foreach (ConsumableItemData c in hotbarChoiceUnits) if (c != null && c.itemID == itemId) return c.quantity;
+        return 0;
+    }
+
+    /// <summary>
+    /// Owner: send the owned items from the save.
+    ///   LOBBY: everything you own. Your hotbar choice goes in first; what does not fit
+    ///          goes to your storage.
+    ///   MATCH: only what you carried in the lobby hotbar (storage stays safe at home).
+    /// </summary>
     public void SendLoadout()
     {
         if (!NetworkMode.IsLocalController(this) || SaveManager.Current == null || SaveManager.Current.permanentItems == null) return;
 
-        LastLoadout.Clear();
-        var send = new List<string>();
+        bool lobby = InLobby;
+        loadoutSeenOnOwner = true; // from now on the lobby hotbar is the player's choice
+        var owned = new List<string>();
         foreach (PermanentItemData item in SaveManager.Current.permanentItems)
-        {
-            if (item == null || !item.isOwned || !ItemCatalog.Exists(item.itemID)) continue;
-            if (!LastLoadout.Contains(item.itemID)) { LastLoadout.Add(item.itemID); send.Add(item.itemID); }
-        }
-        // 5 Oct: consumables (Batteries) come along too, one ID per unit, at most a full stack.
+            if (item != null && item.isOwned && ItemCatalog.Exists(item.itemID) && !owned.Contains(item.itemID)) owned.Add(item.itemID);
         if (SaveManager.Current.consumables != null)
             foreach (ConsumableItemData item in SaveManager.Current.consumables)
             {
                 ItemCatalog.ItemInfo info = item != null ? ItemCatalog.Find(item.itemID) : null;
-                if (info == null || !info.Consumable || item.quantity <= 0 || LastLoadout.Contains(item.itemID)) continue;
-                LastLoadout.Add(item.itemID);
-                for (int n = Mathf.Min(item.quantity, Mathf.Max(1, info.maxStack)); n > 0; n--) send.Add(item.itemID);
+                if (info != null && info.Consumable && item.quantity > 0 && !owned.Contains(item.itemID)) owned.Add(item.itemID);
             }
+
+        // Order: the hotbar choice first, then the rest.
+        var order = new List<string>();
+        if (HotbarChoice != null)
+            foreach (string id in HotbarChoice) if (owned.Contains(id) && !order.Contains(id)) order.Add(id);
+        bool matchWithChoice = !lobby && HotbarChoice != null;
+        if (!matchWithChoice)
+            foreach (string id in owned) if (!order.Contains(id)) order.Add(id);
+
+        LastLoadout.Clear();
+        LeftAtHome.Clear();
+        var send = new List<string>();
+        foreach (string id in order)
+        {
+            ItemCatalog.ItemInfo info = ItemCatalog.Find(id);
+            if (info == null) continue;
+            // A match takes at most a full hotbar; the lobby takes everything (the rest -> storage).
+            if (!lobby && LastLoadout.Count >= SlotCount) break;
+            LastLoadout.Add(id);
+            if (info.Consumable)
+            {
+                // 5 Oct: consumables (Batteries) come along too, one ID per unit, at most a full stack.
+                int have = SaveManager.GetConsumableQuantity(id);
+                int units = Mathf.Min(have, Mathf.Max(1, info.maxStack));
+                // 8 Oct: a match takes only the units that were in the lobby hotbar.
+                if (matchWithChoice) units = Mathf.Min(units, HotbarChoiceUnitsOf(id));
+                for (int n = units; n > 0; n--) send.Add(id);
+                if (!lobby && have > units) LeftAtHome.Add(new ConsumableItemData(id, have - units));
+            }
+            else send.Add(id);
+        }
         if (NetworkMode.IsOffline) ApplyLoadout(send.ToArray());
         else CmdLoadout(send.ToArray());
     }
+
+    /// <summary>Owner, lobby: remember which own items are in the hotbar (for the next match / lobby).</summary>
+    private void RecordHotbarChoice()
+    {
+        if (!InLobby || !NetworkMode.IsLocalController(this) || !loadoutSeenOnOwner) return;
+        var choice = new List<string>();
+        hotbarChoiceUnits.Clear();
+        for (int i = 0; i < slots.Count; i++)
+        {
+            InventorySlot s = slots[i];
+            if (s.IsEmpty || s.spare) continue;
+            if (ItemCatalog.Find(s.itemId)?.Consumable == true)
+            {
+                ConsumableItemData entry = hotbarChoiceUnits.Find(c => c.itemID == s.itemId);
+                if (entry != null) entry.quantity += s.Units;
+                else hotbarChoiceUnits.Add(new ConsumableItemData(s.itemId, s.Units));
+            }
+            if (!choice.Contains(s.itemId)) choice.Add(s.itemId);
+        }
+        HotbarChoice = choice;
+    }
+
+    private bool loadoutSeenOnOwner;
 
     /// <summary>
     /// Owner, after buying in the lobby shop (2 Oct): put that one item in the hotbar NOW.
@@ -190,13 +316,20 @@ public class PlayerInventory : NetworkBehaviour
         if (room != null && !room.InRoomScene) return;
         ItemCatalog.ItemInfo info = ItemCatalog.Find(itemId);
         if (info == null) return;
-        // 5 Oct: a bought Battery joins its stack (max 3).
-        if (info.Stackable) { ServerAddStack(InventorySlot.Of(itemId)); return; }
+        // 5 Oct: a bought Battery joins its stack (max 3). 8 Oct: a stack never splits
+        // between hotbar and storage; no room in the hotbar = storage.
+        if (info.Stackable)
+        {
+            if (IsStored(itemId) || UnitsOf(itemId) == 0 && !HasEmptySlot) ServerStore(InventorySlot.Of(itemId));
+            else ServerAddStack(InventorySlot.Of(itemId));
+            return;
+        }
         if (!info.permanent) return;
         // 3 Oct (bug #8): buying never makes a spare. Already carrying one = refuse
         // (ServerAddItem alone would add the second copy as a spare).
-        if (ServerCountOf(itemId) > 0) return;
-        ServerAddItem(itemId); // refuses a full hotbar; refreshes the radio itself
+        if (ServerCountOf(itemId) > 0 || IsStored(itemId)) return;
+        // 8 Oct (bug): a full hotbar used to lose the item. Now it goes to storage.
+        if (!ServerAddItem(itemId)) ServerStore(InventorySlot.Of(itemId));
     }
 
     [Command]
@@ -213,11 +346,31 @@ public class PlayerInventory : NetworkBehaviour
         // A full hotbar simply refuses the rest (ServerAddItem returns false).
         // Owners send their own save; the caps below still hold (co-op, trusted like before).
         if (itemIds.Length > 32) return;
+        bool lobby = InLobby;
+        var units = new Dictionary<string, int>();
+        var order = new List<string>();
         foreach (string id in itemIds)
+        {
+            if (!units.ContainsKey(id)) { units[id] = 0; order.Add(id); }
+            units[id]++;
+        }
+        foreach (string id in order)
         {
             ItemCatalog.ItemInfo info = ItemCatalog.Find(id);
             if (info == null) continue;
-            if (info.permanent ? ServerAddItem(id) : info.Stackable && ServerAddStack(InventorySlot.Of(id)) > 0) added++;
+            if (info.permanent)
+            {
+                if (ServerCountOf(id) > 0 || IsStored(id)) continue;
+                if (ServerAddItem(id)) added++;
+                else if (lobby) ServerStore(InventorySlot.Of(id)); // 8 Oct: the rest waits in storage
+            }
+            else if (info.Stackable)
+            {
+                InventorySlot stack = InventorySlot.Of(id);
+                stack.count = Mathf.Min(units[id], Mathf.Max(1, info.maxStack));
+                if (HasEmptySlot || UnitsOf(id) > 0) { if (ServerAddStack(stack) > 0) added++; }
+                else if (lobby) ServerStore(stack);
+            }
         }
         if (added > 0 && voice != null) voice.ServerRefreshRadio();
     }
@@ -229,7 +382,11 @@ public class PlayerInventory : NetworkBehaviour
         if (hud != null) Destroy(hud.gameObject);
     }
 
-    private void OnSlotsChanged(SyncList<InventorySlot>.Operation op, int index, InventorySlot item) => Changed?.Invoke();
+    private void OnSlotsChanged(SyncList<InventorySlot>.Operation op, int index, InventorySlot item)
+    {
+        RecordHotbarChoice();
+        Changed?.Invoke();
+    }
 
     private void OnSelectedSlotChanged(int oldValue, int newValue) => Changed?.Invoke();
 
@@ -408,6 +565,8 @@ public class PlayerInventory : NetworkBehaviour
             if (empty < 0 && slots[i].IsEmpty) empty = i;
         }
         if (empty < 0) return false; // hotbar full
+        // 8 Oct: you own one waiting in storage -> a picked-up copy is a spare.
+        if (!alreadyHave && storage.Count > 0 && IsStored(itemId)) alreadyHave = true;
 
         // A second copy is a spare: carried only to give away (2 Oct).
         item.spare = alreadyHave;
@@ -524,6 +683,87 @@ public class PlayerInventory : NetworkBehaviour
         return removed;
     }
 
+    // ---- Storage (8 Oct, lobby only) ------------------------------------------
+    //
+    // Owned items that are not in the hotbar. Each player has their own (it lives
+    // on their own body), and only their own StorageUI shows it. The server moves
+    // items between hotbar and storage; the save does not change (still owned).
+
+    /// <summary>SERVER. Put an item into storage (stacks of the same consumable join).</summary>
+    private void ServerStore(InventorySlot item)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || item.IsEmpty) return;
+        item.spare = false;
+        int max = ItemCatalog.MaxStack(item.itemId);
+        if (max > 1)
+        {
+            for (int i = 0; i < storage.Count; i++)
+            {
+                if (storage[i].itemId != item.itemId) continue;
+                InventorySlot stack = storage[i];
+                stack.count = Mathf.Min(max, stack.Units + item.Units);
+                storage[i] = stack;
+                ServerLobbyOwnershipChanged(item.itemId);
+                return;
+            }
+        }
+        else
+        {
+            for (int i = 0; i < storage.Count; i++) if (storage[i].itemId == item.itemId) return; // max 1 per type
+        }
+        if (item.count < 1) item.count = 1;
+        storage.Add(item);
+        ServerLobbyOwnershipChanged(item.itemId);
+    }
+
+    /// <summary>Owner: move the item in hotbar slot <paramref name="index"/> into storage.</summary>
+    public void RequestStore(int index)
+    {
+        if (!NetworkMode.IsLocalController(this)) return;
+        if (NetworkMode.IsOffline) StoreSlot(index);
+        else CmdStore(index);
+    }
+
+    [Command]
+    private void CmdStore(int index) => StoreSlot(index);
+
+    private void StoreSlot(int index)
+    {
+        if (!InLobby || index < 0 || index >= slots.Count) return;
+        InventorySlot item = slots[index];
+        if (item.IsEmpty || item.spare) return; // a spare is a friend's item: give it back instead
+        if (ItemCatalog.MaxStack(item.itemId) <= 1 && IsStored(item.itemId)) return; // max 1 per type
+        slots[index] = InventorySlot.Empty;
+        item.poweredOn = false;
+        ServerStore(item);
+        if (voice != null) voice.ServerRefreshRadio();
+    }
+
+    /// <summary>Owner: move storage entry <paramref name="index"/> into the hotbar.</summary>
+    public void RequestTakeStored(int index)
+    {
+        if (!NetworkMode.IsLocalController(this)) return;
+        if (NetworkMode.IsOffline) TakeStored(index);
+        else CmdTakeStored(index);
+    }
+
+    [Command]
+    private void CmdTakeStored(int index) => TakeStored(index);
+
+    private void TakeStored(int index)
+    {
+        if (!InLobby || index < 0 || index >= storage.Count) return;
+        InventorySlot item = storage[index];
+        bool stackable = ItemCatalog.MaxStack(item.itemId) > 1;
+        if (!stackable && CountOf(item.itemId) > 0) return; // already carrying one
+        if (!HasEmptySlot && !(stackable && UnitsOf(item.itemId) > 0)) return; // hotbar full
+        storage.RemoveAt(index); // first, so ServerAddItem does not see a copy in storage (= spare)
+        bool moved = stackable ? ServerAddStack(item) > 0 : ServerAddItem(item);
+        if (!moved) storage.Insert(index, item);
+        ServerLobbyOwnershipChanged(item.itemId);
+        if (voice != null) voice.ServerRefreshRadio();
+    }
+
     // ---- Lobby ownership (2 Oct) ----------------------------------------------
     //
     // In the lobby the save follows the hotbar: carrying at least one copy = owned.
@@ -549,13 +789,14 @@ public class PlayerInventory : NetworkBehaviour
         if (info.Consumable)
         {
             // 5 Oct: in the lobby the save's quantity follows the hotbar (drop one = own one less).
-            int units = UnitsOf(itemId);
+            // 8 Oct: + what waits in storage.
+            int units = UnitsOf(itemId) + StoredUnitsOf(itemId);
             if (NetworkMode.IsOffline) ApplyConsumableToSave(itemId, units);
             else if (connectionToClient != null) TargetConsumable(connectionToClient, itemId, units);
             return;
         }
 
-        bool owned = ServerCountOf(itemId) > 0;
+        bool owned = ServerCountOf(itemId) > 0 || IsStored(itemId);
         if (NetworkMode.IsOffline) ApplyOwnershipToSave(itemId, owned);
         else if (connectionToClient != null) TargetOwnership(connectionToClient, itemId, owned);
     }

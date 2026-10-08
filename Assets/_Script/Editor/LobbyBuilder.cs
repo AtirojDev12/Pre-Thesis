@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Tools > Pre-Thesis > Build 3D Lobby (greybox + shop + practice)   (1 Oct 2026)
+/// Tools > Pre-Thesis > Scenes > Lobby: Build 3D Lobby (greybox + shop + practice)   (1 Oct 2026)
 ///
 /// Builds a walkable GREYBOX lobby inside Assets/Scenes/Lobby.unity, under one
 /// root object "3D Lobby (greybox)". Running it again replaces only that root;
@@ -50,7 +50,7 @@ public static class LobbyBuilder
 
     private static Transform root;
 
-    [MenuItem("Tools/Pre-Thesis/Build 3D Lobby (greybox + shop + practice)")]
+    [MenuItem("Tools/Pre-Thesis/Scenes/Lobby: Build 3D Lobby (greybox + shop + practice)", false, 40)]
     private static void Build()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -62,7 +62,7 @@ public static class LobbyBuilder
         if (AssetDatabase.LoadAssetAtPath<SceneAsset>(LobbyScenePath) == null)
         {
             EditorUtility.DisplayDialog("Build 3D Lobby",
-                "Assets/Scenes/Lobby.unity is missing. Run Tools > Pre-Thesis > Build Main Menu + Lobby first.", "OK");
+                "Assets/Scenes/Lobby.unity is missing. Run Tools > Pre-Thesis > Scenes > Menu: Build Main Menu + Lobby first.", "OK");
             return;
         }
 
@@ -79,7 +79,7 @@ public static class LobbyBuilder
                 EditorUtility.DisplayDialog("Build 3D Lobby",
                     "Lobby.unity now uses the team's edited lobby (\"" + candidate.name + "\", a prefab).\n\n" +
                     "Rebuilding would place a second full lobby on top of it, so nothing was changed.\n\n" +
-                    "Edit the lobby by hand, or use Tools > Pre-Thesis > Lobby: Add Lights Sign (L).", "OK");
+                    "Edit the lobby by hand, or use Tools > Pre-Thesis > Scenes > Lobby: Add Lights Sign (L).", "OK");
                 return;
             }
         }
@@ -425,7 +425,7 @@ public static class LobbyBuilder
     /// Touches nothing else: it is its own root object in Lobby.unity, placed from
     /// wherever the Match Rules sign is now, so it follows the team's layout.
     /// </summary>
-    [MenuItem("Tools/Pre-Thesis/Lobby: Add Lights Sign (L)")]
+    [MenuItem("Tools/Pre-Thesis/Scenes/Lobby: Add Lights Sign (L)", false, 41)]
     private static void AddLightSign()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)

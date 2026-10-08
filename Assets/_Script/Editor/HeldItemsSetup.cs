@@ -3,7 +3,7 @@ using UnityEngine;
 
 public static class HeldItemsSetup
 {
-    [MenuItem("Tools/Pre-Thesis/Add Network Held Items to Player")]
+    [MenuItem("Tools/Pre-Thesis/One Step/Player: Network Held Items", false, 111)]
     public static void Install()
     {
         if (EditorApplication.isPlaying) throw new System.InvalidOperationException("Stop Play mode first.");

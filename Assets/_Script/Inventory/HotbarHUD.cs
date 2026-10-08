@@ -121,7 +121,7 @@ public sealed class HotbarHUD : MonoBehaviour
                 : inventory.IsHoldingFlashlight
                 ? $"[{FlashlightController.ToggleHint}] light on / off   ·   " +
                   (ItemCatalog.Find(inventory.HeldSlot.itemId)?.usesBatteries == true ? "[R] new battery" : "Mash [Space] to charge")
-                : string.Empty;
+                : PlayerSanity.HotbarHint(inventory); // 8 Oct: snack / holy items
         }
 
         // Voice status changes without events (menu, connection), so poll it.

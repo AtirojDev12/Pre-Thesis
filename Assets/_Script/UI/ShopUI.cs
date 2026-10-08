@@ -90,10 +90,9 @@ public sealed class ShopUI : MonoBehaviour
         {
             int max = Mathf.Max(1, item.maxStack);
             if (SaveManager.GetConsumableQuantity(item.id) >= max) { Message($"You can carry at most {max} {item.displayName}.", Muted); return; }
-            if (PlayerInventory.Local != null && !PlayerInventory.Local.CanTake(item.id)) { Message("Your hotbar is full. Drop something first (Q).", Bad); return; }
         }
         // 3 Oct (bug #8): carrying one you picked up (ownership message not here yet) = no buy.
-        if (item.permanent && PlayerInventory.Local != null && PlayerInventory.Local.CountOf(item.id) > 0)
+        if (item.permanent && PlayerInventory.Local != null && (PlayerInventory.Local.CountOf(item.id) > 0 || PlayerInventory.Local.IsStored(item.id)))
         {
             Message($"You already carry a {item.displayName}.", Muted);
             return;
@@ -118,10 +117,15 @@ public sealed class ShopUI : MonoBehaviour
 
         SaveManager.SaveToDisk();
 
-        // Into the hotbar right away (the server checks it).
-        if (PlayerInventory.Local != null) PlayerInventory.Local.RequestAddOwned(item.id);
+        // Into the hotbar right away (the server checks it). 8 Oct: full hotbar = your storage.
+        PlayerInventory inv = PlayerInventory.Local;
+        bool toStorage = inv != null && (item.Stackable
+            ? inv.IsStored(item.id) || inv.UnitsOf(item.id) == 0 && !inv.HasEmptySlot
+            : !inv.HasEmptySlot);
+        if (inv != null) inv.RequestAddOwned(item.id);
 
-        Message(item.price > 0 ? $"Bought the {item.displayName}!" : $"Claimed the {item.displayName} (free)!", Good);
+        string done = item.price > 0 ? $"Bought the {item.displayName}!" : $"Claimed the {item.displayName} (free)!";
+        Message(toStorage ? done + " Your hotbar is full: it is in your STORAGE room." : done, Good);
         Refresh();
     }
 
@@ -196,11 +200,10 @@ public sealed class ShopUI : MonoBehaviour
         Stretch(dim.rectTransform);
         dim.raycastTarget = true;
 
+        // 8 Oct: fixed-size card; the item list scrolls (mouse wheel / drag / scrollbar).
         RectTransform card = NewImage("Card", transform, Panel).rectTransform;
         card.anchorMin = card.anchorMax = card.pivot = new Vector2(0.5f, 0.5f);
-        int count = 0;
-        foreach (ItemCatalog.ItemInfo listed in ItemCatalog.All) if (listed.inShop) count++;
-        card.sizeDelta = new Vector2(1100f, 330f + 130f * Mathf.Max(1, count));
+        card.sizeDelta = new Vector2(1100f, 1000f);
 
         float y = 30f;
         Place(NewText("Title", card, "SHOP", 64f, Gold, FontStyles.Bold, TextAlignmentOptions.Center), card, 40f, ref y, 80f);
@@ -208,17 +211,38 @@ public sealed class ShopUI : MonoBehaviour
         Place(currencyText, card, 40f, ref y, 50f);
         y += 10f;
 
+        const float RowStep = 130f;
+        const float FooterHeight = 160f; // message + close button
+
+        // Viewport: clips the rows and catches the mouse wheel.
+        Image viewportImage = NewImage("Viewport", card, new Color(0f, 0f, 0f, 0f));
+        viewportImage.raycastTarget = true;
+        viewportImage.gameObject.AddComponent<RectMask2D>();
+        RectTransform viewport = viewportImage.rectTransform;
+        viewport.anchorMin = Vector2.zero;
+        viewport.anchorMax = Vector2.one;
+        viewport.offsetMin = new Vector2(40f, FooterHeight);
+        viewport.offsetMax = new Vector2(-56f, -y);
+
+        var contentGo = new GameObject("Content", typeof(RectTransform));
+        contentGo.transform.SetParent(viewport, false);
+        RectTransform content = (RectTransform)contentGo.transform;
+        content.anchorMin = new Vector2(0f, 1f);
+        content.anchorMax = new Vector2(1f, 1f);
+        content.pivot = new Vector2(0.5f, 1f);
+
+        float rowY = 0f;
         foreach (ItemCatalog.ItemInfo item in ItemCatalog.All)
         {
             if (!item.inShop) continue; // not for sale (5 Oct: price 0 + inShop = FREE)
 
-            RectTransform rowRt = NewImage("Item " + item.id, card, RowColor).rectTransform;
+            RectTransform rowRt = NewImage("Item " + item.id, content, RowColor).rectTransform;
             rowRt.anchorMin = new Vector2(0f, 1f);
             rowRt.anchorMax = new Vector2(1f, 1f);
             rowRt.pivot = new Vector2(0.5f, 1f);
-            rowRt.offsetMin = new Vector2(40f, -y - 115f);
-            rowRt.offsetMax = new Vector2(-40f, -y);
-            y += 130f;
+            rowRt.offsetMin = new Vector2(0f, -rowY - 115f);
+            rowRt.offsetMax = new Vector2(0f, -rowY);
+            rowY += RowStep;
 
             TMP_Text name = NewText("Name", rowRt, item.displayName + (item.permanent ? "  <size=70%><color=#A6A09A>(permanent, lost if you die)</color></size>"
                     : "  <size=70%><color=#A6A09A>(max " + item.maxStack + ", lost if you die)</color></size>"),
@@ -239,9 +263,45 @@ public sealed class ShopUI : MonoBehaviour
 
             rows.Add(new Row { item = item, status = status, buy = buy });
         }
+        content.sizeDelta = new Vector2(0f, Mathf.Max(0f, rowY - (RowStep - 115f)));
+
+        // Scrollbar on the right of the list.
+        RectTransform barRt = NewImage("Scrollbar", card, new Color(0f, 0f, 0f, 0.35f)).rectTransform;
+        barRt.GetComponent<Image>().raycastTarget = true;
+        barRt.anchorMin = new Vector2(1f, 0f);
+        barRt.anchorMax = new Vector2(1f, 1f);
+        barRt.pivot = new Vector2(1f, 0.5f);
+        barRt.offsetMin = new Vector2(-50f, FooterHeight);
+        barRt.offsetMax = new Vector2(-40f, -y);
+        var slidingArea = new GameObject("Sliding Area", typeof(RectTransform));
+        slidingArea.transform.SetParent(barRt, false);
+        Stretch((RectTransform)slidingArea.transform);
+        Image handle = NewImage("Handle", slidingArea.transform, Gold);
+        handle.raycastTarget = true;
+        Stretch(handle.rectTransform);
+        Scrollbar scrollbar = barRt.gameObject.AddComponent<Scrollbar>();
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+        scrollbar.handleRect = handle.rectTransform;
+        scrollbar.targetGraphic = handle;
+
+        ScrollRect scroll = viewport.gameObject.AddComponent<ScrollRect>();
+        scroll.viewport = viewport;
+        scroll.content = content;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 40f;
+        scroll.verticalScrollbar = scrollbar;
+        scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+        scroll.verticalNormalizedPosition = 1f;
 
         messageText = NewText("Message", card, "", 26f, Muted, FontStyles.Normal, TextAlignmentOptions.Center);
-        Place(messageText, card, 40f, ref y, 40f);
+        RectTransform messageRt = messageText.rectTransform;
+        messageRt.anchorMin = new Vector2(0f, 0f);
+        messageRt.anchorMax = new Vector2(1f, 0f);
+        messageRt.pivot = new Vector2(0.5f, 0f);
+        messageRt.offsetMin = new Vector2(40f, 110f);
+        messageRt.offsetMax = new Vector2(-40f, 150f);
 
         Button close = NewButton("Close", card, "Close (Esc)");
         RectTransform closeRt = (RectTransform)close.transform;

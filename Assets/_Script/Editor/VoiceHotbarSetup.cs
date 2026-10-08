@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// One click: adds voice chat + hotbar + Walkie-Talkie to Player.prefab.
-/// Menu: Tools > Pre-Thesis > Add Voice + Hotbar to Player Prefab
+/// Menu: Tools > Pre-Thesis > One Step > Player: Voice + Hotbar
 ///
 /// Adds (if missing): PlayerVoice, PlayerInventory, WalkieTalkieController.
 /// Safe to run again. Nothing else in the prefab is changed.
@@ -14,7 +14,7 @@ public static class VoiceHotbarSetup
 {
     private const string PlayerPrefabPath = "Assets/Prefab/Player.prefab";
 
-    [MenuItem("Tools/Pre-Thesis/Add Voice + Hotbar to Player Prefab")]
+    [MenuItem("Tools/Pre-Thesis/One Step/Player: Voice + Hotbar", false, 110)]
     private static void AddToPlayerPrefab()
     {
         if (EditorApplication.isPlaying)
@@ -48,7 +48,7 @@ public static class VoiceHotbarSetup
 
             string message = added == 0
                 ? "Player.prefab already has PlayerVoice, PlayerInventory and WalkieTalkieController."
-                : $"Added {added} component(s) to Player.prefab.\n\nNext: Tools > Pre-Thesis > Rebuild Settings + Pause Menu (adds the Controls section to Settings).";
+                : $"Added {added} component(s) to Player.prefab.\n\nNext: Tools > Pre-Thesis > Scenes > Menu: Rebuild Settings + Pause Menu (adds the Controls section to Settings).";
             Debug.Log("[VoiceHotbarSetup] " + message);
             EditorUtility.DisplayDialog("Voice + Hotbar", message, "OK");
         }

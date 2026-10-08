@@ -1,0 +1,74 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a430bbbf4bb31040aae29146a13862c, type: 3}
+  m_Name: SanitySettings
+  m_EditorClassIdentifier: Assembly-CSharp::SanitySettings
+  shakenBelow: 60
+  breakingBelow: 30
+  blockGainWhenBreaking: 1
+  blockHealWhenBreaking: 1
+  ghostFirstSight: 8
+  ghostSightPerSecond: 2
+  ghostSightRange: 18
+  ghostSightAngle: 40
+  aloneRadius: 8
+  darkAloneGraceSeconds: 20
+  darkAlonePerSecond: 1
+  ruleFailedDefault: 10
+  anomalyDefault: 5
+  zeroGraceSeconds: 10
+  zeroDamage: 5
+  zeroRepeatSeconds: 10
+  chantKey: 22
+  chantAlonePerSecond: 0.5
+  chantWithHolyItemPerSecond: 2
+  chantPerFriend: 0.75
+  chantFriendRadius: 4
+  chantMaxPerSecond: 3
+  chantMaxMoveSpeed: 0.6
+  snack:
+    displayName: Snack
+    description: Hold Left Click to eat (+sanity). Hold Right Click on a friend to
+      feed them, faster. Does nothing while you are breaking.
+    price: 15
+  snackMaxCarry: 3
+  snackGain: 25
+  snackEatSeconds: 2
+  snackFeedSeconds: 0.75
+  snackFeedRange: 2.5
+  holyBook:
+    displayName: Holy Book
+    description: 'Carry it: chanting (hold H) restores sanity much faster. Lost if
+      you die.'
+    price: 120
+  amulet:
+    displayName: Amulet
+    description: 'Carry it: chanting (hold H) restores sanity much faster. Lost if
+      you die.'
+    price: 120
+  holyCross:
+    displayName: Cross
+    description: 'Carry it: chanting (hold H) restores sanity much faster. Lost if
+      you die.'
+    price: 120
+  vignetteShaken: 0.35
+  vignetteBreaking: 0.75
+  hallucinationPrefab: {fileID: 0}
+  jumpscareImage: {fileID: 0}
+  jumpscareSound: {fileID: 0}
+  jumpscareSeconds: 0.6
+  anomalyMultiplierShaken: 1.5
+  anomalyMultiplierBreaking: 2.5
+  taskDifficultyShaken: 1.25
+  taskDifficultyBreaking: 1.5
+  barPosition: {x: 24, y: 130}
+  barSize: {x: 280, y: 14}

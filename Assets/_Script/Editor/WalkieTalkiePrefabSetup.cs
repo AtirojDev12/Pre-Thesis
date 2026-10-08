@@ -5,7 +5,7 @@ using UnityEngine;
 /// <summary>Authors the shared radio visual, network pickup, and player references.</summary>
 public static class WalkieTalkiePrefabSetup
 {
-    [MenuItem("Tools/Pre-Thesis/Build Walkie-Talkie Prefabs")]
+    [MenuItem("Tools/Pre-Thesis/One Step/Items: Walkie-Talkie", false, 121)]
     public static void BuildAssets()
     {
         if (EditorApplication.isPlaying) throw new System.InvalidOperationException("Stop Play mode first.");

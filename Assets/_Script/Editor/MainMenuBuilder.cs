@@ -11,7 +11,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// ONE CLICK: Tools > Pre-Thesis > Build Main Menu + Lobby
+/// ONE CLICK: Tools > Pre-Thesis > Scenes > Menu: Build Main Menu + Lobby
 ///
 /// Does everything the new menu flow needs, so nobody has to wire 60 fields by
 /// hand:
@@ -29,7 +29,7 @@ using UnityEngine.UI;
 /// </summary>
 public static class MainMenuBuilder
 {
-    private const string MenuPath = "Tools/Pre-Thesis/Build Main Menu + Lobby";
+    private const string MenuPath = "Tools/Pre-Thesis/Scenes/Menu: Build Main Menu + Lobby";
 
     private const string MainMenuScenePath = "Assets/Scenes/MainMenu.unity";
     private const string LobbyScenePath = "Assets/Scenes/Lobby.unity";
@@ -55,7 +55,7 @@ public static class MainMenuBuilder
     private static DefaultControls.Resources uiRes;
     private static int uiLayer;
 
-    [MenuItem(MenuPath)]
+    [MenuItem(MenuPath, false, 30)]
     private static void Build()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -634,11 +634,11 @@ public static class MainMenuBuilder
     // Settings + Esc pause menu (does NOT touch the rest of the main menu)
     // =========================================================================
 
-    private const string RebuildSettingsMenuPath = "Tools/Pre-Thesis/Rebuild Settings + Pause Menu";
+    private const string RebuildSettingsMenuPath = "Tools/Pre-Thesis/Scenes/Menu: Rebuild Settings + Pause Menu";
     private const string PauseMenuFolder = "Assets/Resources/UI";
     private const string PauseMenuPrefabPath = PauseMenuFolder + "/PauseMenu.prefab";
 
-    [MenuItem(RebuildSettingsMenuPath)]
+    [MenuItem(RebuildSettingsMenuPath, false, 32)]
     private static void RebuildSettingsAndPauseMenu()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -676,7 +676,7 @@ public static class MainMenuBuilder
     // touch the rest of the main menu (background art, other panels).
     // =========================================================================
 
-    [MenuItem("Tools/Pre-Thesis/Rebuild Create Room + Room Browser")]
+    [MenuItem("Tools/Pre-Thesis/Scenes/Menu: Rebuild Create Room + Room Browser", false, 31)]
     private static void RebuildRoomPanels()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -695,7 +695,7 @@ public static class MainMenuBuilder
         if (root == null)
         {
             EditorUtility.DisplayDialog("Rebuild Create Room + Room Browser",
-                "MainMenu has no 'Main Menu UI'. Run Tools > Pre-Thesis > Build Main Menu + Lobby first.", "OK");
+                "MainMenu has no 'Main Menu UI'. Run Tools > Pre-Thesis > Scenes > Menu: Build Main Menu + Lobby first.", "OK");
             return;
         }
 

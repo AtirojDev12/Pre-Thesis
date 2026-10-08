@@ -4,7 +4,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 /// <summary>
-/// Tools > Pre-Thesis > Setup Gameplay Loop (Task Boards + Exit)
+/// Tools > Pre-Thesis > Scenes > Map: Setup Gameplay Loop (Task Boards + Exit)
 ///
 /// Adds the prototype game-loop objects to the OPEN scene (Cinema_GamePlay):
 ///   - "Task Board - Popcorn & Water"  (BBQ / Cheese / Paprika / Water, 15 each)
@@ -19,14 +19,14 @@ public static class GameplayLoopSetup
 {
     private const string GlowMaterialPath = "Assets/Materials/Prototype_ExitGlow.mat";
 
-    [MenuItem("Tools/Pre-Thesis/Setup Gameplay Loop (Task Boards + Exit)")]
+    [MenuItem("Tools/Pre-Thesis/Scenes/Map: Setup Gameplay Loop (Task Boards + Exit)", false, 51)]
     private static void Setup()
     {
         var scene = EditorSceneManager.GetActiveScene();
         if (Object.FindAnyObjectByType<MatchDirector>() == null)
         {
             EditorUtility.DisplayDialog("Setup Gameplay Loop",
-                "There is no MatchDirector in this scene. Run Tools > Pre-Thesis > Add MatchDirector to Open Scene first.", "OK");
+                "There is no MatchDirector in this scene. Run Tools > Pre-Thesis > Scenes > Map: Add MatchDirector first.", "OK");
             return;
         }
 

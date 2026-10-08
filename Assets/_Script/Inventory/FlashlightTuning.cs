@@ -5,7 +5,7 @@ using UnityEngine;
 /// 5 Oct (Mr.k). ONE place for the game designer to balance the flashlights.
 ///
 /// HOW TO USE
-///   1. Tools > Pre-Thesis > Flashlight Settings   (creates the file the first time and selects it)
+///   1. Tools > Pre-Thesis > Designer Settings > Flashlight   (creates the file the first time and selects it)
 ///   2. Change the numbers / sliders in the Inspector.
 ///   3. Works LIVE in Play mode: the beam, battery and shop update at once.
 ///   4. Changes made in Play mode STAY (it is an asset). Commit the file:
@@ -138,7 +138,7 @@ public sealed class FlashlightTuning : ScriptableObject
                 {
                     warned = true;
                     Debug.LogWarning("[FlashlightTuning] No settings file yet: using the default numbers. " +
-                                     "Create it with Tools > Pre-Thesis > Flashlight Settings.");
+                                     "Create it with Tools > Pre-Thesis > Designer Settings > Flashlight.");
                 }
                 current = CreateInstance<FlashlightTuning>();
                 current.hideFlags = HideFlags.HideAndDontSave;

@@ -53,7 +53,7 @@ public class SettingsPanel : MonoBehaviour
     [SerializeField] private Slider ambientSlider;
     [SerializeField] private TMP_Text ambientText;
 
-    [Header("Microphone & noise meter (optional: rebuilt by Tools > Pre-Thesis > Rebuild Settings + Pause Menu)")]
+    [Header("Microphone & noise meter (optional: rebuilt by Tools > Pre-Thesis > Scenes > Menu: Rebuild Settings + Pause Menu)")]
     [SerializeField] private TMP_Dropdown microphoneDropdown;
     [SerializeField] private Slider micSensitivitySlider;
     [SerializeField] private TMP_Text micSensitivityText;
@@ -61,13 +61,13 @@ public class SettingsPanel : MonoBehaviour
     [SerializeField] private Button meterMoveButton;
     [SerializeField] private Button meterResetButton;
 
-    [Header("Mic clean-up (optional: rebuilt by Tools > Pre-Thesis > Rebuild Settings + Pause Menu)")]
+    [Header("Mic clean-up (optional: rebuilt by Tools > Pre-Thesis > Scenes > Menu: Rebuild Settings + Pause Menu)")]
     [SerializeField] private Toggle noiseReductionToggle;
     [SerializeField] private Toggle noiseGateToggle;
     [SerializeField] private Slider gateThresholdSlider;
     [SerializeField] private TMP_Text gateThresholdText;
 
-    [Header("Controls (optional: rebuilt by Tools > Pre-Thesis > Rebuild Settings + Pause Menu)")]
+    [Header("Controls (optional: rebuilt by Tools > Pre-Thesis > Scenes > Menu: Rebuild Settings + Pause Menu)")]
     [SerializeField] private Button walkieTalkButton;
     [SerializeField] private Button walkiePowerButton;
 
@@ -138,7 +138,7 @@ public class SettingsPanel : MonoBehaviour
         resolutionDropdown.onValueChanged.AddListener(_ => RefreshApplyButton());
 
         if (applyButton != null) applyButton.onClick.AddListener(Apply);
-        else Debug.LogWarning("[SettingsPanel] No Apply button assigned. Run Tools > Pre-Thesis > Rebuild Settings + Pause Menu.", this);
+        else Debug.LogWarning("[SettingsPanel] No Apply button assigned. Run Tools > Pre-Thesis > Scenes > Menu: Rebuild Settings + Pause Menu.", this);
 
         backButton.onClick.AddListener(Back);
 

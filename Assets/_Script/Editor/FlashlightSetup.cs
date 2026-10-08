@@ -6,17 +6,17 @@ using UnityEngine;
 /// <summary>
 /// 5 Oct (Mr.k). One-click setup for the flashlights and the darkness.
 ///
-///   Tools > Pre-Thesis > Build Flashlight Prefabs
+///   Tools > Pre-Thesis > One Step > Items: Flashlight + Battery
 ///       Makes Resources/Items/Flashlight.prefab (in your hand),
 ///       Resources/Items/WorldFlashlight.prefab and Resources/Items/WorldBattery.prefab
 ///       (dropped / thrown), and registers the world ones in NetworkManager.spawnPrefabs. Simple shapes for now:
 ///       swap the model inside the prefab when the art is ready (keep FlashlightVisual).
 ///
-///   Tools > Pre-Thesis > Flashlight Settings
+///   Tools > Pre-Thesis > Designer Settings > Flashlight
 ///       Creates (first time) and selects Resources/Tuning/FlashlightTuning.asset:
 ///       the game designer's page for every flashlight / battery number.
 ///
-///   Tools > Pre-Thesis > Darkness: Add To Open Scene
+///   Tools > Pre-Thesis > Scenes > Map: Add Darkness
 ///       Adds a DarknessController to the open map so its sliders are saved with it.
 /// </summary>
 public static class FlashlightSetup
@@ -25,7 +25,7 @@ public static class FlashlightSetup
     private const string WorldPath = "Assets/Resources/Items/WorldFlashlight.prefab";
     private const string BatteryPath = "Assets/Resources/Items/WorldBattery.prefab";
 
-    [MenuItem("Tools/Pre-Thesis/Build Flashlight Prefabs")]
+    [MenuItem("Tools/Pre-Thesis/One Step/Items: Flashlight + Battery", false, 120)]
     public static void BuildAssets()
     {
         if (EditorApplication.isPlaying) throw new System.InvalidOperationException("Stop Play mode first.");
@@ -122,7 +122,7 @@ public static class FlashlightSetup
         Debug.Log("[FlashlightSetup] Built " + HeldPath + ", " + WorldPath + " and " + BatteryPath + ", and registered the world ones with Mirror.");
     }
 
-    [MenuItem("Tools/Pre-Thesis/Flashlight Settings")]
+    [MenuItem("Tools/Pre-Thesis/Designer Settings/Flashlight", false, 20)]
     public static void OpenFlashlightSettings()
     {
         FlashlightTuning asset = AssetDatabase.LoadAssetAtPath<FlashlightTuning>(FlashlightTuning.AssetPath);
@@ -140,7 +140,7 @@ public static class FlashlightSetup
         EditorGUIUtility.PingObject(asset);
     }
 
-    [MenuItem("Tools/Pre-Thesis/Darkness: Add To Open Scene")]
+    [MenuItem("Tools/Pre-Thesis/Scenes/Map: Add Darkness", false, 52)]
     public static void AddDarkness()
     {
         if (EditorApplication.isPlaying) throw new System.InvalidOperationException("Stop Play mode first.");

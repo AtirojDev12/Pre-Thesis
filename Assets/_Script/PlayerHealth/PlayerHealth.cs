@@ -243,6 +243,13 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
+        // 8 Oct (GDD Sanity): no healing while sanity is BREAKING. Reviving still works.
+        if (TryGetComponent(out PlayerSanity sanity) && sanity.BlocksHealing)
+        {
+            Debug.Log($"[PlayerHealth] Heal blocked on {name}: sanity is breaking.");
+            return;
+        }
+
         currentHealth = Mathf.Clamp(currentHealth + amount, 0f, maxHealth);
         RaiseHealthChanged(currentHealth);
 

@@ -28,6 +28,7 @@ public sealed class DevCheatPanel : MonoBehaviour
         ClockPlusHour, CompleteBoards, OpenExit, LightsToggle, GhostsFreeze, GhostsUnfreeze,
         GiveFlashlights, // 5 Oct: added at the END so older numbers keep their meaning
         GiveBatteries,
+        SanityFull, SanityMinus25, SanityZero, GiveSanityItems, // 8 Oct
     }
 
     private static bool serverHandlerReady;
@@ -62,6 +63,23 @@ public sealed class DevCheatPanel : MonoBehaviour
             case Cheat.GiveBatteries:
                 PlayerInventory bag = player != null ? player.GetComponent<PlayerInventory>() : null;
                 if (bag != null) { InventorySlot three = InventorySlot.Of(ItemCatalog.Battery); three.count = 3; bag.ServerAddStack(three); }
+                break;
+            case Cheat.SanityFull:
+            case Cheat.SanityMinus25:
+            case Cheat.SanityZero:
+                PlayerSanity mind = player != null ? player.GetComponent<PlayerSanity>() : null;
+                if (mind != null)
+                    mind.ServerDevSet(cheat == Cheat.SanityFull ? PlayerSanity.Max : cheat == Cheat.SanityZero ? 0f : mind.Value - 25f);
+                break;
+            case Cheat.GiveSanityItems:
+                PlayerInventory sack = player != null ? player.GetComponent<PlayerInventory>() : null;
+                if (sack != null)
+                {
+                    InventorySlot snacks = InventorySlot.Of(ItemCatalog.Snack);
+                    snacks.count = ItemCatalog.MaxStack(ItemCatalog.Snack);
+                    sack.ServerAddStack(snacks);
+                    sack.ServerAddItem(InventorySlot.Of(ItemCatalog.HolyBook));
+                }
                 break;
             case Cheat.GodOn: if (health != null) health.DevGodMode = true; break;
             case Cheat.GodOff: if (health != null) health.DevGodMode = false; break;
@@ -202,6 +220,10 @@ public sealed class DevCheatPanel : MonoBehaviour
         Row(("Go down", () => Do(Cheat.GoDown, "Downed")),
             ("Die", () => Do(Cheat.Die, "Dead")));
         Row((noclip ? "Noclip / fly: ON" : "Noclip / fly: OFF", ToggleNoclip), ("", null));
+        Row(("Sanity full", () => Do(Cheat.SanityFull, "Sanity 100")),
+            ("Sanity -25", () => Do(Cheat.SanityMinus25, "Sanity -25")));
+        Row(("Sanity 0", () => Do(Cheat.SanityZero, "Sanity 0 (jumpscare soon)")),
+            ("Give snacks + Holy Book", () => Do(Cheat.GiveSanityItems, "Snacks + Holy Book given")));
         if (noclip) GUILayout.Label("  WASD move, Space up, Ctrl down, Shift fast");
 
         Header("Match");

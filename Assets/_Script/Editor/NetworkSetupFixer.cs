@@ -21,12 +21,12 @@ using UnityEngine.SceneManagement;
 /// fixed by hand. This does it in one pass, and is worth re-running whenever
 /// someone adds a new interactable.
 ///
-/// Tools > Pre-Thesis > Scan   -- report only, changes nothing.
-/// Tools > Pre-Thesis > Fix    -- adds the missing NetworkIdentity components.
+/// Tools > Pre-Thesis > Network > Scan   -- report only, changes nothing.
+/// Tools > Pre-Thesis > Network > Fix    -- adds the missing NetworkIdentity components.
 /// </summary>
 public static class NetworkSetupFixer
 {
-    private const string MenuRoot = "Tools/Pre-Thesis/";
+    private const string MenuRoot = "Tools/Pre-Thesis/Network/";
 
     [MenuItem(MenuRoot + "Scan for missing NetworkIdentity")]
     private static void ScanOnly() => Run(false);
@@ -59,7 +59,7 @@ public static class NetworkSetupFixer
         {
             Debug.LogWarning(
                 $"[NetworkSetupFixer] {found} object(s) are missing a NetworkIdentity. " +
-                $"Run Tools > Pre-Thesis > Fix missing NetworkIdentity to add them.\n{report}");
+                $"Run Tools > Pre-Thesis > Network > Fix missing NetworkIdentity to add them.\n{report}");
         }
     }
 

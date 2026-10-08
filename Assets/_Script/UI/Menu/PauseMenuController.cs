@@ -63,7 +63,7 @@ public class PauseMenuController : MonoBehaviour
         GameObject prefab = Resources.Load<GameObject>(ResourcePath);
         if (prefab == null)
         {
-            Debug.LogWarning("[PauseMenu] Resources/" + ResourcePath + " not found. Run Tools > Pre-Thesis > Rebuild Settings + Pause Menu.");
+            Debug.LogWarning("[PauseMenu] Resources/" + ResourcePath + " not found. Run Tools > Pre-Thesis > Scenes > Menu: Rebuild Settings + Pause Menu.");
             return;
         }
 

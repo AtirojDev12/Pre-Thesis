@@ -22,6 +22,18 @@ public static class ItemCatalog
     public const string Battery = "battery";
     public const string WorldBatteryPath = "Items/WorldBattery";
 
+    // 8 Oct: sanity items. Names, prices and text are in SanitySettings (designer asset).
+    /// <summary>Consumable. Eat it (+sanity) or feed a friend.</summary>
+    public const string Snack = "snack";
+    /// <summary>Holy items (permanent): carrying one makes chanting faster.</summary>
+    public const string HolyBook = "holy_book";
+    public const string Amulet = "amulet";
+    public const string HolyCross = "holy_cross";
+    public const string WorldSnackPath = "Items/WorldSnack";
+    public const string WorldHolyBookPath = "Items/WorldHolyBook";
+    public const string WorldAmuletPath = "Items/WorldAmulet";
+    public const string WorldHolyCrossPath = "Items/WorldHolyCross";
+
     public sealed class ItemInfo
     {
         public string id;
@@ -52,6 +64,10 @@ public static class ItemCatalog
         public float secondsPerCrank;
         /// <summary>Recharged by using a Battery item (press R). 5 Oct: the paid flashlight.</summary>
         public bool usesBatteries;
+
+        // ---- Sanity (8 Oct) ----
+        /// <summary>Holy Book / Amulet / Cross: carried = faster chanting.</summary>
+        public bool isHolyItem;
 
         // ---- Stacking (5 Oct) ----
         /// <summary>How many fit in ONE hotbar slot. 1 = no stacking. Also the most you can own.</summary>
@@ -94,15 +110,42 @@ public static class ItemCatalog
             permanent = false, inShop = true, throwable = true,
             worldPrefabPath = WorldBatteryPath,
         },
+        // 8 Oct (Mr.k): sanity items. Name, price, text in SanitySettings.
+        new ItemInfo
+        {
+            id = Snack,
+            permanent = false, inShop = true, throwable = true,
+            worldPrefabPath = WorldSnackPath,
+        },
+        new ItemInfo
+        {
+            id = HolyBook, isHolyItem = true,
+            permanent = true, inShop = true, throwable = true,
+            worldPrefabPath = WorldHolyBookPath,
+        },
+        new ItemInfo
+        {
+            id = Amulet, isHolyItem = true,
+            permanent = true, inShop = true, throwable = true,
+            worldPrefabPath = WorldAmuletPath,
+        },
+        new ItemInfo
+        {
+            id = HolyCross, isHolyItem = true,
+            permanent = true, inShop = true, throwable = true,
+            worldPrefabPath = WorldHolyCrossPath,
+        },
     };
 
     // ---- Designer values (FlashlightTuning) --------------------------------------
 
     private static int syncedChanges = int.MinValue;
+    private static int syncedSanityChanges = int.MinValue;
 
     /// <summary>Copies the designer asset into the items. Cheap when nothing changed.</summary>
     private static void SyncTuning()
     {
+        SyncSanityItems();
         if (syncedChanges == FlashlightTuning.Changes) return;
         FlashlightTuning t = FlashlightTuning.Current; // may bump Changes once while loading
         syncedChanges = FlashlightTuning.Changes;
@@ -116,6 +159,28 @@ public static class ItemCatalog
             battery.price = Mathf.Max(0, t.battery.price);
             battery.maxStack = Mathf.Max(1, t.battery.maxCarry);
         }
+    }
+
+    /// <summary>8 Oct: names, prices and text of the sanity items come from SanitySettings.</summary>
+    private static void SyncSanityItems()
+    {
+        if (syncedSanityChanges == SanitySettings.Changes) return;
+        SanitySettings s = SanitySettings.Current; // may bump Changes once while loading
+        syncedSanityChanges = SanitySettings.Changes;
+        CopyShop(FindRaw(Snack), s.snack);
+        ItemInfo snack = FindRaw(Snack);
+        if (snack != null) snack.maxStack = Mathf.Max(1, s.snackMaxCarry);
+        CopyShop(FindRaw(HolyBook), s.holyBook);
+        CopyShop(FindRaw(Amulet), s.amulet);
+        CopyShop(FindRaw(HolyCross), s.holyCross);
+    }
+
+    private static void CopyShop(ItemInfo item, SanitySettings.ShopItem shop)
+    {
+        if (item == null || shop == null) return;
+        item.displayName = shop.displayName;
+        item.description = shop.description;
+        item.price = Mathf.Max(0, shop.price);
     }
 
     private static void CopyTorch(ItemInfo item, FlashlightTuning.Torch torch)
@@ -171,6 +236,13 @@ public static class ItemCatalog
     {
         ItemInfo info = Find(id);
         return info != null ? Mathf.Max(1, info.maxStack) : 1;
+    }
+
+    /// <summary>8 Oct: Holy Book / Amulet / Cross.</summary>
+    public static bool IsHolyItem(string id)
+    {
+        ItemInfo info = Find(id);
+        return info != null && info.isHolyItem;
     }
 
     public static bool IsFlashlight(string id)

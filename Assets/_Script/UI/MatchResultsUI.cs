@@ -252,8 +252,12 @@ public sealed class MatchResultsUI : MonoBehaviour
         {
             int count = 0;
             foreach (string u in units) if (u == id) count++;
-            count = Mathf.Min(count, ItemCatalog.MaxStack(id));
             ConsumableItemData entry = save.consumables.Find(c => c != null && c.itemID == id);
+            // 8 Oct: not brought in (it waited in the lobby storage) but found in the match:
+            // add to what you already own instead of replacing it.
+            if (!PlayerInventory.LastLoadout.Contains(id)) { if (entry != null) count += entry.quantity; }
+            else count += PlayerInventory.LeftAtHomeOf(id); // the part that stayed in storage
+            count = Mathf.Min(count, ItemCatalog.MaxStack(id));
             if (count <= 0) { if (entry != null) save.consumables.Remove(entry); }
             else if (entry != null) entry.quantity = count;
             else save.consumables.Add(new ConsumableItemData(id, count));
@@ -271,9 +275,14 @@ public sealed class MatchResultsUI : MonoBehaviour
             if (ItemCatalog.Find(id)?.Consumable != true) continue;
             ConsumableItemData entry = save.consumables.Find(c => c != null && c.itemID == id);
             if (entry == null || entry.quantity <= 0) continue;
-            save.consumables.Remove(entry);
+            // 8 Oct: units that stayed in the lobby storage are not lost.
+            int home = Mathf.Min(entry.quantity, PlayerInventory.LeftAtHomeOf(id));
+            int lost = entry.quantity - home;
+            if (home > 0) entry.quantity = home;
+            else save.consumables.Remove(entry);
+            if (lost <= 0) continue;
             if (names.Length > 0) names.Append(", ");
-            names.Append(ItemCatalog.DisplayName(id) + " x" + entry.quantity);
+            names.Append(ItemCatalog.DisplayName(id) + " x" + lost);
         }
     }
 

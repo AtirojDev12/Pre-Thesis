@@ -5,7 +5,7 @@ using UnityEngine;
 
 /// <summary>
 /// One click: puts a MatchDirector in the open scene and fills its lists.
-/// Menu: Tools > Pre-Thesis > Add MatchDirector to Open Scene
+/// Menu: Tools > Pre-Thesis > Scenes > Map: Add MatchDirector
 ///
 /// - Adds a "MatchDirector" GameObject with NetworkIdentity + MatchDirector.
 /// - Fills Difficulty Profiles with every DifficultyProfile asset in the project.
@@ -18,7 +18,7 @@ public static class MatchDirectorSetup
 {
     private const string GameplayScene = "Cinema_GamePlay";
 
-    [MenuItem("Tools/Pre-Thesis/Add MatchDirector to Open Scene")]
+    [MenuItem("Tools/Pre-Thesis/Scenes/Map: Add MatchDirector", false, 50)]
     private static void AddToOpenScene()
     {
         var scene = EditorSceneManager.GetActiveScene();
