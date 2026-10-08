@@ -2605,6 +2605,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 8e9e0cddc68972845befc7a98e1c6e93, type: 2}
     - target: {fileID: 919132149155446097, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
       propertyPath: m_Name
       value: Chair Lobby (4)
@@ -3925,6 +3929,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 8e9e0cddc68972845befc7a98e1c6e93, type: 2}
     - target: {fileID: 919132149155446097, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
       propertyPath: m_Name
       value: Chair Lobby (1)
@@ -12299,6 +12307,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 8e9e0cddc68972845befc7a98e1c6e93, type: 2}
     - target: {fileID: 919132149155446097, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
       propertyPath: m_Name
       value: Chair Lobby (3)
@@ -20880,6 +20892,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 8e9e0cddc68972845befc7a98e1c6e93, type: 2}
     - target: {fileID: 919132149155446097, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
       propertyPath: m_Name
       value: Chair Lobby (2)
@@ -22819,6 +22835,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 8e9e0cddc68972845befc7a98e1c6e93, type: 2}
     - target: {fileID: 919132149155446097, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
       propertyPath: m_Name
       value: Chair Lobby
@@ -25269,6 +25289,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 8e9e0cddc68972845befc7a98e1c6e93, type: 2}
     - target: {fileID: 919132149155446097, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
       propertyPath: m_Name
       value: Chair Lobby (5)
