@@ -279,6 +279,7 @@ public sealed class TicketMinigame : MonoBehaviour
         if (bubble != null) bubble.enabled = false;
         if (networkSync != null && networkSync.IsServerReady) networkSync.Publish(state);
         // Consume the round first; duplicate requests must not punish twice.
+        NetworkAudioRelay.Play(correct ? "CompleteOrder1" : "failorder2", movieUiAnchor.position);
         // Notify before the customer hit so its health cooldown cannot block
         // the ghost's threshold attack in the same sale.
         SaleResolved?.Invoke(player, correct);

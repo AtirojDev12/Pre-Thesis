@@ -432,7 +432,18 @@ public partial class PopcornNetSync : NetworkBehaviour
             SendResult(sender, false, "Incorrect", heldRevision, true);
         }
 
+        // Sent after the seller's feedback, and only for a fully resolved order.
+        if (NetworkMode.IsOffline) PlayOrderResult(correct);
+        else RpcOrderResult(correct);
         ServerClearCustomer();
+    }
+
+    [ClientRpc]
+    private void RpcOrderResult(bool correct) => PlayOrderResult(correct);
+
+    private void PlayOrderResult(bool correct)
+    {
+        PopcornPreparation.Instance?.GetComponent<PopcornGameManager>()?.PlayOrderResult(correct);
     }
 
     /// <summary>

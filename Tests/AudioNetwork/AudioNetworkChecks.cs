@@ -73,7 +73,7 @@ public static class AudioNetworkChecks
             NetworkServer.connections.Add(guest.connectionId, guest);
             NetworkServer.connections.Add(loading.connectionId, loading);
             Vector3 position = new Vector3(2, 3, 4);
-            foreach (string id in new[] { "LightSwitch_On", "LightSwitch_Off", "Ticket_MovieClick", "Ticket_SubmitClick" })
+            foreach (string id in new[] { "LightSwitch_On", "LightSwitch_Off", "Ticket_MovieClick", "Ticket_SubmitClick", "CompleteOrder1", "failorder2" })
             {
                 int before = hostCount;
                 NetworkAudioRelay.Play(id, position);
@@ -98,6 +98,16 @@ public static class AudioNetworkChecks
             FlushHost(); guest.Flush(); loading.Flush();
             Check(hostCount == sent && guest.messages.Count == sent && loading.messages.Count == 0,
                 "Client-only and ending-session calls cannot broadcast audio");
+
+            var library = Resources.Load<SoundLibrary>("Audio/SoundLibrary");
+            foreach (string id in new[] { "CompleteOrder1", "failorder2" })
+            {
+                var entry = library != null ? library.Find(id) : null;
+                Check(entry != null && entry.clips.Length == 1 && entry.clips[0] != null &&
+                    entry.clips[0].name == id && entry.spatial && entry.category == SoundCategory.Sfx &&
+                    entry.minDistance == 1f && entry.maxDistance == 5f,
+                    id + " resolves the requested clip with a local 1-to-5 metre SFX range");
+            }
 
             // Buttons remain local even while a host and guest connection exist.
             var pausePrefab = Resources.Load<GameObject>("UI/PauseMenu");

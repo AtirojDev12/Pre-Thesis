@@ -888,6 +888,19 @@ public sealed class PopcornGameManager : MonoBehaviour
         ShowFeedback(message, correct ? new Color(0.22f, 1f, 0.35f) : new Color(1f, 0.2f, 0.18f));
     }
 
+    public void PlayOrderResult(bool correct)
+    {
+        if (isActiveAndEnabled && cashierCanvas != null && !Application.isBatchMode)
+            StartCoroutine(PlayOrderResultAfterFeedback(correct, cashierCanvas.transform.position));
+    }
+
+    private IEnumerator PlayOrderResultAfterFeedback(bool correct, Vector3 position)
+    {
+        // Let the green completion feedback render before starting the counter sound.
+        yield return null;
+        AudioManager.Instance?.Play(correct ? "CompleteOrder1" : "failorder2", position, gameObject.scene);
+    }
+
     public void CustomerReady(PopcornCustomer customer)
     {
         orderText.text = customer.OrderState.Label();
@@ -949,6 +962,7 @@ public sealed class PopcornGameManager : MonoBehaviour
 
         TaskTimer.Complete(TimerKey, TimerKey, server != null ? server.name : "player", correct);
         orderText.text = correct ? "ORDER COMPLETE" : "ORDER ENDED";
+        PlayOrderResult(correct);
         customer.BeginLeaving();
     }
 
