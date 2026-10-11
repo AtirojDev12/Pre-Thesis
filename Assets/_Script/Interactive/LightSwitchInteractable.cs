@@ -52,28 +52,28 @@ public sealed class LightSwitchInteractable : InteractableBase
         }
     }
 
-    public override bool CanInteract() => isActiveAndEnabled && GhostManager.Instance != null;
+    public override bool CanInteract() => isActiveAndEnabled && BuildingLightManager.Instance != null;
 
-    public override string GetInteractionPrompt() => GhostManager.Instance != null && GhostManager.Instance.areLightsOnCurrently
+    public override string GetInteractionPrompt() => BuildingLightManager.Instance != null && BuildingLightManager.LightsOn
         ? "[E] Turn lights off" : "[E] Turn lights on";
 
     protected override void OnInteracted(GameObject interactor)
     {
-        GhostManager manager = GhostManager.Instance;
+        BuildingLightManager manager = BuildingLightManager.Instance;
         if (manager == null) return;
-        bool wasOn = manager.areLightsOnCurrently;
-        manager.PlayerToggleLights(!wasOn);
-        // Only an accepted switch interaction makes a click, never ghost flickers or late joins.
-        if (manager.areLightsOnCurrently != wasOn)
-            NetworkAudioRelay.Play(manager.areLightsOnCurrently ? "LightSwitch_On" : "LightSwitch_Off", transform.position);
+        bool wasOn = BuildingLightManager.LightsOn;
+        manager.SetLights(!wasOn);
+        // Only an accepted switch interaction makes a click, never initial state restoration or late joins.
+        if (BuildingLightManager.LightsOn != wasOn)
+            NetworkAudioRelay.Play(BuildingLightManager.LightsOn ? "LightSwitch_On" : "LightSwitch_Off", transform.position);
     }
 
     public override void SetHighlighted(bool highlighted) { }
 
     private void LateUpdate()
     {
-        // Reading the SyncVar also follows keyboard input, ghost flickers and late joins.
-        bool lightsOn = GhostManager.Instance == null || GhostManager.Instance.areLightsOnCurrently;
+        // Reading the SyncVar also follows keyboard input and late joins.
+        bool lightsOn = BuildingLightManager.Instance == null || BuildingLightManager.LightsOn;
         if (appliedLightsOn == lightsOn && (lightsOn || appliedOffColor == lightsOffColor)) return;
         foreach (Surface surface in surfaces)
         {

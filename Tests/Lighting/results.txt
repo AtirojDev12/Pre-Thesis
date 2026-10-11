@@ -1,0 +1,27 @@
+PASS Switch works without any GhostManager
+PASS All normal lamps including inactive objects switch off
+PASS Camera, flashlight and independent lights stay on
+PASS New lamp is discovered and follows existing power state
+PASS Reactivated lamp remains off
+PASS Power on restores all participating lamps
+PASS Intentionally disabled lamps stay disabled
+PASS Repeated same-state request is rejected
+PASS World switch is usable without a ghost
+PASS World switch routes to building power
+PASS Prompt follows independent power
+PASS Ghost arrival leaves power unchanged
+PASS Ghost countdown leaves power unchanged
+PASS Ghost reset and despawn never restore power
+PASS Scripted/keyboard power API works after removing the ghost manager
+PASS Late join receives off state and applies it to lamps
+PASS Guest cannot change authoritative power directly
+PASS Live replicated state restores guest lamps
+PASS Manager only controls lights in its own scene
+PASS Assets/Scenes/Map/Cinema.unity contains one independent manager
+PASS Assets/Scenes/Map/Cinema.unity has separate networked power object
+PASS Assets/Scenes/Map/Cinema_GamePlay.unity contains one independent manager
+PASS Assets/Scenes/Map/Cinema_GamePlay.unity has separate networked power object
+PASS Assets/Floderไอนน/NewEnemyplus.unity contains one independent manager
+PASS Assets/Floderไอนน/NewEnemyplus.unity has separate networked power object
+PASS Assets/Scenes/Z1_EnemyTest.unity contains one independent manager
+PASS Assets/Scenes/Z1_EnemyTest.unity has separate networked power object

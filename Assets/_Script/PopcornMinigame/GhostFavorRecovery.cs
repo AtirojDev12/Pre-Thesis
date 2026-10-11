@@ -60,7 +60,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         if (favor == null || NetworkMode.SessionEnding) return;
         if (NetworkMode.IsOffline || (PopcornNetSync.Instance != null && PopcornNetSync.Instance.isServer))
         {
-            bool dark = GhostManager.Instance != null && !GhostManager.Instance.areLightsOnCurrently;
+            bool dark = BuildingLightManager.Instance != null && !BuildingLightManager.LightsOn;
             darkSeconds = dark ? darkSeconds + Time.deltaTime : 0f;
             if (!dark) blackoutHandled = false;
             // Warning flickers last at most 0.2s; a sustained outage is a blackout.

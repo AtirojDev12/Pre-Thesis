@@ -94,7 +94,7 @@ public sealed class DevCheatPanel : MonoBehaviour
             case Cheat.CompleteBoards: if (match != null) match.ServerDevCompleteAllZones(); break;
             case Cheat.OpenExit: if (match != null) match.ServerDevOpenExitNow(); break;
             case Cheat.LightsToggle:
-                if (GhostManager.Instance != null) GhostManager.Instance.PlayerToggleLights(!GhostManager.Instance.areLightsOnCurrently);
+                if (BuildingLightManager.Instance != null) BuildingLightManager.Instance.SetLights(!BuildingLightManager.LightsOn);
                 break;
             case Cheat.GhostsFreeze: Enemy_Abstract_Class.DevFrozen = true; break;
             case Cheat.GhostsUnfreeze: Enemy_Abstract_Class.DevFrozen = false; break;

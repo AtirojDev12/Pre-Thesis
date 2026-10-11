@@ -16,7 +16,7 @@ The tank starts with **20 servings**. Each finished scoop consumes one serving. 
 
 ## Blackout recovery
 
-`GhostFavorRecovery` observes `GhostManager.areLightsOnCurrently` without modifying the ghost system. Darkness lasting at least 0.5 seconds teleports **GhostFavor** to the ticket booth's customer counter point; short warning flickers do not count. The bootstrap's optional **Ghost Favor Relocation Points** list supports future map anchors, chosen randomly by the server. Leaving it empty uses the ticket booth.
+`GhostFavorRecovery` observes `BuildingLightManager.LightsOn` without modifying the ghost system. Darkness lasting at least 0.5 seconds teleports **GhostFavor** to the ticket booth's customer counter point. The bootstrap's optional **Ghost Favor Relocation Points** list supports future map anchors, chosen randomly by the server. Leaving it empty uses the ticket booth.
 
 Any player can press **E** to pick up the displaced seasoning. Carry it within 1.8 metres of its original spot to restore its exact position and rotation automatically. **R** drops it for another player; death, being downed, or disconnecting also drops it from its last carried position. The server (or offline game) simulates gravity and floor collisions, and replicates the falling/resting pose to clients. Picking it up stops physics. Its colliders are disabled while carried. Existing containers remain held, but preparation is paused during recovery. Seasoning cannot be applied until the object is back home, and later blackouts leave an unfinished recovery alone.
 

@@ -63,12 +63,8 @@ public class TimedGhost : Enemy_Abstract_Class
     [Tooltip("How close the ghost must get before the jumpscare fires.")]
     [SerializeField] private float jumpscareRange = 1.5f;
 
-    /// <summary>
-    /// Whether the lights are on. Pushed by GhostManager, which owns it as a
-    /// SyncVar — this ghost never reads Light components itself, because on a
-    /// client those may not match the server's idea of the switch.
-    /// </summary>
-    [HideInInspector] public bool isSceneLightOn = true;
+    // Read-only consumer: the ghost never changes building power.
+    public bool isSceneLightOn => BuildingLightManager.LightsOn;
 
     private bool isJumpscareTriggered = false;
 

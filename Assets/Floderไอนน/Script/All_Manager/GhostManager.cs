@@ -2,38 +2,7 @@ using System.Collections;
 using Mirror;
 using UnityEngine;
 
-/// <summary>
-/// ตัวจัดการรอบการปล่อยผีและไฟในฉาก
-///
-/// MULTIPLAYER NOTES
-/// -----------------
-/// The SERVER owns the whole cycle: the timer, the light flicker, the spawn and
-/// the despawn. Clients are told the results.
-///
-/// Three things had to change:
-///
-///   1. Instantiate -> NetworkServer.Spawn. A plain Instantiate creates a ghost
-///      that exists on one machine only. Five players would be running from
-///      nothing while the sixth insists there is a ghost.
-///
-///   2. The light state became a SyncVar. It used to be a local bool on each
-///      machine, so in a match half the team could be standing in the dark and
-///      the other half in the light, and TimedGhost's hunting mode would differ
-///      per machine.
-///
-///   3. A static Instance, so TimedGhost stops calling FindObjectOfType twice
-///      per jumpscare.
-///
-/// The ghost prefab MUST be in NetworkManager.spawnPrefabs or clients cannot
-/// spawn it and will see nothing.
-///
-/// OFFLINE still works: with no server running, the same code Instantiates
-/// locally, so the enemy test scenes need no host.
-///
-/// 1 Oct 2026: restored from Mr.k's Week 4 multiplayer commit (c1a5c769) after
-/// an older single-player copy came in with the 29 Sep pull. Kept from
-/// Nonnapat's newer copy: the spawned ghost keeps the prefab's scale.
-/// </summary>
+/// <summary>Owns only ghost spawn timing. Building power is independent.</summary>
 [RequireComponent(typeof(NetworkIdentity))]
 public class GhostManager : NetworkBehaviour
 {
@@ -47,28 +16,16 @@ public class GhostManager : NetworkBehaviour
     [Header("Spawn Position")]
     [SerializeField] private Transform spawnPoint;
 
-    [Header("Lights Settings")]
-    [SerializeField] private Light[] allLights;
-
     [Header("Timing Settings")]
     [SerializeField] private float spawnInterval = 60f;
-    [SerializeField] private float flickerDuration = 3f;
+    [UnityEngine.Serialization.FormerlySerializedAs("flickerDuration")]
+    [SerializeField] private float arrivalLeadTime = 3f;
     [SerializeField] private float countdownDuration = 10f;
     [SerializeField] private float ghostDuration = 15f;
 
     private float timer = 0f;
     private bool isGhostActive = false;
     private bool isSequenceRunning = false;
-
-    /// <summary>
-    /// Replicated so every machine agrees whether the building is lit. TimedGhost
-    /// hunts differently in the dark, so this disagreeing between clients would
-    /// mean the ghost behaves differently on each screen.
-    /// </summary>
-    [SyncVar(hook = nameof(OnLightsChanged))]
-    private bool lightsOn = true;
-
-    public bool areLightsOnCurrently => lightsOn;
 
     /// <summary>True on the machine allowed to run the cycle: server, or anybody when offline.</summary>
     private bool HasAuthority => NetworkMode.HasServerAuthority(this);
@@ -93,28 +50,18 @@ public class GhostManager : NetworkBehaviour
     private void Start()
     {
         timer = 0f;
-        if (HasAuthority) lightsOn = true;
-        // A late joiner may already have received lightsOn=false before Start.
-        // Apply that state instead of forcing its lamps back on locally.
-        ApplyLights(lightsOn);
-    }
-
-    public override void OnStartClient()
-    {
-        base.OnStartClient();
-        ApplyLights(lightsOn);
     }
 
     private void Update()
     {
-        // Clients never run the spawn cycle. They receive the ghost and the
-        // light state from the server.
+        // Clients never run the spawn cycle. They receive the ghost from the
+        // server.
         if (!HasAuthority) return;
         if (isGhostActive || isSequenceRunning) return;
 
         timer += Time.deltaTime;
 
-        if (timer >= (spawnInterval - flickerDuration))
+        if (timer >= (spawnInterval - arrivalLeadTime))
             StartCoroutine(GhostArrivalSequence());
     }
 
@@ -123,16 +70,8 @@ public class GhostManager : NetworkBehaviour
         isSequenceRunning = true;
         timer = 0f;
 
-        // The flicker is driven from the server so everyone sees the same
-        // stutter at the same moment — it is a warning, and a warning that
-        // arrives on one machine only is worthless.
-        SetLights(false); yield return new WaitForSeconds(0.2f);
-        SetLights(true); yield return new WaitForSeconds(0.3f);
-        SetLights(false); yield return new WaitForSeconds(0.2f);
-        SetLights(true); yield return new WaitForSeconds(0.3f);
-        SetLights(false); yield return new WaitForSeconds(0.1f);
-
-        SetLights(true);
+        // Preserve the old arrival timing without changing building power.
+        yield return new WaitForSeconds(1.1f);
 
         yield return new WaitForSeconds(countdownDuration);
 
@@ -158,9 +97,6 @@ public class GhostManager : NetworkBehaviour
         // is already the whole story.
         if (NetworkServer.active) NetworkServer.Spawn(currentGhostInstance);
 
-        if (currentGhostInstance.TryGetComponent(out TimedGhost ghostScript))
-            ghostScript.isSceneLightOn = lightsOn;
-
         Invoke(nameof(DespawnGhost), ghostDuration);
     }
 
@@ -175,7 +111,6 @@ public class GhostManager : NetworkBehaviour
             else Destroy(currentGhostInstance);
         }
 
-        SetLights(true);
     }
 
     /// <summary>SERVER ONLY. Stops the despawn timer so a jumpscare is not cut short.</summary>
@@ -193,51 +128,7 @@ public class GhostManager : NetworkBehaviour
         isGhostActive = false;
         isSequenceRunning = false;
         currentGhostInstance = null;
-        SetLights(true);
+
     }
 
-    /// <summary>
-    /// SERVER ONLY. Call this from a player's [Command] — see LightController.
-    /// A client calling it directly changes only its own screen, and TimedGhost
-    /// would then hunt differently on that machine than on everyone else's.
-    /// </summary>
-    public void PlayerToggleLights(bool open)
-    {
-        if (!HasAuthority)
-        {
-            Debug.LogWarning("[GhostManager] PlayerToggleLights was called on a client. Route it through a Command — ignored.", this);
-            return;
-        }
-
-        SetLights(open);
-    }
-
-    private void SetLights(bool state)
-    {
-        lightsOn = state;
-
-        // SyncVar hooks do not fire on the machine that made the change, so the
-        // host has to apply its own result directly or the host's lights would
-        // never move while every client's did.
-        ApplyLights(state);
-
-        if (currentGhostInstance != null && currentGhostInstance.TryGetComponent(out TimedGhost ghost))
-            ghost.isSceneLightOn = state;
-    }
-
-    private void OnLightsChanged(bool oldValue, bool newValue)
-    {
-        ApplyLights(newValue);
-
-        if (currentGhostInstance != null && currentGhostInstance.TryGetComponent(out TimedGhost ghost))
-            ghost.isSceneLightOn = newValue;
-    }
-
-    private void ApplyLights(bool state)
-    {
-        if (allLights == null) return;
-
-        foreach (Light lightItem in allLights)
-            if (lightItem != null) lightItem.enabled = state;
-    }
 }

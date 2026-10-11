@@ -207,8 +207,8 @@ public static class PopcornRegressionRunner
         Check(holder.GhostMixed && holder.HeldFlavor == PopcornFlavor.Cheese && !holder.MixGhost(), "Ghost mix adds once without replacing flavor");
         var recovery = GhostFavorRecovery.Instance;
         var home = (Vector3)Get(recovery, "homePosition");
-        var ghostManager = GhostManager.Instance;
-        ghostManager.PlayerToggleLights(false);
+        var buildingLights = BuildingLightManager.Instance;
+        buildingLights.SetLights(false);
         Set(recovery, "darkSeconds", 0f);
         Call(recovery, "Update");
         Check(recovery.IsHome, "Brief warning flicker does not relocate GhostFavor");
@@ -272,7 +272,7 @@ public static class PopcornRegressionRunner
         Check(recovery.IsHome && Station(PopcornStationKind.Ghost).transform.position == home && holder.MixGhost(),
             "Other player returns seasoning to exact home position and unlocks mixing");
         Object.Destroy(otherObject);
-        ghostManager.PlayerToggleLights(true);
+        buildingLights.SetLights(true);
         Call(recovery, "Update");
         player.transform.position = new Vector3(1000, 3, 1000);
         holder.Consume();
@@ -514,7 +514,7 @@ public static class PopcornRegressionRunner
         camera = player.GetComponentInChildren<Camera>();
         interactor = player.GetComponent<PlayerInteractor>();
         player.GetComponentInChildren<FirstPersonCamera>().enabled = false;
-        ghostManager.PlayerToggleLights(false);
+        buildingLights.SetLights(false);
         Set(recovery, "darkSeconds", 0.6f);
         Call(recovery, "Update");
         Check(PopcornNetSync.Instance.GhostFavor.displaced, "Host publishes blackout displacement");

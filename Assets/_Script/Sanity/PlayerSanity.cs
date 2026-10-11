@@ -206,7 +206,7 @@ public sealed class PlayerSanity : NetworkBehaviour
         }
 
         // Drain 2: alone in the dark for too long.
-        bool dark = GhostManager.Instance != null && !GhostManager.Instance.areLightsOnCurrently;
+        bool dark = BuildingLightManager.Instance != null && !BuildingLightManager.LightsOn;
         if (dark && !TeammateWithin(s.aloneRadius, false))
         {
             darkAloneTimer += dt;

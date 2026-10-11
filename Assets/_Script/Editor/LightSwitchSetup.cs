@@ -19,6 +19,7 @@ public static class LightSwitchSetup
 
         Undo.SetCurrentGroupName("Set up light switch");
         int group = Undo.GetCurrentGroup();
+        EnsureBuildingLights(target.scene);
         if (target.GetComponent<Mirror.NetworkIdentity>() == null)
             Undo.AddComponent<Mirror.NetworkIdentity>(target);
         if (target.GetComponent<LightSwitchInteractable>() == null)
@@ -60,6 +61,26 @@ public static class LightSwitchSetup
         Undo.CollapseUndoOperations(group);
         EditorSceneManager.MarkSceneDirty(target.scene);
         Debug.Log("Light switch ready: aim at it within 3 metres and press E. Save the scene to keep the setup.", target);
+    }
+
+    public static void EnsureBuildingLights(UnityEngine.SceneManagement.Scene scene)
+    {
+        foreach (GameObject root in scene.GetRootGameObjects())
+            if (root.GetComponentInChildren<BuildingLightManager>(true) != null) return;
+
+        var manager = new GameObject("Building Lights");
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(manager, scene);
+        Undo.RegisterCreatedObjectUndo(manager, "Add building lights");
+        Undo.AddComponent<Mirror.NetworkIdentity>(manager);
+        Undo.AddComponent<BuildingLightManager>(manager);
+        EditorSceneManager.MarkSceneDirty(scene);
+    }
+
+    [MenuItem("Tools/Pre-Thesis/Lighting/Add Building Lights To Scene")]
+    private static void AddBuildingLights()
+    {
+        if (!EditorApplication.isPlaying)
+            EnsureBuildingLights(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
     }
 
     [MenuItem(Menu, true)]

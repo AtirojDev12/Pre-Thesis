@@ -93,7 +93,7 @@ public static class CinemaGameplayChecks
                 Check(net.onlineScene == ScenePath && net.transport != null && net.playerPrefab != null, "Online lobby routes to Cinema with configured transport/player");
                 Check(net.spawnPrefabs.Contains((GameObject)Get(ghostManager, "ghostPrefab")), "Ghost prefab registered for network spawning");
                 Check(EditorBuildSettings.scenes.Any(s => s.enabled && s.path == ScenePath), "Cinema enabled in build settings");
-                Check(((Light[])Get(ghostManager, "allLights")).Length == GameObject.Find("AllLight").GetComponentsInChildren<Light>().Length, "Ghost controls all authored cinema lights");
+                Check(All<BuildingLightManager>().Length == 1, "Building lighting is independent of the ghost");
                 var ts = Anchor(ticket, "spawnPoint"); var ps = Anchor(popcorn, "customerSpawnPoint");
                 Check(Vector3.Distance(ts.position, ps.position) < .01f && ts.parent.name == "Door" && ts.parent.parent.name == "Entrance", "Both customer spawns use Entrance/Door");
                 var te = Anchor(ticket, "exitPoint"); var pe = Anchor(popcorn, "customerExitPoint");
@@ -199,10 +199,10 @@ public static class CinemaGameplayChecks
                 var ghost = (GameObject)Get(ghostManager, "currentGhostInstance");
                 Check(ghost != null && ghost.GetComponent<NavMeshAgent>().isOnNavMesh, "Ghost spawns and navigates on Cinema mesh");
                 if (host) Check(ghost.GetComponent<NetworkIdentity>().netId != 0, "Host ghost is network-spawned");
-                ghostManager.PlayerToggleLights(false);
-                Check(((Light[])Get(ghostManager, "allLights")).All(l => !l.enabled), "Ghost light state switches all lights");
-                ghostManager.PlayerToggleLights(true);
-                Check(((Light[])Get(ghostManager, "allLights")).All(l => l.enabled), "Lights restore correctly");
+                BuildingLightManager.Instance.SetLights(false);
+                Check(GameObject.Find("AllLight").GetComponentsInChildren<Light>().All(l => !l.enabled), "Building power switches all lights");
+                BuildingLightManager.Instance.SetLights(true);
+                Check(GameObject.Find("AllLight").GetComponentsInChildren<Light>().All(l => l.enabled), "Lights restore correctly");
                 Finish();
             }
         }

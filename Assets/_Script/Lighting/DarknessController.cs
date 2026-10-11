@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 /// lamps. The rest of the scene lighting stayed, so the room went grey but you
 /// could still see everything, far away included.
 ///
-/// Now, while GhostManager says the lights are off, on THIS machine only
+/// Now, while BuildingLightManager says the lights are off, on THIS machine only
 /// (every machine does the same, from the same synced light state):
 ///   1. Ambient light and reflections drop to almost nothing.
 ///   2. Black fog swallows anything far away.
@@ -77,7 +77,7 @@ public sealed class DarknessController : MonoBehaviour
     private float origAmbientIntensity, origReflection;
     private bool captured;
 
-    // ---- Automatic setup: every scene with a GhostManager gets one ----------
+    // ---- Automatic setup: every scene with a BuildingLightManager gets one ----------
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Hook()
@@ -91,13 +91,13 @@ public sealed class DarknessController : MonoBehaviour
     {
         if (Application.isBatchMode || !scene.IsValid()) return;
         GameObject[] roots = scene.GetRootGameObjects();
-        bool hasGhostManager = false;
+        bool hasBuildingLightManager = false;
         foreach (GameObject root in roots)
         {
             if (root.GetComponentInChildren<DarknessController>(true) != null) return; // the map has its own
-            if (root.GetComponentInChildren<GhostManager>(true) != null) hasGhostManager = true;
+            if (root.GetComponentInChildren<BuildingLightManager>(true) != null) hasBuildingLightManager = true;
         }
-        if (!hasGhostManager) return; // menu, lobby without lights: nothing to darken
+        if (!hasBuildingLightManager) return; // menu, lobby without lights: nothing to darken
 
         var go = new GameObject("[Darkness]");
         SceneManager.MoveGameObjectToScene(go, scene); // dies with the map, restores on the way out
@@ -139,7 +139,7 @@ public sealed class DarknessController : MonoBehaviour
 
     private void Update()
     {
-        bool wantDark = previewDark || (GhostManager.Instance != null && !GhostManager.Instance.areLightsOnCurrently);
+        bool wantDark = previewDark || (BuildingLightManager.Instance != null && !BuildingLightManager.LightsOn);
         float seconds = wantDark ? secondsToDark : secondsToLight;
         float step = seconds <= 0f ? 1f : Time.unscaledDeltaTime / seconds;
         darkness = Mathf.MoveTowards(darkness, wantDark ? 1f : 0f, step);

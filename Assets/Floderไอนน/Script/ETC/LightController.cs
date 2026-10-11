@@ -2,24 +2,7 @@ using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-/// <summary>
-/// ปุ่ม L สำหรับเปิด-ปิดไฟ
-///
-/// PUT THIS ON THE PLAYER PREFAB, NOT IN THE SCENE.
-///
-/// Why it moved: this reads the keyboard, and in a match every machine has a
-/// keyboard. A scene copy runs Update on all six clients, so one person
-/// pressing L used to flip the lights on their screen only — and because
-/// TimedGhost hunts by movement in the dark and by sight in the light, the
-/// ghost would then be running a different mode on every machine.
-///
-/// Now: only the local player reads input, the press travels to the server as a
-/// Command, and GhostManager flips its replicated light state for everybody.
-///
-/// The lights themselves are configured ONCE on GhostManager. This component no
-/// longer owns a light array — two lists of lights is two answers to the same
-/// question, and they drift.
-/// </summary>
+/// <summary>Player-owned L key input, routed to independent building power on the server.</summary>
 public class LightController : NetworkBehaviour
 {
     [Header("Input")]
@@ -41,15 +24,15 @@ public class LightController : NetworkBehaviour
 
     private void RequestToggle()
     {
-        if (GhostManager.Instance == null)
+        if (BuildingLightManager.Instance == null)
         {
-            Debug.LogWarning("[LightController] No GhostManager in this scene — nothing owns the lights.", this);
+            Debug.LogWarning("[LightController] No BuildingLightManager in this scene — nothing owns the lights.", this);
             return;
         }
 
         if (NetworkMode.IsOffline)
         {
-            GhostManager.Instance.PlayerToggleLights(!GhostManager.Instance.areLightsOnCurrently);
+            BuildingLightManager.Instance.SetLights(!BuildingLightManager.LightsOn);
             return;
         }
 
@@ -64,8 +47,8 @@ public class LightController : NetworkBehaviour
     [Command]
     private void CmdToggleLights()
     {
-        if (GhostManager.Instance == null) return;
-        GhostManager.Instance.PlayerToggleLights(!GhostManager.Instance.areLightsOnCurrently);
+        if (BuildingLightManager.Instance == null) return;
+        BuildingLightManager.Instance.SetLights(!BuildingLightManager.LightsOn);
     }
 
     /// <summary>
@@ -74,7 +57,7 @@ public class LightController : NetworkBehaviour
     /// </summary>
     public static void ServerSetLights(bool on)
     {
-        if (GhostManager.Instance == null) return;
-        GhostManager.Instance.PlayerToggleLights(on);
+        if (BuildingLightManager.Instance == null) return;
+        BuildingLightManager.Instance.SetLights(on);
     }
 }
