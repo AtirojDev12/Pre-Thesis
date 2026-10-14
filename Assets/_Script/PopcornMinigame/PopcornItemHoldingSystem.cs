@@ -17,14 +17,11 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
     public bool IsRefill { get; private set; }
     public bool SubmissionPending => holding != null && holding.SubmissionPending;
     public uint StateRevision { get; private set; }
-    public PopcornStation PlacedStation { get; private set; }
     public bool IsInHand => holding != null && holding.IsInHand;
     public bool CanServe => IsReady && IsInHand;
-    public bool IsPlacedAt(PopcornStation station) => PlacedStation != null && station != null &&
-        station.PlacementAnchor != null && PlacedStation.PlacementAnchor == station.PlacementAnchor;
     public TaskHeldState State => new TaskHeldState { revision = StateRevision, hasItem = HasItem, isCup = IsCup,
         hasPopcorn = HasPopcorn, isRefill = IsRefill, flavor = HeldFlavor, ghostMixed = GhostMixed,
-        placementStation = PlacedStation != null ? PlacedStation.Id + 1 : 0 };
+        placementStation = 0 };
     public event System.Action RefillDiscarded;
     private GameObject refillPrefab, fantaPrefab, orangeJuicePrefab, pepsiPrefab;
 
@@ -75,12 +72,15 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
         return true;
     }
 
-    public bool Place(PopcornStation station)
+    public bool Place(PopcornStation station) => NetworkMode.IsOffline && PopcornPreparation.Instance != null &&
+        PopcornPreparation.Instance.PlaceOfflineBottle(station);
+
+    public bool ReceiveMachineBottle(PopcornFlavor flavor)
     {
-        if (SubmissionPending || !HasItem || !IsCup || IsReady || PlacedStation != null ||
-            heldVisual == null || station == null || station.Kind != PopcornStationKind.Water || station.PlacementAnchor == null) return false;
-        if (!holding.TryPlace(station.PlacementAnchor, station.Id + 1)) return false;
-        PlacedStation = station;
+        if (HasItem || SubmissionPending || !ShowVisual(PrefabFor(new TaskHeldState { hasItem = true, isCup = true, flavor = flavor }))) return false;
+        IsCup = true;
+        HeldFlavor = flavor;
+        GhostMixed = false;
         RefreshLabel();
         return true;
     }
@@ -106,7 +106,7 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
     {
         if (heldItemText != null)
             heldItemText.text = IsRefill ? "NEW POPCORN\n[E] Refill PopCornTank" :
-                !IsReady ? (IsCup ? (PlacedStation != null ? "PAPPERBOTTLE PLACED\nHold E to dispense" : "EMPTY PAPPERBOTTLE\nE to place at a dispenser") : HasPopcorn ?
+                !IsReady ? (IsCup ? "EMPTY PAPPERBOTTLE\nE to place at a dispenser" : HasPopcorn ?
                 "POPCORN\nChoose a flavor station" : "EMPTY BUCKET\nScoop from PopCornTank") :
                 UiFactory.ItemName(HeldFlavor) + (GhostMixed ? "\n+ GHOST FLAVOR" : "\nReady - Ghosts need mix");
         if (heldItemPanel != null) heldItemPanel.SetActive(IsInHand);
@@ -207,32 +207,11 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
 
     public bool Hold(PopcornFlavor flavor)
     {
-        if (IsCup) return FinishPlacedDrink(flavor);
+        if (IsCup) return false;
         if (SubmissionPending || !HasItem || IsReady || IsRefill || !PopcornRecipe.IsOrder(flavor) || IsCup != PopcornRecipe.IsDrink(flavor)) return false;
         if (!HasPopcorn) return false;
         HeldFlavor = flavor;
         TintPopcorn();
-        RefreshLabel();
-        return true;
-    }
-
-    public bool FinishPlacedDrink(PopcornFlavor flavor)
-    {
-        if (SubmissionPending || !HasItem || !IsCup || IsReady || PlacedStation == null ||
-            !PopcornRecipe.IsDrink(flavor)) return false;
-        GameObject prefab = flavor == PopcornFlavor.Pepsi ? pepsiPrefab : flavor == PopcornFlavor.Fanta ? fantaPrefab :
-            flavor == PopcornFlavor.OrangeJuice ? orangeJuicePrefab : waterPrefab;
-        if (!ShowVisual(prefab, true)) return false;
-        HeldFlavor = flavor;
-        PlacedBottleInteractable.ConfigureVisual(heldVisual, PlacedStation, itemOwner.netId, true);
-        RefreshLabel();
-        return true;
-    }
-
-    public bool PickUpPlacedBottle()
-    {
-        if (SubmissionPending || !IsReady || PlacedStation == null || !holding.TryRetrieve()) return false;
-        PlacedStation = null;
         RefreshLabel();
         return true;
     }
@@ -262,12 +241,11 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
             if (renderer.name.StartsWith("Popcorn ")) renderer.SetPropertyBlock(properties);
     }
 
-    private bool ShowVisual(GameObject prefab, bool atPlacement = false)
+    private bool ShowVisual(GameObject prefab)
     {
         PlayerHealth player = PlayerHealth.LocalInstance;
         Camera camera = player != null ? player.GetComponentInChildren<Camera>() : null;
         if (prefab == null || camera == null || player.IsDead || player.IsDowned) return false;
-        if (atPlacement && !holding.IsPlaced) return false;
         holding.ConfigureHandAnchor(camera.transform, heldPosition, heldRotation);
         bool shown = holding.HasItem ? holding.TryReplaceVisual(prefab) :
             holding.TryPickUp(new HeldItemDefinition(prefab.name, prefab));
@@ -292,7 +270,6 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
         HeldFlavor = PopcornFlavor.None;
         GhostMixed = false;
         IsCup = false;
-        PlacedStation = null;
         itemOwner = null;
         holding.Clear();
         if (network != null) StateRevision = network.Publish(State);

@@ -44,8 +44,14 @@ public sealed class PopcornStation : MonoBehaviour, IInteractable
     {
         if (preparation == null || preparation.Holder == null) return string.Empty;
         PopcornItemHoldingSystem holder = preparation.Holder;
-        if (holder.PlacedStation != null && (Kind == PopcornStationKind.Bucket || Kind == PopcornStationKind.Cup || Kind == PopcornStationKind.Maker))
-            return "Retrieve your PapperBottle from the machine first";
+        if (Kind == PopcornStationKind.Water)
+        {
+            if (preparation.TryGetBottle(this, out var bottle))
+                return bottle.fillingActor != 0 ? "Dispensing · Please wait" : bottle.IsReady ?
+                    "[E] Pick up PapperBottle" : holder.HasItem ? "Spot occupied · Empty hands to dispense or pick up bottle" :
+                    "Hold [E] Fill " + UiFactory.FlavorName(Flavor) + " · Look at bottle and press E to pick up";
+            return holder.IsCup && !holder.IsReady ? "[E] Place PapperBottle" : "Pick up a PapperBottle first";
+        }
         if (Kind == PopcornStationKind.Bucket || Kind == PopcornStationKind.Cup)
             return holder.HasItem ? "Hands full · R to discard" :
                 Kind == PopcornStationKind.Cup ? "[E] Pick up PapperBottle" : "[E] Pick up empty bucket";
@@ -59,10 +65,6 @@ public sealed class PopcornStation : MonoBehaviour, IInteractable
             if (!holder.CanScoop) return supply + (holder.HasPopcorn ? "Choose a flavor station" : "Pick up an empty bucket first");
             return supply + (preparation.TankRemaining == 0 ? "Empty · Make NewPopcorn to refill" : "Hold [E] Scoop popcorn · 3 seconds");
         }
-        if (Kind == PopcornStationKind.Water && holder.IsPlacedAt(this) && holder.IsReady)
-            return "Look at the PapperBottle · [E] Pick up";
-        if (holder.PlacedStation != null && Kind != PopcornStationKind.Water)
-            return "Retrieve your PapperBottle from the machine first";
         if (Kind == PopcornStationKind.Ghost)
             return !holder.IsReady ? "Fill and flavor popcorn or fill a drink before mixing" : holder.GhostMixed ?
                 "Ghost flavor added · Ready to serve" : "[E] Mix Ghost Flavor";
@@ -71,8 +73,6 @@ public sealed class PopcornStation : MonoBehaviour, IInteractable
         if (holder.IsReady) return "Already prepared · Serve or R to discard";
         if (holder.IsCup != (Kind == PopcornStationKind.Water))
             return Kind == PopcornStationKind.Water ? "Drinks need a cup · R to discard bucket" : "Popcorn needs a bucket · R to discard cup";
-        if (Kind == PopcornStationKind.Water && !holder.IsPlacedAt(this))
-            return holder.PlacedStation != null ? "PapperBottle is on the other machine" : "[E] Place PapperBottle";
         if (Kind == PopcornStationKind.Scoop)
             return holder.HasPopcorn ? "[E] Add " + UiFactory.FlavorName(Flavor) + " flavor" : "Scoop from PopCornTank first";
         return "Hold [E] Fill " + UiFactory.FlavorName(Flavor) + " · 3 seconds";

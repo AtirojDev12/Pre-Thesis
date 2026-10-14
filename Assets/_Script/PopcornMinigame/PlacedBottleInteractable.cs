@@ -42,9 +42,10 @@ public sealed class PlacedBottleInteractable : MonoBehaviour, IInteractable, ILo
 
     public bool CanInteract() => isActiveAndEnabled && station != null && PopcornPreparation.Instance != null;
     public Transform GetTransform() => transform;
-    public string GetInteractionPrompt() => IsOwner ? "[E] Pick up PapperBottle" : "Another player's PapperBottle";
+    public string GetInteractionPrompt() => PopcornPreparation.Instance.TryGetBottle(station, out var bottle) && bottle.fillingActor != 0 ?
+        "Dispensing · Please wait" : PopcornPreparation.Instance.Holder.HasItem ? "Hands full · R to discard held item" : "[E] Pick up PapperBottle";
     private bool IsOwner => PlayerHealth.LocalInstance != null &&
-        (NetworkMode.IsOffline || PlayerHealth.LocalInstance.netId == owner);
+        (owner == 0 || NetworkMode.IsOffline || PlayerHealth.LocalInstance.netId == owner);
     public void Interact(GameObject interactor)
     {
         if (CanInteract() && IsOwner) PopcornPreparation.Instance.RequestBottlePickup(station);

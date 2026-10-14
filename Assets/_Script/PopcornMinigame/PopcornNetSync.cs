@@ -200,71 +200,11 @@ public partial class PopcornNetSync : NetworkBehaviour
         supplyWork.Clear();
         heldRefills.Clear();
         ResetStationSounds();
+        PlacedDrinks.Clear();
     }
 
     public void RequestSupply(int station, int request, PopcornSupplyAction action) => CmdSupply(station, request, action);
     public void RequestDiscardRefill() => CmdDiscardRefill();
-
-    public void RequestPlaceBottle(int station, int request, uint revision) => CmdPlaceBottle(station, request, revision);
-
-    [Command(requiresAuthority = false)]
-    private void CmdPlaceBottle(int stationId, int request, uint revision, NetworkConnectionToClient sender = null)
-    {
-        if (sender == null || sender.identity == null) return;
-        bool valid = ServerTryPlaceBottle(sender, stationId, revision);
-        TargetBottlePlaced(sender, request, stationId, revision, valid);
-    }
-
-    public bool ServerTryPlaceBottle(NetworkConnectionToClient sender, int stationId, uint revision)
-    {
-        if (!isServer || sender == null || sender.identity == null) return false;
-        var station = PopcornPreparation.Instance?.StationAt(stationId);
-        var held = sender.identity.GetComponent<PlayerHeldItems>();
-        bool valid = CanUseSupply(sender, station) && station.Kind == PopcornStationKind.Water &&
-            station.PlacementAnchor != null && held != null;
-        if (valid)
-        {
-            foreach (var identity in NetworkServer.spawned.Values)
-            {
-                if (identity == null || identity == sender.identity) continue;
-                var other = identity.GetComponent<PlayerHeldItems>();
-                var health = identity.GetComponent<PlayerHealth>();
-                if (health != null && (health.IsDead || health.IsDowned)) continue;
-                var placed = other != null && other.TaskItem.placementStation > 0 ?
-                    PopcornPreparation.Instance.StationAt(other.TaskItem.placementStation - 1) : null;
-                if (placed != null && placed.PlacementAnchor == station.PlacementAnchor) { valid = false; break; }
-            }
-        }
-        return valid && held.ServerPlaceBottle(stationId, revision);
-    }
-
-    [TargetRpc]
-    private void TargetBottlePlaced(NetworkConnectionToClient target, int request, int station, uint revision, bool success)
-        => PopcornPreparation.Instance?.ReceivePlacementResult(request, station, revision, success);
-
-    public void RequestPickUpBottle(int station, int request, uint revision) => CmdPickUpBottle(station, request, revision);
-
-    [Command(requiresAuthority = false)]
-    private void CmdPickUpBottle(int stationId, int request, uint revision, NetworkConnectionToClient sender = null)
-    {
-        if (sender == null || sender.identity == null) return;
-        bool success = ServerTryPickUpBottle(sender, stationId, revision);
-        TargetBottlePickedUp(sender, request, revision, success);
-    }
-
-    public bool ServerTryPickUpBottle(NetworkConnectionToClient sender, int stationId, uint revision)
-    {
-        if (!isServer || sender == null || sender.identity == null || supplyWork.ContainsKey(sender)) return false;
-        var station = PopcornPreparation.Instance?.StationAt(stationId);
-        var held = sender.identity.GetComponent<PlayerHeldItems>();
-        return CanUseSupply(sender, station) && station.PlacementAnchor != null && held != null &&
-            (station.PlacementAnchor.position - sender.identity.transform.position).sqrMagnitude <= 4.5f * 4.5f &&
-            held.ServerPickUpBottle(stationId, revision);
-    }
-
-    [TargetRpc]
-    private void TargetBottlePickedUp(NetworkConnectionToClient target, int request, uint revision, bool success)
-        => PopcornPreparation.Instance?.ReceiveBottlePickupResult(request, revision, success);
 
     [Command(requiresAuthority = false)]
     private void CmdDiscardRefill(NetworkConnectionToClient sender = null)
@@ -294,6 +234,7 @@ public partial class PopcornNetSync : NetworkBehaviour
             if (supplyWork.TryGetValue(sender, out SupplyWork cancelled) && cancelled.request == request)
             {
                 supplyWork.Remove(sender);
+                ReleaseDrinkWork(cancelled);
                 EndStationSound(cancelled.actor);
             }
             return;
@@ -312,9 +253,17 @@ public partial class PopcornNetSync : NetworkBehaviour
             valid = valid && CanHoldAtStation(sender, station) && AcceptNewSoundRequest(sender, request);
             if (valid)
             {
-                if (supplyWork.TryGetValue(sender, out SupplyWork previous)) EndStationSound(previous.actor);
+                if (supplyWork.TryGetValue(sender, out SupplyWork previous)) { ReleaseDrinkWork(previous); EndStationSound(previous.actor); }
                 var startedWork = new SupplyWork { station = stationId, request = request, started = NetworkTime.time, actor = sender.identity.netId,
                     heldRevision = sender.identity.GetComponent<PlayerHeldItems>().TaskItem.revision };
+                if (station.Kind == PopcornStationKind.Water)
+                {
+                    int spot = PopcornPreparation.Instance.SpotId(station);
+                    var bottle = PlacedDrinks[spot];
+                    startedWork.heldRevision = bottle.revision;
+                    bottle.fillingActor = startedWork.actor;
+                    PlacedDrinks[spot] = bottle;
+                }
                 supplyWork[sender] = startedWork;
                 BeginStationSound(startedWork.actor, stationId, request, startedWork.started);
                 TargetSupplyBeginAccepted(sender, request);
@@ -339,7 +288,7 @@ public partial class PopcornNetSync : NetworkBehaviour
         bool hasWork = supplyWork.TryGetValue(sender, out SupplyWork work) && work.station == stationId && work.request == request;
         valid = valid && hasWork && CanHoldAtStation(sender, station) && NetworkTime.time - work.started >= PopcornPreparation.PreparationSeconds - 0.05;
         if (valid && station.Kind == PopcornStationKind.Water)
-            valid = sender.identity.GetComponent<PlayerHeldItems>().TaskItem.revision == work.heldRevision;
+            valid = PopcornPreparation.Instance.TryGetBottle(station, out var bottle) && bottle.revision == work.heldRevision && bottle.fillingActor == work.actor;
         // A completion is consumed exactly once, even if another player emptied
         // the tank first. Reliable ordered commands serialize simultaneous scoops.
         if (hasWork)
@@ -358,7 +307,8 @@ public partial class PopcornNetSync : NetworkBehaviour
             valid = heldRefills.Add(sender);
         }
         else if (valid && station.Kind == PopcornStationKind.Water)
-            valid = sender.identity.GetComponent<PlayerHeldItems>().ServerFinishDrink(station);
+            valid = ServerFinishPlacedDrink(station, work);
+        if (hasWork) ReleaseDrinkWork(work);
         TargetSupplyResult(sender, request, valid, message);
     }
 

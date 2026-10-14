@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>One cancellable local action; online tank changes are committed by the server.</summary>
-public sealed class PopcornPreparation : MonoBehaviour
+public sealed partial class PopcornPreparation : MonoBehaviour
 {
     public static PopcornPreparation Instance { get; private set; }
     public const float PreparationSeconds = 3f;
@@ -80,7 +80,7 @@ public sealed class PopcornPreparation : MonoBehaviour
     {
         if (station.Kind == PopcornStationKind.Maker) return Holder.CanMakeRefill;
         if (station.Kind == PopcornStationKind.Tank) return Holder.CanScoop && TankRemaining > 0;
-        return station.Kind == PopcornStationKind.Water && Holder.HasItem && Holder.IsCup && !Holder.IsReady && Holder.IsPlacedAt(station);
+        return station.Kind == PopcornStationKind.Water && !Holder.HasItem && TryGetBottle(station, out var bottle) && !bottle.IsReady;
     }
 
     public void Interact(PopcornStation station)
@@ -88,9 +88,10 @@ public sealed class PopcornPreparation : MonoBehaviour
         if (Holder == null || Holder.SubmissionPending || IsPreparing || BottleTransferPending || GameplayInput.Blocked) return;
         if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier) return;
         PlayerHealth player = PlayerHealth.LocalInstance;
-        if (player == null || player.IsDead || player.IsDowned) return;
-        if (station.Kind == PopcornStationKind.Water && Holder.HasItem && Holder.IsCup && !Holder.IsReady && Holder.PlacedStation == null)
+        if (player == null || player.IsDead || player.IsDowned) return;        if (station.Kind == PopcornStationKind.Water && !Holder.HasItem && TryGetBottle(station, out var readyBottle) && readyBottle.IsReady)        { RequestBottlePickup(station); return; }
+        if (station.Kind == PopcornStationKind.Water && Holder.IsInHand && Holder.IsCup && !Holder.IsReady)
         {
+            if (TryGetBottle(station, out _)) { ShowStatus("This dispenser spot already has a PapperBottle"); return; }
             if (station.PlacementAnchor == null) { ShowStatus("Assign a PapperBottle placement anchor"); return; }
             if (NetworkMode.IsOffline)
                 ShowStatus(Holder.Place(station) ? "PapperBottle placed · Hold E to dispense" : "Unable to place PapperBottle");
@@ -110,7 +111,6 @@ public sealed class PopcornPreparation : MonoBehaviour
             bool pickedUp = Holder.PickUp(cup);
             if (pickedUp) Audio.OneShot(station, Holder.StateRevision);
             ShowStatus(pickedUp ? (cup ? "Cup picked up · Choose a drink dispenser" : "Bucket picked up · Scoop from PopCornTank") :
-                Holder.PlacedStation != null ? "Retrieve your PapperBottle from the machine first" :
                 Holder.HasItem ? "Hands full · R to discard" : "Cannot pick up container · Check prefab setup");
             return;
         }
@@ -210,7 +210,7 @@ public sealed class PopcornPreparation : MonoBehaviour
         if (NetworkMode.IsOffline && activeStation.Kind == PopcornStationKind.Water)
         {
             PopcornFlavor flavor = activeStation.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : activeStation.Flavor;
-            bool completed = Holder.FinishPlacedDrink(flavor);
+            bool completed = FinishOfflineBottle(activeStation, flavor);
             Cancel(false);
             ShowStatus(completed ? UiFactory.ItemName(flavor) + " ready · Look at the PapperBottle and press E to pick up" : "Unable to fill · Check held prefab setup");
         }
@@ -238,7 +238,7 @@ public sealed class PopcornPreparation : MonoBehaviour
         else if (success && alive)
         {
             success = activeStation.Kind == PopcornStationKind.Maker ? Holder.HoldRefill() :
-                activeStation.Kind == PopcornStationKind.Water ? Holder.FinishPlacedDrink(activeStation.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : activeStation.Flavor) : Holder.Scoop();
+                activeStation.Kind == PopcornStationKind.Water ? true : Holder.Scoop();
             message = success ? (Holder.IsRefill ? "NewPopcorn ready · Press E at PopCornTank to refill" :
                 activeStation.Kind == PopcornStationKind.Water ? UiFactory.ItemName(Holder.HeldFlavor) + " ready · Look at the PapperBottle and press E to pick up" : "Popcorn scooped · Choose a flavor") : "Unable to hold item";
         }
@@ -252,7 +252,8 @@ public sealed class PopcornPreparation : MonoBehaviour
         if (!awaitingPlacement || id != placementRequest) return;
         awaitingPlacement = false;
         if (revision != placementRevision || Holder == null || Holder.StateRevision != revision) return;
-        ShowStatus(success && Holder.Place(StationAt(stationId)) ?
+        if (success) Holder.Consume();
+        ShowStatus(success ?
             "PapperBottle placed · Hold E to dispense" : "Cannot place PapperBottle · Machine occupied or out of reach");
     }
 
@@ -267,25 +268,28 @@ public sealed class PopcornPreparation : MonoBehaviour
     {
         var player = PlayerHealth.LocalInstance;
         if (Holder == null || player == null || player.IsDead || player.IsDowned || GameplayInput.Blocked ||
-            BottleTransferPending || IsPreparing || Holder.SubmissionPending || !Holder.IsReady || !Holder.IsPlacedAt(station)) return;
+            BottleTransferPending || IsPreparing || Holder.HasItem || Holder.SubmissionPending ||
+            !TryGetBottle(station, out var bottle) || bottle.fillingActor != 0) return;
         if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier) return;
         if (NetworkMode.IsOffline)
-            ShowStatus(Holder.PickUpPlacedBottle() ? "PapperBottle picked up · Ready to mix or serve" : "Cannot pick up PapperBottle");
+        {
+            if (Holder.ReceiveMachineBottle(bottle.flavor)) { offlineBottles.Remove(SpotId(station)); RenderPlacedBottles(); }
+        }
         else if (PopcornNetSync.Instance != null && Mirror.NetworkClient.ready)
         {
             awaitingPickup = true;
             pickupRequest = ++requestId;
             pickupRevision = Holder.StateRevision;
-            PopcornNetSync.Instance.RequestPickUpBottle(Holder.PlacedStation.Id, pickupRequest, pickupRevision);
+            PopcornNetSync.Instance.RequestPickUpBottle(SpotId(station), pickupRequest, pickupRevision, bottle.revision);
         }
     }
 
-    public void ReceiveBottlePickupResult(int id, uint revision, bool success)
+    public void ReceiveBottlePickupResult(int id, uint revision, bool success, PopcornFlavor flavor)
     {
         if (!awaitingPickup || id != pickupRequest) return;
         awaitingPickup = false;
         if (revision != pickupRevision || Holder == null || Holder.StateRevision != revision) return;
-        ShowStatus(success && Holder.PickUpPlacedBottle() ? "PapperBottle picked up · Ready to mix or serve" : "Cannot pick up PapperBottle · Move closer and try again");
+        ShowStatus(success && Holder.ReceiveMachineBottle(flavor) ? "PapperBottle picked up" : "Cannot pick up PapperBottle · Hands must be empty and machine idle");
     }
 
     public void AcceptSupplyBegin(int id)
@@ -310,6 +314,7 @@ public sealed class PopcornPreparation : MonoBehaviour
 
     private void LateUpdate()
     {
+        RenderPlacedBottles();
         if (tankText == null) return;
         bool ready = NetworkMode.IsOffline || PopcornNetSync.Instance != null;
         tankText.text = ready ? $"POPCORN TANK  {TankRemaining} / {TankCapacity}\n" +
@@ -360,6 +365,7 @@ public sealed class PopcornPreparation : MonoBehaviour
     private void OnDisable() => Cancel(false);
     private void OnDestroy()
     {
+        ClearBottleVisuals();
         if (Holder != null) Holder.RefillDiscarded -= DiscardRefill;
         if (tankCanvas != null) Destroy(tankCanvas.gameObject);
         if (Instance == this) Instance = null;

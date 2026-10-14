@@ -58,7 +58,7 @@ public sealed class PlayerHeldItems : NetworkBehaviour
         if (state.IsReady && !state.isCup && !state.hasPopcorn) return;
         if ((state.isCup && state.hasPopcorn) || (state.ghostMixed && !state.IsReady)) return;
         if (state.isRefill && (state.isCup || state.hasPopcorn || state.flavor != PopcornFlavor.None || state.ghostMixed)) return;
-        if (state.placementStation < 0 || (state.placementStation > 0 && (!state.hasItem || !state.isCup || state.isRefill || state.ghostMixed))) return;
+        if (state.placementStation != 0) return;
         // A hand-state publication cannot discard a bottle left on a machine.
         if (!NetworkMode.IsOffline && taskItem.placementStation > 0 && !state.hasItem &&
             health != null && !health.IsDead && !health.IsDowned) return;
@@ -75,41 +75,24 @@ public sealed class PlayerHeldItems : NetworkBehaviour
         taskItem = state;
     }
 
-    public bool ServerPlaceBottle(int stationId, uint revision)
-    {
-        if (!NetworkMode.HasServerAuthority(this) || taskItem.revision != revision || !taskItem.hasItem ||
-            !taskItem.isCup || taskItem.IsReady || taskItem.isRefill || taskItem.placementStation != 0) return false;
-        TaskHeldState state = taskItem;
-        state.placementStation = stationId + 1;
-        taskItem = state;
-        return true;
-    }
-
-    public bool ServerFinishDrink(PopcornStation station)
-    {
-        var placed = PopcornPreparation.Instance?.StationAt(taskItem.placementStation - 1);
-        if (!NetworkMode.HasServerAuthority(this) || station == null || station.Kind != PopcornStationKind.Water ||
-            placed == null || placed.PlacementAnchor != station.PlacementAnchor || !taskItem.hasItem || !taskItem.isCup || taskItem.IsReady) return false;
-        TaskHeldState state = taskItem;
-        state.flavor = station.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : station.Flavor;
-        taskItem = state;
-        return true;
-    }
-
-    public bool ServerPickUpBottle(int stationId, uint revision)
-    {
-        if (!NetworkMode.HasServerAuthority(this) || taskItem.revision != revision ||
-            taskItem.placementStation != stationId + 1 || !taskItem.IsReady || !taskItem.isCup) return false;
-        TaskHeldState state = taskItem;
-        state.placementStation = 0;
-        taskItem = state;
-        return true;
-    }
-
     public bool ServerConsume(uint revision)
     {
         if (!NetworkMode.HasServerAuthority(this) || taskItem.revision != revision || !taskItem.IsReady || !taskItem.IsInHand) return false;
         taskItem = new TaskHeldState { revision = revision };
+        return true;
+    }
+
+    public bool ServerReleaseEmptyBottle(uint revision)
+    {
+        if (!isServer || taskItem.revision != revision || !taskItem.IsInHand || !taskItem.isCup || taskItem.IsReady) return false;
+        taskItem = new TaskHeldState { revision = revision };
+        return true;
+    }
+
+    public bool ServerReceiveBottle(PopcornFlavor flavor, uint revision)
+    {
+        if (!isServer || taskItem.hasItem || taskItem.revision != revision) return false;
+        taskItem = new TaskHeldState { revision = revision, hasItem = true, isCup = true, flavor = flavor };
         return true;
     }
 

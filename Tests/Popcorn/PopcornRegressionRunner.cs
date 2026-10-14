@@ -104,13 +104,14 @@ public static class PopcornRegressionRunner
         movedAnchor = null;
         movedStation = station;
         originalPosition = station.transform.position;
+        Vector3 fixture = station.Kind == PopcornStationKind.Water ? new Vector3(4000, 5, 4000) : new Vector3(1000, 5, 1000);
         if (station.PlacementAnchor != null && !station.PlacementAnchor.IsChildOf(station.transform))
         {
             movedAnchor = station.PlacementAnchor;
             originalAnchorPosition = movedAnchor.position;
-            movedAnchor.position += new Vector3(1000, 5, 1000) - originalPosition;
+            movedAnchor.position += fixture - originalPosition;
         }
-        station.transform.position = new Vector3(1000, 5, 1000);
+        station.transform.position = fixture;
         if (station.Kind == PopcornStationKind.Ghost && GhostFavorRecovery.Instance != null)
             Set(GhostFavorRecovery.Instance, "homePosition", station.transform.position);
         Physics.SyncTransforms();
@@ -132,7 +133,7 @@ public static class PopcornRegressionRunner
     {
         Aim(station);
         Input(true);
-        if (station.Kind == PopcornStationKind.Water && !holder.IsPlacedAt(station))
+        if (station.Kind == PopcornStationKind.Water && !preparation.TryGetBottle(station, out _))
             preparation.Interact(station);
         preparation.Interact(station);
         // Batch EditorApplication.Step releases cursor/input between frames. Drive
@@ -152,34 +153,6 @@ public static class PopcornRegressionRunner
         Check((holder.IsReady || holder.HasPopcorn || holder.IsRefill) && !completedEarly && simulatedSeconds >= 2.999f && simulatedSeconds < 3f + Time.deltaTime * 2f,
             station.Kind + " completes after three seconds of simulated held input");
         yield break;
-    }
-    static void RetrieveOfflineBottle()
-    {
-        var flavor = holder.HeldFlavor;
-        var bottle = (GameObject)Get(holder, "heldVisual");
-        Check(holder.IsReady && !holder.IsInHand && !holder.CanServe && holder.PlacedStation != null,
-            "Finished drink remains placed with hand actions disabled");
-        Check(!holder.TryDiscardInHand() && !holder.MixGhost() && !holder.BeginSubmission(),
-            "Placed drink rejects discard, ghost mixing and serving");
-        Input(false);
-        InputState.Change(keyboard, new KeyboardState(Key.R), InputUpdateType.Dynamic);
-        Call(preparation, "Update");
-        Check(holder.HasItem && holder.HeldFlavor == flavor && Get(holder, "heldVisual") == bottle,
-            "Pressing R leaves the placed drink and its contents untouched");
-        Input(false);
-        Bounds bounds = bottle.GetComponentInChildren<Renderer>().bounds;
-        camera.transform.position = bounds.center + Vector3.back * .8f;
-        camera.transform.LookAt(bounds.center);
-        Physics.SyncTransforms();
-        Check(interactor.GetInteractableAlongRay(new Ray(camera.transform.position, camera.transform.forward)) is PlacedBottleInteractable,
-            "Looking at the finished bottle targets its pickup interaction");
-        Input(true);
-        Call(interactor, "Update");
-        Input(false);
-        Check(holder.CanServe && holder.IsInHand && holder.PlacedStation == null && holder.HeldFlavor == flavor,
-            "Fresh E press retrieves the same drink and restores hand state");
-        Check(!((GameObject)Get(holder, "heldVisual")).GetComponentsInChildren<Collider>().Any(c => c.enabled),
-            "Retrieved bottle disables its world pickup collider");
     }
     static void CheckReusableHolding()
     {
@@ -236,6 +209,197 @@ public static class PopcornRegressionRunner
         Check(!core.HasItem && !lastVisual.activeSelf && cleared == 2, "Generic component teardown cleans up its slot and detached visuals");
         Object.Destroy(fixture); Object.Destroy(hand.gameObject); Object.Destroy(placement.gameObject);
         Object.Destroy(raw); Object.Destroy(prepared);
+    }
+
+    static IEnumerator CheckMachineBottles(bool online, PopcornStation first)
+    {
+        holder.Consume();
+        var second = stations.First(s => s.Kind == PopcornStationKind.Water && s.PlacementAnchor != first.PlacementAnchor && s.Flavor == PopcornFlavor.Drink);
+        foreach (var machine in new[] { first, second })
+        {
+            Aim(machine);
+            player.transform.position = machine.PlacementAnchor.position;
+            holder.PickUp(true);
+            for (int i = 0; i < 8; i++) yield return null;
+            preparation.Interact(machine);
+            for (int i = 0; i < 8; i++) yield return null;
+            Check(!holder.HasItem && preparation.TryGetBottle(machine, out var empty) && !empty.IsReady,
+                "Placement frees the hand and creates a machine-owned empty bottle " + online);
+        }
+        Check(preparation.TryGetBottle(first, out _) && preparation.TryGetBottle(second, out _),
+            "One player can leave bottles at both dispenser spots " + online);
+        if (online)
+        {
+            var sync = PopcornNetSync.Instance;
+            var peerObject = Object.Instantiate(Object.FindAnyObjectByType<NetworkManager>().playerPrefab);
+            NetworkServer.Spawn(peerObject);
+            var peerHeld = peerObject.GetComponent<PlayerHeldItems>();
+            var peer = new NetworkConnectionToClient(777);
+            typeof(NetworkConnection).GetProperty("identity").SetValue(peer, peerObject.GetComponent<NetworkIdentity>());
+            preparation.TryGetBottle(first, out var original);
+            peerObject.transform.position = Vector3.one * -2000;
+            Check(!sync.ServerTryPickUpBottle(peer, preparation.SpotId(first), 0, original.revision, out _), "Server rejects out-of-range pickup");
+            peerObject.transform.position = first.PlacementAnchor.position;
+            Check(!sync.ServerTryPickUpBottle(peer, preparation.SpotId(first), 0, original.revision + 1, out _), "Server rejects stale bottle revisions");
+            Check(sync.ServerTryPickUpBottle(peer, preparation.SpotId(first), 0, original.revision, out _) && peerHeld.TaskItem.isCup,
+                "Teammate can collect a shared empty bottle with empty hands");
+            Check(!sync.ServerTryPickUpBottle(player.connectionToClient, preparation.SpotId(first), holder.StateRevision, original.revision, out _),
+                "Simultaneous pickup cannot duplicate the same bottle");
+            Check(sync.ServerTryPlaceBottle(peer, first.Id, peerHeld.TaskItem.revision), "Teammate can replace the bottle at the freed spot");
+            preparation.TryGetBottle(first, out var abandoned);
+            CheckBottleWorkCleanup(sync, first, peer, abandoned, "disconnect");
+            NetworkServer.Destroy(peerObject);
+            yield return null;
+            Check(preparation.TryGetBottle(first, out _) && preparation.TryGetBottle(second, out _), "Placed bottles persist independently of a player's despawn");
+            player.transform.position = first.PlacementAnchor.position;
+            preparation.TryGetBottle(first, out var reserved);
+            var pendingRefills = (HashSet<NetworkConnectionToClient>)Get(sync, "heldRefills");
+            pendingRefills.Add(player.connectionToClient);
+            Check(!sync.ServerTryPickUpBottle(player.connectionToClient, preparation.SpotId(first), holder.StateRevision, reserved.revision, out _),
+                "Pending server refill blocks a conflicting bottle pickup before its hand publication arrives");
+            pendingRefills.Remove(player.connectionToClient);
+            CheckBottleWorkCleanup(sync, first, player.connectionToClient, reserved, "timeout");
+            CheckBottleWorkCleanup(sync, first, player.connectionToClient, reserved, "downed");
+            CheckBottleObserverSnapshot(sync);
+        }
+        holder.PickUp(true);
+        Aim(first);
+        player.transform.position = first.PlacementAnchor.position;
+        for (int i = 0; i < 8; i++) yield return null;
+        preparation.Interact(first);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(holder.HasItem && preparation.TryGetBottle(first, out _), "Occupied spot rejects placement without consuming the held bottle " + online);
+        holder.TryDiscardInHand();
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(preparation.TryGetBottle(first, out _) && preparation.TryGetBottle(second, out _), "R only discards the hand item and preserves all machine bottles " + online);
+        Call(preparation, "RenderPlacedBottles");
+        var visual = preparation.BottleVisualAt(first);
+        var bounds = visual.GetComponentInChildren<Renderer>().bounds;
+        camera.transform.position = bounds.center + Vector3.back * .8f;
+        camera.transform.LookAt(bounds.center);
+        Physics.SyncTransforms();
+        Check(interactor.GetInteractableAlongRay(new Ray(camera.transform.position, camera.transform.forward)) is PlacedBottleInteractable,
+            "Empty placed bottle is directly ray-interactable " + online + " hits=" + string.Join(";", Physics.RaycastAll(camera.transform.position, camera.transform.forward, 3f).OrderBy(h => h.distance).Select(h => h.collider.name)));
+        Input(true); Call(interactor, "Update"); Input(false);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(holder.IsInHand && holder.IsCup && !holder.IsReady && !preparation.TryGetBottle(first, out _), "E retrieves an empty bottle and frees its spot " + online);
+        preparation.Interact(first);
+        for (int i = 0; i < 8; i++) yield return null;
+        foreach (var flavor in new[] { PopcornFlavor.Drink, PopcornFlavor.Fanta, PopcornFlavor.OrangeJuice, PopcornFlavor.Pepsi })
+        {
+            var station = stations.First(s => s.Kind == PopcornStationKind.Water && s.PlacementAnchor == first.PlacementAnchor && s.Flavor == flavor);
+            Aim(station);
+            player.transform.position = station.PlacementAnchor.position;
+            if (!preparation.TryGetBottle(station, out _))
+            {
+                holder.PickUp(true);
+                for (int i = 0; i < 8; i++) yield return null;
+                preparation.Interact(station);
+                for (int i = 0; i < 8; i++) yield return null;
+            }
+            if (online)
+            {
+                var sync = PopcornNetSync.Instance;
+                int id = (int)Get(preparation, "requestId") + 100;
+                Set(preparation, "activeStation", station); Set(preparation, "preparingPlayer", player);
+                Set(preparation, "requestId", id); Set(preparation, "awaitingResult", true);
+                sync.RequestSupply(station.Id, id, PopcornSupplyAction.Begin);
+                for (int i = 0; i < 8; i++) yield return null;
+                Check(preparation.TryGetBottle(station, out var busy) && busy.fillingActor == player.netId, "Server reserves the bottle during dispensing");
+                Check(!sync.ServerTryPickUpBottle(player.connectionToClient, preparation.SpotId(station), holder.StateRevision, busy.revision, out _),
+                    "Server blocks pickup while pouring");
+                Vector3 oldStation = second.transform.position, oldAnchor = second.PlacementAnchor.position;
+                second.transform.position = station.transform.position + Vector3.right;
+                second.PlacementAnchor.position = station.PlacementAnchor.position + Vector3.right;
+                Physics.SyncTransforms();
+                preparation.TryGetBottle(second, out var otherBottle);
+                Check(!sync.ServerTryPickUpBottle(player.connectionToClient, preparation.SpotId(second), holder.StateRevision, otherBottle.revision, out _),
+                    "Server blocks pickup from another idle machine while this player is pouring");
+                second.transform.position = oldStation;
+                second.PlacementAnchor.position = oldAnchor;
+                Physics.SyncTransforms();
+                CheckBottleObserverSnapshot(sync);
+                preparation.RequestBottlePickup(station);
+                Check(!holder.HasItem, "Bottle cannot be removed during dispensing");
+                for (double until = NetworkTime.time + 3.2; NetworkTime.time < until;) yield return null;
+                sync.RequestSupply(station.Id, id, PopcornSupplyAction.Complete);
+                for (int i = 0; i < 8; i++) yield return null;
+            }
+            else
+            {
+                Input(true); preparation.Interact(station);
+                Input(false); Call(preparation, "Update");
+                Check(preparation.TryGetBottle(station, out var cancelled) && !cancelled.IsReady, "Cancelled fill leaves its empty bottle on the spot");
+                Call(preparation, "FinishOfflineBottle", station, flavor);
+            }
+            Check(!holder.HasItem && preparation.TryGetBottle(station, out var ready) && ready.flavor == flavor,
+                "Completed " + flavor + " stays colored on its machine " + online);
+            if (online)
+            {
+                var sync = PopcornNetSync.Instance;
+                CheckBottleObserverSnapshot(sync);
+                Check(preparation.TryGetBottle(station, out var snapshot) && snapshot.flavor == flavor && preparation.TryGetBottle(second, out _),
+                    "Late join snapshot contains every occupied spot and drink contents");
+            }
+            preparation.RequestBottlePickup(station);
+            for (int i = 0; i < 8; i++) yield return null;
+            Check(holder.CanServe && holder.HeldFlavor == flavor && !preparation.TryGetBottle(station, out _), "Explicit pickup preserves prepared drink and restores serving " + online);
+            holder.Consume();
+            for (int i = 0; i < 8; i++) yield return null;
+        }
+        Aim(second); player.transform.position = second.PlacementAnchor.position;
+        preparation.RequestBottlePickup(second);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(holder.HasItem && !preparation.TryGetBottle(second, out _), "Other machine's bottle remains collectible after multiple placements " + online);
+        holder.Consume();
+    }
+
+    static void CheckBottleObserverSnapshot(PopcornNetSync sync)
+    {
+        var writer = new NetworkWriter();
+        sync.PlacedDrinks.OnSerializeAll(writer);
+        var observer = new SyncDictionary<int, PlacedDrinkState>();
+        observer.OnDeserializeAll(new NetworkReader(writer.ToArraySegment()));
+        bool same = observer.Count == sync.PlacedDrinks.Count && sync.PlacedDrinks.All(pair =>
+            observer.TryGetValue(pair.Key, out var value) && value.revision == pair.Value.revision &&
+            value.flavor == pair.Value.flavor && value.fillingActor == pair.Value.fillingActor);
+        Check(same, "Independent late observer receives all bottle identities, colors and pouring locks");
+        var pending = new NetworkWriter();
+        sync.PlacedDrinks.OnSerializeDelta(pending);
+        observer.OnDeserializeDelta(new NetworkReader(pending.ToArraySegment()));
+        Check(observer.Count == sync.PlacedDrinks.Count && sync.PlacedDrinks.All(pair => observer[pair.Key].Equals(pair.Value)),
+            "Observer ignores overlapping deltas already included in its joining snapshot");
+    }
+
+    static void CheckBottleWorkCleanup(PopcornNetSync sync, PopcornStation station, NetworkConnectionToClient connection, PlacedDrinkState bottle, string reason)
+    {
+        int spot = preparation.SpotId(station);
+        var workType = typeof(PopcornNetSync).GetNestedType("SupplyWork", BindingFlags.NonPublic);
+        object work = Activator.CreateInstance(workType);
+        uint actor = connection.identity.netId;
+        workType.GetField("station").SetValue(work, station.Id);
+        workType.GetField("request").SetValue(work, 700000);
+        workType.GetField("actor").SetValue(work, actor);
+        workType.GetField("heldRevision").SetValue(work, bottle.revision);
+        workType.GetField("started").SetValue(work, NetworkTime.time - (reason == "timeout" ? 10 : 0));
+        var workMap = (IDictionary)Get(sync, "supplyWork");
+        workMap.Add(connection, work);
+        bottle.fillingActor = actor;
+        sync.PlacedDrinks[spot] = bottle;
+        sync.SoundActions[actor] = new PopcornSoundAction { station = station.Id, request = 700000, started = NetworkTime.time };
+        if (reason == "downed") Set(player, "isDowned", true);
+        Call(sync, "Update");
+        if (reason == "downed") Set(player, "isDowned", false);
+        Check(!workMap.Contains(connection) && !sync.SoundActions.ContainsKey(actor) &&
+            sync.PlacedDrinks[spot].fillingActor == 0 && sync.PlacedDrinks[spot].revision == bottle.revision && !sync.PlacedDrinks[spot].IsReady,
+            "Server " + reason + " cleanup releases pouring and audio while preserving the machine bottle");
+        var newer = bottle;
+        newer.revision++;
+        sync.PlacedDrinks[spot] = newer;
+        Call(sync, "ReleaseDrinkWork", work);
+        Check(sync.PlacedDrinks[spot].fillingActor == actor, "Stale work cleanup cannot unlock a different bottle generation");
+        bottle.fillingActor = 0;
+        sync.PlacedDrinks[spot] = bottle;
     }
 
     static IEnumerator RunChecks()
@@ -378,97 +542,11 @@ public static class PopcornRegressionRunner
         Press(Station(PopcornStationKind.Cup));
         Check(holder.IsCup && !holder.IsReady && !holder.MixGhost(), "Cup starts empty and rejects early ghost mix");
         Check(!holder.Hold(PopcornFlavor.Paprika), "Cup rejects popcorn");
-        var water = Station(PopcornStationKind.Water, PopcornFlavor.Drink);
-        Check(!holder.Hold(PopcornFlavor.Drink), "Unplaced PapperBottle cannot become a colored drink");
-        foreach (var machine in stations.Where(s => s.Kind == PopcornStationKind.Water && s.transform.name.StartsWith("Waterdispenser")))
-        {
-            Aim(machine);
-            preparation.Interact(machine);
-            Check(!holder.IsInHand && !holder.TryDiscardInHand() && !((GameObject)Get(holder, "heldItemPanel")).activeSelf,
-                machine.name + " disables R and the hand HUD while its empty bottle is placed");
-            Check(holder.IsPlacedAt(machine) && !holder.IsReady && !preparation.IsPreparing &&
-                machine.PromptAnchor == machine.PlacementAnchor, machine.name + " places an empty PapperBottle with the prompt at its anchor");
-            var bottleVisual = (GameObject)Get(holder, "heldVisual");
-            Bounds bottleBounds = bottleVisual.GetComponentInChildren<Renderer>().bounds;
-            Check(Vector3.Distance(new Vector3(bottleBounds.center.x, bottleBounds.min.y, bottleBounds.center.z), machine.PlacementAnchor.position) < .001f,
-                machine.name + " aligns the bottle base to the editable anchor");
-            holder.Consume();
-            holder.PickUp(true);
-        }
-        Aim(water);
-        Input(true);
-        preparation.Interact(water);
-        preparation.Interact(water);
-        Call(preparation, "Update");
-        Check(preparation.IsPreparing && !holder.IsReady, "Preparation remains incomplete after one tick");
-        Input(false);
-        Call(preparation, "Update");
-        Check(!preparation.IsPreparing && !holder.IsReady, "Releasing E cancels water fill");
-        Aim(water);
-        Input(true);
-        preparation.Interact(water);
-        Call(preparation, "Update");
-        Check(preparation.IsPreparing, "Water starts while E is held and aimed");
-        camera.transform.rotation = Quaternion.LookRotation(Vector3.up);
-        Call(preparation, "Update");
-        Check(!preparation.IsPreparing && !holder.IsReady, "Looking away cancels water fill");
-        Aim(water);
-        preparation.Interact(water);
-        Check((float)Get(preparation, "elapsed") == 0f, "Cancelled progress restarts from zero");
-        var blocker = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        blocker.transform.position = camera.transform.position + camera.transform.forward * .5f;
-        blocker.transform.localScale = Vector3.one * .3f;
-        Physics.SyncTransforms();
-        Call(preparation, "Update");
-        Check(!preparation.IsPreparing, "Occlusion cancels filling");
-        blocker.SetActive(false);
-        Object.Destroy(blocker);
-        Input(false);
-        filling = Fill(water);
-        while (filling.MoveNext()) yield return null;
-        RetrieveOfflineBottle();
-        Check(holder.HeldFlavor == PopcornFlavor.Drink && holder.MixGhost(), "Filled water accepts ghost flavor");
-        Check(((GameObject)Get(holder, "heldVisual")).name.Contains("PapperBotteWaterGhost"), "Ghost water uses authored prefab");
-        holder.Consume();
         var maker = Station(PopcornStationKind.Maker);
-        filling = Fill(maker);
-        while (filling.MoveNext()) yield return null;
-        Check(holder.IsRefill && !holder.IsReady && ((GameObject)Get(holder, "heldVisual")).name.Contains("NewPopcorn"),
-            "Maker gives authored NewPopcorn batch, which cannot be served");
-        Press(tank);
-        Check(preparation.TankRemaining == configuredCapacity && !holder.HasItem, "Top-up caps stock at maximum and consumes batch");
-        filling = Fill(maker);
-        while (filling.MoveNext()) yield return null;
-        Press(tank);
-        Check(preparation.TankRemaining == configuredCapacity && holder.IsRefill, "Full tank rejects refill and retains held batch");
-        Set(preparation, "offlineRemaining", 0);
-        Press(tank);
-        Check(preparation.TankRemaining == 10 && !holder.HasItem, "Empty tank accepts ten-serving refill");
-        holder.PickUp(false);
-        Set(preparation, "offlineRemaining", 0);
-        Press(tank);
-        Check(!preparation.IsPreparing && !holder.HasPopcorn, "Empty tank rejects scooping without granting popcorn");
-        holder.Consume();
+        var water = Station(PopcornStationKind.Water, PopcornFlavor.Drink);
+        var bottles = CheckMachineBottles(false, water);
+        while (bottles.MoveNext()) yield return bottles.Current;
         Set(preparation, "offlineRemaining", configuredCapacity);
-        foreach (var drink in new[] { PopcornFlavor.Fanta, PopcornFlavor.OrangeJuice, PopcornFlavor.Pepsi })
-        {
-            holder.PickUp(true);
-            var dispenser = Station(PopcornStationKind.Water, drink);
-            filling = Fill(dispenser);
-            while (filling.MoveNext()) yield return null;
-            string expected = drink == PopcornFlavor.Fanta ? "PapperBotteFanta" : drink == PopcornFlavor.Pepsi ? "PapperBottePepsi" : "PapperBotteOrangeJuice";
-            Check(holder.HeldFlavor == drink && ((GameObject)Get(holder, "heldVisual")).name.Contains(expected), drink + " uses correct prepared prefab");
-            RetrieveOfflineBottle();
-            Check(holder.MixGhost() && holder.GhostMixed && holder.HeldFlavor == drink &&
-                ((GameObject)Get(holder, "heldVisual")).name.Contains("PapperBotteWaterGhost"),
-                drink + " ghost seasoning swaps to authored ghost bottle while preserving ordered drink");
-            holder.Consume();
-        }
-        Check(stations.Count(st => st.Kind == PopcornStationKind.Water && st.Flavor == PopcornFlavor.Drink) == 4 &&
-            stations.Count(st => st.Kind == PopcornStationKind.Water && st.Flavor == PopcornFlavor.Fanta) == 2 &&
-            stations.Count(st => st.Kind == PopcornStationKind.Water && st.Flavor == PopcornFlavor.OrangeJuice) == 2 &&
-            stations.Count(st => st.Kind == PopcornStationKind.Water && st.Flavor == PopcornFlavor.Pepsi) == 2,
-            "Every drink binds exactly two authored dispenser controls");
         var generatedOrders = new HashSet<PopcornFlavor>();
         for (int i = 0; i < 1000; i++) generatedOrders.Add(PopcornRecipe.RandomOrder());
         Check(generatedOrders.Count == 7 && generatedOrders.All(PopcornRecipe.IsOrder), "NPC menu includes all seven food and drink orders");
@@ -797,178 +875,8 @@ public static class PopcornRegressionRunner
         Set(supply, "tankRemaining", 0);
         supply.OnDeserialize(new NetworkReader(stockWriter.ToArraySegment()), true);
         Check(supply.TankRemaining == 7 && supply.TankCapacity == configuredCapacity, "Mirror initial snapshot carries remaining stock and capacity for joining clients");
-        holder.Consume();
-        holder.PickUp(true);
-        Aim(water);
-        player.transform.position = water.GetComponentInChildren<Collider>().bounds.center;
-        for (int i = 0; i < 8; i++) yield return null;
-        var localHeld = player.GetComponent<PlayerHeldItems>();
-        uint emptyRevision = localHeld.TaskItem.revision;
-        localHeld.Publish(new TaskHeldState { hasItem = true, isCup = true, flavor = PopcornFlavor.Drink });
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(!localHeld.TaskItem.IsReady && localHeld.TaskItem.revision == emptyRevision,
-            "Server rejects a forged drink color before placement and timed completion");
-        supply.RequestSupply(water.Id, 909, PopcornSupplyAction.Begin);
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(!supply.SoundActions.ContainsKey(player.netId), "Server rejects filling an unplaced PapperBottle");
-        // Publishing a rejected fixture advanced only the local revision counter; refresh the empty held state.
-        holder.Consume();
-        holder.PickUp(true);
-        for (int i = 0; i < 8; i++) yield return null;
-        preparation.Interact(water);
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(holder.IsPlacedAt(water) && localHeld.TaskItem.placementStation == water.Id + 1 && !holder.IsReady,
-            "Mirror placement acknowledgement synchronizes the empty bottle's machine ID");
-        var placementWriter = new NetworkWriter();
-        localHeld.OnSerialize(placementWriter, true);
-        var placementSnapshot = localHeld.TaskItem;
-        Set(localHeld, "taskItem", new TaskHeldState());
-        localHeld.OnDeserialize(new NetworkReader(placementWriter.ToArraySegment()), true);
-        Check(localHeld.TaskItem.placementStation == placementSnapshot.placementStation,
-            "Joining clients receive the placed bottle location in the initial Mirror snapshot");
-        var bottleObserver = Object.Instantiate(network.playerPrefab);
-        NetworkServer.Spawn(bottleObserver);
-        var observerHeld = bottleObserver.GetComponent<PlayerHeldItems>();
-        var observerConnection = new NetworkConnectionToClient(777);
-        typeof(NetworkConnection).GetProperty("identity").SetValue(observerConnection, bottleObserver.GetComponent<NetworkIdentity>());
-        Call(observerHeld, "SetTask", new TaskHeldState { revision = 1, hasItem = true, isCup = true });
-        bottleObserver.transform.position = new Vector3(-1000, -1000, -1000);
-        Check(!supply.ServerTryPlaceBottle(observerConnection, water.Id, 1), "Server rejects out-of-range bottle placement");
-        bottleObserver.transform.position = water.GetComponentInChildren<Collider>().bounds.center;
-        Check(!supply.ServerTryPlaceBottle(observerConnection, water.Id, 1), "Second player cannot place a bottle on an occupied machine");
-        var otherMachine = stations.First(s => s.Kind == PopcornStationKind.Water && s.Flavor == PopcornFlavor.Drink &&
-            s.PlacementAnchor != water.PlacementAnchor && !s.name.StartsWith("Waterdispenser"));
-        bottleObserver.transform.position = otherMachine.GetComponentInChildren<Collider>().bounds.center;
-        Check(supply.ServerTryPlaceBottle(observerConnection, otherMachine.Id, 1), "Two players can place bottles independently on the two machines");
-        Call(observerHeld, "LateUpdate");
-        var observedBottle = (GameObject)Get(observerHeld, "taskVisual");
-        var observedBounds = observedBottle.GetComponentInChildren<Renderer>().bounds;
-        Check(Vector3.Distance(new Vector3(observedBounds.center.x, observedBounds.min.y, observedBounds.center.z), otherMachine.PlacementAnchor.position) < .001f,
-            "Remote empty bottle appears at the machine anchor instead of the player's chest");
-        Check(!supply.ServerTryPickUpBottle(observerConnection, otherMachine.Id, observerHeld.TaskItem.revision),
-            "Server rejects retrieving an unfinished bottle");
-        Check(observerHeld.ServerFinishDrink(otherMachine), "Second machine can finish its own placed drink independently");
-        Call(observerHeld, "LateUpdate");
-        var coloredRemote = (GameObject)Get(observerHeld, "taskVisual");
-        var coloredBounds = coloredRemote.GetComponentInChildren<Renderer>().bounds;
-        Check(coloredRemote.GetComponent<PlacedBottleInteractable>() != null &&
-            Vector3.Distance(new Vector3(coloredBounds.center.x, coloredBounds.min.y, coloredBounds.center.z), otherMachine.PlacementAnchor.position) < .001f,
-            "Remote colored drink stays at the second machine with a pickup collider");
-        var readyWriter = new NetworkWriter();
-        observerHeld.OnSerialize(readyWriter, true);
-        var readyState = observerHeld.TaskItem;
-        Set(observerHeld, "taskItem", new TaskHeldState());
-        observerHeld.OnDeserialize(new NetworkReader(readyWriter.ToArraySegment()), true);
-        Check(observerHeld.TaskItem.IsReady && observerHeld.TaskItem.placementStation == readyState.placementStation,
-            "Late-join snapshot preserves both the ready drink and its machine position");
-        Check(!supply.ServerTryPickUpBottle(player.connectionToClient, otherMachine.Id, holder.StateRevision),
-            "Another player cannot retrieve the owner's placed drink");
-        bottleObserver.transform.position = Vector3.one * -1000;
-        Check(!supply.ServerTryPickUpBottle(observerConnection, otherMachine.Id, observerHeld.TaskItem.revision),
-            "Server rejects out-of-range bottle retrieval");
-        bottleObserver.transform.position = otherMachine.PlacementAnchor.position;
-        Check(supply.ServerTryPickUpBottle(observerConnection, otherMachine.Id, observerHeld.TaskItem.revision) && observerHeld.TaskItem.IsInHand,
-            "Owner explicitly retrieves the drink from the second machine");
-        Check(!supply.ServerTryPickUpBottle(observerConnection, otherMachine.Id, observerHeld.TaskItem.revision),
-            "Repeated pickup cannot retrieve or duplicate the bottle twice");
-        Call(observerHeld, "LateUpdate");
-        Check(!coloredRemote.GetComponentsInChildren<Collider>().Any(c => c.enabled),
-            "Remote retrieved drink disables the machine pickup collider");
-        NetworkServer.Destroy(bottleObserver);
-        yield return null;
-        Check(observedBottle == null || !observedBottle.activeSelf, "Disconnect/despawn cleans up the placed remote bottle visual");
-        Set(preparation, "activeStation", water);
-        Set(preparation, "preparingPlayer", player);
-        Set(preparation, "requestId", 910);
-        Set(preparation, "awaitingStart", true);
-        Set(preparation, "awaitingResult", true);
-        supply.RequestSupply(water.Id, 910, PopcornSupplyAction.Begin);
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(supply.SoundActions.TryGetValue(player.netId, out var waterSound) && waterSound.station == water.Id,
-            "Water hold waits for server approval and publishes its dispenser sound sequence");
-        supply.RequestSupply(water.Id, 910, PopcornSupplyAction.Cancel);
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(!supply.SoundActions.ContainsKey(player.netId) && !holder.IsReady, "Water release removes pouring state without filling the cup");
-        Call(preparation, "Cancel", false, false);
-        for (double until = NetworkTime.time + 0.25; NetworkTime.time < until;) yield return null;
-        Set(preparation, "activeStation", water);
-        Set(preparation, "preparingPlayer", player);
-        Set(preparation, "requestId", 911);
-        Set(preparation, "awaitingResult", true);
-        supply.RequestSupply(water.Id, 911, PopcornSupplyAction.Begin);
-        for (double until = NetworkTime.time + 3.2; NetworkTime.time < until;) yield return null;
-        supply.RequestSupply(water.Id, 911, PopcornSupplyAction.Complete);
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(holder.IsReady && holder.IsCup && !supply.SoundActions.ContainsKey(player.netId) && supply.TankRemaining == 7,
-            "Server-approved water completion fills the cup, stops pouring and consumes no popcorn stock");
-        Check(!holder.IsInHand && localHeld.TaskItem.placementStation == water.Id + 1 && !localHeld.TaskItem.IsInHand,
-            "Mirror completion leaves the colored drink placed on every client");
-        uint completedRevision = localHeld.TaskItem.revision;
-        localHeld.Publish(new TaskHeldState());
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(localHeld.TaskItem.IsReady && localHeld.TaskItem.revision == completedRevision && !holder.TryDiscardInHand(),
-            "Server rejects a hand-discard publication for a placed bottle");
-        Check(!localHeld.ServerConsume(completedRevision), "Server refuses to serve a placed drink");
-        player.transform.position = water.PlacementAnchor.position;
-        preparation.RequestBottlePickup(water);
-        Check(preparation.BottleTransferPending && !holder.TryDiscardInHand(), "Pickup waits for server acknowledgement and blocks R");
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(holder.IsInHand && holder.CanServe && localHeld.TaskItem.IsInHand && holder.HeldFlavor == PopcornFlavor.Drink,
-            "Mirror pickup explicitly restores held state and preserves drink contents");
-        Check(holder.TryDiscardInHand(), "R discard works again after picking up the bottle");
-        holder.Consume();
-        for (int i = 0; i < 8; i++) yield return null;
-        supply.RequestSupply(water.Id, 912, PopcornSupplyAction.Begin);
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(!supply.SoundActions.ContainsKey(player.netId), "Water without an empty cup cannot broadcast pouring audio");
-
-        var soundLibrary = Resources.Load<SoundLibrary>("Audio/SoundLibrary");
-        foreach (string id in new[] { "Popcorn_Pickup", "Popcorn_Flavor", "Popcorn_WaterStart", "Popcorn_WaterPour", "Popcorn_WaterEnd", "Popcorn_Scoop", "Popcorn_Making" })
-        {
-            var entry = soundLibrary != null ? soundLibrary.Find(id) : null;
-            Check(entry != null && entry.spatial && entry.category == SoundCategory.Sfx && entry.clips.Length == 1 && entry.clips[0] != null,
-                "Popcorn sound library resolves a spatial SFX clip for " + id);
-        }
-        holder.Consume();
-        SeatOrder(supply, PopcornCustomerType.Human, PopcornFlavor.Pepsi, PopcornFlavor.Pepsi);
-        var networkCustomer = slot.ActiveCustomer;
-        holder.PickUp(true);
-        var pepsiStation = Station(PopcornStationKind.Water, PopcornFlavor.Pepsi);
-        Aim(pepsiStation);
-        player.transform.position = pepsiStation.GetComponentInChildren<Collider>().bounds.center;
-        for (int i = 0; i < 8; i++) yield return null;
-        preparation.Interact(pepsiStation);
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(holder.IsPlacedAt(pepsiStation), "Network Pepsi bottle is placed before dispensing");
-        Check(player.GetComponent<PlayerHeldItems>().ServerFinishDrink(pepsiStation) && holder.Hold(PopcornFlavor.Pepsi),
-            "Serving fixture uses server-authorized placed drink");
-        player.transform.position = pepsiStation.PlacementAnchor.position;
-        for (int i = 0; i < 8; i++) yield return null;
-        preparation.RequestBottlePickup(pepsiStation);
-        for (int i = 0; i < 8; i++) yield return null;
-        player.transform.position = networkCustomer.transform.position + Vector3.back;
-        manager.TryServe(networkCustomer, player.gameObject);
-        Check(holder.SubmissionPending, "Network submission locks the prepared item until server acknowledgement");
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(!holder.SubmissionPending && !holder.HasItem && supply.CustomerWaiting && supply.Order.DeliveredCount == 1 && slot.ActiveCustomer == networkCustomer,
-            "Real Mirror serve consumes once, unlocks hands and updates the same partial-order NPC");
-        holder.PickUp(true);
-        Aim(pepsiStation);
-        player.transform.position = pepsiStation.GetComponentInChildren<Collider>().bounds.center;
-        for (int i = 0; i < 8; i++) yield return null;
-        preparation.Interact(pepsiStation);
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(player.GetComponent<PlayerHeldItems>().ServerFinishDrink(pepsiStation) && holder.Hold(PopcornFlavor.Pepsi),
-            "Second serving fixture uses server-authorized placed drink");
-        player.transform.position = pepsiStation.PlacementAnchor.position;
-        for (int i = 0; i < 8; i++) yield return null;
-        preparation.RequestBottlePickup(pepsiStation);
-        for (int i = 0; i < 8; i++) yield return null;
-        player.transform.position = networkCustomer.transform.position + Vector3.back;
-        manager.TryServe(networkCustomer, player.gameObject);
-        for (int i = 0; i < 8; i++) yield return null;
-        Check(!holder.SubmissionPending && !holder.HasItem && !supply.CustomerWaiting && supply.Order.Complete,
-            "Real Mirror second delivery completes duplicate order and clears the owner's item");
+        bottles = CheckMachineBottles(true, water);
+        while (bottles.MoveNext()) yield return bottles.Current;
         network.StopHost();
     }
     static void Capture(string path)

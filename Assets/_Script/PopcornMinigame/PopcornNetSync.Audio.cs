@@ -73,9 +73,8 @@ public partial class PopcornNetSync
         if (station.Kind == PopcornStationKind.Maker) return !item.hasItem;
         if (station.Kind == PopcornStationKind.Water)
         {
-            var placed = item.placementStation > 0 ? PopcornPreparation.Instance?.StationAt(item.placementStation - 1) : null;
-            return item.hasItem && item.isCup && !item.IsReady && !item.isRefill &&
-                placed != null && station.PlacementAnchor != null && placed.PlacementAnchor == station.PlacementAnchor;
+            return !item.hasItem && PopcornPreparation.Instance.TryGetBottle(station, out var bottle) && !bottle.IsReady &&
+                (bottle.fillingActor == 0 || bottle.fillingActor == sender.identity.netId);
         }
         return item.hasItem && !item.isCup && !item.hasPopcorn && !item.isRefill && !item.IsReady;
     }
@@ -99,12 +98,13 @@ public partial class PopcornNetSync
             var station = PopcornPreparation.Instance?.StationAt(work.station);
             if (!NetworkServer.connections.TryGetValue(sender.connectionId, out var live) || live != sender ||
                 !CanUseSupply(sender, station) || !CanHoldAtStation(sender, station) ||
-                (station != null && station.Kind == PopcornStationKind.Water && sender.identity.GetComponent<PlayerHeldItems>().TaskItem.revision != work.heldRevision) ||
+                (station != null && station.Kind == PopcornStationKind.Water && (!PopcornPreparation.Instance.TryGetBottle(station, out var bottle) || bottle.revision != work.heldRevision)) ||
                 NetworkTime.time - work.started > PopcornPreparation.PreparationSeconds + 3)
                 expiredSoundWork.Add(sender);
         }
         foreach (var sender in expiredSoundWork)
         {
+            ReleaseDrinkWork(supplyWork[sender]);
             EndStationSound(supplyWork[sender].actor);
             supplyWork.Remove(sender);
         }
