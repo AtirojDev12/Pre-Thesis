@@ -10,6 +10,17 @@ public enum ZoneTaskKind
     Popcorn = 0,  // Cheese / BBQ / Paprika
     Water = 1,    // drinks (serialized name retained for existing boards)
     Ticket = 2,   // a movie ticket
+
+    // 14 Oct: chores (ZoneChoreSpot, hold E). Counted by ServerReportSale(kind, None, -1, false).
+    FilmChange = 3,       // Screen Room: change the film in the ghost room
+    CleanScreenRoom = 4,  // Screen Room: clean both rooms
+    CleanToilet = 5,      // Toilets: clean both toilets
+}
+
+public static class ZoneTaskKinds
+{
+    /// <summary>Chores have a fixed number of spots: difficulty never adds to them.</summary>
+    public static bool IsChore(ZoneTaskKind kind) => kind >= ZoneTaskKind.FilmChange;
 }
 
 /// <summary>Which customers a task counts.</summary>
@@ -195,6 +206,15 @@ public class ZoneTaskList : NetworkBehaviour
         return result;
     }
 
+    /// <summary>Indexes of the sale lines (not chores). Difficulty extras only go here.</summary>
+    private List<int> SaleLines()
+    {
+        var lines = new List<int>(tasks.Count);
+        for (int i = 0; i < tasks.Count; i++)
+            if (!ZoneTaskKinds.IsChore(tasks[i].kind)) lines.Add(i);
+        return lines;
+    }
+
     private bool HasAnyProgress()
     {
         for (int i = 0; i < tasks.Count; i++) if (ProgressOf(i) > 0) return true;
@@ -240,6 +260,7 @@ public class ZoneTaskList : NetworkBehaviour
             ZoneTaskList board = active[b];
             if (board == null || board.tasks.Count == 0 || !NetworkMode.HasServerAuthority(board)) continue;
             if (!board.ProgressReady || board.HasAnyProgress()) continue;
+            if (board.SaleLines().Count == 0) continue; // 14 Oct: chore-only boards keep their spot counts
             boards.Add(board);
         }
         if (boards.Count == 0) return;
@@ -249,7 +270,8 @@ public class ZoneTaskList : NetworkBehaviour
         for (int b = 0; b < boards.Count; b++)
         {
             int[] values = boards[b].BaseTargets();
-            for (int i = 0; i < values.Length; i++) values[i] += perLine;
+            for (int i = 0; i < values.Length; i++)
+                if (!ZoneTaskKinds.IsChore(boards[b].tasks[i].kind)) values[i] += perLine;
             plan.Add(values);
         }
 
@@ -267,7 +289,8 @@ public class ZoneTaskList : NetworkBehaviour
                 if (open.Count == 0) { dropped = extras - e; break; }
 
                 int pick = open[rng.Next(open.Count)];
-                plan[pick][rng.Next(plan[pick].Length)]++;
+                List<int> lines = boards[pick].SaleLines(); // never a chore line (14 Oct)
+                plan[pick][lines[rng.Next(lines.Count)]]++;
                 perBoard[pick]++;
             }
         }
@@ -326,6 +349,31 @@ public class ZoneTaskList : NetworkBehaviour
     }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>SERVER. Dev cheat (14 Oct): fill one line of this board (and report the zone if that finished it).</summary>
+    public void ServerDevCompleteLine(int line)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || line < 0 || line >= tasks.Count) return;
+        if (!ProgressReady) ServerInit();
+        SetProgress(line, TargetOf(line));
+        ServerDevReportIfDone();
+    }
+
+    /// <summary>SERVER. Dev cheat (14 Oct): fill every line of this board.</summary>
+    public void ServerDevCompleteBoard()
+    {
+        if (!NetworkMode.HasServerAuthority(this)) return;
+        if (!ProgressReady) ServerInit();
+        for (int i = 0; i < tasks.Count; i++) SetProgress(i, TargetOf(i));
+        ServerDevReportIfDone();
+    }
+
+    private void ServerDevReportIfDone()
+    {
+        if (zoneReported || !AllDone) return;
+        zoneReported = true;
+        if (MatchDirector.Instance != null) MatchDirector.Instance.ServerReportZoneCompleted(zoneID);
+    }
+
     /// <summary>SERVER. Dev cheat: fill every line of every task board (and report the zones).</summary>
     public static void ServerDevCompleteAll()
     {
@@ -352,16 +400,16 @@ public class ZoneTaskList : NetworkBehaviour
     private static readonly Color StrikeColor = new Color(0.95f, 0.2f, 0.2f);
 
     private TMP_Text[] lineTexts;
-    private RectTransform[] strikes;
+    // 14 Oct: one strike per text row (long lines wrap onto 2+ rows).
+    private List<RectTransform>[] strikes;
     private float[] strikeStart;
+    private bool[] strikeFinished;
     private int[] shownProgress;
     private int[] shownTarget;
 
     private void BuildBoard()
     {
-        int lines = Mathf.Max(1, tasks.Count);
         float width = boardWidth * PixelsPerMetre;
-        float height = 150f + 80f * lines;
 
         var canvasGo = new GameObject("Task Board Canvas", typeof(RectTransform), typeof(Canvas));
         canvasGo.transform.SetParent(transform, false);
@@ -371,7 +419,7 @@ public class ZoneTaskList : NetworkBehaviour
         var canvas = canvasGo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         var canvasRt = (RectTransform)canvasGo.transform;
-        canvasRt.sizeDelta = new Vector2(width, height);
+        canvasRt.sizeDelta = new Vector2(width, 150f + 80f * Mathf.Max(1, tasks.Count)); // final height set below
 
         Image background = NewImage("Background", canvasRt, new Color(0.05f, 0.04f, 0.04f, 0.92f));
         Stretch(background.rectTransform, 0f, 0f);
@@ -381,30 +429,74 @@ public class ZoneTaskList : NetworkBehaviour
         Anchor(titleText.rectTransform, 30f, 20f, 90f);
 
         lineTexts = new TMP_Text[tasks.Count];
-        strikes = new RectTransform[tasks.Count];
+        strikes = new List<RectTransform>[tasks.Count];
         strikeStart = new float[tasks.Count];
+        strikeFinished = new bool[tasks.Count];
         shownProgress = new int[tasks.Count];
         shownTarget = new int[tasks.Count];
 
+        // 14 Oct: long lines WRAP to a new row instead of being cut with "...".
+        // Each line is as tall as its rows; the board grows to fit.
+        const float side = 40f;
+        float top = 130f;
         for (int i = 0; i < tasks.Count; i++)
         {
             TMP_Text line = NewText("Task " + (i + 1), canvasRt, "", 42, Color.white, FontStyles.Normal);
             line.alignment = TextAlignmentOptions.MidlineLeft;
-            Anchor(line.rectTransform, 40f, 130f + 80f * i, 70f);
+            line.textWrappingMode = TextWrappingModes.Normal;
+            line.overflowMode = TextOverflowModes.Overflow;
+            // Measure with the widest numbers the line will show ("00/00").
+            string sample = $"{i + 1}. {tasks[i].label}   00/00";
+            float lineHeight = Mathf.Max(70f, line.GetPreferredValues(sample, width - side * 2f, 0f).y + 8f);
+            Anchor(line.rectTransform, side, top, lineHeight);
+            top += lineHeight + 10f;
             lineTexts[i] = line;
 
-            // The strike line: grows from the left edge of the text to its right edge.
-            Image strike = NewImage("Strike", line.rectTransform, StrikeColor);
-            RectTransform srt = strike.rectTransform;
-            srt.anchorMin = new Vector2(0f, 0.5f);
-            srt.anchorMax = new Vector2(0f, 0.5f);
-            srt.pivot = new Vector2(0f, 0.5f);
-            srt.anchoredPosition = Vector2.zero;
-            srt.sizeDelta = new Vector2(0f, 7f);
-            strikes[i] = srt;
+            strikes[i] = new List<RectTransform>(2);
             strikeStart[i] = -1f;
             shownProgress[i] = -1;
         }
+        canvasRt.sizeDelta = new Vector2(width, top + 10f);
+    }
+
+    /// <summary>
+    /// Draws the strike lines of task i, 0..1 of the way across. One per text row,
+    /// read from TMP's row info, so a wrapped line is struck on every row.
+    /// </summary>
+    private void SetStrikes(int i, float t)
+    {
+        List<RectTransform> list = strikes[i];
+        int rows = 0;
+        TMP_TextInfo info = null;
+        if (t > 0f)
+        {
+            lineTexts[i].ForceMeshUpdate();
+            info = lineTexts[i].textInfo;
+            rows = info.lineCount;
+        }
+
+        while (list.Count < rows) list.Add(NewStrike(lineTexts[i].rectTransform));
+        for (int r = 0; r < list.Count; r++)
+        {
+            bool on = r < rows;
+            if (list[r].gameObject.activeSelf != on) list[r].gameObject.SetActive(on);
+            if (!on) continue;
+            TMP_LineInfo row = info.lineInfo[r];
+            float left = row.lineExtents.min.x;
+            float right = row.lineExtents.max.x;
+            list[r].anchoredPosition = new Vector2(left, (row.ascender + row.descender) * 0.5f);
+            list[r].sizeDelta = new Vector2(Mathf.Max(0f, right - left) * t, 7f);
+        }
+    }
+
+    private static RectTransform NewStrike(RectTransform text)
+    {
+        RectTransform srt = NewImage("Strike", text, StrikeColor).rectTransform;
+        // TMP row positions are measured from the text's pivot, so anchor there.
+        srt.anchorMin = srt.anchorMax = text.pivot;
+        srt.pivot = new Vector2(0f, 0.5f);
+        srt.sizeDelta = new Vector2(0f, 7f);
+        return srt;
     }
 
     private void LateUpdate()
@@ -423,15 +515,16 @@ public class ZoneTaskList : NetworkBehaviour
                 shownTarget[i] = target;
                 lineTexts[i].text = $"{i + 1}. {tasks[i].label}   {value}/{target}";
                 lineTexts[i].color = done ? DoneColor : Color.white;
-                if (done && strikeStart[i] < 0f) strikeStart[i] = Time.time;
-                if (!done) { strikeStart[i] = -1f; strikes[i].sizeDelta = new Vector2(0f, 7f); }
+                if (done && strikeStart[i] < 0f) { strikeStart[i] = Time.time; strikeFinished[i] = false; }
+                if (!done) { strikeStart[i] = -1f; strikeFinished[i] = false; SetStrikes(i, 0f); }
+                else if (strikeFinished[i]) SetStrikes(i, 1f); // text changed after the strike: redo rows
             }
 
-            if (strikeStart[i] >= 0f)
+            if (strikeStart[i] >= 0f && !strikeFinished[i])
             {
                 float t = Mathf.Clamp01((Time.time - strikeStart[i]) / StrikeSeconds);
-                float full = lineTexts[i].preferredWidth;
-                strikes[i].sizeDelta = new Vector2(full * t, 7f);
+                SetStrikes(i, t);
+                if (t >= 1f) strikeFinished[i] = true;
             }
         }
     }
@@ -483,6 +576,7 @@ public class ZoneTaskList : NetworkBehaviour
     // Shows where the board will be and which way it reads, before pressing Play.
     private void OnDrawGizmos()
     {
+        // Approximate: in Play, lines that wrap make the board a bit taller.
         float height = (150f + 80f * Mathf.Max(1, tasks.Count)) / PixelsPerMetre;
         Gizmos.color = new Color(1f, 0.8f, 0.3f, 0.8f);
         Gizmos.matrix = transform.localToWorldMatrix;

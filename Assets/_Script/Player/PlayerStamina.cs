@@ -31,6 +31,9 @@ public class PlayerStamina : NetworkBehaviour
 
     private float _lastSprintTime = float.NegativeInfinity;
 
+    /// <summary>OWNER. Dev cheat (F1, 14 Oct): stamina never drains. Always false in a normal build.</summary>
+    [System.NonSerialized] public bool DevInfinite;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
@@ -59,6 +62,15 @@ public class PlayerStamina : NetworkBehaviour
     public bool UpdateSprint(bool requested, float deltaTime)
     {
         deltaTime = Mathf.Max(0f, deltaTime);
+
+        // 14 Oct: dev cheat (F1, this PC only): always full, never exhausted.
+        if (DevInfinite)
+        {
+            IsExhausted = false;
+            SetStamina(maxStamina);
+            SetSprinting(requested);
+            return requested;
+        }
 
         if (IsExhausted && CurrentStamina >= Mathf.Min(staminaRequiredAfterExhaustion, maxStamina))
             IsExhausted = false;

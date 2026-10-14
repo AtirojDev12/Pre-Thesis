@@ -244,6 +244,7 @@ public sealed class PlayerSanity : NetworkBehaviour
     private void ServerSet(float value)
     {
         value = Mathf.Clamp(value, 0f, Max);
+        if (DevInfinite && value < sanity) return; // 14 Oct: dev cheat, nothing drains it
         if (Mathf.Approximately(value, sanity)) return;
         sanity = value;
         Raise(value); // SyncVar hooks do not run on the machine that changed the value
@@ -328,8 +329,26 @@ public sealed class PlayerSanity : NetworkBehaviour
             s.ServerDrain(amount < 0f ? Settings.anomalyDefault : amount, "anomaly");
     }
 
-    /// <summary>SERVER. Dev cheat: set the value directly.</summary>
-    public void ServerDevSet(float value) { if (NetworkMode.HasServerAuthority(this)) ServerSet(value); }
+    /// <summary>SERVER. Dev cheat: set the value directly (works even with infinite sanity on).</summary>
+    public void ServerDevSet(float value)
+    {
+        if (!NetworkMode.HasServerAuthority(this)) return;
+        bool infinite = DevInfinite;
+        DevInfinite = false;
+        ServerSet(value);
+        DevInfinite = infinite;
+    }
+
+    /// <summary>SERVER. Dev cheat (F1, 14 Oct): sanity never goes down. Always false in a normal build.</summary>
+    [System.NonSerialized] public bool DevInfinite;
+
+    /// <summary>SERVER. Dev cheat: infinite sanity on/off. Turning it on fills it to 100.</summary>
+    public void ServerDevSetInfinite(bool on)
+    {
+        if (!NetworkMode.HasServerAuthority(this)) return;
+        DevInfinite = on;
+        if (on) ServerDevSet(Max);
+    }
 
     // ---- Commands --------------------------------------------------------------
 

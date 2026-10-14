@@ -63,7 +63,7 @@ public static class PlayerRegistry
         for (int i = 0; i < cache.Count; i++)
         {
             PlayerHealth candidate = cache[i];
-            if (candidate == null || candidate.IsDead || !IsInRound(candidate)) continue;
+            if (candidate == null || candidate.IsDead || !IsInRound(candidate) || candidate.DevUntargetable) continue;
 
             float sqr = (candidate.transform.position - position).sqrMagnitude;
             if (sqr > bestSqr) continue;
@@ -124,7 +124,9 @@ public static class PlayerRegistry
     /// downed player takes no damage, so a ghost reaching them would waste its
     /// whole visit (and teammates could use the body as bait).
     /// </summary>
-    public static bool IsHuntable(PlayerHealth player) => player != null && !player.IsDowned && IsInRound(player);
+    // 14 Oct: also false for a dev-untargetable player (F1 god mode).
+    public static bool IsHuntable(PlayerHealth player) =>
+        player != null && !player.IsDowned && !player.DevUntargetable && IsInRound(player);
 
     /// <summary>Forces the next query to rebuild. Call after spawning a player if you need it visible immediately.</summary>
     public static void Invalidate() => nextRefreshTime = 0f;

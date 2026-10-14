@@ -174,7 +174,7 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
-        if (isDead || isDowned || amount <= 0f || IsInvincible || DevGodMode) return;
+        if (isDead || isDowned || amount <= 0f || IsInvincible || DevGodMode || DevInfiniteHealth) return;
 
         currentHealth = Mathf.Clamp(currentHealth - amount, 0f, maxHealth);
         _invincibleUntil = Time.time + invincibilityDuration;
@@ -305,6 +305,25 @@ public class PlayerHealth : NetworkBehaviour
     /// </summary>
     [System.NonSerialized] public bool DevGodMode;
 
+    /// <summary>
+    /// SERVER. Dev cheats (F1, 14 Oct). Always false in a normal build (nothing sets them).
+    /// DevInfiniteHealth: no damage and no ghost kill (round-end kills still happen).
+    /// DevUntargetable: ghosts ignore this player (PlayerRegistry checks it).
+    /// </summary>
+    [System.NonSerialized] public bool DevInfiniteHealth;
+    [System.NonSerialized] public bool DevUntargetable;
+
+    /// <summary>SERVER. Dev cheat: infinite health on/off. Turning it on also fills health (and stands you up).</summary>
+    public void ServerDevSetInfiniteHealth(bool on)
+    {
+        if (!NetworkMode.HasServerAuthority(this)) return;
+        DevInfiniteHealth = on;
+        if (!on || isDead) return;
+        if (isDowned) { Revive(maxHealth); return; }
+        currentHealth = maxHealth;
+        RaiseHealthChanged(currentHealth);
+    }
+
     /// <summary>SERVER. Dev cheat: go down right now (ignores the hit cooldown and god mode).</summary>
     public void ServerDevGoDown()
     {
@@ -314,7 +333,9 @@ public class PlayerHealth : NetworkBehaviour
         ServerDowned();
     }
 
-    public void ServerKill(string reason = null)
+    /// <param name="ignoreDevCheats">True = kill even with the dev cheat "infinite health" on
+    /// (round end, the F1 "Die" button). Ghosts leave it false.</param>
+    public void ServerKill(string reason = null, bool ignoreDevCheats = false)
     {
         if (!NetworkMode.HasServerAuthority(this))
         {
@@ -325,6 +346,11 @@ public class PlayerHealth : NetworkBehaviour
         }
 
         if (isDead) return;
+        if (DevInfiniteHealth && !ignoreDevCheats)
+        {
+            Debug.Log($"[PlayerHealth] Kill on {name} ignored: dev infinite health ({reason}).");
+            return;
+        }
 
         currentHealth = 0f;
         RaiseHealthChanged(currentHealth);
