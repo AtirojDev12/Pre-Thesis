@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>Owns only ghost spawn timing. Building power is independent.</summary>
 [RequireComponent(typeof(NetworkIdentity))]
-public class GhostManager : NetworkBehaviour
+public class GhostManager : NetworkBehaviour, IDevGhostSource
 {
     public static GhostManager Instance { get; private set; }
 
@@ -26,6 +26,7 @@ public class GhostManager : NetworkBehaviour
     private float timer = 0f;
     private bool isGhostActive = false;
     private bool isSequenceRunning = false;
+    private bool flickerRunning; // true while the warning flicker may have the lights off
 
     /// <summary>True on the machine allowed to run the cycle: server, or anybody when offline.</summary>
     private bool HasAuthority => NetworkMode.HasServerAuthority(this);
@@ -77,12 +78,14 @@ public class GhostManager : NetworkBehaviour
         BuildingLightManager power = BuildingLightManager.Instance;
         if (power != null && BuildingLightManager.LightsOn)
         {
+            flickerRunning = true;
             power.SetLights(false); yield return new WaitForSeconds(0.2f);
             power.SetLights(true);  yield return new WaitForSeconds(0.3f);
             power.SetLights(false); yield return new WaitForSeconds(0.2f);
             power.SetLights(true);  yield return new WaitForSeconds(0.3f);
             power.SetLights(false); yield return new WaitForSeconds(0.1f);
             power.SetLights(true);
+            flickerRunning = false;
         }
         else
         {
@@ -148,4 +151,28 @@ public class GhostManager : NetworkBehaviour
 
     }
 
+
+    // ---- Dev cheats (F1, 14 Oct). Server only; the panel exists only in Editor / Development Builds. ----
+
+    public string DevGhostName => "Timed ghost";
+    public string DevTriggerText => "Timer reached (lights flicker, 10 s countdown)";
+
+    /// <summary>SERVER. The ghost appears at its spawn point now: no flicker, no countdown.</summary>
+    public void ServerDevSummonNow(GameObject requester)
+    {
+        if (!HasAuthority || isGhostActive) return;
+        StopAllCoroutines();
+        if (flickerRunning && BuildingLightManager.Instance != null) BuildingLightManager.Instance.SetLights(true);
+        flickerRunning = false;
+        isSequenceRunning = true; // blocks Update until DespawnGhost resets it
+        timer = 0f;
+        SpawnGhost();
+    }
+
+    /// <summary>SERVER. The spawn timer is reached now: normal arrival (flicker + countdown + spawn).</summary>
+    public void ServerDevFireTrigger(GameObject requester)
+    {
+        if (!HasAuthority || isGhostActive || isSequenceRunning) return;
+        timer = spawnInterval; // next Update starts GhostArrivalSequence
+    }
 }

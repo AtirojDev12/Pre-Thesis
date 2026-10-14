@@ -902,13 +902,13 @@ public class MatchDirector : NetworkBehaviour
                 }
 
                 outcomes[id] = PlayerOutcome.Dead;
-                health.ServerKill("not inside the secret room when the locked-in hour ended");
+                health.ServerKill("not inside the secret room when the locked-in hour ended", true);
                 continue;
             }
 
             // Still inside, still alive, and the clock has run out.
             outcomes[id] = PlayerOutcome.Dead;
-            health.ServerKill("still inside when the round ended");
+            health.ServerKill("still inside when the round ended", true);
         }
     }
 
@@ -1017,7 +1017,8 @@ public class MatchDirector : NetworkBehaviour
     public void ServerDevSkipSeconds(float seconds)
     {
         if (!NetworkMode.HasServerAuthority(this) || phase == MatchPhase.Ended || phase == MatchPhase.Overtime) return;
-        secondsRemaining = Mathf.Max(0.01f, secondsRemaining - seconds); // 0.01: the next frame advances the phase
+        // 0.01: the next frame advances the phase. 14 Oct: negative = clock back, never before this phase's start.
+        secondsRemaining = Mathf.Clamp(secondsRemaining - seconds, 0.01f, Mathf.Max(0.01f, phaseLengthSeconds));
         if (NetworkServer.active) RpcSyncClock(secondsRemaining);
     }
 

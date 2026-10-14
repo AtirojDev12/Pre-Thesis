@@ -1,7 +1,7 @@
 using Mirror;
 using UnityEngine;
 
-public class TicketGhostSpawner : NetworkBehaviour
+public class TicketGhostSpawner : NetworkBehaviour, IDevGhostSource
 {
     [Header("Ghost Setup")]
     [SerializeField] private GameObject ticketGhostPrefab;
@@ -71,5 +71,37 @@ public class TicketGhostSpawner : NetworkBehaviour
         CancelInvoke();
         if (subscribed && minigame != null) minigame.SaleResolved -= OnSaleResolved;
         subscribed = false;
+    }
+
+    // ---- Dev cheats (F1, 14 Oct). Server only. ----
+
+    public string DevGhostName => "Ticket punisher";
+    public string DevTriggerText => "1 wrong ticket sale (3 = attack)";
+
+    /// <summary>SERVER. The ticket ghost attacks the player who asked, now.</summary>
+    public void ServerDevSummonNow(GameObject requester)
+    {
+        if (!HasAuthority) return;
+        if (currentGhost == null) { CancelInvoke(nameof(SpawnNewGhost)); SpawnNewGhost(); }
+        PlayerHealth victim = requester != null ? requester.GetComponent<PlayerHealth>() : null;
+        if (currentGhost == null || victim == null) return;
+        // A dev summon is aimed at you on purpose, so it works even in god mode
+        // (you still take no damage if infinite health is on).
+        bool untargetable = victim.DevUntargetable;
+        victim.DevUntargetable = false;
+        currentGhost.TriggerJumpscare(victim);
+        victim.DevUntargetable = untargetable;
+    }
+
+    /// <summary>SERVER. Counts as ONE wrong ticket sale by the player who asked.</summary>
+    public void ServerDevFireTrigger(GameObject requester)
+    {
+        if (!HasAuthority || currentGhost == null) return;
+        PlayerHealth seller = requester != null ? requester.GetComponent<PlayerHealth>() : null;
+        if (seller == null) return;
+        bool untargetable = seller.DevUntargetable; // same as above: works in god mode
+        seller.DevUntargetable = false;
+        currentGhost.RecordWrongSale(seller);
+        seller.DevUntargetable = untargetable;
     }
 }
