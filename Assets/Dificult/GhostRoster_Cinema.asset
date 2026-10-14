@@ -14,5 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MapGhostRoster
   mapID: demo_map_01
   guaranteedGhosts:
-  - {fileID: 0}
+  - {fileID: 6280612234171983610, guid: e30c1dd34dfc2aa4a82f8381a7d2824b, type: 3}
+  - {fileID: 1861064145875742129, guid: d96fcc698428e5448afba5a14428759e, type: 3}
   randomGhostPool: []

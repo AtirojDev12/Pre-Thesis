@@ -70,8 +70,25 @@ public class GhostManager : NetworkBehaviour
         isSequenceRunning = true;
         timer = 0f;
 
-        // Preserve the old arrival timing without changing building power.
-        yield return new WaitForSeconds(1.1f);
+        // Warning flicker before the ghost arrives (restored 14 Oct, same timing as
+        // the old version: 1.1 s). Driven by BuildingLightManager, so every machine
+        // sees it. Only when the lights are ON; if a player switched them off, the
+        // building stays dark (Atiroj, 11 Oct: the ghost never turns lights back on).
+        BuildingLightManager power = BuildingLightManager.Instance;
+        if (power != null && BuildingLightManager.LightsOn)
+        {
+            power.SetLights(false); yield return new WaitForSeconds(0.2f);
+            power.SetLights(true);  yield return new WaitForSeconds(0.3f);
+            power.SetLights(false); yield return new WaitForSeconds(0.2f);
+            power.SetLights(true);  yield return new WaitForSeconds(0.3f);
+            power.SetLights(false); yield return new WaitForSeconds(0.1f);
+            power.SetLights(true);
+        }
+        else
+        {
+            // Lights already off (or no power manager): keep the same arrival timing.
+            yield return new WaitForSeconds(1.1f);
+        }
 
         yield return new WaitForSeconds(countdownDuration);
 

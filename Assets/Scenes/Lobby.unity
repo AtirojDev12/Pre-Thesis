@@ -28541,6 +28541,18 @@ PrefabInstance:
       propertyPath: m_fontSize
       value: 107.25
       objectReference: {fileID: 0}
+    - target: {fileID: 6468515838405414467, guid: bf8de4ea354108844abe72b6b9c605b9, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 26.556
+      objectReference: {fileID: 0}
+    - target: {fileID: 6468515838405414467, guid: bf8de4ea354108844abe72b6b9c605b9, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.284
+      objectReference: {fileID: 0}
+    - target: {fileID: 6468515838405414467, guid: bf8de4ea354108844abe72b6b9c605b9, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -19.35
+      objectReference: {fileID: 0}
     - target: {fileID: 7547095552574157610, guid: bf8de4ea354108844abe72b6b9c605b9, type: 3}
       propertyPath: sceneId
       value: 2844052207
