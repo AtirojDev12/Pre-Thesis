@@ -8,7 +8,10 @@ public struct TaskHeldState
     public uint revision;
     public bool hasItem, isCup, hasPopcorn, isRefill, ghostMixed;
     public PopcornFlavor flavor;
+    // Zero means in hand; otherwise the stable preparation station ID plus one.
+    public int placementStation;
     public bool IsReady => hasItem && !isRefill && PopcornRecipe.IsOrder(flavor);
+    public bool IsInHand => hasItem && placementStation == 0;
 }
 
 /// <summary>Replicates task-item state; radio uses the existing server-owned inventory.</summary>
@@ -55,19 +58,65 @@ public sealed class PlayerHeldItems : NetworkBehaviour
         if (state.IsReady && !state.isCup && !state.hasPopcorn) return;
         if ((state.isCup && state.hasPopcorn) || (state.ghostMixed && !state.IsReady)) return;
         if (state.isRefill && (state.isCup || state.hasPopcorn || state.flavor != PopcornFlavor.None || state.ghostMixed)) return;
+        if (state.placementStation < 0 || (state.placementStation > 0 && (!state.hasItem || !state.isCup || state.isRefill || state.ghostMixed))) return;
+        // A hand-state publication cannot discard a bottle left on a machine.
+        if (!NetworkMode.IsOffline && taskItem.placementStation > 0 && !state.hasItem &&
+            health != null && !health.IsDead && !health.IsDowned) return;
+        if (!NetworkMode.IsOffline && state.hasItem && taskItem.placementStation > 0 && !state.isCup) return;
+        if (!NetworkMode.IsOffline && state.hasItem && state.isCup)
+        {
+            // Placement and drink completion are server-owned transitions. Publishing
+            // hand visuals cannot bypass the placement step or the server stopwatch.
+            if (state.placementStation != taskItem.placementStation) return;
+            if (state.IsReady && (!taskItem.IsReady || taskItem.flavor != state.flavor)) return;
+            if (taskItem.IsReady && !state.IsReady) return;
+        }
         if (!state.hasItem) state = new TaskHeldState { revision = state.revision };
         taskItem = state;
     }
 
+    public bool ServerPlaceBottle(int stationId, uint revision)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || taskItem.revision != revision || !taskItem.hasItem ||
+            !taskItem.isCup || taskItem.IsReady || taskItem.isRefill || taskItem.placementStation != 0) return false;
+        TaskHeldState state = taskItem;
+        state.placementStation = stationId + 1;
+        taskItem = state;
+        return true;
+    }
+
+    public bool ServerFinishDrink(PopcornStation station)
+    {
+        var placed = PopcornPreparation.Instance?.StationAt(taskItem.placementStation - 1);
+        if (!NetworkMode.HasServerAuthority(this) || station == null || station.Kind != PopcornStationKind.Water ||
+            placed == null || placed.PlacementAnchor != station.PlacementAnchor || !taskItem.hasItem || !taskItem.isCup || taskItem.IsReady) return false;
+        TaskHeldState state = taskItem;
+        state.flavor = station.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : station.Flavor;
+        taskItem = state;
+        return true;
+    }
+
+    public bool ServerPickUpBottle(int stationId, uint revision)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || taskItem.revision != revision ||
+            taskItem.placementStation != stationId + 1 || !taskItem.IsReady || !taskItem.isCup) return false;
+        TaskHeldState state = taskItem;
+        state.placementStation = 0;
+        taskItem = state;
+        return true;
+    }
+
     public bool ServerConsume(uint revision)
     {
-        if (!NetworkMode.HasServerAuthority(this) || taskItem.revision != revision || !taskItem.IsReady) return false;
+        if (!NetworkMode.HasServerAuthority(this) || taskItem.revision != revision || !taskItem.IsReady || !taskItem.IsInHand) return false;
         taskItem = new TaskHeldState { revision = revision };
         return true;
     }
 
     private void LateUpdate()
     {
+        if (isServer && health != null && (health.IsDead || health.IsDowned) && taskItem.hasItem)
+            taskItem = new TaskHeldState { revision = taskItem.revision };
         if (NetworkMode.IsLocalController(this)) return;
         if (health != null && (health.IsDead || health.IsDowned))
         {
@@ -75,7 +124,7 @@ public sealed class PlayerHeldItems : NetworkBehaviour
             if (isServer && taskItem.hasItem) taskItem = new TaskHeldState { revision = taskItem.revision };
             return;
         }
-        ItemHoldingSystem holder = PopcornPreparation.Instance != null ? PopcornPreparation.Instance.Holder : null;
+        PopcornItemHoldingSystem holder = PopcornPreparation.Instance != null ? PopcornPreparation.Instance.Holder : null;
         GameObject prefab = holder != null ? holder.PrefabFor(taskItem) : null;
         if (!taskItem.hasItem || prefab == null) { Clear(ref taskVisual); renderedPrefab = null; }
         else
@@ -85,14 +134,24 @@ public sealed class PlayerHeldItems : NetworkBehaviour
                 Clear(ref taskVisual);
                 taskVisual = CreateVisual(prefab, "Remote task item", taskItem.isRefill ? .3f : taskItem.isCup ? .18f : .24f);
                 renderedPrefab = prefab;
-                ItemHoldingSystem.TintVisual(taskVisual, taskItem.flavor, taskItem.ghostMixed);
+                PopcornItemHoldingSystem.TintVisual(taskVisual, taskItem.flavor, taskItem.ghostMixed);
             }
             if (!renderedState.Equals(taskItem))
             {
-                ItemHoldingSystem.TintVisual(taskVisual, taskItem.flavor, taskItem.ghostMixed);
+                PopcornItemHoldingSystem.TintVisual(taskVisual, taskItem.flavor, taskItem.ghostMixed);
                 renderedState = taskItem;
             }
-            Place(taskVisual, taskOffset);
+            var placed = holder != null && taskItem.placementStation > 0 ? PopcornPreparation.Instance.StationAt(taskItem.placementStation - 1) : null;
+            if (placed != null && placed.PlacementAnchor != null)
+            {
+                PopcornItemHoldingSystem.PlaceBottleVisual(taskVisual, placed.PlacementAnchor);
+                PlacedBottleInteractable.ConfigureVisual(taskVisual, placed, netId, taskItem.IsReady);
+            }
+            else
+            {
+                PlacedBottleInteractable.DisableVisual(taskVisual);
+                Place(taskVisual, taskOffset);
+            }
         }
         if (!inventory.IsHoldingRadio) Clear(ref radioVisual);
         else

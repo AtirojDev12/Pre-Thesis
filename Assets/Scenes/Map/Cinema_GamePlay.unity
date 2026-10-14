@@ -24091,6 +24091,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 41f84591ce72545258ea98cb7518d8b9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Mirror::Mirror.NetworkStartPosition
+--- !u!1 &536170035
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 536170036}
+  m_Layer: 0
+  m_Name: PapperBottle Placement Anchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &536170036
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 536170035}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -0.375, z: 0.08}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 880663280}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &537723811
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -33910,6 +33941,9 @@ MonoBehaviour:
   waterDispensers:
   - {fileID: 1136920046}
   - {fileID: 1910514823}
+  bottlePlacementAnchors:
+  - {fileID: 536170036}
+  - {fileID: 1834855646}
   emptyBucketPrefab: {fileID: 2919478932277611772, guid: 76940601842c7b44a8e0ea1b509c1a51, type: 3}
   emptyCupPrefab: {fileID: 2919478932277611772, guid: 822cb28a5fda7ac42b5a7065f7e9b96d, type: 3}
   filledCupPrefab: {fileID: 2919478932277611772, guid: 31145c7e4b207f34f95cc5b3cea8b10c, type: 3}
@@ -67437,7 +67471,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 536170036}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 5259255281211280687, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       insertIndex: -1
@@ -73493,7 +73530,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 4879492402798286741, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1834855646}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 5259255281211280687, guid: 7edb913c1cc9f6b45a70c9452800238e, type: 3}
       insertIndex: -1
@@ -100982,6 +101022,37 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1 &1834855645
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1834855646}
+  m_Layer: 0
+  m_Name: PapperBottle Placement Anchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1834855646
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1834855645}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -0.375, z: 0.08}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1250313300}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!43 &1835877750
 Mesh:
   m_ObjectHideFlags: 0

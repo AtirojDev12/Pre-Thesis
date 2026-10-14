@@ -71,7 +71,12 @@ public partial class PopcornNetSync
         if (held == null || station == null) return false;
         TaskHeldState item = held.TaskItem;
         if (station.Kind == PopcornStationKind.Maker) return !item.hasItem;
-        if (station.Kind == PopcornStationKind.Water) return item.hasItem && item.isCup && !item.IsReady && !item.isRefill;
+        if (station.Kind == PopcornStationKind.Water)
+        {
+            var placed = item.placementStation > 0 ? PopcornPreparation.Instance?.StationAt(item.placementStation - 1) : null;
+            return item.hasItem && item.isCup && !item.IsReady && !item.isRefill &&
+                placed != null && station.PlacementAnchor != null && placed.PlacementAnchor == station.PlacementAnchor;
+        }
         return item.hasItem && !item.isCup && !item.hasPopcorn && !item.isRefill && !item.IsReady;
     }
 
@@ -94,6 +99,7 @@ public partial class PopcornNetSync
             var station = PopcornPreparation.Instance?.StationAt(work.station);
             if (!NetworkServer.connections.TryGetValue(sender.connectionId, out var live) || live != sender ||
                 !CanUseSupply(sender, station) || !CanHoldAtStation(sender, station) ||
+                (station != null && station.Kind == PopcornStationKind.Water && sender.identity.GetComponent<PlayerHeldItems>().TaskItem.revision != work.heldRevision) ||
                 NetworkTime.time - work.started > PopcornPreparation.PreparationSeconds + 3)
                 expiredSoundWork.Add(sender);
         }

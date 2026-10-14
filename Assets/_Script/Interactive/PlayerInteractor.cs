@@ -140,7 +140,10 @@ public partial class PlayerInteractor : NetworkBehaviour
         {
             _promptTarget = _currentTarget;
             _lastPromptText = text;
-            promptUI.Show(text, _currentTarget.GetTransform());
+            bool bottlePrompt = _currentTarget is PlacedBottleInteractable ||
+                (_currentTarget is PopcornStation station && station.Kind == PopcornStationKind.Water && station.PlacementAnchor != null);
+            Transform promptAnchor = _currentTarget is PopcornStation promptStation ? promptStation.PromptAnchor : _currentTarget.GetTransform();
+            promptUI.Show(text, promptAnchor, bottlePrompt ? (Vector3?)(Vector3.up * .12f) : null);
         }
     }
 

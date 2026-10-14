@@ -9,7 +9,7 @@ public sealed class PopcornPreparation : MonoBehaviour
 {
     public static PopcornPreparation Instance { get; private set; }
     public const float PreparationSeconds = 3f;
-    public ItemHoldingSystem Holder { get; private set; }
+    public PopcornItemHoldingSystem Holder { get; private set; }
     public PopcornStationAudio Audio { get; private set; }
     public bool IsPreparing => activeStation != null;
     public int Capacity { get; private set; } = 20;
@@ -27,6 +27,13 @@ public sealed class PopcornPreparation : MonoBehaviour
     private bool awaitingResult;
     private bool awaitingStart;
     private bool refilling;
+    private bool awaitingPlacement;
+    private int placementRequest;
+    private uint placementRevision;
+    private bool awaitingPickup;
+    private int pickupRequest;
+    private uint pickupRevision;
+    public bool BottleTransferPending => awaitingPlacement || awaitingPickup;
     private GameObject progressPanel;
     private RectTransform progressFill;
     private TMP_Text progressText;
@@ -36,7 +43,7 @@ public sealed class PopcornPreparation : MonoBehaviour
     private RectTransform tankFill;
     private float statusUntil;
 
-    public void Configure(ItemHoldingSystem holder)
+    public void Configure(PopcornItemHoldingSystem holder)
     {
         Instance = this;
         Holder = holder;
@@ -55,7 +62,7 @@ public sealed class PopcornPreparation : MonoBehaviour
 
     public PopcornStation StationAt(int id) => id >= 0 && id < stations.Count ? stations[id] : null;
 
-    public void AddStation(Transform target, PopcornStationKind kind, PopcornFlavor flavor = PopcornFlavor.None)
+    public void AddStation(Transform target, PopcornStationKind kind, PopcornFlavor flavor = PopcornFlavor.None, Transform placementAnchor = null)
     {
         if (target == null)
         {
@@ -64,7 +71,7 @@ public sealed class PopcornPreparation : MonoBehaviour
         }
         PopcornStation station = target.GetComponent<PopcornStation>();
         if (station == null) station = target.gameObject.AddComponent<PopcornStation>();
-        station.Configure(this, kind, flavor, stations.Count);
+        station.Configure(this, kind, flavor, stations.Count, placementAnchor);
         stations.Add(station);
         if (kind == PopcornStationKind.Tank) BuildTankUi(target);
     }
@@ -73,21 +80,37 @@ public sealed class PopcornPreparation : MonoBehaviour
     {
         if (station.Kind == PopcornStationKind.Maker) return Holder.CanMakeRefill;
         if (station.Kind == PopcornStationKind.Tank) return Holder.CanScoop && TankRemaining > 0;
-        return station.Kind == PopcornStationKind.Water && Holder.HasItem && Holder.IsCup && !Holder.IsReady;
+        return station.Kind == PopcornStationKind.Water && Holder.HasItem && Holder.IsCup && !Holder.IsReady && Holder.IsPlacedAt(station);
     }
 
     public void Interact(PopcornStation station)
     {
-        if (Holder == null || Holder.SubmissionPending || IsPreparing || GameplayInput.Blocked) return;
+        if (Holder == null || Holder.SubmissionPending || IsPreparing || BottleTransferPending || GameplayInput.Blocked) return;
         if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier) return;
         PlayerHealth player = PlayerHealth.LocalInstance;
         if (player == null || player.IsDead || player.IsDowned) return;
+        if (station.Kind == PopcornStationKind.Water && Holder.HasItem && Holder.IsCup && !Holder.IsReady && Holder.PlacedStation == null)
+        {
+            if (station.PlacementAnchor == null) { ShowStatus("Assign a PapperBottle placement anchor"); return; }
+            if (NetworkMode.IsOffline)
+                ShowStatus(Holder.Place(station) ? "PapperBottle placed · Hold E to dispense" : "Unable to place PapperBottle");
+            else if (PopcornNetSync.Instance != null && Mirror.NetworkClient.ready)
+            {
+                awaitingPlacement = true;
+                placementRequest = ++requestId;
+                placementRevision = Holder.StateRevision;
+                PopcornNetSync.Instance.RequestPlaceBottle(station.Id, placementRequest, placementRevision);
+            }
+            else ShowStatus("Waiting for the server");
+            return;
+        }
         if (station.Kind == PopcornStationKind.Bucket || station.Kind == PopcornStationKind.Cup)
         {
             bool cup = station.Kind == PopcornStationKind.Cup;
             bool pickedUp = Holder.PickUp(cup);
             if (pickedUp) Audio.OneShot(station, Holder.StateRevision);
             ShowStatus(pickedUp ? (cup ? "Cup picked up · Choose a drink dispenser" : "Bucket picked up · Scoop from PopCornTank") :
+                Holder.PlacedStation != null ? "Retrieve your PapperBottle from the machine first" :
                 Holder.HasItem ? "Hands full · R to discard" : "Cannot pick up container · Check prefab setup");
             return;
         }
@@ -158,11 +181,11 @@ public sealed class PopcornPreparation : MonoBehaviour
             return;
         }
         Keyboard keyboard = Keyboard.current;
-        if (!Holder.SubmissionPending && !awaitingResult && !GameplayInput.Blocked && keyboard != null && keyboard.rKey.wasPressedThisFrame && Holder.HasItem &&
+        if (!Holder.SubmissionPending && !awaitingResult && !BottleTransferPending && !GameplayInput.Blocked && keyboard != null && keyboard.rKey.wasPressedThisFrame && Holder.IsInHand &&
             (GhostFavorRecovery.Instance == null || !GhostFavorRecovery.Instance.DroppedThisFrame))
         {
             Cancel(false);
-            Holder.Consume();
+            Holder.TryDiscardInHand();
             ShowStatus("Item discarded · Pick up a new bucket or cup");
         }
         if (statusText != null && Time.time >= statusUntil) statusText.text = string.Empty;
@@ -187,9 +210,9 @@ public sealed class PopcornPreparation : MonoBehaviour
         if (NetworkMode.IsOffline && activeStation.Kind == PopcornStationKind.Water)
         {
             PopcornFlavor flavor = activeStation.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : activeStation.Flavor;
-            bool completed = Holder.Hold(flavor);
+            bool completed = Holder.FinishPlacedDrink(flavor);
             Cancel(false);
-            ShowStatus(completed ? UiFactory.ItemName(flavor) + " ready · Ghost customer? Add Ghost Flavor" : "Unable to fill · Check held prefab setup");
+            ShowStatus(completed ? UiFactory.ItemName(flavor) + " ready · Look at the PapperBottle and press E to pick up" : "Unable to fill · Check held prefab setup");
         }
         else if (NetworkMode.IsOffline)
         {
@@ -215,13 +238,22 @@ public sealed class PopcornPreparation : MonoBehaviour
         else if (success && alive)
         {
             success = activeStation.Kind == PopcornStationKind.Maker ? Holder.HoldRefill() :
-                activeStation.Kind == PopcornStationKind.Water ? Holder.Hold(activeStation.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : activeStation.Flavor) : Holder.Scoop();
+                activeStation.Kind == PopcornStationKind.Water ? Holder.FinishPlacedDrink(activeStation.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : activeStation.Flavor) : Holder.Scoop();
             message = success ? (Holder.IsRefill ? "NewPopcorn ready · Press E at PopCornTank to refill" :
-                activeStation.Kind == PopcornStationKind.Water ? UiFactory.ItemName(Holder.HeldFlavor) + " ready · Ghost customer? Add Ghost Flavor" : "Popcorn scooped · Choose a flavor") : "Unable to hold item";
+                activeStation.Kind == PopcornStationKind.Water ? UiFactory.ItemName(Holder.HeldFlavor) + " ready · Look at the PapperBottle and press E to pick up" : "Popcorn scooped · Choose a flavor") : "Unable to hold item";
         }
         else if (success && activeStation.Kind == PopcornStationKind.Maker) DiscardRefill();
         Cancel(false, false);
         ShowStatus(message);
+    }
+
+    public void ReceivePlacementResult(int id, int stationId, uint revision, bool success)
+    {
+        if (!awaitingPlacement || id != placementRequest) return;
+        awaitingPlacement = false;
+        if (revision != placementRevision || Holder == null || Holder.StateRevision != revision) return;
+        ShowStatus(success && Holder.Place(StationAt(stationId)) ?
+            "PapperBottle placed · Hold E to dispense" : "Cannot place PapperBottle · Machine occupied or out of reach");
     }
 
     public void RejectSupplyBegin(int id, string message)
@@ -229,6 +261,31 @@ public sealed class PopcornPreparation : MonoBehaviour
         if (id != requestId || activeStation == null) return;
         Cancel(false, false);
         ShowStatus(message);
+    }
+
+    public void RequestBottlePickup(PopcornStation station)
+    {
+        var player = PlayerHealth.LocalInstance;
+        if (Holder == null || player == null || player.IsDead || player.IsDowned || GameplayInput.Blocked ||
+            BottleTransferPending || IsPreparing || Holder.SubmissionPending || !Holder.IsReady || !Holder.IsPlacedAt(station)) return;
+        if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier) return;
+        if (NetworkMode.IsOffline)
+            ShowStatus(Holder.PickUpPlacedBottle() ? "PapperBottle picked up · Ready to mix or serve" : "Cannot pick up PapperBottle");
+        else if (PopcornNetSync.Instance != null && Mirror.NetworkClient.ready)
+        {
+            awaitingPickup = true;
+            pickupRequest = ++requestId;
+            pickupRevision = Holder.StateRevision;
+            PopcornNetSync.Instance.RequestPickUpBottle(Holder.PlacedStation.Id, pickupRequest, pickupRevision);
+        }
+    }
+
+    public void ReceiveBottlePickupResult(int id, uint revision, bool success)
+    {
+        if (!awaitingPickup || id != pickupRequest) return;
+        awaitingPickup = false;
+        if (revision != pickupRevision || Holder == null || Holder.StateRevision != revision) return;
+        ShowStatus(success && Holder.PickUpPlacedBottle() ? "PapperBottle picked up · Ready to mix or serve" : "Cannot pick up PapperBottle · Move closer and try again");
     }
 
     public void AcceptSupplyBegin(int id)

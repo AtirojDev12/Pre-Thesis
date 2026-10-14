@@ -50,6 +50,8 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [Tooltip("Optional GhostFavor relocation anchors. Empty uses the ticket booth; add anchors here for future random locations.")]
     [SerializeField] private Transform[] ghostFavorRelocationPoints = new Transform[0];
     [SerializeField] private Transform[] waterDispensers = new Transform[0];
+    [Tooltip("One PapperBottle base anchor per machine, matching the order of waterDispensers. Shared by the corresponding water/Fanta/juice/Pepsi stations. Move and rotate these in Scene view.")]
+    [SerializeField] private Transform[] bottlePlacementAnchors = new Transform[0];
     [SerializeField] private GameObject emptyBucketPrefab;
     [SerializeField] private GameObject emptyCupPrefab;
     [SerializeField] private GameObject filledCupPrefab;
@@ -105,7 +107,7 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
             return;
         }
 
-        ItemHoldingSystem holder = gameObject.AddComponent<ItemHoldingSystem>();
+        PopcornItemHoldingSystem holder = gameObject.AddComponent<PopcornItemHoldingSystem>();
         CounterSlot counterSlot = gameObject.AddComponent<CounterSlot>();
         PopcornGameManager manager = gameObject.AddComponent<PopcornGameManager>();
 
@@ -128,14 +130,15 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         preparation.AddStation(ghostStation, PopcornStationKind.Ghost);
         if (ghostStation != null)
             gameObject.AddComponent<GhostFavorRecovery>().Configure(ghostStation, ghostFavorRelocationPoints);
-        foreach (Transform dispenser in waterDispensers)
-            preparation.AddStation(dispenser, PopcornStationKind.Water, PopcornFlavor.Drink);
-        foreach (Transform dispenser in fantaDispensers)
-            preparation.AddStation(dispenser, PopcornStationKind.Water, PopcornFlavor.Fanta);
-        foreach (Transform dispenser in orangeJuiceDispensers)
-            preparation.AddStation(dispenser, PopcornStationKind.Water, PopcornFlavor.OrangeJuice);
-        foreach (Transform dispenser in pepsiDispensers)
-            preparation.AddStation(dispenser, PopcornStationKind.Water, PopcornFlavor.Pepsi);
+        AddDrinkStations(preparation, waterDispensers, PopcornFlavor.Drink);
+        AddDrinkStations(preparation, fantaDispensers, PopcornFlavor.Fanta);
+        AddDrinkStations(preparation, orangeJuiceDispensers, PopcornFlavor.OrangeJuice);
+        AddDrinkStations(preparation, pepsiDispensers, PopcornFlavor.Pepsi);
+        // Machine bodies also accept placement; the existing flavor controls
+        // remain independent ray targets and share the same physical bottle.
+        foreach (Transform anchor in bottlePlacementAnchors)
+            if (anchor != null && anchor.parent != null)
+                preparation.AddStation(anchor.parent, PopcornStationKind.Water, PopcornFlavor.Drink, anchor);
         manager.Configure(holder, counterSlot, cashier, maker, cashierUiAnchor, popcornMakerUiAnchor,
             delayBetweenCustomers);
 
@@ -145,12 +148,28 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
 
     private void Start() => StartCoroutine(DisableAuthoringCameraAfterPlayerSpawns());
 
+    private void AddDrinkStations(PopcornPreparation preparation, Transform[] dispensers, PopcornFlavor flavor)
+    {
+        for (int i = 0; i < dispensers.Length; i++)
+            preparation.AddStation(dispensers[i], PopcornStationKind.Water, flavor,
+                i < bottlePlacementAnchors.Length ? bottlePlacementAnchors[i] : null);
+    }
+
     private bool HasAllAnchors() =>
         cashierUiAnchor != null && popcornMakerUiAnchor != null &&
         customerSpawnPoint != null && customerWaitPoint != null && customerExitPoint != null;
 
     private void OnDrawGizmos()
     {
+        foreach (Transform anchor in bottlePlacementAnchors)
+        {
+            if (anchor == null) continue;
+            Gizmos.color = Color.cyan;
+            Gizmos.matrix = Matrix4x4.TRS(anchor.position, anchor.rotation, Vector3.one);
+            Gizmos.DrawWireCube(Vector3.up * 0.112f, Vector3.one * 0.224f);
+            Gizmos.DrawRay(Vector3.zero, Vector3.forward * 0.3f);
+            Gizmos.matrix = Matrix4x4.identity;
+        }
         DrawUiAnchor(cashierUiAnchor, new Color(0.2f, 1f, 0.85f), new Vector3(0.72f, 0.52f, 0.03f));
         DrawUiAnchor(popcornMakerUiAnchor, new Color(1f, 0.72f, 0.15f), new Vector3(0.62f, 0.85f, 0.03f));
 
@@ -246,272 +265,6 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
             }
         }
     }
-}
-
-/// <summary>One-item inventory with a camera-mounted left-hand prefab and HUD label.</summary>
-public sealed class ItemHoldingSystem : MonoBehaviour
-{
-    public bool HasItem { get; private set; }
-    public PopcornFlavor HeldFlavor { get; private set; }
-    public bool IsCup { get; private set; }
-    public bool IsReady => HasItem && PopcornRecipe.IsOrder(HeldFlavor);
-    public bool HasPopcorn { get; private set; }
-    public bool IsRefill { get; private set; }
-    public bool SubmissionPending { get; private set; }
-    public uint StateRevision { get; private set; }
-    public TaskHeldState State => new TaskHeldState { revision = StateRevision, hasItem = HasItem, isCup = IsCup,
-        hasPopcorn = HasPopcorn, isRefill = IsRefill, flavor = HeldFlavor, ghostMixed = GhostMixed };
-    public event System.Action RefillDiscarded;
-    private GameObject refillPrefab, fantaPrefab, orangeJuicePrefab, pepsiPrefab;
-
-    public void ConfigureSupply(GameObject refill, GameObject fanta, GameObject orangeJuice, GameObject pepsi)
-    {
-        refillPrefab = refill;
-        fantaPrefab = fanta;
-        orangeJuicePrefab = orangeJuice;
-        pepsiPrefab = pepsi;
-    }
-
-    public bool CanScoop => !SubmissionPending && HasItem && !IsCup && !IsRefill && !HasPopcorn && heldPrefab != null;
-    public bool CanMakeRefill => !SubmissionPending && !HasItem && refillPrefab != null;
-
-    public bool Scoop()
-    {
-        if (!CanScoop || !ShowVisual(heldPrefab)) return false;
-        HasPopcorn = true;
-        RefreshLabel();
-        return true;
-    }
-
-    public bool HoldRefill()
-    {
-        if (!CanMakeRefill || !ShowVisual(refillPrefab)) return false;
-        HasItem = true;
-        IsRefill = true;
-        RefreshLabel();
-        return true;
-    }
-    public bool GhostMixed { get; private set; }
-    private GameObject bucketPrefab, cupPrefab, waterPrefab, ghostWaterPrefab;
-
-    public void ConfigureContainers(GameObject bucket, GameObject cup, GameObject water, GameObject ghostWater)
-    {
-        bucketPrefab = bucket;
-        cupPrefab = cup;
-        waterPrefab = water;
-        ghostWaterPrefab = ghostWater;
-    }
-
-    public bool PickUp(bool cup)
-    {
-        if (SubmissionPending || HasItem || !ShowVisual(cup ? cupPrefab : bucketPrefab)) return false;
-        IsCup = cup;
-        HeldFlavor = PopcornFlavor.None;
-        GhostMixed = false;
-        HasItem = true;
-        RefreshLabel();
-        return true;
-    }
-
-    public bool MixGhost()
-    {
-        if (GhostFavorRecovery.Instance != null && !GhostFavorRecovery.Instance.IsHome) return false;
-        if (SubmissionPending || !IsReady || GhostMixed) return false;
-        if (IsCup && !ShowVisual(ghostWaterPrefab)) return false;
-        GhostMixed = true;
-        TintPopcorn();
-        RefreshLabel();
-        return true;
-    }
-
-    private void RefreshLabel()
-    {
-        if (heldItemText != null)
-            heldItemText.text = IsRefill ? "NEW POPCORN\n[E] Refill PopCornTank" :
-                !IsReady ? (IsCup ? "EMPTY CUP\nChoose a drink dispenser" : HasPopcorn ?
-                "POPCORN\nChoose a flavor station" : "EMPTY BUCKET\nScoop from PopCornTank") :
-                UiFactory.ItemName(HeldFlavor) + (GhostMixed ? "\n+ GHOST FLAVOR" : "\nReady - Ghosts need mix");
-        if (heldItemPanel != null) heldItemPanel.SetActive(HasItem);
-        PlayerHeldItems network = itemOwner != null ? itemOwner.GetComponent<PlayerHeldItems>() : null;
-        if (network != null) StateRevision = network.Publish(State);
-    }
-
-    public bool BeginSubmission()
-    {
-        if (!IsReady || SubmissionPending) return false;
-        SubmissionPending = true;
-        return true;
-    }
-
-    public void FinishSubmission(uint revision, bool consumed)
-    {
-        if (!SubmissionPending || StateRevision != revision) return;
-        SubmissionPending = false;
-        if (consumed) Consume();
-    }
-
-    public GameObject PrefabFor(TaskHeldState state)
-    {
-        if (!state.hasItem) return null;
-        if (state.isRefill) return refillPrefab;
-        if (!state.isCup) return state.hasPopcorn ? heldPrefab : bucketPrefab;
-        if (!state.IsReady) return cupPrefab;
-        if (state.ghostMixed) return ghostWaterPrefab;
-        return state.flavor == PopcornFlavor.Pepsi ? pepsiPrefab : state.flavor == PopcornFlavor.Fanta ? fantaPrefab :
-            state.flavor == PopcornFlavor.OrangeJuice ? orangeJuicePrefab : waterPrefab;
-    }
-
-    private GameObject heldItemPanel;
-    private TMP_Text heldItemText;
-    private GameObject heldPrefab;
-    private GameObject heldVisual;
-    private Vector3 heldPosition;
-    private Vector3 heldRotation;
-    private PlayerHealth itemOwner;
-
-    private void OnEnable() => PlayerHealth.LocalInstanceChanged += OnPlayerChanged;
-
-    private void OnDisable()
-    {
-        PlayerHealth.LocalInstanceChanged -= OnPlayerChanged;
-        Consume();
-    }
-
-    private void OnPlayerChanged(PlayerHealth player)
-    {
-        if (HasItem && player != itemOwner) Consume();
-    }
-
-    public void Configure(GameObject prefab, Vector3 position, Vector3 rotation)
-    {
-        heldPrefab = prefab;
-        heldPosition = position;
-        heldRotation = rotation;
-    }
-
-    public void BuildUi()
-    {
-        GameObject canvasObject = new GameObject("Held Popcorn HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        canvasObject.transform.SetParent(transform, false);
-        Canvas canvas = canvasObject.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 50;
-
-        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
-
-        heldItemPanel = UiFactory.CreatePanel("Left Hand - Popcorn Bucket", canvasObject.transform, new Color(0.12f, 0.06f, 0.02f, 0.94f));
-        RectTransform panelRect = heldItemPanel.GetComponent<RectTransform>();
-        panelRect.anchorMin = new Vector2(0f, 0.5f);
-        panelRect.anchorMax = new Vector2(0f, 0.5f);
-        panelRect.pivot = new Vector2(0f, 0.5f);
-        panelRect.anchoredPosition = new Vector2(28f, -80f);
-        panelRect.sizeDelta = new Vector2(340f, 190f);
-
-        TMP_Text handLabel = UiFactory.CreateText("Hand Label", heldItemPanel.transform, "LEFT HAND", 26f, Color.white);
-        UiFactory.SetRect(handLabel.rectTransform, new Vector2(0.08f, 0.78f), new Vector2(0.92f, 0.96f));
-
-        TMP_Text bucketIcon = UiFactory.CreateText("Bucket Icon", heldItemPanel.transform, "HELD ITEM", 30f, new Color(1f, 0.78f, 0.18f));
-        bucketIcon.alignment = TextAlignmentOptions.Center;
-        UiFactory.SetRect(bucketIcon.rectTransform, new Vector2(0.08f, 0.55f), new Vector2(0.92f, 0.78f));
-
-        heldItemText = UiFactory.CreateText("Held Flavor", heldItemPanel.transform, string.Empty, 30f, Color.white);
-        heldItemText.alignment = TextAlignmentOptions.Center;
-        UiFactory.SetRect(heldItemText.rectTransform, new Vector2(0.06f, 0.08f), new Vector2(0.94f, 0.55f));
-
-        heldItemPanel.SetActive(false);
-        foreach (Graphic graphic in canvasObject.GetComponentsInChildren<Graphic>(true))
-            graphic.raycastTarget = false;
-    }
-
-    public bool Hold(PopcornFlavor flavor)
-    {
-        if (SubmissionPending || !HasItem || IsReady || IsRefill || !PopcornRecipe.IsOrder(flavor) || IsCup != PopcornRecipe.IsDrink(flavor)) return false;
-        if (!IsCup && !HasPopcorn) return false;
-        GameObject visual = flavor == PopcornFlavor.Pepsi ? pepsiPrefab : flavor == PopcornFlavor.Fanta ? fantaPrefab :
-            flavor == PopcornFlavor.OrangeJuice ? orangeJuicePrefab : waterPrefab;
-        if (IsCup && !ShowVisual(visual)) return false;
-        HeldFlavor = flavor;
-        TintPopcorn();
-        RefreshLabel();
-        return true;
-    }
-
-    private void TintPopcorn()
-    {
-        if (IsCup || heldVisual == null) return;
-        TintVisual(heldVisual, HeldFlavor, GhostMixed);
-    }
-
-    public static void TintVisual(GameObject model, PopcornFlavor flavor, bool ghostMixed)
-    {
-        Color tint = ghostMixed ? new Color(0.35f, 0.95f, 1f) : flavor == PopcornFlavor.BBQ
-            ? new Color(0.65f, 0.24f, 0.09f) : flavor == PopcornFlavor.Paprika
-            ? new Color(1f, 0.35f, 0.12f) : new Color(1f, 0.8f, 0.2f);
-        MaterialPropertyBlock properties = new MaterialPropertyBlock();
-        properties.SetColor("_BaseColor", tint);
-        properties.SetColor("_Color", tint);
-        foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>())
-            if (renderer.name.StartsWith("Popcorn ")) renderer.SetPropertyBlock(properties);
-    }
-
-    private bool ShowVisual(GameObject prefab)
-    {
-        PlayerHealth player = PlayerHealth.LocalInstance;
-        Camera camera = player != null ? player.GetComponentInChildren<Camera>() : null;
-        if (prefab == null || camera == null || player.IsDead || player.IsDowned) return false;
-        ClearVisual();
-        heldVisual = Instantiate(prefab, camera.transform, false);
-        heldVisual.name = "Held " + prefab.name;
-        heldVisual.transform.localPosition = heldPosition;
-        heldVisual.transform.localRotation = Quaternion.Euler(heldRotation);
-        foreach (Transform child in heldVisual.GetComponentsInChildren<Transform>(true))
-            child.gameObject.layer = LayerMask.NameToLayer("Ignore Raycast");
-        foreach (Collider collider in heldVisual.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
-        foreach (Rigidbody body in heldVisual.GetComponentsInChildren<Rigidbody>(true))
-        {
-            body.isKinematic = true;
-            body.detectCollisions = false;
-        }
-        itemOwner = player;
-        return true;
-    }
-
-    private void Update()
-    {
-        if (HasItem && (itemOwner == null || itemOwner.IsDead || itemOwner.IsDowned)) Consume();
-    }
-
-    public PopcornFlavor Consume()
-    {
-        PlayerHeldItems network = itemOwner != null ? itemOwner.GetComponent<PlayerHeldItems>() : null;
-        SubmissionPending = false;
-        PopcornFlavor result = HeldFlavor;
-        if (IsRefill) RefillDiscarded?.Invoke();
-        IsRefill = false;
-        HasPopcorn = false;
-        HeldFlavor = PopcornFlavor.None;
-        GhostMixed = false;
-        IsCup = false;
-        itemOwner = null;
-        HasItem = false;
-        if (network != null) StateRevision = network.Publish(State);
-        ClearVisual();
-        if (heldItemPanel != null) heldItemPanel.SetActive(false);
-        return result;
-    }
-
-    private void ClearVisual()
-    {
-        if (heldVisual == null) return;
-        heldVisual.SetActive(false);
-        Destroy(heldVisual);
-        heldVisual = null;
-    }
-
-    private void OnDestroy() => ClearVisual();
 }
 
 /// <summary>A reusable occupancy point; add more instances later for queues/counters.</summary>
@@ -699,7 +452,7 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
 
 public sealed class PopcornGameManager : MonoBehaviour
 {
-    private ItemHoldingSystem holder;
+    private PopcornItemHoldingSystem holder;
     private CounterSlot counterSlot;
     private TMP_Text orderText;
     private TMP_Text feedbackText;
@@ -711,7 +464,7 @@ public sealed class PopcornGameManager : MonoBehaviour
     private Canvas makerCanvas;
     private PopcornNetSync boundSync;
 
-    public void Configure(ItemHoldingSystem itemHolder, CounterSlot slot, Transform cashier, Transform maker,
+    public void Configure(PopcornItemHoldingSystem itemHolder, CounterSlot slot, Transform cashier, Transform maker,
         Transform cashierPlacement, Transform makerPlacement, float nextDelay)
     {
         holder = itemHolder;
@@ -753,7 +506,7 @@ public sealed class PopcornGameManager : MonoBehaviour
         UiFactory.Stretch(panel.GetComponent<RectTransform>());
 
         TMP_Text instructions = UiFactory.CreateText("Preparation Steps", panel.transform,
-            "PREPARE AN ORDER\n\n1  Pick up a bucket or cup\n\n2  Bucket: Hold E at PopCornTank\nthen press E to choose a flavor\nCup: Hold E at a drink dispenser\n\n3  Ghost? Add Ghost Flavor\nthen serve the waiting customer\n\nREFILL: Hold E at Popcorn Maker\nCarry NewPopcorn to the tank\nand press E to top up\n\nCheck the cashier for order details",
+            "PREPARE AN ORDER\n\n1  Pick up a bucket or PapperBottle\n\n2  Bucket: Hold E at PopCornTank\nthen press E to choose a flavor\nPapperBottle: Press E to place on a dispenser\nthen hold E on the ordered drink\nPress E on the finished bottle to retrieve it\n\n3  Ghost? Add Ghost Flavor\nthen serve the waiting customer\n\nREFILL: Hold E at Popcorn Maker\nCarry NewPopcorn to the tank\nand press E to top up\n\nCheck the cashier for order details",
             38f, Color.white);
         instructions.alignment = TextAlignmentOptions.Center;
         UiFactory.SetRect(instructions.rectTransform, new Vector2(0.06f, 0.05f), new Vector2(0.94f, 0.95f));
@@ -909,7 +662,7 @@ public sealed class PopcornGameManager : MonoBehaviour
     public void TryServe(PopcornCustomer customer, GameObject interactor)
     {
         if (customer == null || customer != counterSlot.ActiveCustomer || !customer.CanInteract()) return;
-        if (!holder.IsReady || holder.SubmissionPending)
+        if (!holder.CanServe || holder.SubmissionPending)
         {
             ShowFeedback("Pick up and fill a bucket or cup first", new Color(1f, 0.78f, 0.15f));
             return;

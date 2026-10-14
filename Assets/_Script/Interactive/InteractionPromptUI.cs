@@ -22,6 +22,7 @@ public class InteractionPromptUI : MonoBehaviour
     private Canvas _canvas;
     private string _currentText;
     private bool _followsTargetInWorld;
+    private Vector3 _activeOffset;
 
     private void Awake()
     {
@@ -38,7 +39,7 @@ public class InteractionPromptUI : MonoBehaviour
         Hide();
     }
 
-    public void Show(string text, Transform followTarget)
+    public void Show(string text, Transform followTarget, Vector3? offset = null)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -47,6 +48,7 @@ public class InteractionPromptUI : MonoBehaviour
         }
 
         _followTarget = followTarget;
+        _activeOffset = offset ?? worldOffset;
 
         // Only reassign when it actually changed -- setting TMP text forces a
         // mesh rebuild, and PlayerInteractor may call this on consecutive frames.
@@ -79,7 +81,7 @@ public class InteractionPromptUI : MonoBehaviour
             if (targetCamera == null) return;
         }
 
-        transform.position = _followTarget.position + worldOffset;
+        transform.position = _followTarget.position + _activeOffset;
         transform.forward = targetCamera.transform.forward;
     }
 }
