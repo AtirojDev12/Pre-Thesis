@@ -8,6 +8,31 @@ public sealed partial class PopcornPreparation
     private readonly Dictionary<int, PopcornFlavor> renderedFlavors = new Dictionary<int, PopcornFlavor>();
     private uint nextOfflineBottle;
 
+    public bool TryGetDispensingFlavorAt(Transform anchor, out PopcornFlavor flavor)
+    {
+        flavor = PopcornFlavor.None;
+        if (!isActiveAndEnabled || anchor == null) return false;
+        if (activeStation != null && !awaitingStart && !refilling &&
+            activeStation.PlacementAnchor == anchor && activeStation.Kind == PopcornStationKind.Water &&
+            PopcornRecipe.IsDrink(activeStation.Flavor))
+        {
+            flavor = activeStation.Flavor;
+            return true;
+        }
+        if (NetworkMode.IsOffline || PopcornNetSync.Instance == null) return false;
+        foreach (var action in PopcornNetSync.Instance.SoundActions.Values)
+        {
+            var station = StationAt(action.station);
+            if (station != null && station.Kind == PopcornStationKind.Water &&
+                station.PlacementAnchor == anchor && PopcornRecipe.IsDrink(station.Flavor))
+            {
+                flavor = station.Flavor;
+                return true;
+            }
+        }
+        return false;
+    }
+
     public int SpotId(PopcornStation station)
     {
         if (station == null || station.PlacementAnchor == null) return -1;
