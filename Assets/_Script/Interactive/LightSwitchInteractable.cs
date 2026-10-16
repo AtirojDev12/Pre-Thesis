@@ -7,6 +7,11 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkIdentity))]
 public sealed class LightSwitchInteractable : InteractableBase
 {
+    [Header("Controlled zone")]
+    [Tooltip("Zone ID configured on Building Lights. Empty preserves a legacy whole-building switch.")]
+    [SerializeField] private string zoneId = "";
+    private bool IsOn => BuildingLightManager.Instance == null ||
+        (string.IsNullOrWhiteSpace(zoneId) ? BuildingLightManager.LightsOn : BuildingLightManager.Instance.ZoneLightsOn(zoneId));
     [Header("Switch appearance")]
     [Tooltip("Renderers to turn red when the lights are off. Empty uses this object's children.")]
     [SerializeField] private Renderer[] switchRenderers;
@@ -52,20 +57,22 @@ public sealed class LightSwitchInteractable : InteractableBase
         }
     }
 
-    public override bool CanInteract() => isActiveAndEnabled && BuildingLightManager.Instance != null;
+    public override bool CanInteract() => isActiveAndEnabled && BuildingLightManager.Instance != null &&
+        (string.IsNullOrWhiteSpace(zoneId) || BuildingLightManager.Instance.HasZone(zoneId));
 
-    public override string GetInteractionPrompt() => BuildingLightManager.Instance != null && BuildingLightManager.LightsOn
+    public override string GetInteractionPrompt() => IsOn
         ? "[E] Turn lights off" : "[E] Turn lights on";
 
     protected override void OnInteracted(GameObject interactor)
     {
         BuildingLightManager manager = BuildingLightManager.Instance;
         if (manager == null) return;
-        bool wasOn = BuildingLightManager.LightsOn;
-        manager.SetLights(!wasOn);
+        bool wasOn = IsOn;
+        if (string.IsNullOrWhiteSpace(zoneId)) manager.SetLights(!wasOn);
+        else manager.SetZoneLights(zoneId, !wasOn);
         // Only an accepted switch interaction makes a click, never initial state restoration or late joins.
-        if (BuildingLightManager.LightsOn != wasOn)
-            NetworkAudioRelay.Play(BuildingLightManager.LightsOn ? "LightSwitch_On" : "LightSwitch_Off", transform.position);
+        if (IsOn != wasOn)
+            NetworkAudioRelay.Play(IsOn ? "LightSwitch_On" : "LightSwitch_Off", transform.position);
     }
 
     public override void SetHighlighted(bool highlighted) { }
@@ -73,7 +80,7 @@ public sealed class LightSwitchInteractable : InteractableBase
     private void LateUpdate()
     {
         // Reading the SyncVar also follows keyboard input and late joins.
-        bool lightsOn = BuildingLightManager.Instance == null || BuildingLightManager.LightsOn;
+        bool lightsOn = IsOn;
         if (appliedLightsOn == lightsOn && (lightsOn || appliedOffColor == lightsOffColor)) return;
         foreach (Surface surface in surfaces)
         {

@@ -1,7 +1,7 @@
 param([string] $UnityPath = 'C:/InstallUnity/6000.5.7f1/Editor/Unity.exe')
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-$testRoot = Join-Path $repoRoot '.utmp/building-lights'
+$testRoot = Join-Path $repoRoot 'Temp/building-light-checks'
 $projectPath = Join-Path $testRoot 'Project'
 New-Item -ItemType Directory -Force $projectPath | Out-Null
 foreach ($folder in @('Assets','Packages','ProjectSettings','Library/PackageCache')) {
@@ -11,6 +11,7 @@ foreach ($folder in @('Assets','Packages','ProjectSettings','Library/PackageCach
 $editorPath = Join-Path $projectPath 'Assets/Editor'
 New-Item -ItemType Directory -Force $editorPath | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'BuildingLightChecks.cs') $editorPath -Force
+Copy-Item (Join-Path $PSScriptRoot 'GhostPerceptionChecks.cs') $editorPath -Force
 $resultPath = Join-Path $projectPath 'building-light-results.txt'
 if (Test-Path -LiteralPath $resultPath) { Remove-Item -LiteralPath $resultPath }
 $logPath = Join-Path $testRoot 'unity.log'

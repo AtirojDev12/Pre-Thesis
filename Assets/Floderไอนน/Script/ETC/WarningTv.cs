@@ -2,63 +2,107 @@ using Mirror;
 using UnityEngine;
 using UnityEngine.Video;
 
-// บังคับให้ Game Object นี้ต้องมี AudioSource และ VideoPlayer
-[RequireComponent(typeof(AudioSource))]
-[RequireComponent(typeof(VideoPlayer))]
+[RequireComponent(typeof(AudioSource), typeof(VideoPlayer), typeof(NetworkIdentity))]
 public class WarningTV : InteractableBase
 {
     private AudioSource audioSource;
     private VideoPlayer videoPlayer;
+    [SyncVar] private double startedAt;
+    [SyncVar(hook = nameof(OnPlaybackChanged))] private bool playing;
+    private double Now => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
 
     protected override void Awake()
     {
-        // เรียก Awake ของคลาสแม่ (InteractableBase) เพื่อให้ระบบ Highlight ทำงานได้ปกติ
         base.Awake();
-
-        // ดึง Component ที่อยู่บน GameObject เดียวกันมาเก็บไว้ในตัวแปร
         audioSource = GetComponent<AudioSource>();
         videoPlayer = GetComponent<VideoPlayer>();
-
-        // ปิดการเล่นอัตโนมัติตอนเริ่มเกม
         audioSource.playOnAwake = false;
+        audioSource.loop = false;
         videoPlayer.playOnAwake = false;
+        videoPlayer.isLooping = true;
+        // The separate narration is the only audio for this TV.
+        videoPlayer.audioOutputMode = VideoAudioOutputMode.None;
+        if (videoPlayer.targetMaterialRenderer == null)
+            videoPlayer.targetMaterialRenderer = GetComponentInChildren<MeshRenderer>();
+        videoPlayer.renderMode = VideoRenderMode.MaterialOverride;
+        videoPlayer.targetMaterialProperty = "_BaseMap";
+
+        // Imported TV meshes have no collider; interaction raycasts need one.
+        if (GetComponentInChildren<Collider>() == null)
+        {
+            Renderer[] renderers = GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
+            {
+                Bounds bounds = new Bounds(transform.InverseTransformPoint(renderers[0].bounds.center), Vector3.zero);
+                foreach (Renderer renderer in renderers)
+                {
+                    Bounds world = renderer.bounds;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        Vector3 corner = world.center + Vector3.Scale(world.extents,
+                            new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                        bounds.Encapsulate(transform.InverseTransformPoint(corner));
+                    }
+                }
+                BoxCollider box = gameObject.AddComponent<BoxCollider>();
+                box.center = bounds.center;
+                box.size = bounds.size;
+            }
+        }
     }
 
-    /// <summary>
-    /// ฟังก์ชันนี้ทำงานบน Server เมื่อมีผู้เล่นมากด Interact
-    /// เราจะสั่งให้ Client ทุกคนเล่นภาพและเสียง
-    /// </summary>
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+        ApplyPlayback();
+    }
+
+    public override string GetInteractionPrompt() => playing ? "Press E to Stop Media" : "Press E to Play Media";
+
     protected override void OnInteracted(GameObject interactor)
     {
-        // สั่ง Rpc ไปยัง Client ทุกเครื่องให้เริ่มเล่นสื่อ
-        RpcPlayMedia();
+        if (playing) playing = false;
+        else if (audioSource.clip != null)
+        {
+            startedAt = Now;
+            playing = true;
+        }
+        // Also handles offline play and a dedicated server (which has no client hook).
+        ApplyPlayback();
     }
 
-    /// <summary>
-    /// ฟังก์ชันนี้จะถูกเรียกจาก Server ให้ไปทำงานบนเครื่อง Client ทุกคน
-    /// เพื่อให้ภาพและเสียงเล่นพร้อมกันทุกเครื่อง
-    /// </summary>
-    [ClientRpc]
-    private void RpcPlayMedia()
+    private void Update()
     {
-        // ตรวจสอบว่ามีคลิปวิดีโอใส่ไว้หรือไม่ แล้วกดเล่น
-        if (videoPlayer.clip != null || !string.IsNullOrEmpty(videoPlayer.url))
+        if (NetworkMode.HasServerAuthority(this) && playing &&
+            (audioSource.clip == null || Now - startedAt >= audioSource.clip.length))
         {
-            videoPlayer.Play();
+            playing = false;
+            ApplyPlayback();
         }
-        else
-        {
-            Debug.LogWarning($"[{name}] ยังไม่ได้ใส่ Video Clip ใน VideoPlayer!");
-        }
+    }
 
-        // ตรวจสอบว่ามีคลิปเสียงใส่ไว้หรือไม่ แล้วกดเล่น
-        if (audioSource.clip != null)
+    private void OnPlaybackChanged(bool previous, bool current) => ApplyPlayback();
+
+    private void ApplyPlayback()
+    {
+        if (audioSource == null || videoPlayer == null) return;
+        if (!playing)
         {
-            audioSource.Play();
+            audioSource.Stop();
+            videoPlayer.Stop();
+            return;
         }
-        else
-        {
-            Debug.LogWarning($"[{name}] ยังไม่ได้ใส่ Audio Clip ใน AudioSource!");
-        }
+        if (audioSource.clip == null || audioSource.isPlaying) return;
+        double elapsed = System.Math.Max(0, Now - startedAt);
+        if (elapsed >= audioSource.clip.length) return;
+        audioSource.time = (float)elapsed;
+        audioSource.Play();
+        if (videoPlayer.clip != null || !string.IsNullOrEmpty(videoPlayer.url)) videoPlayer.Play();
+    }
+
+    private void OnDisable()
+    {
+        if (audioSource != null) audioSource.Stop();
+        if (videoPlayer != null) videoPlayer.Stop();
     }
 }

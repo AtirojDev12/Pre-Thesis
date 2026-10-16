@@ -23,7 +23,12 @@ public static class LightSwitchSetup
         if (target.GetComponent<Mirror.NetworkIdentity>() == null)
             Undo.AddComponent<Mirror.NetworkIdentity>(target);
         if (target.GetComponent<LightSwitchInteractable>() == null)
-            Undo.AddComponent<LightSwitchInteractable>(target);
+        {
+            var lightSwitch = Undo.AddComponent<LightSwitchInteractable>(target);
+            var settings = new SerializedObject(lightSwitch);
+            settings.FindProperty("zoneId").stringValue = "Choose a zone";
+            settings.ApplyModifiedProperties();
+        }
 
         Collider[] colliders = target.GetComponentsInChildren<Collider>(true);
         bool hasSolidCollider = false;
@@ -60,7 +65,7 @@ public static class LightSwitchSetup
         }
         Undo.CollapseUndoOperations(group);
         EditorSceneManager.MarkSceneDirty(target.scene);
-        Debug.Log("Light switch ready: aim at it within 3 metres and press E. Save the scene to keep the setup.", target);
+        Debug.Log("Light switch ready: choose its Controlled Zone in the Inspector, then aim at it within 3 metres and press E. Save the scene to keep the setup.", target);
     }
 
     public static void EnsureBuildingLights(UnityEngine.SceneManagement.Scene scene)

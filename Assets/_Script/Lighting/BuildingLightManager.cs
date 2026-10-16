@@ -7,6 +7,45 @@ using UnityEngine;
 [RequireComponent(typeof(NetworkIdentity))]
 public sealed class BuildingLightManager : NetworkBehaviour
 {
+    [System.Serializable]
+    public sealed class LightZone
+    {
+        [Tooltip("Unique ID. Use the same ID on each switch controlling this zone.")]
+        public string zoneId;
+        [Tooltip("All eligible lights below these scene objects belong to this zone.")]
+        public Transform[] lightRoots = new Transform[0];
+        [Tooltip("Optional individual lights outside the roots.")]
+        public Light[] additionalLights = new Light[0];
+        public bool initiallyOn = true;
+        [Header("Detection area (world metres)")]
+        [Tooltip("Centre of the room used by ghost vision. This does not move the lights.")]
+        public Vector3 areaCenter;
+        [Tooltip("Room width, height and depth. Zero disables this area's position lookup.")]
+        public Vector3 areaSize;
+
+        public bool ContainsPosition(Vector3 position) => areaSize.x > 0 && areaSize.y > 0 && areaSize.z > 0
+            && new Bounds(areaCenter, areaSize).Contains(position);
+
+        public bool Contains(Light lamp)
+        {
+            if (additionalLights != null)
+                foreach (Light extra in additionalLights) if (extra == lamp) return true;
+            if (lightRoots != null)
+                foreach (Transform root in lightRoots)
+                    if (root != null && lamp.transform.IsChildOf(root)) return true;
+            return false;
+        }
+    }
+
+    [Header("Zone lighting")]
+    [Tooltip("Add zones here, then assign their ID to the corresponding world switches. Ungrouped lights only follow building power.")]
+    [SerializeField] private LightZone[] zones = new LightZone[0];
+    public IReadOnlyList<LightZone> Zones => zones;
+    public readonly SyncDictionary<string, bool> zoneStates = new SyncDictionary<string, bool>();
+    // Mirror's SyncObjects reject writes without an active server/client.
+    // Keep solo scene previews separate from the server-owned replicated state.
+    private readonly Dictionary<string, bool> offlineZoneStates = new Dictionary<string, bool>();
+
     public static BuildingLightManager Instance { get; private set; }
     public static bool LightsOn => Instance == null || Instance.lightsOn;
 
@@ -27,10 +66,91 @@ public sealed class BuildingLightManager : NetworkBehaviour
             return;
         }
         Instance = this;
+        zoneStates.OnChange += OnZoneChanged;
+    }
+
+    private void OnZoneChanged(SyncDictionary<string, bool>.Operation operation, string key, bool value) => RefreshLights();
+
+    public bool HasZone(string zoneId)
+    {
+        if (string.IsNullOrWhiteSpace(zoneId) || zones == null) return false;
+        foreach (LightZone zone in zones)
+            if (zone != null && zone.zoneId == zoneId) return true;
+        return false;
+    }
+
+    public bool ZoneLightsOn(string zoneId)
+    {
+        if (string.IsNullOrWhiteSpace(zoneId) || zones == null) return true;
+        if (NetworkMode.IsOffline)
+        {
+            if (offlineZoneStates.TryGetValue(zoneId, out bool offlineOn)) return offlineOn;
+        }
+        else if (zoneStates.TryGetValue(zoneId, out bool on)) return on;
+        foreach (LightZone zone in zones)
+            if (zone != null && zone.zoneId == zoneId) return zone.initiallyOn;
+        return true;
+    }
+
+    public bool SetZoneLights(string zoneId, bool on)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || !HasZone(zoneId) || ZoneLightsOn(zoneId) == on) return false;
+        if (NetworkMode.IsOffline) offlineZoneStates[zoneId] = on;
+        else zoneStates[zoneId] = on;
+        RefreshLights();
+        return true;
+    }
+
+    private bool ZoneAllows(Light lamp)
+    {
+        if (zones == null) return true;
+        // Overlapping groups are allowed: any zone that is off cuts power to the shared lamp.
+        foreach (LightZone zone in zones)
+            if (zone != null && !string.IsNullOrWhiteSpace(zone.zoneId) && zone.Contains(lamp) && !ZoneLightsOn(zone.zoneId)) return false;
+        return true;
+    }
+
+    /// <summary>Effective power at a player's position. Smaller rooms take precedence in overlaps.</summary>
+    public bool LightsOnAt(Vector3 position)
+    {
+        if (!lightsOn) return false;
+        LightZone selected = null;
+        float smallest = float.PositiveInfinity;
+        if (zones != null)
+            foreach (LightZone zone in zones)
+            {
+                if (zone == null || string.IsNullOrWhiteSpace(zone.zoneId) || !zone.ContainsPosition(position)) continue;
+                float volume = zone.areaSize.x * zone.areaSize.y * zone.areaSize.z;
+                if (volume >= smallest) continue;
+                selected = zone;
+                smallest = volume;
+            }
+        return selected == null || ZoneLightsOn(selected.zoneId);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (zones == null) return;
+        Gizmos.color = new Color(0.3f, 0.8f, 1f, 0.8f);
+        foreach (LightZone zone in zones)
+            if (zone != null && zone.areaSize.x > 0 && zone.areaSize.y > 0 && zone.areaSize.z > 0)
+                Gizmos.DrawWireCube(zone.areaCenter, zone.areaSize);
     }
 
     private void Start() => RefreshLights();
-    public override void OnStartClient() => RefreshLights();
+    public override void OnStartServer()
+    {
+        base.OnStartServer();
+        offlineZoneStates.Clear();
+        RefreshLights();
+    }
+
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+        offlineZoneStates.Clear();
+        RefreshLights();
+    }
 
     private void Update()
     {
@@ -71,7 +191,7 @@ public sealed class BuildingLightManager : NetworkBehaviour
             {
                 if (!IsBuildingLight(lamp)) continue;
                 if (!lamps.ContainsKey(lamp)) lamps.Add(lamp, lamp.enabled);
-                lamp.enabled = lightsOn && lamps[lamp];
+                lamp.enabled = lightsOn && ZoneAllows(lamp) && lamps[lamp];
             }
         }
     }
@@ -88,6 +208,7 @@ public sealed class BuildingLightManager : NetworkBehaviour
 
     private void OnDestroy()
     {
+        zoneStates.OnChange -= OnZoneChanged;
         foreach (var entry in lamps)
             if (entry.Key != null) entry.Key.enabled = entry.Value;
         if (Instance == this) Instance = null;

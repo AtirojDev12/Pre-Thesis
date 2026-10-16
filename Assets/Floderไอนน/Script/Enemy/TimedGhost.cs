@@ -2,33 +2,7 @@ using Mirror;
 using UnityEngine;
 using UnityEngine.AI;
 
-/// <summary>
-/// ผีที่ GhostManager ปล่อยออกมาเป็นช่วงเวลา
-///
-/// MULTIPLAYER NOTES
-/// -----------------
-/// The AI runs on the server only (see Enemy_Abstract_Class). Two things here
-/// had to change beyond that:
-///
-///   1. The jumpscare UI. It used to switch on a GameObject in the scene, which
-///      on six machines means everybody's screen gets the scare at once — even
-///      the four players on the other side of the cinema. It is now a TargetRpc
-///      to the victim alone.
-///
-///   2. "Did the player move" used to compare against one cached player. It now
-///      tracks the position of each candidate separately, because in the dark
-///      this ghost hunts by MOVEMENT, and six players means six things that
-///      might be moving.
-///
-/// 1 Oct 2026: restored from Mr.k's Week 4 multiplayer commit (c1a5c769) and
-/// merged with Nonnapat's newer features, all checked for EVERY player:
-///   - Dark: a player within 3 m is noticed at once.
-///   - Dark: a player who is TOO LOUD (PlayerNoise.ServerMic over the threshold,
-///     or ServerTooLoud) is noticed and chased. The server already holds every
-///     player's loudness, so this works in multiplayer.
-///   - Optional: hear loud players in the light too (hearMicInLight).
-///   - Jumpscare overlay lookup also finds an INACTIVE tagged object.
-/// </summary>
+/// <summary>Server-owned ghost: sees players in lit zones, hears them in dark zones, and searches only the last perceived position.</summary>
 public class TimedGhost : Enemy_Abstract_Class
 {
     [Header("Ghost Visual Settings")]
@@ -43,13 +17,6 @@ public class TimedGhost : Enemy_Abstract_Class
     [Tooltip("GDD rule: a Jump Scare kills outright, skipping the downed state. Leave OFF while testing so a mistake does not end the run.")]
     [SerializeField] private bool killsOutright = false;
 
-    [Header("Movement Detection Settings")]
-    [SerializeField] private float movementThreshold = 0.02f;
-
-    [Header("Dark rules (Nonnapat)")]
-    [Tooltip("In the dark, a player this close is noticed even standing still.")]
-    [SerializeField] private float closeRange = 3f;
-
     [Header("Mic Settings (Nonnapat)")]
     [Tooltip("ServerMic (0..1) above this = too loud. ServerTooLoud (the red line on the noise meter) always counts too.")]
     [SerializeField] private float micVolumeThreshold = 0.3f;
@@ -62,16 +29,16 @@ public class TimedGhost : Enemy_Abstract_Class
 
     [Tooltip("How close the ghost must get before the jumpscare fires.")]
     [SerializeField] private float jumpscareRange = 1.5f;
+    [Tooltip("Height above the ghost/player origin for wall occlusion checks.")]
+    [SerializeField, Min(0f)] private float sightHeight = 1.2f;
 
-    // Read-only consumer: the ghost never changes building power.
-    public bool isSceneLightOn => BuildingLightManager.LightsOn;
-
-    private bool isJumpscareTriggered = false;
-
-    // Per-player last-known position, for the dark-hunting movement check. A
-    // single lastPlayerPosition could only ever watch one person.
-    private readonly System.Collections.Generic.Dictionary<uint, Vector3> lastSeenPositions =
-        new System.Collections.Generic.Dictionary<uint, Vector3>();
+    [Header("Search after losing a player")]
+    [SerializeField, Min(0f)] private float searchWaitSeconds = 3f;
+    [SerializeField, Min(1f)] private float searchTravelTimeout = 15f;
+    private bool isJumpscareTriggered;
+    private Vector3 lastKnownPosition;
+    private float searchStartedAt;
+    private float searchArrivedAt = -1f;
 
     protected override void Start()
     {
@@ -107,157 +74,121 @@ public class TimedGhost : Enemy_Abstract_Class
 
     protected override void CheckForPlayer()
     {
-        if (isJumpscareTriggered) return;
-
-        if (isSceneLightOn)
+        if (!HasAiAuthority || isJumpscareTriggered) return;
+        PlayerHealth noticed = null;
+        float nearest = float.PositiveInfinity;
+        foreach (PlayerHealth candidate in PlayerRegistry.All)
         {
-            // Lit: normal sight. The base class already picks the nearest player
-            // it can actually see, across everyone in the map.
-            base.CheckForPlayer();
-
-            // Optional: also hear loud players while the lights are on.
-            if (hearMicInLight && canDetectMic && currentState != EnemyState.Chase)
-            {
-                PlayerHealth loud = FindNearestNoticedPlayer(false, false, true);
-                if (loud != null)
-                {
-                    targetPlayer = loud;
-                    OnPlayerSpotted();
-                }
-            }
+            if (!CanPerceive(candidate)) continue;
+            float distance = (candidate.transform.position - transform.position).sqrMagnitude;
+            if (distance >= nearest) continue;
+            nearest = distance;
+            noticed = candidate;
         }
-        else
+        if (noticed != null)
         {
-            // Dark: it cannot see. It notices a player who is very close, who
-            // MOVES, or who is TOO LOUD — checked for every player, not one
-            // cached transform.
-            if (currentState != EnemyState.Chase)
-            {
-                PlayerHealth noticed = FindNearestNoticedPlayer(true, true, canDetectMic);
-                if (noticed != null)
-                {
-                    targetPlayer = noticed;
-                    OnPlayerSpotted();
-                }
-            }
+            targetPlayer = noticed;
+            lastKnownPosition = noticed.transform.position;
+            OnPlayerSpotted();
         }
-
-        RememberPositions();
+        else if (currentState == EnemyState.Chase)
+        {
+            // Never update this position from the unseen/silent player's Transform.
+            targetPlayer = null;
+            OnPlayerLost();
+            searchStartedAt = Time.time;
+            searchArrivedAt = -1f;
+        }
     }
 
-    /// <summary>
-    /// The closest player inside view distance who has moved more than the
-    /// threshold since the last check. Stand still in the dark and this ghost
-    /// walks past you — which is the whole point of the mechanic, and it only
-    /// works if it is evaluated per player.
-    /// </summary>
-    private PlayerHealth FindNearestNoticedPlayer(bool useCloseRange, bool useMovement, bool useMic)
+    private bool IsLit(PlayerHealth candidate) => BuildingLightManager.Instance == null ||
+        BuildingLightManager.Instance.LightsOnAt(candidate.transform.position);
+
+    private bool CanPerceive(PlayerHealth candidate)
     {
-        PlayerHealth best = null;
-        float bestSqr = viewDistance * viewDistance;
-
-        var players = PlayerRegistry.All;
-        for (int i = 0; i < players.Count; i++)
-        {
-            PlayerHealth candidate = players[i];
-            if (candidate == null || candidate.IsDead || candidate.netIdentity == null) continue;
-            if (!PlayerRegistry.IsHuntable(candidate)) continue; // escaped / finished / downed players are out
-
-            Vector3 position = candidate.transform.position;
-            float sqr = (position - transform.position).sqrMagnitude;
-            if (sqr > bestSqr) continue;
-
-            bool noticed = false;
-
-            // 1. Very close (Nonnapat).
-            if (useCloseRange && sqr <= closeRange * closeRange) noticed = true;
-
-            // 2. Moved since the last check.
-            if (!noticed && useMovement &&
-                lastSeenPositions.TryGetValue(candidate.netIdentity.netId, out Vector3 previous) &&
-                Vector3.Distance(position, previous) > movementThreshold)
-                noticed = true;
-
-            // 3. Too loud on the microphone (Nonnapat). PlayerNoise holds the
-            //    SERVER copy of every player's loudness, so the host hears everyone.
-            if (!noticed && useMic && IsTooLoud(candidate)) noticed = true;
-
-            if (!noticed) continue;
-            bestSqr = sqr;
-            best = candidate;
-        }
-
-        if (best != null)
-            Debug.Log($"[Ghost AI] noticed {best.name} in the {(isSceneLightOn ? "light" : "dark")}.", this);
-
-        return best;
+        if (!PlayerRegistry.IsHuntable(candidate)) return false;
+        bool lit = IsLit(candidate);
+        if (lit && CanSee(candidate)) return true;
+        if (!canDetectMic || (lit && !hearMicInLight)) return false;
+        if ((candidate.transform.position - transform.position).sqrMagnitude > hearingRadius * hearingRadius) return false;
+        return candidate.TryGetComponent(out PlayerNoise noise) &&
+            (noise.ServerMic > micVolumeThreshold || noise.ServerTooLoud);
     }
 
-    private bool IsTooLoud(PlayerHealth candidate)
+    protected override bool CanSee(PlayerHealth candidate)
     {
-        if (!candidate.TryGetComponent(out PlayerNoise noise)) return false;
-        return noise.ServerMic > micVolumeThreshold || noise.ServerTooLoud;
-    }
-
-    private void RememberPositions()
-    {
-        var players = PlayerRegistry.All;
-        for (int i = 0; i < players.Count; i++)
-        {
-            PlayerHealth candidate = players[i];
-            if (candidate == null || candidate.netIdentity == null) continue;
-
-            lastSeenPositions[candidate.netIdentity.netId] = candidate.transform.position;
-        }
+        if (candidate == null || !IsLit(candidate)) return false;
+        Vector3 offset = candidate.transform.position - transform.position;
+        float distance = offset.magnitude;
+        if (distance > viewDistance || Vector3.Angle(transform.forward, offset) >= viewAngle) return false;
+        // Existing prefabs have an empty obstacle mask. Treat that as normal solid geometry,
+        // rather than letting the ghost see through every wall.
+        int mask = obstacleLayer.value == 0 ? Physics.DefaultRaycastLayers : obstacleLayer.value;
+        Vector3 origin = transform.position + Vector3.up * sightHeight;
+        foreach (RaycastHit hit in Physics.RaycastAll(origin, offset.normalized, distance, mask, QueryTriggerInteraction.Ignore))
+            if (!hit.transform.IsChildOf(transform) && !hit.transform.IsChildOf(candidate.transform)) return false;
+        return true;
     }
 
     protected override void PatrolBehavior()
     {
-        if (isJumpscareTriggered) return;
-        if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
-
-        if (isSceneLightOn)
-        {
-            // Lit: drift toward whoever is nearest, even without line of sight.
-            PlayerHealth nearest = PlayerRegistry.ClosestTo(transform.position);
-            if (nearest != null) agent.SetDestination(nearest.transform.position);
-        }
-        else if (!agent.pathPending && agent.remainingDistance < 1f)
-        {
+        if (isJumpscareTriggered || !AgentReady) return;
+        // Patrol independently of where silent/hidden players are standing.
+        if (!agent.pathPending && (!agent.hasPath || agent.remainingDistance <= Mathf.Max(1f, agent.stoppingDistance)))
             agent.SetDestination(GetRandomNavMeshLocation());
-        }
     }
+
+    private bool AgentReady => agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh;
 
     private Vector3 GetRandomNavMeshLocation()
     {
         Vector3 randomDirection = Random.insideUnitSphere * randomPatrolRadius + transform.position;
-
         return NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, randomPatrolRadius, NavMesh.AllAreas)
-            ? hit.position
-            : transform.position;
+            ? hit.position : transform.position;
     }
 
     protected override void ChaseBehavior()
     {
-        if (isJumpscareTriggered) return;
-        if (!PlayerRegistry.IsHuntable(targetPlayer))
-        {
-            // The person we were chasing died, went down (3 Oct) or left. Do not freeze — go back
-            // to patrol and let CheckForPlayer pick somebody else.
-            currentState = EnemyState.Patrol;
-            return;
-        }
-
-        if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh)
-            agent.SetDestination(targetPlayer.transform.position);
-
-        if (Vector3.Distance(transform.position, targetPlayer.transform.position) <= jumpscareRange)
+        if (isJumpscareTriggered || !AgentReady || !isPlayerDetected) return;
+        agent.SetDestination(lastKnownPosition);
+        if (PlayerRegistry.IsHuntable(targetPlayer) &&
+            Vector3.Distance(transform.position, lastKnownPosition) <= jumpscareRange)
             TriggerJumpscare(targetPlayer);
     }
 
     protected override void SearchBehavior()
     {
+        if (isJumpscareTriggered || !AgentReady) return;
+        agent.speed = patrolSpeed;
+        float arrivalDistance = Mathf.Max(0.5f, agent.stoppingDistance);
+        bool searchingPath = agent.hasPath && (agent.destination - lastKnownPosition).sqrMagnitude <= 0.01f;
+        bool arrived = Vector3.Distance(transform.position, lastKnownPosition) <= arrivalDistance ||
+            (!agent.pathPending && searchingPath && agent.remainingDistance <= arrivalDistance);
+        if (!arrived && !agent.pathPending && !searchingPath)
+            agent.SetDestination(lastKnownPosition);
+        if (arrived)
+        {
+            if (searchArrivedAt < 0f) searchArrivedAt = Time.time;
+        }
+        bool waited = searchArrivedAt >= 0f && Time.time - searchArrivedAt >= searchWaitSeconds;
+        if (!waited && Time.time - searchStartedAt < searchTravelTimeout) return;
+        agent.ResetPath();
+        targetPlayer = null;
         currentState = EnemyState.Patrol;
+    }
+
+    public override void HearSound(Vector3 soundPosition, float soundIntensity)
+    {
+        if (!HasAiAuthority || isJumpscareTriggered || soundIntensity <= 0f) return;
+        if (Vector3.Distance(transform.position, soundPosition) > hearingRadius * soundIntensity) return;
+        // External noise supplies a fixed location, never a live player target.
+        if (currentState == EnemyState.Chase) return;
+        lastKnownPosition = soundPosition;
+        targetPlayer = null;
+        isPlayerDetected = false;
+        currentState = EnemyState.Search;
+        searchStartedAt = Time.time;
+        searchArrivedAt = -1f;
     }
 
     /// <summary>
