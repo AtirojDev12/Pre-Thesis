@@ -59,9 +59,25 @@ public sealed class ZoneChoreSpot : InteractableBase
     private string promptText;
     private bool stopSent;
     private Collider[] colliders;
+    private PlayerHealth ignoredBody; // 16 Oct: our colliders never block this body
 
     public ZoneTaskKind Kind => kind;
     public bool Needed => needed;
+
+    // ---- Hooks for the zone rules (16 Oct) -------------------------------------------
+    /// <summary>SERVER. A chore was finished (spot, worker body). Zone rules listen.</summary>
+    public static event System.Action<ZoneChoreSpot, GameObject> ServerCompleted;
+    /// <summary>SERVER. A zone rule may lock a chore (e.g. the smoking stall). True = nobody can work on it.</summary>
+    public static System.Func<ZoneChoreSpot, bool> ServerBlocked;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetHooks()
+    {
+        ServerCompleted = null;
+        ServerBlocked = null;
+    }
+
+    private bool IsBlocked => ServerBlocked != null && ServerBlocked(this);
 
     private static double Now => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
 
@@ -90,7 +106,7 @@ public sealed class ZoneChoreSpot : InteractableBase
     /// <summary>SERVER: E pressed on this chore. Starts the hold timer for that player.</summary>
     protected override void OnInteracted(GameObject interactor)
     {
-        if (!needed || interactor == null || !CanWork(interactor)) return;
+        if (!needed || interactor == null || !CanWork(interactor) || IsBlocked) return;
         uint id = WorkerIdOf(interactor);
         if (workerId != 0 && workerId != id) return; // someone else is already on it
         offlineWorker = NetworkMode.IsOffline ? interactor : null;
@@ -126,7 +142,7 @@ public sealed class ZoneChoreSpot : InteractableBase
 
         if (workerId == 0) return;
         GameObject worker = WorkerObject();
-        if (worker == null || !needed || !CanWork(worker))
+        if (worker == null || !needed || !CanWork(worker) || IsBlocked)
         {
             StopWork();
             return;
@@ -144,6 +160,7 @@ public sealed class ZoneChoreSpot : InteractableBase
         if (MatchDirector.Instance != null)
             MatchDirector.Instance.ServerReportTaskCompleted(worker.GetComponent<NetworkIdentity>(), zoneID);
         Debug.Log($"[ZoneChoreSpot] '{name}' done by {worker.name} ({kind}).", this);
+        ServerCompleted?.Invoke(this, worker);
     }
 
     private void SetNeeded(bool value)
@@ -202,6 +219,7 @@ public sealed class ZoneChoreSpot : InteractableBase
 
     private void LocalTick()
     {
+        KeepOutOfTheWay();
         if (!IsLocalWorker)
         {
             stopSent = false;
@@ -220,6 +238,24 @@ public sealed class ZoneChoreSpot : InteractableBase
 
     private void OnDisable() => ChoreProgressHUD.Hide(this);
 
+    /// <summary>
+    /// 16 Oct bug fix: a chore collider is only a LOOK target (the interaction ray
+    /// ignores triggers, so it cannot be a trigger). It must never stop your own
+    /// body walking (the film box once blocked the whole projector booth).
+    /// Movement is owner-side, so ignoring your own body is enough. Unity forgets an
+    /// ignore pair when a collider is turned off, so ApplyLook asks for it again.
+    /// </summary>
+    private void KeepOutOfTheWay()
+    {
+        PlayerHealth me = PlayerHealth.LocalInstance;
+        if (me == ignoredBody || colliders == null) return;
+        ignoredBody = me;
+        if (me == null) return;
+        foreach (Collider body in me.GetComponentsInChildren<Collider>(true))
+            foreach (Collider own in colliders)
+                if (body != null && own != null && own.enabled && body.enabled) Physics.IgnoreCollision(own, body, true);
+    }
+
     // ---- Look ---------------------------------------------------------------------
 
     private void OnNeededChanged(bool oldValue, bool newValue) => ApplyLook(newValue);
@@ -232,6 +268,7 @@ public sealed class ZoneChoreSpot : InteractableBase
         if (colliders != null)
             foreach (Collider c in colliders)
                 if (c != null) c.enabled = on; // nothing to look at when nothing is needed
+        ignoredBody = null; // re-apply "do not block me" next frame (see KeepOutOfTheWay)
     }
 
     private static bool RoundRunning => MatchDirector.Instance == null || MatchDirector.Instance.RoundRunning;
