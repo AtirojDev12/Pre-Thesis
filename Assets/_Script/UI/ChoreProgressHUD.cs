@@ -24,15 +24,19 @@ public sealed class ChoreProgressHUD : MonoBehaviour
         owner = null;
     }
 
-    public static void Show(Object who, string action, float progress)
+    public static void Show(Object who, string action, float progress) =>
+        ShowText(who, action + "...  (keep holding E)", progress);
+
+    /// <summary>16 Oct: same bar with your own words (e.g. a zone rule's "wait" bar).</summary>
+    public static void ShowText(Object who, string text, float progress)
     {
         if (instance == null) instance = Create();
         owner = who;
         if (!instance.gameObject.activeSelf) instance.gameObject.SetActive(true);
-        if (instance.shownText != action)
+        if (instance.shownText != text)
         {
-            instance.shownText = action;
-            instance.label.text = action + "...  (keep holding E)";
+            instance.shownText = text;
+            instance.label.text = text;
         }
         instance.fill.sizeDelta = new Vector2(BarWidth * Mathf.Clamp01(progress), instance.fill.sizeDelta.y);
     }

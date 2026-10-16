@@ -10,7 +10,7 @@ using UnityEngine.SceneManagement;
 ///
 /// Open Cinema_GamePlay first. Adds, under one new object "Zone Chores (Screen + Toilet)":
 ///   - Screen Room zone (zone_screen):
-///       * Change film in the GHOST room "TeaterZone/ScreenRoom (1)" at 02:00 and 04:00 (hold E 5 s)
+///       * Change film in the GHOST room "TeaterZone/GhostScreenRoom" at 02:00 and 04:00 (hold E 5 s)
 ///       * 3 dirt marks in EACH screen room, from 01:00 (hold E 3 s)
 ///   - Toilet zone (zone_toilet): 3 dirt marks in the men's and 3 in the women's toilet, from 03:00
 ///   - 2 task boards ("SCREEN ROOMS", "TOILETS") next to the Tickets board.
@@ -45,14 +45,16 @@ public static class ScreenToiletZoneSetup
 
         Transform theater = FindInScene(scene, "TeaterZone");
         Transform normalRoom = theater != null ? theater.Find("ScreenRoom") : null;
-        Transform ghostRoom = theater != null ? theater.Find("ScreenRoom (1)") : null;
+        // 16 Oct: Nonnapat renamed "ScreenRoom (1)" to "GhostScreenRoom".
+        Transform ghostRoom = theater != null ? theater.Find("GhostScreenRoom") : null;
+        if (ghostRoom == null && theater != null) ghostRoom = theater.Find("ScreenRoom (1)");
         Transform toilet = FindInScene(scene, "Toilet");
         Transform men = toilet != null ? toilet.Find("MenToilet") : null;
         Transform women = toilet != null ? toilet.Find("WomenToilet") : null;
 
         var missing = new List<string>();
         if (normalRoom == null) missing.Add("TeaterZone/ScreenRoom");
-        if (ghostRoom == null) missing.Add("TeaterZone/ScreenRoom (1)");
+        if (ghostRoom == null) missing.Add("TeaterZone/GhostScreenRoom");
         if (men == null) missing.Add("Toilet/MenToilet");
         if (women == null) missing.Add("Toilet/WomenToilet");
         if (missing.Count > 0)
@@ -77,7 +79,7 @@ public static class ScreenToiletZoneSetup
 
         // ---- Screen Room zone ---------------------------------------------------
         Transform projector = ghostRoom.Find("Projecter");
-        MakeFilmSpot(root.transform, projector != null ? projector : ghostRoom, filmLight);
+        MakeFilmSpot(root.transform, ProjectorMachine(projector != null ? projector : ghostRoom), filmLight);
 
         int screenSpots = 0;
         foreach (Transform room in new[] { normalRoom, ghostRoom })
@@ -144,6 +146,24 @@ public static class ScreenToiletZoneSetup
         warn.GetComponent<Renderer>().sharedMaterial = lightMaterial;
 
         Configure(go, ZoneTaskKind.FilmChange, ScreenZone, "Change film", 5f, FilmFirstHour, FilmEveryHours, warn);
+    }
+
+    /// <summary>
+    /// 16 Oct bug fix: "Projecter" is the whole booth (2 walls + the machine). The
+    /// film box must only cover the MACHINE = the smallest part, or it fills the
+    /// booth and nobody can walk in.
+    /// </summary>
+    private static Transform ProjectorMachine(Transform projector)
+    {
+        Transform best = projector;
+        float bestVolume = float.MaxValue;
+        foreach (Renderer r in projector.GetComponentsInChildren<Renderer>(true))
+        {
+            Vector3 s = r.bounds.size;
+            float volume = s.x * s.y * s.z;
+            if (volume > 0.001f && volume < bestVolume) { bestVolume = volume; best = r.transform; }
+        }
+        return best;
     }
 
     private static int MakeToiletSpots(Transform parent, Transform toilet, string label, string[] parts, Material dirt)
