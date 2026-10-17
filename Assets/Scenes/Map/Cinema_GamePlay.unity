@@ -90561,6 +90561,14 @@ PrefabInstance:
       propertyPath: m_Name
       value: Popcorn Maker Steam VFX
       objectReference: {fileID: 0}
+    - target: {fileID: 2958498391530912494, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: InitialModule.startSizeY.minMaxState
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 2958498391530912494, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: InitialModule.startSizeZ.minMaxState
+      value: 3
+      objectReference: {fileID: 0}
     - target: {fileID: 4327008298169275852, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
       propertyPath: kernels
       value: 
