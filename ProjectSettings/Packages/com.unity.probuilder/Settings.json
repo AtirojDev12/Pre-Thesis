@@ -97,6 +97,16 @@
                 "value": "{\"m_Value\":{\"x\":0.16693115234375,\"y\":0.27069544792175295,\"z\":2.730205535888672}}"
             },
             {
+                "type": "UnityEngine.Vector3, UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+                "key": "ShapeBuilder.LastSize.Pipe",
+                "value": "{\"m_Value\":{\"x\":1.4983577728271485,\"y\":7.101943016052246,\"z\":2.0087203979492189}}"
+            },
+            {
+                "type": "UnityEngine.Vector3, UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+                "key": "ShapeBuilder.LastSize.Door",
+                "value": "{\"m_Value\":{\"x\":5.469254493713379,\"y\":3.1983699798583986,\"z\":-0.7196149826049805}}"
+            },
+            {
                 "type": "UnityEngine.Quaternion, UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
                 "key": "ShapeBuilder.LastRotation.Cube",
                 "value": "{\"m_Value\":{\"x\":0.0,\"y\":0.0,\"z\":0.0,\"w\":1.0}}"
