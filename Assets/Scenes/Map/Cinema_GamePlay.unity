@@ -3436,7 +3436,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 596167292679483753, guid: ef9d96125919a104996c7c7b76dab322, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1191988879}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 220063210205457363, guid: ef9d96125919a104996c7c7b76dab322, type: 3}
       insertIndex: -1
@@ -43623,6 +43626,7 @@ MonoBehaviour:
   oneTimeUse: 0
   highlightRenderer: {fileID: 0}
   highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  toggleClickClip: {fileID: 8300000, guid: 6581fe99693b9334f9fbd09863464154, type: 3}
 --- !u!328 &625073523
 VideoPlayer:
   m_ObjectHideFlags: 0
@@ -43670,7 +43674,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: fe546d74f66aa2848ba679a35d7d58e7, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 0.35
+  m_Volume: 0.2
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -46611,13 +46615,13 @@ MonoBehaviour:
   bottlePlacementAnchors:
   - {fileID: 536170036}
   - {fileID: 1834855646}
-  emptyBucketPrefab: {fileID: 2919478932277611772, guid: 76940601842c7b44a8e0ea1b509c1a51, type: 3}
-  emptyCupPrefab: {fileID: 2919478932277611772, guid: 822cb28a5fda7ac42b5a7065f7e9b96d, type: 3}
-  filledCupPrefab: {fileID: 2919478932277611772, guid: 31145c7e4b207f34f95cc5b3cea8b10c, type: 3}
-  ghostCupPrefab: {fileID: 2919478932277611772, guid: c4940806debdabc44b707b50041597f6, type: 3}
+  emptyBucketPrefab: {fileID: 1386922355667904508, guid: ddc672da3300c47408a563e2d0981a6e, type: 3}
+  emptyCupPrefab: {fileID: 6315251809944047627, guid: 4d9138d7e28902d4fb9809045275611b, type: 3}
+  filledCupPrefab: {fileID: 5537131986944116759, guid: 847a73f46501b534892780705a07bdfa, type: 3}
+  ghostCupPrefab: {fileID: 5537131986944116759, guid: c899917b5b5ab7f4989607ea453c59fd, type: 3}
   popcornTank: {fileID: 1212395110}
   refillMaker: {fileID: 1548584528}
-  newPopcornPrefab: {fileID: 2919478932277611772, guid: d4b433559df88234aaf69a3160c6aa95, type: 3}
+  newPopcornPrefab: {fileID: 5392433897955252827, guid: 2808817f264e2ec4197b53493795ce2f, type: 3}
   tankCapacity: 10
   refillServings: 10
   fantaDispensers:
@@ -46629,10 +46633,14 @@ MonoBehaviour:
   pepsiDispensers:
   - {fileID: 1996595170}
   - {fileID: 1922479479}
-  fantaCupPrefab: {fileID: 2919478932277611772, guid: 1ef909a72955f4148a3ee4b8a508b51c, type: 3}
-  orangeJuiceCupPrefab: {fileID: 2919478932277611772, guid: 1b297f1e67ad1cb448cc2b9869bda4dd, type: 3}
-  pepsiCupPrefab: {fileID: 2919478932277611772, guid: 989a0cee5a3f7234fbd7e8c6a50d0ebd, type: 3}
-  heldPopcornPrefab: {fileID: 1461734664132814685, guid: 66596ff46762db5498bc9d4d61a7ddf6, type: 3}
+  fantaCupPrefab: {fileID: 5537131986944116759, guid: 847a73f46501b534892780705a07bdfa, type: 3}
+  orangeJuiceCupPrefab: {fileID: 5537131986944116759, guid: 847a73f46501b534892780705a07bdfa, type: 3}
+  pepsiCupPrefab: {fileID: 5537131986944116759, guid: 847a73f46501b534892780705a07bdfa, type: 3}
+  heldPopcornPrefab: {fileID: 5392433897955252827, guid: 2808817f264e2ec4197b53493795ce2f, type: 3}
+  bbqPopcornPrefab: {fileID: 1504883448854269296, guid: a9d4aabeaa1ac7e4b9a0dc48ba275052, type: 3}
+  cheesePopcornPrefab: {fileID: 7310335945683771467, guid: 89b5102e90e982647b9d6e6f213d6dab, type: 3}
+  paprikaPopcornPrefab: {fileID: 947975978490656288, guid: 4f55ac923f7d3f145964d279875e38a5, type: 3}
+  ghostPopcornPrefab: {fileID: 5392433897955252827, guid: 1aab50f68e8092e4b80e510b17266974, type: 3}
   heldPopcornPosition: {x: -0.3, y: -0.24, z: 0.65}
   heldPopcornRotation: {x: -10, y: 0, z: -8}
   cashierUiAnchor: {fileID: 285735979}
@@ -90533,6 +90541,110 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1001 &1191988878
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1548584528}
+    m_Modifications:
+    - target: {fileID: 1551477738058916289, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1551477738058916289, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2040404522447819227, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_Name
+      value: Popcorn Maker Steam VFX
+      objectReference: {fileID: 0}
+    - target: {fileID: 2958498391530912494, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: InitialModule.startSizeY.minMaxState
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 2958498391530912494, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: InitialModule.startSizeZ.minMaxState
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 4327008298169275852, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: kernels
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 4327008298169275852, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: seasoning
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 4327008298169275852, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: makerStation
+      value: 
+      objectReference: {fileID: 1548584528}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1.2204151
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1.2204151
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1.2204151
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -8.1865457e-14
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0.00000044172043
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.000000092666596
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects:
+    - {fileID: 8781382477285129673, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+    - {fileID: 2829743290487715384, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+--- !u!4 &1191988879 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 6052007555969792733, guid: 4aad703a92f50f3449cdae8ed85915e4, type: 3}
+  m_PrefabInstance: {fileID: 1191988878}
+  m_PrefabAsset: {fileID: 0}
 --- !u!43 &1193804382
 Mesh:
   m_ObjectHideFlags: 0
@@ -125057,6 +125169,7 @@ MonoBehaviour:
   oneTimeUse: 0
   highlightRenderer: {fileID: 0}
   highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  toggleClickClip: {fileID: 8300000, guid: 6581fe99693b9334f9fbd09863464154, type: 3}
 --- !u!328 &1725073523
 VideoPlayer:
   m_ObjectHideFlags: 0
@@ -125104,7 +125217,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: 1ca03414002749242a7ccb73a1575fcd, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 0.35
+  m_Volume: 0.2
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -162420,22 +162533,21 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  lightsOn: 1
   zones:
   - zoneId: ScreenRoom
     lightRoots:
     - {fileID: 276121494}
     additionalLights: []
     initiallyOn: 1
-    areaCenter: {x: -52.143238, y: 6.239538, z: 57.070002}
-    areaSize: {x: 65.506172, y: 18.084442, z: 26.813336}
+    areaCenter: {x: -52.143238, y: 6.239538, z: 57.070004}
+    areaSize: {x: 65.50617, y: 18.084442, z: 26.813335}
   - zoneId: GhostScreenRoom
     lightRoots:
     - {fileID: 934022307}
     additionalLights: []
     initiallyOn: 1
-    areaCenter: {x: 23.236539, y: 5.870391, z: 58.112587}
-    areaSize: {x: 65.620489, y: 18.382736, z: 26.999206}
+    areaCenter: {x: 23.23654, y: 5.870391, z: 58.112587}
+    areaSize: {x: 65.62049, y: 18.382736, z: 26.999207}
   - zoneId: StaffRoom
     lightRoots:
     - {fileID: 1149883005}
@@ -162449,21 +162561,22 @@ MonoBehaviour:
     additionalLights: []
     initiallyOn: 1
     areaCenter: {x: -35.584724, y: 2.3546488, z: 1.6381721}
-    areaSize: {x: 12.560028, y: 5.3015777, z: 10.504658}
+    areaSize: {x: 12.560028, y: 5.3015776, z: 10.504658}
   - zoneId: FemaleToilet
     lightRoots:
     - {fileID: 1498543591}
     additionalLights: []
     initiallyOn: 1
     areaCenter: {x: -35.676807, y: 2.3507917, z: 12.916145}
-    areaSize: {x: 12.744194, y: 5.3015834, z: 10.8441925}
+    areaSize: {x: 12.744194, y: 5.3015833, z: 10.8441925}
   - zoneId: TicketAndPopcorn
     lightRoots:
     - {fileID: 401765172}
     additionalLights: []
     initiallyOn: 1
-    areaCenter: {x: -16.729732, y: 3.6337036, z: 2.779814}
-    areaSize: {x: 25.0832, y: 7.940276, z: 24.176368}
+    areaCenter: {x: -16.729733, y: 3.6337037, z: 2.779814}
+    areaSize: {x: 25.0832, y: 7.940276, z: 24.176369}
+  lightsOn: 1
 --- !u!114 &8200000000002000
 MonoBehaviour:
   m_ObjectHideFlags: 0

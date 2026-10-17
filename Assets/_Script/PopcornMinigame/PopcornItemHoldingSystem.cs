@@ -23,14 +23,11 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
         hasPopcorn = HasPopcorn, isRefill = IsRefill, flavor = HeldFlavor, ghostMixed = GhostMixed,
         placementStation = 0 };
     public event System.Action RefillDiscarded;
-    private GameObject refillPrefab, fantaPrefab, orangeJuicePrefab, pepsiPrefab;
+    private GameObject refillPrefab;
 
     public void ConfigureSupply(GameObject refill, GameObject fanta, GameObject orangeJuice, GameObject pepsi)
     {
         refillPrefab = refill;
-        fantaPrefab = fanta;
-        orangeJuicePrefab = orangeJuice;
-        pepsiPrefab = pepsi;
     }
 
     public bool CanScoop => !SubmissionPending && HasItem && !IsCup && !IsRefill && !HasPopcorn && heldPrefab != null;
@@ -53,6 +50,15 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
     }
     public bool GhostMixed { get; private set; }
     private GameObject bucketPrefab, cupPrefab, waterPrefab, ghostWaterPrefab;
+    private GameObject bbqPrefab, cheesePrefab, paprikaPrefab, ghostPopcornPrefab;
+
+    public void ConfigurePopcornFlavors(GameObject bbq, GameObject cheese, GameObject paprika, GameObject ghost)
+    {
+        bbqPrefab = bbq;
+        cheesePrefab = cheese;
+        paprikaPrefab = paprika;
+        ghostPopcornPrefab = ghost;
+    }
 
     public void ConfigureContainers(GameObject bucket, GameObject cup, GameObject water, GameObject ghostWater)
     {
@@ -88,14 +94,17 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
     // The anchor marks the bottom centre, independent of prefab pivot and machine scale.
     public static void PlaceBottleVisual(GameObject visual, Transform anchor)
     {
-        ItemHoldingSystem.PlaceVisualAtAnchor(visual, anchor, .224f);
+        if (visual == null || anchor == null) return;
+        if (!DrinkCupVisual.Place(visual, anchor)) ItemHoldingSystem.PlaceVisualAtAnchor(visual, anchor, .224f);
     }
 
     public bool MixGhost()
     {
         if (GhostFavorRecovery.Instance != null && !GhostFavorRecovery.Instance.IsHome) return false;
         if (SubmissionPending || !CanServe || GhostMixed) return false;
-        if (IsCup && !ShowVisual(ghostWaterPrefab)) return false;
+        TaskHeldState mixed = State;
+        mixed.ghostMixed = true;
+        if (!ShowVisual(PrefabFor(mixed))) return false;
         GhostMixed = true;
         TintPopcorn();
         RefreshLabel();
@@ -106,7 +115,7 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
     {
         if (heldItemText != null)
             heldItemText.text = IsRefill ? "NEW POPCORN\n[E] Refill PopCornTank" :
-                !IsReady ? (IsCup ? "EMPTY PAPPERBOTTLE\nE to place at a dispenser" : HasPopcorn ?
+                !IsReady ? (IsCup ? "EMPTY CUP\nE to place at a dispenser" : HasPopcorn ?
                 "POPCORN\nChoose a flavor station" : "EMPTY BUCKET\nScoop from PopCornTank") :
                 UiFactory.ItemName(HeldFlavor) + (GhostMixed ? "\n+ GHOST FLAVOR" : "\nReady - Ghosts need mix");
         if (heldItemPanel != null) heldItemPanel.SetActive(IsInHand);
@@ -131,11 +140,20 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
     {
         if (!state.hasItem) return null;
         if (state.isRefill) return refillPrefab;
-        if (!state.isCup) return state.hasPopcorn ? heldPrefab : bucketPrefab;
+        if (!state.isCup)
+        {
+            if (!state.hasPopcorn) return bucketPrefab;
+            if (state.ghostMixed) return ghostPopcornPrefab != null ? ghostPopcornPrefab : heldPrefab;
+            switch (state.flavor)
+            {
+                case PopcornFlavor.BBQ: return bbqPrefab != null ? bbqPrefab : heldPrefab;
+                case PopcornFlavor.Cheese: return cheesePrefab != null ? cheesePrefab : heldPrefab;
+                case PopcornFlavor.Paprika: return paprikaPrefab != null ? paprikaPrefab : heldPrefab;
+                default: return heldPrefab;
+            }
+        }
         if (!state.IsReady) return cupPrefab;
-        if (state.ghostMixed) return ghostWaterPrefab;
-        return state.flavor == PopcornFlavor.Pepsi ? pepsiPrefab : state.flavor == PopcornFlavor.Fanta ? fantaPrefab :
-            state.flavor == PopcornFlavor.OrangeJuice ? orangeJuicePrefab : waterPrefab;
+        return state.ghostMixed && ghostWaterPrefab != null ? ghostWaterPrefab : waterPrefab;
     }
 
     private GameObject heldItemPanel;
@@ -210,6 +228,9 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
         if (IsCup) return false;
         if (SubmissionPending || !HasItem || IsReady || IsRefill || !PopcornRecipe.IsOrder(flavor) || IsCup != PopcornRecipe.IsDrink(flavor)) return false;
         if (!HasPopcorn) return false;
+        TaskHeldState seasoned = State;
+        seasoned.flavor = flavor;
+        if (!ShowVisual(PrefabFor(seasoned))) return false;
         HeldFlavor = flavor;
         TintPopcorn();
         RefreshLabel();
@@ -231,6 +252,7 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
 
     public static void TintVisual(GameObject model, PopcornFlavor flavor, bool ghostMixed)
     {
+        if (model == null || PopcornRecipe.IsDrink(flavor) || model.GetComponentInChildren<PopcornBucketVisual>() != null) return;
         Color tint = ghostMixed ? new Color(0.35f, 0.95f, 1f) : flavor == PopcornFlavor.BBQ
             ? new Color(0.65f, 0.24f, 0.09f) : flavor == PopcornFlavor.Paprika
             ? new Color(1f, 0.35f, 0.12f) : new Color(1f, 0.8f, 0.2f);
@@ -250,8 +272,25 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
         bool shown = holding.HasItem ? holding.TryReplaceVisual(prefab) :
             holding.TryPickUp(new HeldItemDefinition(prefab.name, prefab));
         if (!shown) return false;
+        if (prefab == cupPrefab || prefab == waterPrefab || prefab == ghostWaterPrefab) FitCupInHand(heldVisual);
+        else PopcornBucketVisual.FitInHand(heldVisual, heldVisual.transform.position);
         itemOwner = player;
         return true;
+    }
+
+    private static void FitCupInHand(GameObject visual)
+    {
+        if (DrinkCupVisual.FitInHand(visual, visual.transform.position)) return;
+        Renderer[] renderers = visual.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0) return;
+        Vector3 grip = visual.transform.position;
+        Bounds bounds = renderers[0].bounds;
+        foreach (Renderer renderer in renderers) bounds.Encapsulate(renderer.bounds);
+        float longest = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+        if (longest > .001f) visual.transform.localScale *= .224f / longest;
+        bounds = renderers[0].bounds;
+        foreach (Renderer renderer in renderers) bounds.Encapsulate(renderer.bounds);
+        visual.transform.position += grip - bounds.center;
     }
 
     private void Update()

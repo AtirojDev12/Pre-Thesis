@@ -92,6 +92,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: a29456f4c64455246b39a300984d276b, type: 3}
       insertIndex: -1
       addedObject: {fileID: 8870262639512824315}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: a29456f4c64455246b39a300984d276b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7816314269030012345}
   m_SourcePrefab: {fileID: 100100000, guid: a29456f4c64455246b39a300984d276b, type: 3}
 --- !u!1 &6280612234171983610 stripped
 GameObject:
@@ -305,6 +308,31 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &7816314269030012345
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6280612234171983610}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5de7f6a91324efb8c02379b246ef342, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::GhostManifestation
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  appearPrefab: {fileID: 6510640375561846930, guid: e5b79aa0c960a2444942496976d31ac4, type: 3}
+  disappearPrefab: {fileID: 1171894177409992752, guid: c26469ac25c7f9d4faab03d838814e67, type: 3}
+  spawnClip: {fileID: 8300000, guid: 240fea22ad840344583a23af91954184, type: 3}
+  walkClips:
+  - {fileID: 8300000, guid: 18a68bdbd3472884380733c16bb81158, type: 3}
+  - {fileID: 8300000, guid: 2da09701db2ee6740891f9860f7b4029, type: 3}
+  - {fileID: 8300000, guid: 1bedcca9a2d300849aa1c6afd6f37a0a, type: 3}
+  - {fileID: 8300000, guid: a07d95c512dfae74fb5e328a4106a63a, type: 3}
+  stepInterval: 0.65
+  volume: 0.8
 --- !u!4 &6657137330802621504 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a29456f4c64455246b39a300984d276b, type: 3}

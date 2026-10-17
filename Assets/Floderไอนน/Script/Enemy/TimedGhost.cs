@@ -45,6 +45,26 @@ public class TimedGhost : Enemy_Abstract_Class
     private Vector3 lastKnownPosition;
     private float searchStartedAt;
     private float searchArrivedAt = -1f;
+    private GhostManifestation manifestation;
+
+    protected override void Awake()
+    {
+        base.Awake();
+        manifestation = GetComponent<GhostManifestation>();
+    }
+
+    private bool ManifestationBlocked => manifestation != null && manifestation.BlocksMovement;
+
+    protected override void Update()
+    {
+        if (ManifestationBlocked)
+        {
+            if (HasAiAuthority && AgentReady) agent.isStopped = true;
+            return;
+        }
+        if (HasAiAuthority && AgentReady && !isJumpscareTriggered && !DevFrozen) agent.isStopped = false;
+        base.Update();
+    }
 
     protected override void Start()
     {
@@ -210,7 +230,7 @@ public class TimedGhost : Enemy_Abstract_Class
 
     public override void HearSound(Vector3 soundPosition, float soundIntensity)
     {
-        if (!HasAiAuthority || isJumpscareTriggered || soundIntensity <= 0f) return;
+        if (!HasAiAuthority || ManifestationBlocked || isJumpscareTriggered || soundIntensity <= 0f) return;
         if (Vector3.Distance(transform.position, soundPosition) > hearingRadius * soundIntensity) return;
         // External noise supplies a fixed location, never a live player target.
         if (currentState == EnemyState.Chase) return;
@@ -228,7 +248,7 @@ public class TimedGhost : Enemy_Abstract_Class
     /// </summary>
     public override void TriggerJumpscare(PlayerHealth victim)
     {
-        if (!HasAiAuthority || isJumpscareTriggered) return;
+        if (!HasAiAuthority || ManifestationBlocked || isJumpscareTriggered) return;
 
         isJumpscareTriggered = true;
         GetComponent<GhostWarningSource>()?.SetWarningActive(false);
@@ -281,7 +301,8 @@ public class TimedGhost : Enemy_Abstract_Class
 
         if (GhostManager.Instance != null) GhostManager.Instance.ResetManagerAfterJumpscare();
 
-        if (NetworkServer.active) NetworkServer.Destroy(gameObject);
+        if (manifestation != null) manifestation.Despawn();
+        else if (NetworkServer.active) NetworkServer.Destroy(gameObject);
         else Destroy(gameObject);
     }
 }

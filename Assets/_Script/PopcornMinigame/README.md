@@ -2,6 +2,21 @@
 
 ## Player loop
 
+Drink visuals use `EmptyCup` before filling and the same `FullCup` for water,
+Pepsi, Fanta and orange juice. Ghost seasoning replaces it with `FullCupGhost`. Cup materials keep
+their authored colors; flavor and ghost seasoning remain separate order data.
+`DrinkCupVisual` measures the cup body separately from the lid/straw, keeping it
+22.4 cm tall in local/remote hands and on machine trays. The dispenser targets
+the measured rim; splashes fit inside its opening and falling droplets stop at
+cup height. Cup profiles store model-local base, rim and body measurements.
+
+Popcorn uses `PopcornBucket_Empty`, then `NotastePopcorn` after scooping, then
+`BBQPopcorn`, `CheesePopcorn` or `PapricaPopcorn` after seasoning. Ghost seasoning
+uses `GhostFaverPopcorn` while preserving the ordered base flavor.
+`PopcornBucketVisual` keeps the bucket body 24 cm tall, excluding the pile above
+the rim. Local and observer visuals share the same prefab selection and sizing;
+Mirror continues to replicate recipe state rather than spawning networked props.
+
 1. Check the **Cashier UI Anchor** display for the customer type and order.
 2. Aim at **BucketSpwan** and press **E** for an empty popcorn bucket, or **PaperBottleSpwan** for an empty cup.
 3. For popcorn, hold **E** at **PopCornTank** for **3 seconds** to receive plain **HeldPopcorn**, then press **E** at **Cheese**, **BBQ**, or **Papica** (Paprika) to add a flavor. An empty bucket cannot be flavored or served. For drinks, hold **E** at the matching dispenser control for **3 seconds**. Releasing E, looking away, opening a menu, walking out of range, or an obstruction cancels preparation and resets progress.
@@ -12,7 +27,7 @@
 
 ## Tank refill
 
-The tank starts with **20 servings**. Each finished scoop consumes one serving. A world-space canvas attached directly to **PopCornTank** shows remaining servings and a supply bar, facing the local camera. Stock is not displayed on the player HUD. With empty hands, hold **E** at the authored **Popcorn_Maker** for **3 seconds** to receive the exact **NewPopcorn** prefab. Carry it to **PopCornTank** and press **E** to add **10 servings**, capped at **20**. Topping up a partly full tank consumes the batch and discards overflow. A full tank rejects refilling and leaves the batch in hand for later. Empty tanks reject scooping; buckets, unflavored popcorn, and refill batches cannot be served. Capacity and servings per batch can be changed on the bootstrap in the Inspector.
+The tank starts with **20 servings**. Each finished scoop consumes one serving. A world-space canvas attached directly to **PopCornTank** shows remaining servings and a supply bar, facing the local camera. Stock is not displayed on the player HUD. With empty hands, hold **E** at the authored **Popcorn_Maker** for **3 seconds** to receive the exact **NotastePopcorn** prefab. Carry it to **PopCornTank** and press **E** to add **10 servings**, capped at **20**. Topping up a partly full tank consumes the batch and discards overflow. A full tank rejects refilling and leaves the batch in hand for later. Empty tanks reject scooping; buckets, unflavored popcorn, and refill batches cannot be served. Capacity and servings per batch can be changed on the bootstrap in the Inspector.
 
 ## Blackout recovery
 

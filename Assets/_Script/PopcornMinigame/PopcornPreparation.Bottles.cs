@@ -8,6 +8,23 @@ public sealed partial class PopcornPreparation
     private readonly Dictionary<int, PopcornFlavor> renderedFlavors = new Dictionary<int, PopcornFlavor>();
     private uint nextOfflineBottle;
 
+    public bool TryGetCupRimAt(Transform anchor, out Vector3 position, out float diameter)
+    {
+        foreach (var station in stations)
+        {
+            if (station.PlacementAnchor != anchor || station.Id != SpotId(station)) continue;
+            var visual = BottleVisualAt(station);
+            var cup = visual != null ? visual.GetComponentInChildren<DrinkCupVisual>() : null;
+            if (cup == null) break;
+            position = cup.RimPosition;
+            diameter = cup.RimDiameter;
+            return true;
+        }
+        position = default;
+        diameter = 0f;
+        return false;
+    }
+
     public bool TryGetDispensingFlavorAt(Transform anchor, out PopcornFlavor flavor)
     {
         flavor = PopcornFlavor.None;
@@ -90,7 +107,7 @@ public sealed partial class PopcornPreparation
                 var prefab = Holder.PrefabFor(new TaskHeldState { hasItem = true, isCup = true, flavor = state.flavor });
                 if (prefab == null) continue;
                 visual = Instantiate(prefab);
-                visual.name = "Placed PapperBottle " + spot;
+                visual.name = "Placed cup " + spot;
                 foreach (var collider in visual.GetComponentsInChildren<Collider>()) collider.enabled = false;
                 foreach (var body in visual.GetComponentsInChildren<Rigidbody>()) { body.isKinematic = true; body.detectCollisions = false; }
                 bottleVisuals[spot] = visual;

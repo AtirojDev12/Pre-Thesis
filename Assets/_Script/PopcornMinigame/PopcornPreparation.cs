@@ -62,6 +62,26 @@ public sealed partial class PopcornPreparation : MonoBehaviour
 
     public PopcornStation StationAt(int id) => id >= 0 && id < stations.Count ? stations[id] : null;
 
+    public bool IsMakingRefillAt(Transform maker)
+    {
+        if (!isActiveAndEnabled || maker == null) return false;
+        if (activeStation != null && activeStation.Kind == PopcornStationKind.Maker &&
+            activeStation.transform == maker && !awaitingStart && !awaitingResult && elapsed < PreparationSeconds)
+            return true;
+        if (NetworkMode.IsOffline || PopcornNetSync.Instance == null) return false;
+        uint localActor = PlayerHealth.LocalInstance != null ? PlayerHealth.LocalInstance.netId : 0;
+        foreach (var pair in PopcornNetSync.Instance.SoundActions)
+        {
+            // Local cancellation takes effect immediately, even before its server update arrives.
+            if (pair.Key == localActor) continue;
+            var station = StationAt(pair.Value.station);
+            if (station != null && station.Kind == PopcornStationKind.Maker && station.transform == maker &&
+                Mirror.NetworkTime.time - pair.Value.started < PreparationSeconds)
+                return true;
+        }
+        return false;
+    }
+
     public void AddStation(Transform target, PopcornStationKind kind, PopcornFlavor flavor = PopcornFlavor.None, Transform placementAnchor = null)
     {
         if (target == null)
@@ -91,10 +111,10 @@ public sealed partial class PopcornPreparation : MonoBehaviour
         if (player == null || player.IsDead || player.IsDowned) return;        if (station.Kind == PopcornStationKind.Water && !Holder.HasItem && TryGetBottle(station, out var readyBottle) && readyBottle.IsReady)        { RequestBottlePickup(station); return; }
         if (station.Kind == PopcornStationKind.Water && Holder.IsInHand && Holder.IsCup && !Holder.IsReady)
         {
-            if (TryGetBottle(station, out _)) { ShowStatus("This dispenser spot already has a PapperBottle"); return; }
-            if (station.PlacementAnchor == null) { ShowStatus("Assign a PapperBottle placement anchor"); return; }
+            if (TryGetBottle(station, out _)) { ShowStatus("This dispenser spot already has a cup"); return; }
+            if (station.PlacementAnchor == null) { ShowStatus("Assign a cup placement anchor"); return; }
             if (NetworkMode.IsOffline)
-                ShowStatus(Holder.Place(station) ? "PapperBottle placed · Hold E to dispense" : "Unable to place PapperBottle");
+                ShowStatus(Holder.Place(station) ? "cup placed · Hold E to dispense" : "Unable to place cup");
             else if (PopcornNetSync.Instance != null && Mirror.NetworkClient.ready)
             {
                 awaitingPlacement = true;
@@ -212,7 +232,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
             PopcornFlavor flavor = activeStation.Flavor == PopcornFlavor.None ? PopcornFlavor.Drink : activeStation.Flavor;
             bool completed = FinishOfflineBottle(activeStation, flavor);
             Cancel(false);
-            ShowStatus(completed ? UiFactory.ItemName(flavor) + " ready · Look at the PapperBottle and press E to pick up" : "Unable to fill · Check held prefab setup");
+            ShowStatus(completed ? UiFactory.ItemName(flavor) + " ready · Look at the cup and press E to pick up" : "Unable to fill · Check held prefab setup");
         }
         else if (NetworkMode.IsOffline)
         {
@@ -240,7 +260,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
             success = activeStation.Kind == PopcornStationKind.Maker ? Holder.HoldRefill() :
                 activeStation.Kind == PopcornStationKind.Water ? true : Holder.Scoop();
             message = success ? (Holder.IsRefill ? "NewPopcorn ready · Press E at PopCornTank to refill" :
-                activeStation.Kind == PopcornStationKind.Water ? UiFactory.ItemName(Holder.HeldFlavor) + " ready · Look at the PapperBottle and press E to pick up" : "Popcorn scooped · Choose a flavor") : "Unable to hold item";
+                activeStation.Kind == PopcornStationKind.Water ? UiFactory.ItemName(Holder.HeldFlavor) + " ready · Look at the cup and press E to pick up" : "Popcorn scooped · Choose a flavor") : "Unable to hold item";
         }
         else if (success && activeStation.Kind == PopcornStationKind.Maker) DiscardRefill();
         Cancel(false, false);
@@ -254,7 +274,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
         if (revision != placementRevision || Holder == null || Holder.StateRevision != revision) return;
         if (success) Holder.Consume();
         ShowStatus(success ?
-            "PapperBottle placed · Hold E to dispense" : "Cannot place PapperBottle · Machine occupied or out of reach");
+            "cup placed · Hold E to dispense" : "Cannot place cup · Machine occupied or out of reach");
     }
 
     public void RejectSupplyBegin(int id, string message)
@@ -289,7 +309,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
         if (!awaitingPickup || id != pickupRequest) return;
         awaitingPickup = false;
         if (revision != pickupRevision || Holder == null || Holder.StateRevision != revision) return;
-        ShowStatus(success && Holder.ReceiveMachineBottle(flavor) ? "PapperBottle picked up" : "Cannot pick up PapperBottle · Hands must be empty and machine idle");
+        ShowStatus(success && Holder.ReceiveMachineBottle(flavor) ? "cup picked up" : "Cannot pick up cup · Hands must be empty and machine idle");
     }
 
     public void AcceptSupplyBegin(int id)

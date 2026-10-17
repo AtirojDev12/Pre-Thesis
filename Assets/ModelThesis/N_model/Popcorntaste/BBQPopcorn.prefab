@@ -8,11 +8,12 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 7811057264391100202}
   - component: {fileID: 2281560477985314762}
   - component: {fileID: 2884098988488628335}
   - component: {fileID: 1144644338995522725}
   m_Layer: 0
-  m_Name: CaramelPopcorn
+  m_Name: BBQPopcorn
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -90,3 +91,17 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &7811057264391100202
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1504883448854269296}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8597ecb962ae46c19ad59aab8c3cb8c0, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PopcornBucketVisual
+  referenceBodyHeight: 0.0049563
+  baseCenter: {x: 0, y: 0, z: 0}

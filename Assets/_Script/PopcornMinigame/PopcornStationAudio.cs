@@ -52,7 +52,7 @@ public sealed class PopcornStationAudio : MonoBehaviour
                 elapsed = System.Math.Max(0, elapsed - clickLength);
             }
         }
-        voice.source.loop = station.Kind != PopcornStationKind.Maker;
+        voice.source.loop = true;
         if (voice.source.loop && voice.source.clip.length > 0)
             voice.source.time = (float)(elapsed % voice.source.clip.length);
         else if (elapsed >= voice.source.clip.length) return;

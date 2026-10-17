@@ -50,7 +50,7 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [Tooltip("Optional GhostFavor relocation anchors. Empty uses the ticket booth; add anchors here for future random locations.")]
     [SerializeField] private Transform[] ghostFavorRelocationPoints = new Transform[0];
     [SerializeField] private Transform[] waterDispensers = new Transform[0];
-    [Tooltip("One PapperBottle base anchor per machine, matching the order of waterDispensers. Shared by the corresponding water/Fanta/juice/Pepsi stations. Move and rotate these in Scene view.")]
+    [Tooltip("One cup base anchor per machine, matching the order of waterDispensers. Shared by the corresponding water/Fanta/juice/Pepsi stations. Move and rotate these in Scene view.")]
     [SerializeField] private Transform[] bottlePlacementAnchors = new Transform[0];
     [SerializeField] private GameObject emptyBucketPrefab;
     [SerializeField] private GameObject emptyCupPrefab;
@@ -72,6 +72,10 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
 
     [Header("Held popcorn")]
     [SerializeField] private GameObject heldPopcornPrefab;
+    [SerializeField] private GameObject bbqPopcornPrefab;
+    [SerializeField] private GameObject cheesePopcornPrefab;
+    [SerializeField] private GameObject paprikaPopcornPrefab;
+    [SerializeField] private GameObject ghostPopcornPrefab;
     [SerializeField] private Vector3 heldPopcornPosition = new Vector3(-0.3f, -0.24f, 0.65f);
     [SerializeField] private Vector3 heldPopcornRotation = new Vector3(-10f, 0f, -8f);
 
@@ -114,6 +118,7 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         counterSlot.Configure(customerSpawnPoint.position, customerWaitPoint.position, customerExitPoint.position);
         counterSlot.ConfigureRoute(customerApproachPath, customerDeparturePath, customerWaitPoint.rotation);
         holder.Configure(heldPopcornPrefab, heldPopcornPosition, heldPopcornRotation);
+        holder.ConfigurePopcornFlavors(bbqPopcornPrefab, cheesePopcornPrefab, paprikaPopcornPrefab, ghostPopcornPrefab);
         holder.ConfigureContainers(emptyBucketPrefab, emptyCupPrefab, filledCupPrefab, ghostCupPrefab);
         holder.ConfigureSupply(newPopcornPrefab, fantaCupPrefab, orangeJuiceCupPrefab, pepsiCupPrefab);
         holder.BuildUi();
@@ -506,7 +511,7 @@ public sealed class PopcornGameManager : MonoBehaviour
         UiFactory.Stretch(panel.GetComponent<RectTransform>());
 
         TMP_Text instructions = UiFactory.CreateText("Preparation Steps", panel.transform,
-            "PREPARE AN ORDER\n\n1  Pick up a bucket or PapperBottle\n\n2  Bucket: Hold E at PopCornTank\nthen press E to choose a flavor\nPapperBottle: Press E to place on a dispenser\nthen hold E on the ordered drink\nPress E on the finished bottle to retrieve it\n\n3  Ghost? Add Ghost Flavor\nthen serve the waiting customer\n\nREFILL: Hold E at Popcorn Maker\nCarry NewPopcorn to the tank\nand press E to top up\n\nCheck the cashier for order details",
+            "PREPARE AN ORDER\n\n1  Pick up a bucket or cup\n\n2  Bucket: Hold E at PopCornTank\nthen press E to choose a flavor\ncup: Press E to place on a dispenser\nthen hold E on the ordered drink\nPress E on the finished cup to retrieve it\n\n3  Ghost? Add Ghost Flavor\nthen serve the waiting customer\n\nREFILL: Hold E at Popcorn Maker\nCarry NewPopcorn to the tank\nand press E to top up\n\nCheck the cashier for order details",
             38f, Color.white);
         instructions.alignment = TextAlignmentOptions.Center;
         UiFactory.SetRect(instructions.rectTransform, new Vector2(0.06f, 0.05f), new Vector2(0.94f, 0.95f));
