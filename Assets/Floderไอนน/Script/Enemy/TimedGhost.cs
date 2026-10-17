@@ -35,6 +35,12 @@ public class TimedGhost : Enemy_Abstract_Class
     [Header("Search after losing a player")]
     [SerializeField, Min(0f)] private float searchWaitSeconds = 3f;
     [SerializeField, Min(1f)] private float searchTravelTimeout = 15f;
+    [Header("Appear (17 Oct, Mr.k)")]
+    [Tooltip("Seconds the ghost stands still after it spawns, so the appear animation baked into the model (Animator state \"Entry\") can finish before it moves or hunts.")]
+    [SerializeField, Min(0f)] private float appearSeconds = 3f;
+    private float appearUntil;
+    private bool heldForAppear;
+
     private bool isJumpscareTriggered;
     private Vector3 lastKnownPosition;
     private float searchStartedAt;
@@ -43,6 +49,7 @@ public class TimedGhost : Enemy_Abstract_Class
     protected override void Start()
     {
         base.Start();
+        appearUntil = Time.time + appearSeconds;
 
         if (agent == null) agent = GetComponent<NavMeshAgent>();
 
@@ -70,6 +77,30 @@ public class TimedGhost : Enemy_Abstract_Class
         }
 
         if (jumpscareUI != null) jumpscareUI.SetActive(false);
+    }
+
+    /// <summary>
+    /// 17 Oct: while the appear animation plays, the AI does nothing (no moving, no
+    /// seeing, no hearing). Server only; clients see the result through the network.
+    /// </summary>
+    protected override void Update()
+    {
+        if (HasAiAuthority && Time.time < appearUntil)
+        {
+            if (AgentReady && !agent.isStopped)
+            {
+                agent.isStopped = true;
+                agent.velocity = Vector3.zero;
+                heldForAppear = true;
+            }
+            return;
+        }
+        if (heldForAppear)
+        {
+            heldForAppear = false;
+            if (AgentReady) agent.isStopped = false;
+        }
+        base.Update();
     }
 
     protected override void CheckForPlayer()

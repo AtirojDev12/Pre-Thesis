@@ -8,7 +8,8 @@ using UnityEngine.SceneManagement;
 /// lamps. The rest of the scene lighting stayed, so the room went grey but you
 /// could still see everything, far away included.
 ///
-/// Now, while BuildingLightManager says the lights are off, on THIS machine only
+/// Now, while the light where you stand is off (17 Oct: building power OR your
+/// zone's switch, see IsDarkWhereIAm), on THIS machine only
 /// (every machine does the same, from the same synced light state):
 ///   1. Ambient light and reflections drop to almost nothing.
 ///   2. Black fog swallows anything far away.
@@ -139,13 +140,46 @@ public sealed class DarknessController : MonoBehaviour
 
     private void Update()
     {
-        bool wantDark = previewDark || (BuildingLightManager.Instance != null && !BuildingLightManager.LightsOn);
+        bool wantDark = previewDark || IsDarkWhereIAm();
         float seconds = wantDark ? secondsToDark : secondsToLight;
         float step = seconds <= 0f ? 1f : Time.unscaledDeltaTime / seconds;
         darkness = Mathf.MoveTowards(darkness, wantDark ? 1f : 0f, step);
 
         if (darkness <= 0f) { Restore(); return; }
         Apply(darkness);
+    }
+
+    /// <summary>
+    /// 17 Oct: lights now work per ZONE (BuildingLightManager zones + wall switches).
+    /// Before, darkness only came when the WHOLE building was off, so a zone switched
+    /// off stayed grey and visible. Now: dark when the light at MY position is off
+    /// (building power off, or my zone's switch off). Checked a few times a second.
+    /// </summary>
+    private bool IsDarkWhereIAm()
+    {
+        BuildingLightManager power = BuildingLightManager.Instance;
+        if (power == null) return false;
+        if (!BuildingLightManager.LightsOn) return true;
+        if (Time.unscaledTime >= nextZoneCheck)
+        {
+            nextZoneCheck = Time.unscaledTime + 0.2f;
+            Vector3? at = ViewPosition();
+            zoneDark = at.HasValue && !power.LightsOnAt(at.Value);
+        }
+        return zoneDark;
+    }
+
+    private float nextZoneCheck;
+    private bool zoneDark;
+
+    /// <summary>My body (feet) if I have one, else the camera I look through (spectator).</summary>
+    private Vector3? ViewPosition()
+    {
+        PlayerHealth me = PlayerHealth.LocalInstance;
+        if (me != null) return me.transform.position;
+        if (eyeCamera != null) return eyeCamera.transform.position;
+        Camera cam = FindViewCamera();
+        return cam != null ? cam.transform.position : (Vector3?)null;
     }
 
     private void Apply(float t)

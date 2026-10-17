@@ -192,13 +192,14 @@ MonoBehaviour:
   jumpscareDuration: 3
   jumpscareDamage: 25
   killsOutright: 0
-  movementThreshold: 0.02
-  closeRange: 3
-  micVolumeThreshold: 0.3
+  micVolumeThreshold: 1
   hearMicInLight: 0
   randomPatrolRadius: 15
   jumpscareRange: 1.5
-  isSceneLightOn: 1
+  sightHeight: 1.2
+  searchWaitSeconds: 3
+  searchTravelTimeout: 15
+  appearSeconds: 4
 --- !u!114 &7669439710327320222
 MonoBehaviour:
   m_ObjectHideFlags: 0
