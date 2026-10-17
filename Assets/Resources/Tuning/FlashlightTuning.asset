@@ -17,9 +17,9 @@ MonoBehaviour:
     description: Free. Weak beam, short battery. Mash SPACE to charge it. Lost if
       you die (claim a new one).
     price: 0
-    range: 9
-    brightness: 3
-    coneAngle: 40
+    range: 15
+    brightness: 5
+    coneAngle: 50
     batterySeconds: 45
     secondsPerSpacePress: 1.5
     usesBatteries: 0
@@ -28,9 +28,9 @@ MonoBehaviour:
     description: 'Bright, long beam, big battery. Cannot be charged by hand: press
       R to put in a new Battery. Lost if you die.'
     price: 150
-    range: 20
-    brightness: 8
-    coneAngle: 50
+    range: 30
+    brightness: 10
+    coneAngle: 60
     batterySeconds: 240
     secondsPerSpacePress: 0
     usesBatteries: 1
