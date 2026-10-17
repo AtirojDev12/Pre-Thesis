@@ -10,7 +10,7 @@ namespace PreThesis.Vfx
         public ParticleSystem rimSplashes;
         public Vector3 nozzle = new Vector3(0, 1.7f, 0);
         public Vector3 cupRim = new Vector3(0, .78f, 0);
-        [Tooltip("Optional cinema bottle anchor. When assigned, follows the flavor filling at this machine.")]
+        [Tooltip("Optional cinema cup anchor. Follows the filling flavor and the actual cup rim at this machine.")]
         public Transform placementAnchor;
         public Material fantaMaterial;
         public Material pepsiMaterial;
@@ -95,6 +95,9 @@ namespace PreThesis.Vfx
         }
         private void UpdateStream()
         {
+            if (placementAnchor != null && PopcornPreparation.Instance != null &&
+                PopcornPreparation.Instance.TryGetCupRimAt(placementAnchor, out Vector3 rim, out float diameter))
+                SetCupTarget(rim, diameter);
             if (fallingDroplets != null) fallingDroplets.transform.localPosition = nozzle;
             if (rimSplashes != null) rimSplashes.transform.localPosition = cupRim;
             const int count = 12;
@@ -108,6 +111,35 @@ namespace PreThesis.Vfx
                 point.x += Mathf.Sin(t * 18f - Time.time * 16f) * .006f * thickness * Mathf.Sin(t * Mathf.PI);
                 if (stream != null) stream.SetPosition(i, point);
                 if (highlight != null) highlight.SetPosition(i, point + Vector3.back * (.012f * thickness));
+            }
+        }
+
+        public void SetCupTarget(Vector3 worldRim, float openingDiameter)
+        {
+            cupRim = transform.InverseTransformPoint(worldRim);
+            if (rimSplashes != null)
+            {
+                var shape = rimSplashes.shape;
+                Vector3 scale = rimSplashes.transform.lossyScale;
+                // Keep the splash footprint inside the opening, including scaled machines.
+                float width = openingDiameter * .5f;
+                shape.scale = new Vector3(width / Mathf.Max(.001f, Mathf.Abs(scale.x)),
+                    .002f / Mathf.Max(.001f, Mathf.Abs(scale.y)), width / Mathf.Max(.001f, Mathf.Abs(scale.z)));
+            }
+            if (fallingDroplets != null)
+            {
+                var velocity = fallingDroplets.velocityOverLifetime;
+                Vector3 speed = new Vector3(velocity.x.constant, velocity.y.constant, velocity.z.constant);
+                if (velocity.space == ParticleSystemSimulationSpace.Local)
+                    speed = fallingDroplets.transform.TransformDirection(speed);
+                float fallingSpeed = Mathf.Abs(speed.y);
+                if (velocity.enabled && fallingSpeed > .01f)
+                {
+                    var main = fallingDroplets.main;
+                    float gap = Vector3.Distance(transform.TransformPoint(nozzle), worldRim);
+                    // End falling particles at the cup instead of continuing below the tray.
+                    main.startLifetime = Mathf.Max(.005f, gap / fallingSpeed);
+                }
             }
         }
     }

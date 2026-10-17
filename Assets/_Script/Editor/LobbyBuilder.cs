@@ -35,16 +35,16 @@ public static class LobbyBuilder
     private const string MaterialFolder = "Assets/Materials/Lobby";
 
     // Popcorn container / held prefabs used by Cinema_GamePlay (by GUID, so moves/renames do not matter).
-    private const string EmptyBucketGuid = "76940601842c7b44a8e0ea1b509c1a51";
-    private const string EmptyCupGuid = "822cb28a5fda7ac42b5a7065f7e9b96d";
-    private const string FilledCupGuid = "31145c7e4b207f34f95cc5b3cea8b10c";
-    private const string GhostCupGuid = "c4940806debdabc44b707b50041597f6";
-    private const string HeldPopcornGuid = "66596ff46762db5498bc9d4d61a7ddf6";
+    private const string EmptyBucketGuid = "ddc672da3300c47408a563e2d0981a6e";
+    private const string EmptyCupGuid = "4d9138d7e28902d4fb9809045275611b";
+    private const string FilledCupGuid = "847a73f46501b534892780705a07bdfa";
+    private const string GhostCupGuid = "c899917b5b5ab7f4989607ea453c59fd";
+    private const string HeldPopcornGuid = "2808817f264e2ec4197b53493795ce2f";
     // New popcorn loop (2 Oct update): refill batch, 3 more drinks, the real popcorn machine model.
     private const string NewPopcornGuid = "d4b433559df88234aaf69a3160c6aa95";
-    private const string FantaCupGuid = "1ef909a72955f4148a3ee4b8a508b51c";
-    private const string OrangeJuiceCupGuid = "1b297f1e67ad1cb448cc2b9869bda4dd";
-    private const string PepsiCupGuid = "989a0cee5a3f7234fbd7e8c6a50d0ebd";
+    private const string FantaCupGuid = "847a73f46501b534892780705a07bdfa";
+    private const string OrangeJuiceCupGuid = "847a73f46501b534892780705a07bdfa";
+    private const string PepsiCupGuid = "847a73f46501b534892780705a07bdfa";
     private const string PopcornMakerModelGuid = "ef9d96125919a104996c7c7b76dab322"; // Prefab/PrefabModel/Popcorn_Maker
     private const string PlayerPrefabGuid = "1dd82c6745240c446a2b82004c20a793";
 
@@ -282,6 +282,10 @@ public static class LobbyBuilder
         SetObject(so, "filledCupPrefab", LoadByGuid<GameObject>(FilledCupGuid));
         SetObject(so, "ghostCupPrefab", LoadByGuid<GameObject>(GhostCupGuid));
         SetObject(so, "heldPopcornPrefab", LoadByGuid<GameObject>(HeldPopcornGuid));
+        SetObject(so, "bbqPopcornPrefab", LoadByGuid<GameObject>("a9d4aabeaa1ac7e4b9a0dc48ba275052"));
+        SetObject(so, "cheesePopcornPrefab", LoadByGuid<GameObject>("89b5102e90e982647b9d6e6f213d6dab"));
+        SetObject(so, "paprikaPopcornPrefab", LoadByGuid<GameObject>("4f55ac923f7d3f145964d279875e38a5"));
+        SetObject(so, "ghostPopcornPrefab", LoadByGuid<GameObject>("1aab50f68e8092e4b80e510b17266974"));
         SetObject(so, "cashierUiAnchor", cashierUi);
         SetObject(so, "popcornMakerUiAnchor", makerUi);
         SetObject(so, "customerSpawnPoint", spawn);

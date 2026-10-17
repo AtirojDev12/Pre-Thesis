@@ -75,5 +75,28 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 05abcf58aedf04b4eb4cc951ae99d7c0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7811057264391100101}
   m_SourcePrefab: {fileID: 100100000, guid: 05abcf58aedf04b4eb4cc951ae99d7c0, type: 3}
+--- !u!1 &5537131986944116759 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 05abcf58aedf04b4eb4cc951ae99d7c0, type: 3}
+  m_PrefabInstance: {fileID: 4618074066636305734}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &7811057264391100101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5537131986944116759}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6aeb50d91f3b4eab85ca7916bca37f04, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::DrinkCupVisual
+  referenceBodyHeight: 0.005245
+  baseCenter: {x: 0, y: -0.003671, z: 0}
+  rimCenter: {x: 0, y: 0.001574, z: 0}

@@ -48,13 +48,13 @@ public sealed class PopcornStation : MonoBehaviour, IInteractable
         {
             if (preparation.TryGetBottle(this, out var bottle))
                 return bottle.fillingActor != 0 ? "Dispensing · Please wait" : bottle.IsReady ?
-                    "[E] Pick up PapperBottle" : holder.HasItem ? "Spot occupied · Empty hands to dispense or pick up bottle" :
+                    "[E] Pick up cup" : holder.HasItem ? "Spot occupied · Empty hands to dispense or pick up bottle" :
                     "Hold [E] Fill " + UiFactory.FlavorName(Flavor) + " · Look at bottle and press E to pick up";
-            return holder.IsCup && !holder.IsReady ? "[E] Place PapperBottle" : "Pick up a PapperBottle first";
+            return holder.IsCup && !holder.IsReady ? "[E] Place cup" : "Pick up a cup first";
         }
         if (Kind == PopcornStationKind.Bucket || Kind == PopcornStationKind.Cup)
             return holder.HasItem ? "Hands full · R to discard" :
-                Kind == PopcornStationKind.Cup ? "[E] Pick up PapperBottle" : "[E] Pick up empty bucket";
+                Kind == PopcornStationKind.Cup ? "[E] Pick up cup" : "[E] Pick up empty bucket";
         if (Kind == PopcornStationKind.Maker)
             return holder.HasItem ? "Hands must be empty · R to discard" : "Hold [E] Make NewPopcorn · 3 seconds";
         if (Kind == PopcornStationKind.Tank)

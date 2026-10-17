@@ -5,6 +5,7 @@ using UnityEngine.Video;
 [RequireComponent(typeof(AudioSource), typeof(VideoPlayer), typeof(NetworkIdentity))]
 public class WarningTV : InteractableBase
 {
+    [SerializeField] private AudioClip toggleClickClip;
     private AudioSource audioSource;
     private VideoPlayer videoPlayer;
     [SyncVar] private double startedAt;
@@ -61,6 +62,7 @@ public class WarningTV : InteractableBase
 
     protected override void OnInteracted(GameObject interactor)
     {
+        bool wasPlaying = playing;
         if (playing) playing = false;
         else if (audioSource.clip != null)
         {
@@ -69,6 +71,21 @@ public class WarningTV : InteractableBase
         }
         // Also handles offline play and a dedicated server (which has no client hook).
         ApplyPlayback();
+        if (playing != wasPlaying)
+        {
+            if (NetworkServer.active) RpcPlayToggleClick();
+            else PlayToggleClick();
+        }
+    }
+
+    [ClientRpc]
+    private void RpcPlayToggleClick() => PlayToggleClick();
+
+    private void PlayToggleClick()
+    {
+        // Use a separate pooled voice so stopping narration cannot cut off the click.
+        AudioManager.Instance?.PlayClip(toggleClickClip, SoundCategory.Sfx, .8f,
+            transform.position, true, 1f, 10f, gameObject.scene);
     }
 
     private void Update()

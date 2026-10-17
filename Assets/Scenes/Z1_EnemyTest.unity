@@ -24362,7 +24362,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PopcornMinigameBootstrap
   cashierObjectName: Cashier (1)
   popcornMakerObjectName: Popcorn Maker (1)
-  heldPopcornPrefab: {fileID: 1461734664132814685, guid: 66596ff46762db5498bc9d4d61a7ddf6, type: 3}
+  heldPopcornPrefab: {fileID: 5392433897955252827, guid: 2808817f264e2ec4197b53493795ce2f, type: 3}
+  bbqPopcornPrefab: {fileID: 1504883448854269296, guid: a9d4aabeaa1ac7e4b9a0dc48ba275052, type: 3}
+  cheesePopcornPrefab: {fileID: 7310335945683771467, guid: 89b5102e90e982647b9d6e6f213d6dab, type: 3}
+  paprikaPopcornPrefab: {fileID: 947975978490656288, guid: 4f55ac923f7d3f145964d279875e38a5, type: 3}
+  ghostPopcornPrefab: {fileID: 5392433897955252827, guid: 1aab50f68e8092e4b80e510b17266974, type: 3}
   heldPopcornPosition: {x: -0.3, y: -0.24, z: 0.65}
   heldPopcornRotation: {x: -10, y: 0, z: -8}
   cashierUiAnchor: {fileID: 930000000000004}

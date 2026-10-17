@@ -127,7 +127,9 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
 
         if (currentGhostInstance != null)
         {
-            if (NetworkServer.active) NetworkServer.Destroy(currentGhostInstance);
+            GhostManifestation manifestation = currentGhostInstance.GetComponent<GhostManifestation>();
+            if (manifestation != null) manifestation.Despawn();
+            else if (NetworkServer.active) NetworkServer.Destroy(currentGhostInstance);
             else Destroy(currentGhostInstance);
         }
 

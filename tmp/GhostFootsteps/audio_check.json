@@ -1,0 +1,30 @@
+[
+  {
+    "file": "Ghost_Carpet_01_HeavyPlant.wav",
+    "duration_seconds": 1.03,
+    "peak_dbfs": -5.04,
+    "rms_dbfs": -22.5,
+    "finite": true
+  },
+  {
+    "file": "Ghost_Carpet_02_HeelRoll.wav",
+    "duration_seconds": 1.1,
+    "peak_dbfs": -4.74,
+    "rms_dbfs": -21.06,
+    "finite": true
+  },
+  {
+    "file": "Ghost_Carpet_03_DragPlant.wav",
+    "duration_seconds": 1.18,
+    "peak_dbfs": -4.5,
+    "rms_dbfs": -21.89,
+    "finite": true
+  },
+  {
+    "file": "Ghost_Carpet_04_DeepStamp.wav",
+    "duration_seconds": 1.14,
+    "peak_dbfs": -1.51,
+    "rms_dbfs": -20.23,
+    "finite": true
+  }
+]

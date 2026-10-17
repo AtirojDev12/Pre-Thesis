@@ -1,5 +1,12 @@
 # Popcorn orders and held items
 
+`FoodVisualChecks.cs` covers the authored empty/plain/seasoned/ghost popcorn
+models, normal/ghost drink models, equal container-body sizes, material
+preservation, ongoing Mirror state deltas, and initial snapshots for joining
+observers. Copy it to `Assets/Editor` in an isolated project and run Unity with
+`-batchmode -nographics -executeMethod FoodVisualChecks.Run` (without `-quit`).
+It writes `food-visual-results.txt` to that project's root and exits.
+
 Run `Run-PopcornChecks.ps1 -UnityPath <Unity.exe>` in PowerShell. It opens an isolated project under `.utmp/popcorn-regression`, using the authored scene and prefabs. Results and UI captures are written there; the user's scene is not edited.
 
 Orders retain the seven products, flavor tasks and Ghost Flavor requirements. Each customer independently has a 70% chance of one product and a 30% chance of two. Any pair is allowed. Duplicate products display ×2 and quantity progress. Correct deliveries earn existing task and score credit per item and update the same NPC. A wrong prepared delivery consumes the item and ends the order; existing ghost punishment and earlier earned credit remain.

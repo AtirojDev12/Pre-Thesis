@@ -117,11 +117,11 @@ public sealed class PlayerHeldItems : NetworkBehaviour
                 Clear(ref taskVisual);
                 taskVisual = CreateVisual(prefab, "Remote task item", taskItem.isRefill ? .3f : taskItem.isCup ? .18f : .24f);
                 renderedPrefab = prefab;
-                PopcornItemHoldingSystem.TintVisual(taskVisual, taskItem.flavor, taskItem.ghostMixed);
+                if (!taskItem.isCup) PopcornItemHoldingSystem.TintVisual(taskVisual, taskItem.flavor, taskItem.ghostMixed);
             }
             if (!renderedState.Equals(taskItem))
             {
-                PopcornItemHoldingSystem.TintVisual(taskVisual, taskItem.flavor, taskItem.ghostMixed);
+                if (!taskItem.isCup) PopcornItemHoldingSystem.TintVisual(taskVisual, taskItem.flavor, taskItem.ghostMixed);
                 renderedState = taskItem;
             }
             var placed = holder != null && taskItem.placementStation > 0 ? PopcornPreparation.Instance.StationAt(taskItem.placementStation - 1) : null;
@@ -179,6 +179,8 @@ public sealed class PlayerHeldItems : NetworkBehaviour
         foreach (Transform child in model.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = 2;
         foreach (Collider collider in model.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
         foreach (Rigidbody body in model.GetComponentsInChildren<Rigidbody>(true)) { body.isKinematic = true; body.detectCollisions = false; }
+        if (DrinkCupVisual.FitInHand(model, anchor.transform.position)) return anchor;
+        if (PopcornBucketVisual.FitInHand(model, anchor.transform.position)) return anchor;
         Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
         if (renderers.Length > 0)
         {
