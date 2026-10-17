@@ -35,6 +35,11 @@ public class TimedGhost : Enemy_Abstract_Class
     [Header("Search after losing a player")]
     [SerializeField, Min(0f)] private float searchWaitSeconds = 3f;
     [SerializeField, Min(1f)] private float searchTravelTimeout = 15f;
+    [Header("Appear (17 Oct, Mr.k)")]
+    [Tooltip("FALLBACK ONLY: used when this ghost has no GhostManifestation (Atiroj's), which already waits for the real end of the \"Entry\" animation. Seconds the ghost stands still after it spawns.")]
+    [SerializeField, Min(0f)] private float appearSeconds = 3f;
+    private float appearUntil;
+
     private bool isJumpscareTriggered;
     private Vector3 lastKnownPosition;
     private float searchStartedAt;
@@ -49,11 +54,26 @@ public class TimedGhost : Enemy_Abstract_Class
 
     private bool ManifestationBlocked => manifestation != null && manifestation.BlocksMovement;
 
+    /// <summary>
+    /// One Update for both appear systems (17 Oct merge, Mr.k + Atiroj):
+    /// 1. Atiroj's GhostManifestation: wait until the "Entry" animation really ends.
+    /// 2. Mr.k's timer: only a fallback for a ghost prefab WITHOUT GhostManifestation
+    ///    (wait appearSeconds). While waiting, the AI does nothing.
+    /// </summary>
     protected override void Update()
     {
         if (ManifestationBlocked)
         {
             if (HasAiAuthority && AgentReady) agent.isStopped = true;
+            return;
+        }
+        if (manifestation == null && HasAiAuthority && Time.time < appearUntil)
+        {
+            if (AgentReady)
+            {
+                agent.isStopped = true;
+                agent.velocity = Vector3.zero;
+            }
             return;
         }
         if (HasAiAuthority && AgentReady && !isJumpscareTriggered && !DevFrozen) agent.isStopped = false;
@@ -63,6 +83,7 @@ public class TimedGhost : Enemy_Abstract_Class
     protected override void Start()
     {
         base.Start();
+        appearUntil = Time.time + appearSeconds;
 
         if (agent == null) agent = GetComponent<NavMeshAgent>();
 

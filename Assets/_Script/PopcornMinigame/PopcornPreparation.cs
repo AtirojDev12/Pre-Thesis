@@ -62,6 +62,26 @@ public sealed partial class PopcornPreparation : MonoBehaviour
 
     public PopcornStation StationAt(int id) => id >= 0 && id < stations.Count ? stations[id] : null;
 
+    public bool IsMakingRefillAt(Transform maker)
+    {
+        if (!isActiveAndEnabled || maker == null) return false;
+        if (activeStation != null && activeStation.Kind == PopcornStationKind.Maker &&
+            activeStation.transform == maker && !awaitingStart && !awaitingResult && elapsed < PreparationSeconds)
+            return true;
+        if (NetworkMode.IsOffline || PopcornNetSync.Instance == null) return false;
+        uint localActor = PlayerHealth.LocalInstance != null ? PlayerHealth.LocalInstance.netId : 0;
+        foreach (var pair in PopcornNetSync.Instance.SoundActions)
+        {
+            // Local cancellation takes effect immediately, even before its server update arrives.
+            if (pair.Key == localActor) continue;
+            var station = StationAt(pair.Value.station);
+            if (station != null && station.Kind == PopcornStationKind.Maker && station.transform == maker &&
+                Mirror.NetworkTime.time - pair.Value.started < PreparationSeconds)
+                return true;
+        }
+        return false;
+    }
+
     public void AddStation(Transform target, PopcornStationKind kind, PopcornFlavor flavor = PopcornFlavor.None, Transform placementAnchor = null)
     {
         if (target == null)
