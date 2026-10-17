@@ -41,7 +41,7 @@ public static class LobbyBuilder
     private const string GhostCupGuid = "c899917b5b5ab7f4989607ea453c59fd";
     private const string HeldPopcornGuid = "2808817f264e2ec4197b53493795ce2f";
     // New popcorn loop (2 Oct update): refill batch, 3 more drinks, the real popcorn machine model.
-    private const string NewPopcornGuid = "d4b433559df88234aaf69a3160c6aa95";
+    private const string NewPopcornGuid = "2808817f264e2ec4197b53493795ce2f"; // NotastePopcorn refill batch
     private const string FantaCupGuid = "847a73f46501b534892780705a07bdfa";
     private const string OrangeJuiceCupGuid = "847a73f46501b534892780705a07bdfa";
     private const string PepsiCupGuid = "847a73f46501b534892780705a07bdfa";

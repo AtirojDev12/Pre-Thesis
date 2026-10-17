@@ -54,6 +54,7 @@ public static class PopcornRegressionRunner
     {
         if (!Application.isBatchMode) throw new InvalidOperationException("Use an isolated batch project.");
         HeldItemsSetup.Install();
+        SmokeSortingChecks.Run();
         EditorSceneManager.OpenScene("Assets/Scenes/Map/Cinema_GamePlay.unity");
         var sceneBootstrap = Object.FindAnyObjectByType<PopcornMinigameBootstrap>();
         var sceneMaker = (Transform)Get(sceneBootstrap, "refillMaker");
@@ -463,7 +464,8 @@ public static class PopcornRegressionRunner
         while (filling.MoveNext()) yield return null;
         Check(holder.HasPopcorn && !holder.IsReady && holder.HeldFlavor == PopcornFlavor.None && preparation.TankRemaining == configuredCapacity - 1,
             "Tank gives unflavored HeldPopcorn and consumes exactly one serving");
-        Check(((GameObject)Get(holder, "heldVisual")).name.Contains("HeldPopcorn"), "Scoop uses authored HeldPopcorn prefab");
+        Check(holder.Holding.CurrentPrefab == (GameObject)Get(bootstrapSetup, "heldPopcornPrefab"),
+            "Scoop uses the scene's configured unflavored popcorn prefab");
         Press(cheese);
         Check(holder.HeldFlavor == PopcornFlavor.Cheese && !holder.GhostMixed, "Scoop preserves selected base flavor");
         Press(Station(PopcornStationKind.Ghost));
@@ -543,6 +545,34 @@ public static class PopcornRegressionRunner
         Check(holder.IsCup && !holder.IsReady && !holder.MixGhost(), "Cup starts empty and rejects early ghost mix");
         Check(!holder.Hold(PopcornFlavor.Paprika), "Cup rejects popcorn");
         var maker = Station(PopcornStationKind.Maker);
+        var makerFx = maker.GetComponentInChildren<PreThesis.Vfx.PopcornMachineVfx>();
+        Check(makerFx != null && makerFx.makerStation == maker.transform && makerFx.kernels == null && makerFx.seasoning == null &&
+            makerFx.GetComponentsInChildren<ParticleSystem>().Length == 1, "Refill maker contains only the preview steam effect");
+        holder.Consume();
+        Aim(maker);
+        var steamMain = makerFx.steam.main;
+        steamMain.loop = false;
+        Input(true);
+        preparation.Interact(maker);
+        Call(makerFx, "Update");
+        makerFx.steam.Simulate(.3f, false, false, true);
+        Check(preparation.IsMakingRefillAt(maker.transform) && makerFx.steam.main.loop && makerFx.steam.particleCount > 0,
+            "Making a refill starts looping smoke even if the emitter was configured as one-shot");
+        Input(false);
+        Call(preparation, "Update");
+        Call(makerFx, "Update");
+        Check(!makerFx.steam.isPlaying && makerFx.steam.particleCount == 0 && !holder.HasItem,
+            "Releasing E clears maker smoke without creating a refill");
+        var makingRefill = Fill(maker);
+        while (makingRefill.MoveNext()) yield return null;
+        Call(makerFx, "Update");
+        Check(holder.IsRefill && ((GameObject)Get(holder, "heldVisual")).name.Contains("NotastePopcorn") &&
+            !makerFx.steam.isPlaying && makerFx.steam.particleCount == 0,
+            "Completed maker action stops smoke and gives NotastePopcorn as a refill batch");
+        int beforeRefill = preparation.TankRemaining;
+        Press(tank);
+        Check(!holder.HasItem && preparation.TankRemaining == Mathf.Min(configuredCapacity, beforeRefill + preparation.RefillServings),
+            "NotastePopcorn batch is consumed when topping up the tank");
         var water = Station(PopcornStationKind.Water, PopcornFlavor.Drink);
         var bottles = CheckMachineBottles(false, water);
         while (bottles.MoveNext()) yield return bottles.Current;
@@ -850,11 +880,38 @@ public static class PopcornRegressionRunner
         Set(preparation, "requestId", 905);
         Set(preparation, "awaitingResult", true);
         supply.RequestSupply(maker.Id, 905, PopcornSupplyAction.Begin);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(supply.SoundActions.TryGetValue(player.netId, out var makerSound) && makerSound.station == maker.Id && makerSound.request == 905,
+            "Mirror maker begin publishes the shared action driving looping sound and smoke");
+        var makerWriter = new NetworkWriter();
+        supply.SoundActions.OnSerializeAll(makerWriter);
+        var joiningMakerObserver = new SyncDictionary<uint, PopcornSoundAction>();
+        joiningMakerObserver.OnDeserializeAll(new NetworkReader(makerWriter.ToArraySegment()));
+        Check(joiningMakerObserver.TryGetValue(player.netId, out var joiningMakerSound) && joiningMakerSound.started == makerSound.started && joiningMakerSound.station == maker.Id,
+            "Late joining maker observer receives the station, request and shared playback start time");
         for (double until = NetworkTime.time + 3.2; NetworkTime.time < until;) yield return null;
         supply.RequestSupply(maker.Id, 905, PopcornSupplyAction.Complete);
         for (int i = 0; i < 8; i++) yield return null;
-        Check(holder.IsRefill && ((GameObject)Get(holder, "heldVisual")).name.Contains("NewPopcorn"),
-            "Mirror maker response gives requesting player authored NewPopcorn");
+        Check(holder.IsRefill && ((GameObject)Get(holder, "heldVisual")).name.Contains("NotastePopcorn"),
+            "Mirror maker response gives requesting player authored NotastePopcorn refill batch");
+        Check(!supply.SoundActions.ContainsKey(player.netId), "Maker completion removes the replicated sound and smoke action");
+        var completedRefill = holder.Holding.Visual;
+        supply.RequestSupply(maker.Id, 905, PopcornSupplyAction.Complete);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(holder.IsRefill && holder.Holding.Visual == completedRefill,
+            "Duplicate maker completion cannot create or replace a second refill batch");
+        var remoteMaking = new PopcornSoundAction { station = maker.Id, request = 1, started = NetworkTime.time };
+        supply.SoundActions.Add(uint.MaxValue, remoteMaking);
+        supply.SoundActions.Add(uint.MaxValue - 1, remoteMaking);
+        Check(preparation.IsMakingRefillAt(maker.transform), "Observer maker action snapshot starts steam");
+        supply.SoundActions.Remove(uint.MaxValue);
+        Check(preparation.IsMakingRefillAt(maker.transform), "One player cancelling leaves steam active for another maker user");
+        supply.SoundActions.Remove(uint.MaxValue - 1);
+        Check(!preparation.IsMakingRefillAt(maker.transform), "Removing the last maker action stops observer steam");
+        remoteMaking.started -= PopcornPreparation.PreparationSeconds + 1;
+        supply.SoundActions.Add(uint.MaxValue, remoteMaking);
+        Check(!preparation.IsMakingRefillAt(maker.transform), "Expired maker snapshot cannot leave steam stuck on");
+        supply.SoundActions.Remove(uint.MaxValue);
         player.transform.position = tank.GetComponent<Collider>().bounds.center;
         Set(supply, "tankRemaining", configuredCapacity);
         supply.RequestSupply(tank.Id, 906, PopcornSupplyAction.Refill);
@@ -877,6 +934,30 @@ public static class PopcornRegressionRunner
         Check(supply.TankRemaining == 7 && supply.TankCapacity == configuredCapacity, "Mirror initial snapshot carries remaining stock and capacity for joining clients");
         bottles = CheckMachineBottles(true, water);
         while (bottles.MoveNext()) yield return bottles.Current;
+        holder.Consume();
+        player.transform.position = maker.GetComponentInChildren<Collider>().bounds.center;
+        for (int i = 0; i < 8; i++) yield return null;
+        var lastRequests = (Dictionary<NetworkConnectionToClient, int>)Get(supply, "lastSoundRequest");
+        int makerRequest = lastRequests[player.connectionToClient] + 1;
+        for (double until = NetworkTime.time + .25; NetworkTime.time < until;) yield return null;
+        supply.RequestSupply(maker.Id, makerRequest, PopcornSupplyAction.Begin);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(supply.SoundActions.ContainsKey(player.netId), "A later maker action restarts replicated sound and smoke");
+        supply.RequestSupply(maker.Id, makerRequest, PopcornSupplyAction.Cancel);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(!supply.SoundActions.ContainsKey(player.netId) && !holder.HasItem &&
+            !((HashSet<NetworkConnectionToClient>)Get(supply, "heldRefills")).Contains(player.connectionToClient),
+            "Cancelling maker work removes its network effect and grants no refill token");
+        for (double until = NetworkTime.time + .25; NetworkTime.time < until;) yield return null;
+        supply.RequestSupply(maker.Id, makerRequest + 1, PopcornSupplyAction.Begin);
+        for (int i = 0; i < 8; i++) yield return null;
+        supply.RequestSupply(maker.Id, makerRequest, PopcornSupplyAction.Cancel);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(supply.SoundActions.TryGetValue(player.netId, out var restartedMaker) && restartedMaker.request == makerRequest + 1,
+            "An old cancellation cannot stop the next maker action's looping sound or smoke");
+        supply.RequestSupply(maker.Id, makerRequest + 1, PopcornSupplyAction.Cancel);
+        for (int i = 0; i < 8; i++) yield return null;
+        Check(!supply.SoundActions.ContainsKey(player.netId), "Matching cancellation clears the restarted maker effect");
         network.StopHost();
     }
     static void Capture(string path)

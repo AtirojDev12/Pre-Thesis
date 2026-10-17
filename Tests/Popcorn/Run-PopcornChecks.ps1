@@ -18,6 +18,7 @@ foreach ($folder in @('Assets', 'Packages', 'ProjectSettings', 'Library/PackageC
 $editorPath = Join-Path $projectPath 'Assets/Editor'
 New-Item -ItemType Directory -Force -Path $editorPath | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'PopcornRegressionRunner.cs') -Destination $editorPath -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'SmokeSortingChecks.cs') -Destination $editorPath -Force
 $logPath = Join-Path $testRoot 'unity.log'
 $resultPath = Join-Path $projectPath 'popcorn-results.txt'
 if (Test-Path -LiteralPath $resultPath) { Remove-Item -LiteralPath $resultPath }

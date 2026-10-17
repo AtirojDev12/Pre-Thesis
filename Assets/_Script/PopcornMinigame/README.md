@@ -27,7 +27,7 @@ Mirror continues to replicate recipe state rather than spawning networked props.
 
 ## Tank refill
 
-The tank starts with **20 servings**. Each finished scoop consumes one serving. A world-space canvas attached directly to **PopCornTank** shows remaining servings and a supply bar, facing the local camera. Stock is not displayed on the player HUD. With empty hands, hold **E** at the authored **Popcorn_Maker** for **3 seconds** to receive the exact **NewPopcorn** prefab. Carry it to **PopCornTank** and press **E** to add **10 servings**, capped at **20**. Topping up a partly full tank consumes the batch and discards overflow. A full tank rejects refilling and leaves the batch in hand for later. Empty tanks reject scooping; buckets, unflavored popcorn, and refill batches cannot be served. Capacity and servings per batch can be changed on the bootstrap in the Inspector.
+The tank starts with **20 servings**. Each finished scoop consumes one serving. A world-space canvas attached directly to **PopCornTank** shows remaining servings and a supply bar, facing the local camera. Stock is not displayed on the player HUD. With empty hands, hold **E** at the authored **Popcorn_Maker** for **3 seconds** to receive the exact **NotastePopcorn** prefab. Carry it to **PopCornTank** and press **E** to add **10 servings**, capped at **20**. Topping up a partly full tank consumes the batch and discards overflow. A full tank rejects refilling and leaves the batch in hand for later. Empty tanks reject scooping; buckets, unflavored popcorn, and refill batches cannot be served. Capacity and servings per batch can be changed on the bootstrap in the Inspector.
 
 ## Blackout recovery
 

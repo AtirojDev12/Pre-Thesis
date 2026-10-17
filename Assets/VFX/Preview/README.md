@@ -21,6 +21,10 @@ Use `PopcornMachine/Prefabs/PopcornMachine_VFX.prefab` at a uniform scale of 1. 
 
 Call `BeginCooking()` while heating/popping and `BeginSeasoning()` while adding flavor, or `BeginPreparation()` to show all three layers together as in the preview. Call `Cancel()` or `Complete()` to clear every layer. Disabling the prefab also clears it.
 
+`Cinema_GamePlay` contains a steam-only instance parented to the refill `Popcorn_Maker`, with its emitter centered on the machine mesh. Its `makerStation` reference follows active refill preparation: steam plays during the three-second hold and clears on completion or cancellation. Other clients see server-approved maker actions through the existing station action state, including actions already in progress when they join. Kernel pops and seasoning are removed from this scene instance. The completed refill uses `NotastePopcorn` and retains the refill-batch rules for topping up `PopCornTank`.
+
+Gameplay steam renders at sorting order 1, after the machine's transparent order-0 material. Using the same order lets the rising plume's bounds reverse distance sorting, so the machine hides the smoke even while the emitter is still running. The popcorn regression checks render the actual player-side viewpoint before and after this correction at 0.3, 1.3 and 2.3 seconds.
+
 ## Drink dispenser
 
 Use `DrinkDispenser/Prefabs/DrinkDispenser_VFX.prefab` at a uniform scale of 1. Set `nozzle` and `cupRim` in local coordinates, and move `03_FallingDroplets` to the nozzle and `04_CupRimSplashes` to the cup rim. The preview uses `(0, 1.7, 0)` and `(0, 0.78, 0)` respectively.
