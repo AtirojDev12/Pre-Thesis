@@ -1,8 +1,8 @@
 # Food preparation VFX
 
-Open either `Assets/VFX/VFX_Preview.unity` or `Assets/VFX/GhostManifestation/VFX_Preview.unity`, or use **Tools > Pre-Thesis > VFX > Open Food Preview**. Both scenes contain the food and ghost stages and open with popcorn and drink visible. Food particles also animate in Scene view before entering Play mode; disable **Preview In Edit Mode** on Food Preview Controls to pause this inspection preview.
+Open either `Assets/VFX/VFX_Preview.unity` or `Assets/VFX/GhostManifestation/VFX_Preview.unity`, or use **Tools > Pre-Thesis > VFX > Open Food Preview**. Both scenes contain the food and ghost stages and open with the new black-water ghost stage visible. Press Play to animate the spreading pool, emergence/splash and smoke/submergence. Food particles also animate in Scene view before entering Play mode when that stage is selected; disable **Preview In Edit Mode** on Food Preview Controls to pause this inspection preview.
 
-In Play mode, the upper-right **Popcorn + Drink** and **Ghost effects** buttons switch stages. In edit mode, select **VFX Preview Stage Switcher** in the Hierarchy and use its Inspector buttons.
+In Play mode, the upper-right **Popcorn + Drink** and **Ghost black water** buttons switch stages. In edit mode, select **VFX Preview Stage Switcher** in the Hierarchy and use its Inspector buttons. The black-water stage uses the editable VFX Graph assets and material in `Assets/VFX/GhostPool`; the previous smoke stage remains inactive in the scene.
 
 The two stations play for three seconds and repeat every six seconds. **Prepare both** restarts them. **Cancel drink now** clears the stream and every droplet immediately and turns off automatic replay so the stopped state can be inspected. **Stop all** clears both stations. Toggle **Auto replay** to resume cycling.
 

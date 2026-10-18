@@ -1,20 +1,31 @@
 using System.Collections;
 using Mirror;
 using UnityEngine;
+using UnityEngine.VFX;
+using PreThesis.Vfx;
 
 /// <summary>Presentation and movement gate for the LO ghost, on host, clients and offline.</summary>
 [DisallowMultipleComponent]
 public sealed class GhostManifestation : NetworkBehaviour
 {
-    [SerializeField] private GameObject appearPrefab;
-    [SerializeField] private GameObject disappearPrefab;
+    [SerializeField] private Material blackWaterMaterial;
+    [SerializeField] private VisualEffectAsset splashGraph;
+    [SerializeField] private VisualEffectAsset submergeSmokeGraph;
     [SerializeField] private AudioClip spawnClip;
     [SerializeField] private AudioClip[] walkClips;
     [SerializeField, Min(0.1f)] private float stepInterval = 0.65f;
     [SerializeField, Range(0f, 1f)] private float volume = 0.8f;
-    [SyncVar(hook = nameof(OnDisappearingChanged))] private bool disappearing;
     [SyncVar] private double spawnedAt;
+    // Timestamps precede the bool so the hook reads the matching authoritative time.
+    [SyncVar] private double disappearedAt;
+    [SyncVar(hook = nameof(OnDisappearingChanged))] private bool disappearing;
     private Animator animator;
+    private GhostPoolVisual visual;
+    private Collider[] colliders;
+    private bool[] enabledColliders;
+    private bool started;
+    private bool animationStarted;
+    private float entryLength;
     private AudioSource footsteps;
     private Vector3 previousPosition;
     private float nextStep;
@@ -28,7 +39,19 @@ public sealed class GhostManifestation : NetworkBehaviour
 
     private void Awake()
     {
-        animator = GetComponent<Animator>();
+        visual = gameObject.AddComponent<GhostPoolVisual>();
+        visual.Initialize();
+        animator = visual.Animator;
+        if (animator != null && animator.runtimeAnimatorController != null)
+            foreach (AnimationClip clip in animator.runtimeAnimatorController.animationClips)
+                if (clip.name == "Entry") entryLength = clip.length;
+        colliders = GetComponentsInChildren<Collider>(true);
+        enabledColliders = new bool[colliders.Length];
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            enabledColliders[i] = colliders[i].enabled;
+            colliders[i].enabled = false;
+        }
         var emitter = new GameObject("Ghost Footsteps");
         emitter.transform.SetParent(transform, false);
         footsteps = ConfigureAudio(emitter);
@@ -37,28 +60,14 @@ public sealed class GhostManifestation : NetworkBehaviour
 
     private void Start()
     {
-        // Keep evaluating Entry even when nobody has the ghost on screen.
-        if (animator != null)
-        {
-            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-            // A joining observer starts at the same point in Entry as the server.
-            if (!NetworkMode.IsOffline && animator.runtimeAnimatorController != null)
-            {
-                foreach (AnimationClip clip in animator.runtimeAnimatorController.animationClips)
-                {
-                    if (clip.name != "Entry" || clip.length <= 0f) continue;
-                    float age = Mathf.Max(0f, (float)(NetworkTime.time - spawnedAt));
-                    animator.Play(age >= clip.length ? "Walk" : "Entry", 0,
-                        age >= clip.length ? 0f : age / clip.length);
-                    animator.Update(0f);
-                    break;
-                }
-            }
-        }
+        started = true;
+        if (NetworkMode.IsOffline) spawnedAt = Clock;
+        float age = Age(spawnedAt);
+        SynchronizeAnimator(age);
         if (!disappearing)
         {
-            PlayEffect(appearPrefab);
-            if (spawnClip != null && CanPresent)
+            PlayEffect(false, age);
+            if (spawnClip != null && CanPresent && age < .4f)
             {
                 // Detached so a short ghost lifetime cannot cut off its spawn sound.
                 var emitter = new GameObject("Ghost Spawn Sound");
@@ -71,14 +80,41 @@ public sealed class GhostManifestation : NetworkBehaviour
     }
 
     private bool CanPresent => !NetworkServer.active || NetworkClient.active;
+    private double Clock => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
+    private float Age(double timestamp) => Mathf.Max(0, (float)(Clock - timestamp));
+
+    private void SynchronizeAnimator(float age)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return;
+        float animationAge = Mathf.Max(0, age - GhostPoolVisual.GrowSeconds);
+        animator.Play(entryLength > 0 && animationAge < entryLength ? "Entry" : "Walk", 0,
+            entryLength > 0 && animationAge < entryLength ? animationAge / entryLength : 0);
+        animator.Update(0);
+        animationStarted = age >= GhostPoolVisual.GrowSeconds;
+        animator.speed = animationStarted ? 1 : 0;
+    }
+
+    private void LateUpdate()
+    {
+        if (!started) return;
+        if (disappearing) visual.SampleDisappear(Age(disappearedAt));
+        else visual.SampleAppear(Age(spawnedAt));
+    }
 
     private void Update()
     {
+        if (!started || disappearing) return;
+        float age = Age(spawnedAt);
+        if (!animationStarted && age >= GhostPoolVisual.GrowSeconds) SynchronizeAnimator(age);
         if (!spawnFinished)
         {
-            // The controller leaves Entry only at normalized time 1.
-            spawnFinished = animator == null || animator.runtimeAnimatorController == null ||
-                (animator.GetCurrentAnimatorStateInfo(0).IsName("Walk") && !animator.IsInTransition(0));
+            // Preserve the existing Entry movement gate, including the pool's lead-in.
+            spawnFinished = age >= GhostPoolVisual.HiddenAt &&
+                (animator == null || animator.runtimeAnimatorController == null ||
+                (animator.GetCurrentAnimatorStateInfo(0).IsName("Walk") && !animator.IsInTransition(0)));
+            if (spawnFinished)
+                for (int i = 0; i < colliders.Length; i++)
+                    if (colliders[i] != null) colliders[i].enabled = enabledColliders[i];
         }
         Vector3 delta = transform.position - previousPosition;
         previousPosition = transform.position;
@@ -106,23 +142,25 @@ public sealed class GhostManifestation : NetworkBehaviour
     {
         if (!NetworkMode.HasServerAuthority(this) || despawnStarted) return;
         despawnStarted = true;
+        disappearedAt = Clock;
         disappearing = true;
         GetComponent<GhostWarningSource>()?.SetWarningActive(false);
-        if (NetworkMode.IsOffline) PlayDisappear();
+        if (started) PlayDisappear();
         StartCoroutine(FinishDespawn());
     }
 
     private IEnumerator FinishDespawn()
     {
-        // Let observers receive the disappearing state before removing the identity.
-        yield return new WaitForSeconds(0.3f);
+        // Keep the identity alive until every observer can see the body sink fully.
+        if (!started) yield return null;
+        yield return new WaitForSeconds(GhostPoolVisual.GrowSeconds + visual.DisappearTravelSeconds + .2f);
         if (NetworkServer.active) NetworkServer.Destroy(gameObject);
         else Destroy(gameObject);
     }
 
     private void OnDisappearingChanged(bool oldValue, bool newValue)
     {
-        if (newValue) PlayDisappear();
+        if (newValue && started) PlayDisappear();
     }
 
     private bool disappearancePlayed;
@@ -131,19 +169,33 @@ public sealed class GhostManifestation : NetworkBehaviour
         if (disappearancePlayed) return;
         disappearancePlayed = true;
         footsteps.Stop();
-        PlayEffect(disappearPrefab);
-        foreach (Renderer visual in GetComponentsInChildren<Renderer>()) visual.enabled = false;
-        foreach (Collider collider in GetComponentsInChildren<Collider>()) collider.enabled = false;
+        visual.SampleAppear(Mathf.Max(0, (float)(disappearedAt - spawnedAt)));
+        float entryProgress = entryLength > 0
+            ? Mathf.Clamp01(((float)(disappearedAt - spawnedAt) - GhostPoolVisual.GrowSeconds) / entryLength) : 1;
+        visual.BeginDisappear(entryProgress);
+        visual.SampleDisappear(Age(disappearedAt));
+        PlayEffect(true, Age(disappearedAt));
+        foreach (Collider collider in colliders) if (collider != null) collider.enabled = false;
         GetComponent<GhostWarningSource>()?.SetWarningActive(false);
     }
 
-    private void PlayEffect(GameObject prefab)
+    private void PlayEffect(bool submerging, float age)
     {
-        if (prefab == null || !CanPresent) return;
-        // Independent world-space object: smoke survives the network ghost's removal.
-        GameObject effect = Instantiate(prefab, transform.position, transform.rotation);
-        foreach (ParticleSystem particles in effect.GetComponentsInChildren<ParticleSystem>()) particles.Play();
-        Destroy(effect, 5f);
+        float travelSeconds = submerging ? visual.DisappearTravelSeconds : GhostPoolVisual.TravelSeconds;
+        if (blackWaterMaterial == null || !CanPresent || age >= GhostPoolEffect.LifetimeFor(travelSeconds)) return;
+        Vector3 position = transform.position;
+        Vector3 normal = Vector3.up;
+        float nearest = float.PositiveInfinity;
+        foreach (var hit in Physics.RaycastAll(position + Vector3.up * .5f, Vector3.down, 3,
+                     Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+        {
+            if (hit.transform.IsChildOf(transform) || Vector3.Dot(hit.normal, Vector3.up) < .5f || hit.distance >= nearest) continue;
+            nearest = hit.distance; position = hit.point; normal = hit.normal;
+        }
+        var effect = new GameObject(submerging ? "Ghost Black Water - Submerge" : "Ghost Black Water - Emerge");
+        effect.transform.SetPositionAndRotation(position,
+            Quaternion.FromToRotation(Vector3.up, normal) * Quaternion.Euler(0, transform.eulerAngles.y, 0));
+        effect.AddComponent<GhostPoolEffect>().Initialize(blackWaterMaterial, splashGraph, submergeSmokeGraph, age, submerging, travelSeconds);
     }
 
     private AudioSource ConfigureAudio(GameObject emitter)

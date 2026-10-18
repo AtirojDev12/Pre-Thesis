@@ -1,0 +1,1 @@
+PASS: Two Visual Effect Graph assets, water material, GPU effect prefabs and real ghost preview scene generated. Gameplay is not connected yet.

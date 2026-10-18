@@ -9,7 +9,7 @@ using UnityEngine;
 /// Placed by Tools > Pre-Thesis > Scenes > Lobby: Add Spawn Points + Storage Room.
 /// </summary>
 [DisallowMultipleComponent]
-public sealed class StorageTerminal : MonoBehaviour, ILocalInteractable, IInteractionHighlight
+public sealed class StorageTerminal : MonoBehaviour, ILocalInteractable, IInteractionSurfaceTint
 {
     [SerializeField] private string prompt = "[E] Storage (your items)";
 

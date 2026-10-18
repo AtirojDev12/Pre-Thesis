@@ -37,6 +37,7 @@ public partial class PlayerInteractor : NetworkBehaviour
     private IInteractable _currentTarget;
     private readonly RaycastHit[] _raycastHits = new RaycastHit[16];
     private PlayerHealth _health;
+    private Camera _viewCamera;
 
     // Tracked so the prompt UI is only touched when something actually changed.
     // Assigning TMP text every frame forces a mesh rebuild for no reason.
@@ -46,6 +47,7 @@ public partial class PlayerInteractor : NetworkBehaviour
     private void Awake()
     {
         _health = GetComponent<PlayerHealth>();
+        _viewCamera = GetComponentInChildren<Camera>(true);
         if (rayOrigin == null)
         {
             // Deliberately NOT Camera.main: in a 6-player match every client
@@ -258,14 +260,16 @@ public partial class PlayerInteractor : NetworkBehaviour
     {
         // Interface references do not use Unity's destroyed-object null check.
         if (target is Object unityObject && unityObject == null) return;
-        if (target is IInteractionHighlight highlightable)
+        if (target == null) return;
+        // Preserve UI/customer prompt callbacks while replacing only whole-surface tints.
+        if (target is IInteractionHighlight highlightable && !(target is IInteractionSurfaceTint))
             highlightable.SetHighlighted(state);
-        if (target == null || target is WorldButtonInteractable) return;
+        if (target is WorldButtonInteractable) return;
         Transform root = target.GetTransform();
         if (root == null) return;
         InteractionOutline outline = root.GetComponent<InteractionOutline>();
         if (state && outline == null) outline = root.gameObject.AddComponent<InteractionOutline>();
-        if (outline != null) outline.SetVisible(state);
+        if (outline != null) outline.SetVisible(state, _viewCamera);
     }
 
     private void OnDisable()

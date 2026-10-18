@@ -25,9 +25,10 @@ MonoBehaviour:
     probeSamplingDebugTexture: {fileID: 2800000, guid: 24ec0e140fb444a44ab96ee80844e18e, type: 3}
     probeVolumeBlendStatesCS: {fileID: 7200000, guid: b9a23f869c4fd45f19c5ada54dd82176, type: 3}
   m_RendererFeatures:
+  - {fileID: 7280104024140032221}
   - {fileID: 7833122117494664109}
   - {fileID: 5548347073009075845}
-  m_RendererFeatureMap: ad6b866f10d7b46c85c6483944b0ff4c
+  m_RendererFeatureMap: dd28c2ce09200865ad6b866f10d7b46c85c6483944b0ff4c
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 3
@@ -109,3 +110,27 @@ MonoBehaviour:
     BlurQuality: 0
     Falloff: 100
     SampleCount: -1
+--- !u!114 &7280104024140032221
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6fd389601bc34010bf8c30ca193e639f, type: 3}
+  m_Name: InteractionEdgeGlowFeature
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionEdgeGlowFeature
+  m_Active: 1
+  normalsShader: {fileID: 4800000, guid: 45cbe6e0ac7a4494a40739ef30163d22, type: 3}
+  compositeShader: {fileID: 4800000, guid: 43e4713659a74998a4b91e17e41d1541, type: 3}
+  edgeColor: {r: 1, g: 1, b: 1, a: 1}
+  edgeWidth: 1.5
+  glowWidth: 4
+  glowOpacity: 0.22
+  creaseThreshold: 0.18
+  sweepDuration: 1.25
+  sweepPause: 0.5
+  sweepWidth: 0.18
+  baseBrightness: 0.5

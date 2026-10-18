@@ -15,6 +15,7 @@ below before adding a new interactable.
 - **InteractableBase.cs** — optional base `NetworkBehaviour` with prompt text, highlight, and replicated one-time-use support built in.
 - **PlayerInteractor.cs** — put on the player. Raycasts locally for the prompt, then routes the actual interaction to the server as a `[Command]`.
 - **InteractionPromptUI.cs** — world-space "Press E..." text that follows the current target and faces the camera. Purely local.
+- **InteractionOutline.cs / InteractionEdgeGlowFeature.cs** — local hover selection and depth-tested edge lighting. The PC and mobile renderer assets include the feature; it preserves original prop materials and highlights silhouettes plus hard normal creases. See `Tests/InteractionHighlight/README.md` for tuning, limitations, and render checks.
 - **ExampleDoor.cs / Lever.cs** — two worked examples of the correct networked pattern.
 
 ## How the networking works
@@ -107,5 +108,5 @@ player.
 ### Common extensions you might want next
 - **Held-interaction (progress bar):** track key-held duration in `PlayerInteractor` and only send the `[Command]` once the threshold is reached. Keep the progress bar local.
 - **Icons instead of/alongside text:** add `GetInteractionIcon()` to `IInteractable` and an `Image` to `InteractionPromptUI`.
-- **Outline shader highlight:** swap `SetHighlighted`'s property-block tint for an outline material pass. Keep using a `MaterialPropertyBlock` rather than `renderer.material`, which instantiates a copy of the material per object.
+- **Custom hover feedback:** implement `IInteractionHighlight` for prompts or UI. Mark legacy whole-surface tint implementations with `IInteractionSurfaceTint` so `PlayerInteractor` uses edge lighting instead of tinting the prop.
 - **Role-gated interactables:** override `CanInteract()` to check the player's assigned map Role — and remember the server re-checks it, so the gate is real, not cosmetic.
