@@ -16399,8 +16399,10 @@ MonoBehaviour:
   - {fileID: 356662724}
   - {fileID: 1095565337}
   - {fileID: 1703679041}
-  gapSeconds: 5
-  volume: 0.12
+  interludeClip: {fileID: 8300000, guid: d84add9ee79da8843af2793c7453d739, type: 3}
+  gapSeconds: 20
+  volume: 0.04
+  interludeVolume: 0.04
   minDistance: 2
   maxDistance: 24
 --- !u!1 &881969889

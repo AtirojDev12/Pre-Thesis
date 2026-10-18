@@ -215,7 +215,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8ff3ba0becae47b8b9381191598957c8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Mirror.Components::Mirror.NetworkTransformReliable
-  syncDirection: 1
+  syncDirection: 0
   syncMode: 0
   syncInterval: 0
   target: {fileID: 6657137330802621504}
@@ -323,8 +323,9 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  appearPrefab: {fileID: 6510640375561846930, guid: e5b79aa0c960a2444942496976d31ac4, type: 3}
-  disappearPrefab: {fileID: 1171894177409992752, guid: c26469ac25c7f9d4faab03d838814e67, type: 3}
+  blackWaterMaterial: {fileID: 2100000, guid: 5c8da1ffaf392e44da58b00f3bb9813b, type: 2}
+  splashGraph: {fileID: 8926484042661614526, guid: 5696cec3e399aa241b57160d6a7b2046, type: 3}
+  submergeSmokeGraph: {fileID: 8926484042661614526, guid: 96dc3492a980db84db75e3a47e2efc9a, type: 3}
   spawnClip: {fileID: 8300000, guid: 240fea22ad840344583a23af91954184, type: 3}
   walkClips:
   - {fileID: 8300000, guid: 18a68bdbd3472884380733c16bb81158, type: 3}

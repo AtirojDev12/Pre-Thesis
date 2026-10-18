@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public sealed class TicketSellButton : MonoBehaviour, IInteractable, IInteractionHighlight
+public sealed class TicketSellButton : MonoBehaviour, IInteractable, IInteractionSurfaceTint
 {
     [SerializeField] private TicketMinigame minigame;
     [SerializeField] private bool ghostTicket;

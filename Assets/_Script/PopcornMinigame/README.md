@@ -31,11 +31,11 @@ The tank starts with **20 servings**. Each finished scoop consumes one serving. 
 
 ## Blackout recovery
 
-`GhostFavorRecovery` observes `BuildingLightManager.LightsOn` without modifying the ghost system. Darkness lasting at least 0.5 seconds teleports **GhostFavor** to the ticket booth's customer counter point. The bootstrap's optional **Ghost Favor Relocation Points** list supports future map anchors, chosen randomly by the server. Leaving it empty uses the ticket booth.
+`GhostManager` notifies `GhostFavorRecovery` when the timed ghost actually spawns, including developer summons and arrivals while the lights are on. Warning flickers alone do not relocate the seasoning: each dark pulse is shorter than the 0.5-second blackout threshold. A separate sustained blackout of at least 0.5 seconds also triggers recovery. The bootstrap's optional **Ghost Favor Relocation Points** list supplies destinations chosen by the server. Leaving it empty uses the ticket booth's customer counter point.
 
 Any player can press **E** to pick up the displaced seasoning. Carry it within 1.8 metres of its original spot to restore its exact position and rotation automatically. **R** drops it for another player; death, being downed, or disconnecting also drops it from its last carried position. The server (or offline game) simulates gravity and floor collisions, and replicates the falling/resting pose to clients. Picking it up stops physics. Its colliders are disabled while carried. Existing containers remain held, but preparation is paused during recovery. Seasoning cannot be applied until the object is back home, and later blackouts leave an unfinished recovery alone.
 
-`PopcornNetSync` replicates displacement, carrier and pose, including to late joiners. Pickup/drop/mix requests validate the requesting player and range on the server. Each flavor's hover prompt always includes its name, even with empty hands or an already-filled container.
+`PopcornNetSync` replicates displacement, carrier and pose, including to late joiners. Ghost arrival, pickup and drop publish their state immediately; clients follow that shared pose and never simulate drop physics or choose relocation points. Pickup/drop/mix requests validate the requesting player and range on the server. Each flavor's hover prompt always includes its name, even with empty hands or an already-filled container.
 
 ## Results
 

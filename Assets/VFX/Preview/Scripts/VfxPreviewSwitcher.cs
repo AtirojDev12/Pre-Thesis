@@ -8,6 +8,7 @@ namespace PreThesis.Vfx
         public GameObject ghostStage;
         public FoodVfxPreview food;
         public GhostVfxPreview ghost;
+        public GhostPoolPreview ghostPool;
 
         [ContextMenu("Show Popcorn and Drink")]
         public void ShowFood()
@@ -22,14 +23,18 @@ namespace PreThesis.Vfx
         {
             foodStage.SetActive(false);
             ghostStage.SetActive(true);
-            if (Application.isPlaying) ghost.Replay();
+            if (Application.isPlaying)
+            {
+                if (ghostPool != null) ghostPool.Replay();
+                else if (ghost != null) ghost.Replay();
+            }
         }
 
         private void OnGUI()
         {
             GUI.Box(new Rect(Screen.width - 206, 20, 186, 116), "VFX PREVIEW STAGES");
             if (GUI.Button(new Rect(Screen.width - 194, 54, 162, 30), "Popcorn + Drink")) ShowFood();
-            if (GUI.Button(new Rect(Screen.width - 194, 92, 162, 30), "Ghost effects")) ShowGhost();
+            if (GUI.Button(new Rect(Screen.width - 194, 92, 162, 30), "Ghost black water")) ShowGhost();
         }
     }
 }

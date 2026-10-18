@@ -9,7 +9,7 @@ using UnityEngine;
 /// Tools > Pre-Thesis > Build 3D Lobby.
 /// </summary>
 [DisallowMultipleComponent]
-public sealed class ShopTerminal : MonoBehaviour, ILocalInteractable, IInteractionHighlight
+public sealed class ShopTerminal : MonoBehaviour, ILocalInteractable, IInteractionSurfaceTint
 {
     [SerializeField] private string prompt = "[E] Shop";
 

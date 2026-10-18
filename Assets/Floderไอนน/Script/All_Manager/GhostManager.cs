@@ -117,6 +117,10 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
         // is already the whole story.
         if (NetworkServer.active) NetworkServer.Spawn(currentGhostInstance);
 
+        // Arrival flickers are too short to count as a sustained blackout.
+        // Relocate seasoning on the authority when the ghost actually appears.
+        GhostFavorRecovery.Instance?.ServerOnGhostAppeared();
+
         Invoke(nameof(DespawnGhost), ghostDuration);
     }
 

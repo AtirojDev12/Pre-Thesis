@@ -8,8 +8,10 @@ public sealed class LobbyAnnouncements : MonoBehaviour
 {
     [SerializeField] private AudioClip[] clips;
     [SerializeField] private Transform[] speakers;
-    [SerializeField, Min(0f)] private float gapSeconds = 5f;
-    [SerializeField, Range(0f, 1f)] private float volume = .12f;
+    [SerializeField] private AudioClip interludeClip;
+    [SerializeField, Min(0f)] private float gapSeconds = 20f;
+    [SerializeField, Range(0f, 1f)] private float volume = .08f;
+    [SerializeField, Range(0f, 1f)] private float interludeVolume = .04f;
     [SerializeField, Min(.1f)] private float minDistance = 2f;
     [SerializeField, Min(1f)] private float maxDistance = 24f;
     private readonly List<AudioSource> sources = new List<AudioSource>();
@@ -52,20 +54,43 @@ public sealed class LobbyAnnouncements : MonoBehaviour
             {
                 if (clip == null) continue;
                 foundClip = true;
-                // All emitters use the same audio-clock start, avoiding four delayed echoes.
-                double start = AudioSettings.dspTime + .05;
-                foreach (AudioSource source in sources)
+                double end = PlayClip(clip, false, clip.length, volume);
+                yield return new WaitUntil(() => AudioSettings.dspTime >= end);
+
+                // Fill every gap, including the last-to-first transition, with the PA loop.
+                float gap = Mathf.Max(0f, gapSeconds);
+                if (gap <= 0f) continue;
+                if (interludeClip != null)
                 {
-                    if (source == null) continue;
-                    source.clip = clip;
-                    source.time = 0f;
-                    source.PlayScheduled(start);
+                    end = PlayClip(interludeClip, true, gap, interludeVolume);
+                    yield return new WaitUntil(() => AudioSettings.dspTime >= end);
                 }
-                // The gap is after the complete clip, including the last-to-first transition.
-                yield return new WaitForSecondsRealtime(clip.length + Mathf.Max(0f, gapSeconds));
+                else
+                {
+                    yield return new WaitForSecondsRealtime(gap);
+                }
             }
             if (!foundClip) yield break;
         }
+    }
+
+    private double PlayClip(AudioClip clip, bool loop, float duration, float baseVolume)
+    {
+        // Share the audio clock so all four speakers start and stop together.
+        double start = AudioSettings.dspTime + .05;
+        double end = start + duration;
+        foreach (AudioSource source in sources)
+        {
+            if (source == null) continue;
+            source.Stop();
+            source.clip = clip;
+            source.loop = loop;
+            source.time = 0f;
+            source.GetComponent<SoundCategoryVolume>().SetBaseVolume(baseVolume);
+            source.PlayScheduled(start);
+            source.SetScheduledEndTime(end);
+        }
+        return end;
     }
 
     private void OnDisable()

@@ -1,65 +1,57 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
 
-/// <summary>Local white silhouette shell. Does not replace authored materials or add colliders.</summary>
+/// <summary>Local hover selection. The renderer feature draws edges without changing authored materials.</summary>
 public sealed class InteractionOutline : MonoBehaviour
 {
-    private readonly List<GameObject> shells = new List<GameObject>();
-    private Material material;
-    private bool built;
+    private static readonly HashSet<InteractionOutline> Visible = new HashSet<InteractionOutline>();
+    private Camera ownerCamera;
+    private float selectedAt;
+    private readonly List<Renderer> renderers = new List<Renderer>();
 
-    public void SetVisible(bool visible)
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetVisible() => Visible.Clear();
+
+    public void SetVisible(bool visible, Camera camera = null)
     {
-        if (visible && !built) Build();
-        foreach (GameObject shell in shells) if (shell != null) shell.SetActive(visible);
+        if (!visible)
+        {
+            Visible.Remove(this);
+            return;
+        }
+        if (!Visible.Contains(this)) selectedAt = Time.unscaledTime;
+        ownerCamera = camera;
+        // Refresh on selection: placed items and station contents can change at runtime.
+        GetComponentsInChildren(true, renderers);
+        Visible.Add(this);
     }
 
-    private void Build()
+    public static float SelectionStartedAt(Camera camera)
     {
-        built = true;
-        Shader shader = Resources.Load<Shader>("InteractionOutline");
-        if (shader == null) return;
-        material = new Material(shader);
-        foreach (Renderer source in GetComponentsInChildren<Renderer>(true))
+        foreach (InteractionOutline outline in Visible)
+            if (outline != null && outline.isActiveAndEnabled &&
+                (outline.ownerCamera == null || outline.ownerCamera == camera)) return outline.selectedAt;
+        return Time.unscaledTime;
+    }
+
+    public static void CollectRenderers(Camera camera, List<Renderer> destination)
+    {
+        destination.Clear();
+        foreach (InteractionOutline outline in Visible)
         {
-            if (!(source is MeshRenderer) && !(source is SkinnedMeshRenderer)) continue;
-            if (source.GetComponentInParent<InteractionOutline>() != this) continue;
-            MeshFilter filter = source.GetComponent<MeshFilter>();
-            SkinnedMeshRenderer skin = source as SkinnedMeshRenderer;
-            Mesh mesh = skin != null ? skin.sharedMesh : filter != null ? filter.sharedMesh : null;
-            if (mesh == null) continue;
-            GameObject shell = new GameObject("White Interaction Outline");
-            shell.layer = LayerMask.NameToLayer("Ignore Raycast");
-            shell.transform.SetParent(source.transform, false);
-            Renderer renderer;
-            if (skin != null)
+            if (outline == null || !outline.isActiveAndEnabled) continue;
+            if (outline.ownerCamera != null && outline.ownerCamera != camera) continue;
+            foreach (Renderer source in outline.renderers)
             {
-                SkinnedMeshRenderer copy = shell.AddComponent<SkinnedMeshRenderer>();
-                copy.sharedMesh = mesh;
-                copy.bones = skin.bones;
-                copy.rootBone = skin.rootBone;
-                copy.localBounds = skin.localBounds;
-                renderer = copy;
+                if (source == null || !source.enabled || source.forceRenderingOff || !source.gameObject.activeInHierarchy) continue;
+                if (!(source is MeshRenderer) && !(source is SkinnedMeshRenderer)) continue;
+                if ((camera.cullingMask & (1 << source.gameObject.layer)) == 0) continue;
+                if (source.GetComponentInParent<InteractionOutline>() != outline) continue;
+                destination.Add(source);
             }
-            else
-            {
-                shell.AddComponent<MeshFilter>().sharedMesh = mesh;
-                renderer = shell.AddComponent<MeshRenderer>();
-            }
-            Material[] materials = new Material[mesh.subMeshCount];
-            for (int i = 0; i < materials.Length; i++) materials[i] = material;
-            renderer.sharedMaterials = materials;
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            shells.Add(shell);
         }
     }
 
-    private void OnDisable() => SetVisible(false);
-    private void OnDestroy()
-    {
-        foreach (GameObject shell in shells) if (shell != null) Destroy(shell);
-        if (material != null) Destroy(material);
-    }
+    private void OnDisable() => Visible.Remove(this);
+    private void OnDestroy() => Visible.Remove(this);
 }

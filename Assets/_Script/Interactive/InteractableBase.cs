@@ -12,7 +12,7 @@ using UnityEngine;
 /// one-time pickup is gone for everyone. Inheriting this gives you a
 /// NetworkIdentity automatically (NetworkBehaviour requires one).
 /// </summary>
-public abstract class InteractableBase : NetworkBehaviour, IInteractable, IInteractionHighlight
+public abstract class InteractableBase : NetworkBehaviour, IInteractable, IInteractionSurfaceTint
 {
     [Tooltip("Text shown to the player, e.g. 'Press E to open'")]
     [SerializeField] protected string interactionPrompt = "Interact";

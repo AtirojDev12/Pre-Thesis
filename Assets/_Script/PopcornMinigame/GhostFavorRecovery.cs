@@ -28,6 +28,8 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     private float darkSeconds;
     private bool blackoutHandled;
     private int dropFrame = -1;
+    private bool HasAuthority => !NetworkMode.SessionEnding && (NetworkMode.IsOffline ||
+        (PopcornNetSync.Instance != null && PopcornNetSync.Instance.isServer));
     public bool DroppedThisFrame => dropFrame == Time.frameCount;
     public bool IsHome => !VisibleState.displaced;
     public GhostFavorState VisibleState => !NetworkMode.IsOffline && PopcornNetSync.Instance != null
@@ -58,7 +60,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     private void Update()
     {
         if (favor == null || NetworkMode.SessionEnding) return;
-        if (NetworkMode.IsOffline || (PopcornNetSync.Instance != null && PopcornNetSync.Instance.isServer))
+        if (HasAuthority)
         {
             bool dark = BuildingLightManager.Instance != null && !BuildingLightManager.LightsOn;
             darkSeconds = dark ? darkSeconds + Time.deltaTime : 0f;
@@ -89,8 +91,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
                 state.position = favorBody.position;
                 state.rotation = favorBody.rotation;
             }
-            if (PopcornNetSync.Instance != null && PopcornNetSync.Instance.isServer)
-                PopcornNetSync.Instance.SetGhostFavorState(state);
+            PublishState();
         }
         if (IsLocalCarrier && !GameplayInput.Blocked && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
         {
@@ -104,7 +105,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         if (favor == null) return;
         GhostFavorState visible = VisibleState;
         // Only the authority simulates gravity. Clients follow the replicated pose.
-        if (!falling)
+        if (!HasAuthority || !falling)
             favor.SetPositionAndRotation(visible.displaced ? visible.position : homePosition,
                 visible.displaced ? visible.rotation : homeRotation);
         bool carried = NetworkMode.IsOffline ? carrier != null : visible.carrierId != 0;
@@ -134,6 +135,21 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         favorBody.isKinematic = false;
         favorBody.useGravity = true;
         falling = true;
+        PublishState();
+    }
+
+    /// <summary>Server/offline arrival trigger, independent of warning flickers and light switches.</summary>
+    public void ServerOnGhostAppeared()
+    {
+        if (favor == null || !HasAuthority) return;
+        Relocate();
+        PublishState();
+    }
+
+    private void PublishState()
+    {
+        if (PopcornNetSync.Instance != null && PopcornNetSync.Instance.isServer)
+            PopcornNetSync.Instance.SetGhostFavorState(state);
     }
 
     private void Relocate()
@@ -169,7 +185,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     // Returns true only when this request is allowed to mix seasoning at home.
     public bool ServerInteract(PlayerHealth player, bool drop)
     {
-        if (!NetworkMode.IsOffline && (PopcornNetSync.Instance == null || !PopcornNetSync.Instance.isServer)) return false;
+        if (!HasAuthority) return false;
         if (player == null || player.IsDead || player.IsDowned) return false;
         if (drop)
         {
@@ -192,6 +208,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
             carrier = player;
             wasCarried = true;
             state.carrierId = NetworkMode.IsOffline ? 0 : player.netId;
+            PublishState();
         }
         return false;
     }

@@ -1,0 +1,21 @@
+PASS Popcorn/InteractionOutline compiles
+PASS Popcorn/InteractionEdgeGlow compiles
+PASS edges change while face interiors remain intact: 5696 pixels
+PASS interior cube crease is highlighted: 136 pixels
+PASS authored material preserved
+PASS sweep moves along edges while hovered
+PASS sweep and resting edges share one white hue
+PASS light band travels upward along the model
+PASS leaving hover restores original image
+PASS selection is local to owning camera
+PASS disabled selection unregisters
+PASS opaque wall occludes edge lighting
+PASS MSAA render path draws selection
+PASS PC_Renderer has one enabled edge glow feature
+PASS actual PC renderer with retro filter draws readable hover edges
+PASS Mobile_Renderer has one enabled edge glow feature
+PASS actual Popcorn Maker prefab imports
+PASS Popcorn Maker reproduces transparent material setup
+PASS actual transparent Popcorn Maker highlights
+PASS Popcorn Maker restores original appearance after hover
+PASS fully transparent pixels do not produce solid outlines

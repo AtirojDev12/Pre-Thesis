@@ -743,6 +743,34 @@ public static class PopcornRegressionRunner
         camera = player.GetComponentInChildren<Camera>();
         interactor = player.GetComponent<PlayerInteractor>();
         player.GetComponentInChildren<FirstPersonCamera>().enabled = false;
+        // The normal arrival restores the lights before spawning. It must still
+        // relocate seasoning, and the shared snapshot must change immediately.
+        buildingLights.SetLights(true);
+        var ghostManager = GhostManager.Instance;
+        ghostManager.CancelInvoke();
+        ghostManager.StopAllCoroutines();
+        Call(ghostManager, "DespawnGhost");
+        ghostManager.ServerDevSummonNow(player.gameObject);
+        Check(buildingLights != null && BuildingLightManager.LightsOn && !recovery.IsHome &&
+            PopcornNetSync.Instance.GhostFavor.displaced,
+            "Real ghost spawn with lights on immediately publishes seasoning relocation");
+        Vector3 arrivalPosition = recovery.VisibleState.position;
+        recovery.ServerOnGhostAppeared();
+        Check(recovery.VisibleState.position == arrivalPosition,
+            "Repeated ghost arrival leaves an unfinished recovery in place");
+        player.transform.position = arrivalPosition;
+        recovery.ServerInteract(player, false);
+        Check(PopcornNetSync.Instance.GhostFavor.carrierId == player.netId,
+            "Server pickup publishes carrier before the next Update");
+        recovery.ServerInteract(player, true);
+        Check(PopcornNetSync.Instance.GhostFavor.carrierId == 0,
+            "Server drop publishes release before the next Update");
+        recovery.ServerInteract(player, false);
+        player.transform.position = home;
+        Call(recovery, "Update");
+        Check(recovery.IsHome, "Spawn-triggered recovery returns home before blackout checks");
+        ghostManager.CancelInvoke();
+        Call(ghostManager, "DespawnGhost");
         buildingLights.SetLights(false);
         Set(recovery, "darkSeconds", 0.6f);
         Call(recovery, "Update");

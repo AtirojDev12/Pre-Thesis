@@ -14,7 +14,7 @@ public sealed class VfxPreviewSwitcherEditor : Editor
             preview.ShowFood();
             FoodVfxScenePreview.Frame(preview.foodStage.transform);
         }
-        if (GUILayout.Button("Show Ghost Effects"))
+        if (GUILayout.Button("Show Ghost Black Water"))
         {
             preview.ShowGhost();
             FoodVfxScenePreview.Frame(preview.ghostStage.transform);

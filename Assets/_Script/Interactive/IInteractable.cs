@@ -67,3 +67,8 @@ public interface IInteractionHighlight
 {
     void SetHighlighted(bool highlighted);
 }
+
+/// <summary>Legacy whole-surface tint, superseded by edge lighting for physical props.</summary>
+public interface IInteractionSurfaceTint : IInteractionHighlight
+{
+}
