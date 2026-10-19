@@ -41,6 +41,7 @@ public sealed class TicketSellButton : MonoBehaviour, IInteractable, IInteractio
 
     private void OnDisable() => SetHighlighted(false);
 
+    public string DisplayName => ghostTicket ? "Ghost Ticket Counter" : "Human Ticket Counter";
     public string GetInteractionPrompt() => ghostTicket ? "[E] Sell ghost ticket" : "[E] Sell human ticket";
     public bool CanInteract() => isActiveAndEnabled && minigame != null && minigame.CanServe;
     public Transform GetTransform() => transform;

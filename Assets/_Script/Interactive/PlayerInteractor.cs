@@ -1,4 +1,5 @@
 using Mirror;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -30,11 +31,20 @@ public partial class PlayerInteractor : NetworkBehaviour
     [Tooltip("Optional. If empty, this finds a prompt UI on the player prefab, then falls back to one in the scene.")]
     [SerializeField] private InteractionPromptUI promptUI;
 
+    [Tooltip("Show only the focused object's name, including unavailable targets with an enabled collider.")]
+    [SerializeField] private bool showNamesOnly = false;
+
+    [Header("Focus logging")]
+    [Tooltip("Log the focused interactable, its prompt and availability when they change. Local player only.")]
+    [SerializeField] private bool logFocusedInteractable = false;
+
     [Header("Server validation")]
     [Tooltip("Extra slack the SERVER allows when re-checking range, to absorb latency. Too large weakens the check; too small rejects honest interactions.")]
     [SerializeField] private float serverRangeTolerance = 1.5f;
 
     private IInteractable _currentTarget;
+    private InteractionNameLabel _focusedNameLabel;
+    private readonly List<MonoBehaviour> _interactionComponents = new List<MonoBehaviour>();
     private readonly RaycastHit[] _raycastHits = new RaycastHit[16];
     private PlayerHealth _health;
     private Camera _viewCamera;
@@ -43,6 +53,9 @@ public partial class PlayerInteractor : NetworkBehaviour
     // Assigning TMP text every frame forces a mesh rebuild for no reason.
     private IInteractable _promptTarget;
     private string _lastPromptText;
+    private IInteractable _loggedTarget;
+    private string _loggedPrompt;
+    private bool _loggedCanInteract;
 
     private void Awake()
     {
@@ -79,6 +92,8 @@ public partial class PlayerInteractor : NetworkBehaviour
         if (promptUI != null) return;
 
         promptUI = GetComponentInChildren<InteractionPromptUI>(true);
+        if (promptUI == null && PersistentHUD.Instance != null)
+            promptUI = PersistentHUD.Instance.GetComponentInChildren<InteractionPromptUI>(true);
         // FindAnyObjectByType, not FindFirstObjectByType: the "First" variant is
         // deprecated in Unity 6.5 because it depends on instance-ID ordering,
         // and we only need one, whichever it is.
@@ -96,7 +111,11 @@ public partial class PlayerInteractor : NetworkBehaviour
         // interaction for all six player objects at once.
         if (!NetworkMode.IsLocalController(this)) return;
 
-        IInteractable hit = RaycastForInteractable();
+        _focusedNameLabel = null;
+        IInteractable focused = GameplayInput.Blocked ? null : RaycastForInteractable();
+        bool canInteract = focused != null && focused.CanInteract();
+        LogFocus(focused, canInteract);
+        IInteractable hit = canInteract ? focused : null;
 
         if (!ReferenceEquals(hit, _currentTarget))
         {
@@ -105,7 +124,7 @@ public partial class PlayerInteractor : NetworkBehaviour
             SetHighlight(_currentTarget, true);
         }
 
-        UpdatePrompt();
+        UpdatePrompt(showNamesOnly || IsPopcornTarget(focused) || _focusedNameLabel != null ? focused : _currentTarget);
 
         if (_currentTarget != null
             && !CanRevive(_reviveLookTarget)
@@ -118,11 +137,42 @@ public partial class PlayerInteractor : NetworkBehaviour
         }
     }
 
-    private void UpdatePrompt()
+    private void LogFocus(IInteractable target, bool canInteract)
+    {
+        if (!logFocusedInteractable)
+        {
+            _loggedTarget = null;
+            _loggedPrompt = null;
+            return;
+        }
+
+        string prompt = target != null ? target.GetInteractionPrompt() : null;
+        if (ReferenceEquals(target, _loggedTarget) && prompt == _loggedPrompt &&
+            canInteract == _loggedCanInteract) return;
+        bool hadTarget = _loggedTarget != null;
+        _loggedTarget = target;
+        _loggedPrompt = prompt;
+        _loggedCanInteract = canInteract;
+        if (target == null)
+        {
+            if (hadTarget) Debug.Log("[Interaction Focus] No interactable in focus.", this);
+            return;
+        }
+
+        Transform root = target.GetTransform();
+        string path = root != null ? root.name : "(no transform)";
+        for (Transform parent = root != null ? root.parent : null; parent != null; parent = parent.parent)
+            path = parent.name + "/" + path;
+        string details = string.IsNullOrWhiteSpace(prompt) ? "(no shared prompt; may use its own UI)" : prompt;
+        Debug.Log($"[Interaction Focus] {path} ({target.GetType().Name}) | Can interact: {canInteract}\n{details}",
+            root != null ? (Object)root : this);
+    }
+
+    private void UpdatePrompt(IInteractable target)
     {
         if (promptUI == null) return;
 
-        if (_currentTarget == null)
+        if (target == null)
         {
             if (_promptTarget != null)
             {
@@ -133,34 +183,100 @@ public partial class PlayerInteractor : NetworkBehaviour
             return;
         }
 
-        string text = _currentTarget.GetInteractionPrompt();
+        bool popcornName = IsPopcornTarget(target);
+        PopcornMinigameBootstrap popcorn = popcornName && PopcornPreparation.Instance != null
+            ? PopcornPreparation.Instance.GetComponent<PopcornMinigameBootstrap>() : null;
+        PopcornFocusSettings settings = popcorn != null ? popcorn.FocusNames : null;
+        string text = _focusedNameLabel != null ? _focusedNameLabel.DisplayName :
+            popcornName && settings != null ? settings.NameOf(target) :
+            showNamesOnly || popcornName ? FocusName(target) : target.GetInteractionPrompt();
+
+        // Refresh the fixed layout as well so Inspector edits preview in Play mode.
+        if (popcornName || _focusedNameLabel != null)
+        {
+            _promptTarget = target;
+            _lastPromptText = text;
+            promptUI.ShowFixedName(text, settings);
+            return;
+        }
 
         // Compare the target too, not just the text: two different objects can
         // share the same prompt string, and the prompt has to move to the new
         // one even though the words didn't change.
-        if (!ReferenceEquals(_currentTarget, _promptTarget) || text != _lastPromptText)
+        if (!ReferenceEquals(target, _promptTarget) || text != _lastPromptText)
         {
-            _promptTarget = _currentTarget;
+            _promptTarget = target;
             _lastPromptText = text;
-            bool bottlePrompt = _currentTarget is PlacedBottleInteractable ||
-                (_currentTarget is PopcornStation station && station.Kind == PopcornStationKind.Water && station.PlacementAnchor != null);
-            Transform promptAnchor = _currentTarget is PopcornStation promptStation ? promptStation.PromptAnchor : _currentTarget.GetTransform();
+            bool bottlePrompt = target is PlacedBottleInteractable ||
+                (target is PopcornStation station && station.Kind == PopcornStationKind.Water && station.PlacementAnchor != null);
+            Transform promptAnchor = target is PopcornStation promptStation ? promptStation.PromptAnchor : target.GetTransform();
             promptUI.Show(text, promptAnchor, bottlePrompt ? (Vector3?)(Vector3.up * .12f) : null);
         }
     }
 
+    private static bool IsPopcornTarget(IInteractable target) =>
+        target is PopcornStation || target is PlacedBottleInteractable || target is PopcornCustomer;
+
+    private static string FocusName(IInteractable target)
+    {
+        if (target is PopcornStation station)
+        {
+            switch (station.Kind)
+            {
+                case PopcornStationKind.Bucket: return "Popcorn Bucket";
+                case PopcornStationKind.Cup: return "Drink Cup";
+                case PopcornStationKind.Tank: return "Popcorn Tank";
+                case PopcornStationKind.Maker: return "Popcorn Maker";
+                case PopcornStationKind.Ghost: return "Ghost Flavor";
+                case PopcornStationKind.Scoop: return UiFactory.FlavorName(station.Flavor) + " Flavor";
+                case PopcornStationKind.Water: return UiFactory.FlavorName(station.Flavor) + " Dispenser";
+            }
+        }
+        if (target is PlacedBottleInteractable) return "Drink Cup";
+        if (target is WorldButtonInteractable button) return button.DisplayName;
+        if (target is PopcornCustomer) return "Customer";
+        if (target is WorldInventoryItem item) return item.DisplayName;
+        if (target is ZoneChoreSpot chore)
+        {
+            switch (chore.Kind)
+            {
+                case ZoneTaskKind.FilmChange: return "Film Projector";
+                case ZoneTaskKind.CleanScreenRoom:
+                case ZoneTaskKind.CleanToilet: return "Dirt";
+            }
+        }
+        if (target is RuleInteractable rule) return rule.DisplayName;
+        if (target is TicketSellButton ticket) return ticket.DisplayName;
+        if (target is LightSwitchInteractable) return "Light Switch";
+        if (target is ShopTerminal) return "Shop";
+        if (target is StorageTerminal) return "Storage";
+        if (target is ExampleDoor) return "Door";
+        if (target is Lever) return "Lever";
+        if (target is WarningTV) return "Warning TV";
+        Transform root = target.GetTransform();
+        return root != null ? root.name.Replace("(Clone)", "").Replace('_', ' ').Trim() : "Object";
+    }
+
     /// <summary>
     /// Casts a ray from rayOrigin forward. Returns null if nothing is hit, the
-    /// hit isn't an IInteractable, it's out of range, or CanInteract() is false.
+    /// hit isn't an IInteractable or it's out of range. Availability is checked
+    /// separately so unavailable targets can still be identified in the log.
     /// </summary>
     private IInteractable RaycastForInteractable()
     {
-        return GetInteractableAlongRay(new Ray(rayOrigin.position, rayOrigin.forward));
+        return FindInteractableAlongRay(new Ray(rayOrigin.position, rayOrigin.forward), out _focusedNameLabel);
     }
 
     /// <summary>Shared range/occlusion check for crosshair input and world-space UI clicks.</summary>
     public IInteractable GetInteractableAlongRay(Ray ray)
     {
+        IInteractable target = FindInteractableAlongRay(ray, out _);
+        return target != null && target.CanInteract() ? target : null;
+    }
+
+    private IInteractable FindInteractableAlongRay(Ray ray, out InteractionNameLabel nameLabel)
+    {
+        nameLabel = null;
         if (_health != null && (_health.IsDead || _health.IsDowned)) return null;
         RaycastHit[] hits = _raycastHits;
         int count = Physics.RaycastNonAlloc(ray, hits, interactionRange, interactableLayers, QueryTriggerInteraction.Ignore);
@@ -182,8 +298,14 @@ public partial class PlayerInteractor : NetworkBehaviour
             closestDistance = hits[i].distance;
         }
 
-        IInteractable interactable = closest != null ? closest.GetComponentInParent<IInteractable>() : null;
-        return interactable != null && interactable.CanInteract() ? interactable : null;
+        if (closest == null) return null;
+        nameLabel = closest.GetComponentInParent<InteractionNameLabel>();
+        if (nameLabel != null && !nameLabel.isActiveAndEnabled) nameLabel = null;
+        // A label must never replace an existing station, door or pickup action.
+        closest.GetComponentsInParent(false, _interactionComponents);
+        foreach (MonoBehaviour component in _interactionComponents)
+            if (component is IInteractable interactable && !(component is InteractionNameLabel)) return interactable;
+        return nameLabel;
     }
 
     private void RequestInteract(IInteractable target)
@@ -263,7 +385,7 @@ public partial class PlayerInteractor : NetworkBehaviour
         if (target == null) return;
         // Preserve UI/customer prompt callbacks while replacing only whole-surface tints.
         if (target is IInteractionHighlight highlightable && !(target is IInteractionSurfaceTint))
-            highlightable.SetHighlighted(state);
+            highlightable.SetHighlighted(state && !(target is PopcornCustomer));
         if (target is WorldButtonInteractable) return;
         Transform root = target.GetTransform();
         if (root == null) return;
@@ -278,8 +400,12 @@ public partial class PlayerInteractor : NetworkBehaviour
         // dies, or the scene changes.
         SetHighlight(_currentTarget, false);
         _currentTarget = null;
+        _focusedNameLabel = null;
         _promptTarget = null;
         _lastPromptText = null;
+        _loggedTarget = null;
+        _loggedPrompt = null;
+        _loggedCanInteract = false;
         if (promptUI != null) promptUI.Hide();
     }
 

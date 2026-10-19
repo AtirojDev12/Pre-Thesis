@@ -18,6 +18,87 @@ below before adding a new interactable.
 - **InteractionOutline.cs / InteractionEdgeGlowFeature.cs** — local hover selection and depth-tested edge lighting. The PC and mobile renderer assets include the feature; it preserves original prop materials and highlights silhouettes plus hard normal creases. See `Tests/InteractionHighlight/README.md` for tuning, limitations, and render checks.
 - **ExampleDoor.cs / Lever.cs** — two worked examples of the correct networked pattern.
 
+## Focus logging and interactable inventory (19 Oct 2026)
+
+### Add a custom name to any scene object
+
+Select the object in the Hierarchy, choose **Add Component > Interaction Name Label**,
+and edit **Display Name**. The name appears at the fixed HUD position when aiming
+at that object's enabled, non-trigger Collider or a child Collider. Add a Box Collider
+if the object has none. The collider must be on a layer included in the player's
+interaction mask, within interaction range and unobstructed.
+
+Put labels on separate child objects to give parts different names. A label overrides
+the scene's popcorn name for that object without changing its existing E action.
+Standalone props need no interaction script or NetworkIdentity just to show a name.
+An empty name hides the label; disabling/removing the component restores normal naming.
+Make permanent edits outside Play mode and save the scene/prefab.
+
+Popcorn stations, placed cups and customers show names in **GAME HUD > Focus Name**.
+Open `Assets/Prefab/GAME HUD.prefab` to edit this TMP label's RectTransform, font,
+font size and color directly. `CanvasInteract > InteractionPromptUI > Focus Name Text`
+is already wired to the label. Runtime code changes only its text and visibility;
+the prefab's styling takes priority over the popcorn scene's fallback layout settings.
+**GAME HUD > CrossHair > Circle** is a UI Image using the authored circle sprite.
+Its RectTransform controls the crosshair size (11 x 11 by default).
+
+Name display applies independently of the global
+**Show Names Only** toggle, which defaults to off so other zones retain action prompts.
+Scenes without an authored Focus Name reference retain the generated-canvas fallback.
+
+The optional **Show Names Only** toggle extends name-only text to other targets
+through the existing prompt UI. Stations, cups,
+customers, chores, rule props, ticket counters, switches, warning TVs and inventory
+items have readable names; world buttons use their visible label. Other interactables
+fall back to their object name with underscores and `(Clone)` removed.
+Names also appear for unavailable targets whose colliders are enabled. E input and
+edge highlighting still require availability. The popcorn customer's separate hover
+submit prompt is suppressed in this mode; order displays and hold progress remain.
+Outside the popcorn targets, disable **Show Names Only** to use action prompts.
+
+`PlayerInteractor` has a **Log Focused Interactable** toggle, disabled by default.
+In Play mode, filter the Unity Console by `[Interaction Focus]`. Each entry includes
+the hierarchy path, component type, current interaction prompt and `CanInteract`
+result. Clicking the entry selects the target transform. Entries are emitted only
+when the target, prompt or availability changes; looking away emits one clear entry.
+Only the local player's interactor logs. Logging also works without a prompt UI.
+
+The focus log can identify an unavailable interactable if its collider is still
+enabled. Disabled/inactive colliders, triggers, objects outside the interaction
+layers/range, and objects behind the closest blocking collider remain undetectable.
+The existing highlight and E input still require `CanInteract()`. Action prompts
+also require availability when **Show Names Only** is disabled.
+Logging is Console diagnostics; names use the existing on-screen prompt UI.
+
+Project-wide concrete interaction types (some are runtime-created or examples,
+so this list does not imply every type is placed in the Cinema scene):
+
+| Component | Targets / actions |
+| --- | --- |
+| `PopcornStation` | Empty buckets/cups, popcorn tank scooping/refilling, maker, BBQ/Cheese/Paprika seasoning, drink controls, ghost seasoning pickup/return/mixing |
+| `PlacedBottleInteractable` | Prepared cups placed at drink stations |
+| `PopcornCustomer` | Submit an order to the waiting customer; uses its own UI, so its shared prompt is empty |
+| `WorldButtonInteractable` | World-space UI controls, including movie selection and flavor controls |
+| `TicketSellButton` | Sell human or ghost tickets |
+| `ZoneChoreSpot` | Change film, clean screen rooms, clean toilets |
+| `RuleInteractable` | Toilet light, knock on a stall, shadow seat, pick up/throw a black box |
+| `LightSwitchInteractable` | Building or zone light switches |
+| `WarningTV` | Play/stop warning media |
+| `WorldInventoryItem` | Pick up dropped inventory items; item name comes from the catalog |
+| `ShopTerminal` / `StorageTerminal` | Open the lobby shop/storage |
+| `LobbyBoardRow` / `LobbyBoardButton` | Host kick action and Ready/Start action |
+| `ExampleDoor` / `Lever` | Example open/close door and pull/reset lever |
+
+Revival is handled separately in `PlayerInteractor.Revival.cs`, rather than through
+`IInteractable`. Task boards and walk-in exit areas also use separate systems and
+are not reported by this focus logger unless they gain an interactable component.
+
+Manual verification: look at a station, hold the aim steady (no duplicate entries),
+change its state (updated prompt), switch to another object with the same prompt
+(new target entry), then look away (one clear entry). Check an unavailable target
+whose collider remains enabled, an occluding wall, and a host/remote-client session
+to confirm each player logs only their own focus. Toggle logging off in the Inspector.
+
 ## How the networking works
 
 | What | Where it runs | Why |

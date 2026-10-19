@@ -25,6 +25,60 @@ public enum PopcornCustomerType
     Ghost
 }
 
+[System.Serializable]
+public sealed class PopcornFocusSettings
+{
+    [Header("Flavor names")]
+    public string bbq = "BBQ Flavor";
+    public string cheese = "Cheese Flavor";
+    public string paprika = "Paprika Flavor";
+    public string ghost = "Ghost Flavor";
+
+    [Header("Station names")]
+    public string bucket = "Popcorn Bucket";
+    public string cup = "Drink Cup";
+    public string tank = "Popcorn Tank";
+    public string maker = "Popcorn Maker";
+    public string water = "Water Dispenser";
+    public string pepsi = "Pepsi Dispenser";
+    public string fanta = "Fanta Dispenser";
+    public string orangeJuice = "Orange Juice Dispenser";
+    public string placedCup = "Drink Cup";
+    public string customer = "Customer";
+
+    [Header("Player HUD layout")]
+    [Tooltip("Position relative to the centre of the player HUD. Negative Y moves down.")]
+    public Vector2 screenOffset = new Vector2(0, -65);
+    public Vector2 textBoxSize = new Vector2(640, 44);
+    [Min(1)] public float fontSize = 26;
+    public Color textColor = Color.white;
+    [Tooltip("Optional TMP font asset. Choose a font with Thai glyphs for Thai names.")]
+    public TMP_FontAsset font;
+
+    public string NameOf(IInteractable target)
+    {
+        if (target is PlacedBottleInteractable) return placedCup;
+        if (target is PopcornCustomer) return customer;
+        if (!(target is PopcornStation station)) return null;
+        switch (station.Kind)
+        {
+            case PopcornStationKind.Bucket: return bucket;
+            case PopcornStationKind.Cup: return cup;
+            case PopcornStationKind.Tank: return tank;
+            case PopcornStationKind.Maker: return maker;
+            case PopcornStationKind.Ghost: return ghost;
+            case PopcornStationKind.Scoop:
+                return station.Flavor == PopcornFlavor.BBQ ? bbq :
+                    station.Flavor == PopcornFlavor.Cheese ? cheese : paprika;
+            case PopcornStationKind.Water:
+                return station.Flavor == PopcornFlavor.Pepsi ? pepsi :
+                    station.Flavor == PopcornFlavor.Fanta ? fanta :
+                    station.Flavor == PopcornFlavor.OrangeJuice ? orangeJuice : water;
+            default: return null;
+        }
+    }
+}
+
 /// <summary>
 /// Scene entry point for the Zone 1 popcorn prototype. The authored counter and
 /// machine meshes remain untouched; this component mounts the gameplay UI onto
@@ -33,6 +87,10 @@ public enum PopcornCustomerType
 [DisallowMultipleComponent]
 public sealed class PopcornMinigameBootstrap : MonoBehaviour
 {
+    [Header("Focus names on player HUD")]
+    [SerializeField] private PopcornFocusSettings focusNames = new PopcornFocusSettings();
+    public PopcornFocusSettings FocusNames => focusNames;
+
     [Header("Scene objects")]
     [SerializeField] private string cashierObjectName = "Cashier (1)";
     [SerializeField] private string popcornMakerObjectName = "Popcorn Maker (1)";
@@ -586,7 +644,7 @@ public sealed class PopcornGameManager : MonoBehaviour
 
         counterSlot.Occupy(this, order);
         TaskTimer.Begin(TimerKey);
-        orderText.text = order.Label();
+        RefreshOrderDisplay(counterSlot.ActiveCustomer);
     }
 
     /// <summary>
@@ -612,7 +670,7 @@ public sealed class PopcornGameManager : MonoBehaviour
             if (counterSlot.ActiveCustomer.OrderState.id == sync.Order.id)
             {
                 counterSlot.ActiveCustomer.UpdateOrder(sync.Order);
-                orderText.text = sync.Order.Label();
+                RefreshOrderDisplay(counterSlot.ActiveCustomer);
             }
             else counterSlot.ActiveCustomer.BeginLeaving();
             return;
@@ -620,7 +678,7 @@ public sealed class PopcornGameManager : MonoBehaviour
 
         counterSlot.Occupy(this, sync.Order);
         TaskTimer.Begin(TimerKey);
-        orderText.text = sync.Order.Label();
+        RefreshOrderDisplay(counterSlot.ActiveCustomer);
     }
 
     private void OnSyncOrderChanged()
@@ -661,7 +719,17 @@ public sealed class PopcornGameManager : MonoBehaviour
 
     public void CustomerReady(PopcornCustomer customer)
     {
-        orderText.text = customer.OrderState.Label();
+        if (customer == null || customer != counterSlot.ActiveCustomer) return;
+        RefreshOrderDisplay(customer);
+    }
+
+    private void RefreshOrderDisplay(PopcornCustomer customer)
+    {
+        // A replicated order exists while its local customer is still walking in.
+        // Reveal it only after that customer has reached the counter (Waiting).
+        string text = customer != null && customer.CanInteract()
+            ? customer.OrderState.Label() : "WAITING FOR CUSTOMER...";
+        if (orderText.text != text) orderText.text = text;
     }
 
     public void TryServe(PopcornCustomer customer, GameObject interactor)
@@ -789,6 +857,14 @@ public sealed class WorldButtonInteractable : MonoBehaviour, IInteractable, IInt
         interactionCollider.center = new Vector3(rect.center.x, rect.center.y, 0f);
     }
 
+    public string DisplayName
+    {
+        get
+        {
+            TMP_Text label = button != null ? button.GetComponentInChildren<TMP_Text>() : null;
+            return label != null ? label.text : name;
+        }
+    }
     public string GetInteractionPrompt() => prompt;
     public bool CanInteract() => isActiveAndEnabled && button != null && button.IsActive() && button.IsInteractable();
     public bool IsRaycastLocationValid(Vector2 screenPoint, Camera eventCamera)

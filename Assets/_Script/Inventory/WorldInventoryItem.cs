@@ -45,6 +45,8 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
         if (flashlight != null) flashlight.Show(item, true);
     }
 
+    public string DisplayName => ItemCatalog.DisplayName(item.itemId);
+
     public string GetInteractionPrompt()
     {
         // You already carry one: this becomes a SPARE (only to give away).

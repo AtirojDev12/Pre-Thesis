@@ -46,6 +46,21 @@ public sealed class RuleInteractable : InteractableBase
     private bool collidersDirty = true;
 
     public bool Usable => usable;
+    public string DisplayName
+    {
+        get
+        {
+            if (GetComponent<ToiletLight>() != null) return "Light Switch";
+            switch (actionText)
+            {
+                case "Knock": return "Stall Door";
+                case "Sit on the shadow": return "Shadow Seat";
+                case "Pick up black box": return "Black Box";
+                case "Throw the black box in": return "Black Box Drop Point";
+                default: return name.Replace("(Clone)", "").Replace('_', ' ').Trim();
+            }
+        }
+    }
 
     private static double Now => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
 

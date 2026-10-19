@@ -2,6 +2,44 @@
 
 ## Player loop
 
+### Focus names on the player HUD
+
+To edit in the scene: open `Assets/Scenes/Map/Cinema_GamePlay.unity`, select
+**Popcorn Minigame Systems** in the Hierarchy, and expand **Focus Names** under
+**Focus names on player HUD** on `PopcornMinigameBootstrap`.
+Flavor/station names are serialized on this scene component. Both machines
+share the name for each drink. Negative offset Y moves the text below the centre.
+Use a TMP font containing Thai glyphs when entering Thai names.
+Edits preview immediately while aiming in Play mode; make permanent edits outside
+Play mode and save the scene. An empty name hides that target's label.
+
+For the shipped **GAME HUD**, edit the actual **Focus Name** TMP child in
+`Assets/Prefab/GAME HUD.prefab` to change position, box size, font, size and color.
+These prefab values are preserved at runtime. The scene component's layout/font
+fields apply only to fallback HUDs without a wired Focus Name text reference.
+
+Point the existing interaction ray at a popcorn-zone target within its normal
+range to show its name at a fixed position 65 reference pixels below the crosshair.
+The label belongs to the local HUD, changes when the focused target changes, and
+hides when looking away, opening an input-blocking menu, losing the local player,
+or leaving interaction range. It shows only a name, without E instructions or
+recipe steps. Station interaction, serving, hold progress and order displays remain.
+
+| Target | HUD name |
+| --- | --- |
+| Cheese / BBQ / Papica stations | Cheese Flavor / BBQ Flavor / Paprika Flavor |
+| GhostFavor, including when displaced | Ghost Flavor |
+| BucketSpwan / PaperBottleSpwan | Popcorn Bucket / Drink Cup |
+| PopCornTank / Popcorn_Maker | Popcorn Tank / Popcorn Maker |
+| Water / Fanta / orange juice / Pepsi controls on both machines | Water / Fanta / Orange Juice / Pepsi Dispenser |
+| Placed cup | Drink Cup |
+| Waiting popcorn customer | Customer |
+
+Names use the configured station kind/flavor, rather than authored scene spelling.
+The usual collider, occlusion and local-player checks still apply. A blocked action
+such as full hands does not hide a station's name. Other zones retain their original
+action prompts by default. This adds no navigation markers or quest tracking.
+
 Drink visuals use `EmptyCup` before filling and the same `FullCup` for water,
 Pepsi, Fanta and orange juice. Ghost seasoning replaces it with `FullCupGhost`. Cup materials keep
 their authored colors; flavor and ghost seasoning remain separate order data.
@@ -18,6 +56,9 @@ the rim. Local and observer visuals share the same prefab selection and sizing;
 Mirror continues to replicate recipe state rather than spawning networked props.
 
 1. Check the **Cashier UI Anchor** display for the customer type and order.
+   The display stays on **WAITING FOR CUSTOMER...** while the customer walks in;
+   the order appears only when that customer's local visual reaches the counter.
+   Replicated order updates and partial deliveries preserve this arrival check.
 2. Aim at **BucketSpwan** and press **E** for an empty popcorn bucket, or **PaperBottleSpwan** for an empty cup.
 3. For popcorn, hold **E** at **PopCornTank** for **3 seconds** to receive plain **HeldPopcorn**, then press **E** at **Cheese**, **BBQ**, or **Papica** (Paprika) to add a flavor. An empty bucket cannot be flavored or served. For drinks, hold **E** at the matching dispenser control for **3 seconds**. Releasing E, looking away, opening a menu, walking out of range, or an obstruction cancels preparation and resets progress.
 4. For a **ghost customer**, press **E** at **GhostFavor** after filling. This adds ghost seasoning without changing the base popcorn flavor or water order. Human orders require no ghost seasoning.

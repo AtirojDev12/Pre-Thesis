@@ -11,6 +11,12 @@ public class StaminaBarUI : MonoBehaviour
     [SerializeField] private GameObject barRoot;
     [SerializeField] private bool hideWhenUnbound = true;
 
+    [Header("Stamina Colors")]
+    [Tooltip("Blend between Empty and Full colors. Disable to keep the Fill Image's own Color.")]
+    [SerializeField] private bool useStaminaColors = true;
+    [SerializeField] private Color emptyStaminaColor = new Color(0.9f, 0.25f, 0.15f);
+    [SerializeField] private Color fullStaminaColor = new Color(0.2f, 0.85f, 0.45f);
+
     private PlayerStamina _bound;
     private CanvasGroup _fadeGroup;
 
@@ -66,11 +72,17 @@ public class StaminaBarUI : MonoBehaviour
             staminaSlider.value = current;
         }
 
-        if (fillImage != null)
-            fillImage.color = Color.Lerp(new Color(0.9f, 0.25f, 0.15f), new Color(0.2f, 0.85f, 0.45f), ratio);
+        if (fillImage != null && useStaminaColors)
+            fillImage.color = Color.Lerp(emptyStaminaColor, fullStaminaColor, ratio);
 
         if (staminaText != null)
             staminaText.text = $"STAMINA {Mathf.CeilToInt(current)}";
+    }
+
+    private void OnValidate()
+    {
+        if (Application.isPlaying && _bound != null)
+            UpdateBar(_bound.CurrentStamina, _bound.MaxStamina);
     }
 
     private void SetVisible(bool visible)
