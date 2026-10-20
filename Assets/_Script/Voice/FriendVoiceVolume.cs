@@ -54,6 +54,18 @@ public static class FriendVoiceVolume
         cache.Add(new Entry { key = key, value = value });
     }
 
+    /// <summary>
+    /// Slider (0..2) -> real gain. Made strong on purpose (Mr.k: "200% must be LOUD"):
+    /// the sender's mic auto-gain already makes voices loud, so a plain x2 was hardly
+    /// heard. 50% = x0.25 (-12 dB), 100% = x1, 150% = x3.5, 200% = x6 (+15.6 dB).
+    /// VoiceFilter soft-limits the result, so it gets louder without harsh clipping.
+    /// </summary>
+    public static float ToGain(float slider)
+    {
+        slider = Mathf.Clamp(slider, 0f, Max);
+        return slider <= 1f ? slider * slider : 1f + (slider - 1f) * 5f;
+    }
+
     /// <summary>Volume for a game-network voice stream "net:&lt;talkerNetId&gt;".</summary>
     public static float ForTalker(uint talkerNetId)
     {

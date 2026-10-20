@@ -36,6 +36,15 @@ public sealed class VoiceFilter : MonoBehaviour
         outputRate = AudioSettings.outputSampleRate;
     }
 
+    // Linear up to 0.6, then bends smoothly toward 1.0 (never above).
+    private static float SoftLimit(float x)
+    {
+        float a = x < 0f ? -x : x;
+        if (a <= 0.6f) return x;
+        float y = 0.6f + 0.4f * (float)System.Math.Tanh((a - 0.6f) / 0.4f);
+        return x < 0f ? -y : y;
+    }
+
     private void OnAudioFilterRead(float[] data, int channels)
     {
         VoiceStream voice = stream;
@@ -65,6 +74,7 @@ public sealed class VoiceFilter : MonoBehaviour
             float t = (float)(p - i);
             int j = i + 1 > needed ? needed : i + 1;
             float sample = (input[i] + (input[j] - input[i]) * t) * g;
+            if (g > 1f) sample = SoftLimit(sample); // boosted friend: loud, not crackly
 
             int offset = f * channels;
             for (int c = 0; c < channels; c++) data[offset + c] *= sample;

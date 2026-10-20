@@ -111,8 +111,9 @@ public sealed class VoicePlayback : MonoBehaviour
     {
         if (Time.unscaledTime < nextGainCheck) return;
         nextGainCheck = Time.unscaledTime + 0.25f;
-        float gain = talkerNetId != 0 ? FriendVoiceVolume.ForTalker(talkerNetId)
+        float slider = talkerNetId != 0 ? FriendVoiceVolume.ForTalker(talkerNetId)
             : !string.IsNullOrEmpty(eosId) ? FriendVoiceVolume.ForEosId(eosId) : 1f;
+        float gain = FriendVoiceVolume.ToGain(slider);
         if (proximityFilter != null) proximityFilter.Gain = gain;
         if (radioFilter != null) radioFilter.Gain = gain;
     }
