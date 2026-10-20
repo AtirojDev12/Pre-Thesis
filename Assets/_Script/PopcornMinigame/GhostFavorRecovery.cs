@@ -1,4 +1,5 @@
 using Mirror;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -28,10 +29,18 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     private float darkSeconds;
     private bool blackoutHandled;
     private int dropFrame = -1;
+    private GhostFavorTrail trail;
     private bool HasAuthority => !NetworkMode.SessionEnding && (NetworkMode.IsOffline ||
         (PopcornNetSync.Instance != null && PopcornNetSync.Instance.isServer));
     public bool DroppedThisFrame => dropFrame == Time.frameCount;
     public bool IsHome => !VisibleState.displaced;
+    public Vector3 HomePosition => homePosition;
+    public Transform ItemTransform => favor;
+    public Vector3 AuthorityPosition => state.position;
+    public bool HasTrailAuthority => HasAuthority;
+    public bool IsCarried => NetworkMode.IsOffline ? carrier != null : VisibleState.carrierId != 0;
+    public bool IsMovingForTrail => falling && favorBody != null && !favorBody.IsSleeping() &&
+        favorBody.linearVelocity.sqrMagnitude > .01f;
     public GhostFavorState VisibleState => !NetworkMode.IsOffline && PopcornNetSync.Instance != null
         ? PopcornNetSync.Instance.GhostFavor : state;
     public bool IsLocalCarrier => PlayerHealth.LocalInstance != null && (NetworkMode.IsOffline
@@ -55,6 +64,8 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         favorBody.useGravity = false;
         favorBody.constraints = RigidbodyConstraints.FreezeRotation;
         favorBody.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+        trail = GetComponent<GhostFavorTrail>();
+        if (trail != null) trail.Configure(this);
     }
 
     private void Update()
@@ -156,16 +167,31 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     {
         // Leave a recovery already in progress alone, including on later blackouts.
         if (state.displaced) return;
-        Transform destination = null;
-        if (destinations != null && destinations.Length > 0)
-            destination = destinations[Random.Range(0, destinations.Length)];
-        if (destination == null)
+        var candidates = new List<Transform>();
+        if (destinations != null)
+            foreach (Transform point in destinations)
+                if (point != null && !candidates.Contains(point)) candidates.Add(point);
+        if (candidates.Count == 0)
         {
             TicketMinigame tickets = FindAnyObjectByType<TicketMinigame>();
-            if (tickets != null) destination = tickets.GhostFavorDestination;
+            if (tickets != null && tickets.GhostFavorDestination != null) candidates.Add(tickets.GhostFavorDestination);
         }
-        if (destination == null) return;
-        state = new GhostFavorState { displaced = true, position = destination.position, rotation = destination.rotation };
+        // Shuffle once: each reachable authored point has an equal chance, and an
+        // unreachable/null point cannot strand the item or disable all other points.
+        for (int i = candidates.Count - 1; i > 0; i--)
+        {
+            int other = Random.Range(0, i + 1);
+            Transform swap = candidates[i]; candidates[i] = candidates[other]; candidates[other] = swap;
+        }
+        foreach (Transform destination in candidates)
+        {
+            Vector3[] route = null;
+            if (trail != null && trail.RequiresReachableDestination && !trail.TryPlanDestination(destination, out route)) continue;
+            state = new GhostFavorState { displaced = true, position = destination.position, rotation = destination.rotation };
+            if (trail != null) trail.AcceptRelocation(state.position, route);
+            return;
+        }
+        if (trail != null && trail.RequiresReachableDestination) trail.ReportNoReachableDestination();
     }
 
     public string Prompt => IsHome ? "Ghost Flavor" : IsLocalCarrier

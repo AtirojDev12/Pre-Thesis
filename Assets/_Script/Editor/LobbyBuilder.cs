@@ -241,7 +241,6 @@ public static class LobbyBuilder
         // UI anchors: forward = away from the player (canvas read from the south). Eye level.
         // Cashier screen 0.6x0.35 m; instruction screen 0.62x0.85 m above the flavours.
         Transform cashierUi = Point(area, "Cashier UI Anchor", new Vector3(-6.2f, 1.75f, 1.6f), Quaternion.identity);
-        Transform makerUi = Point(area, "Instructions UI Anchor", new Vector3(-10.95f, 1.95f, 1.5f), Quaternion.identity);
         Transform maker = counter.transform; // the instruction screen hangs off the counter
 
         // Customer route (north side of the counter), facing the player at the counter.
@@ -287,7 +286,6 @@ public static class LobbyBuilder
         SetObject(so, "paprikaPopcornPrefab", LoadByGuid<GameObject>("4f55ac923f7d3f145964d279875e38a5"));
         SetObject(so, "ghostPopcornPrefab", LoadByGuid<GameObject>("1aab50f68e8092e4b80e510b17266974"));
         SetObject(so, "cashierUiAnchor", cashierUi);
-        SetObject(so, "popcornMakerUiAnchor", makerUi);
         SetObject(so, "customerSpawnPoint", spawn);
         SetObject(so, "customerWaitPoint", wait);
         SetObject(so, "customerExitPoint", exit);

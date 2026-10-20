@@ -14246,7 +14246,6 @@ MonoBehaviour:
   heldPopcornPosition: {x: -0.3, y: -0.24, z: 0.65}
   heldPopcornRotation: {x: -10, y: 0, z: -8}
   cashierUiAnchor: {fileID: 285735979}
-  popcornMakerUiAnchor: {fileID: 1220888383}
   customerSpawnPoint: {fileID: 1562104676}
   customerWaitPoint: {fileID: 1153535064}
   customerExitPoint: {fileID: 1234305318}

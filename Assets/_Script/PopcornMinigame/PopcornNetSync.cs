@@ -201,6 +201,7 @@ public partial class PopcornNetSync : NetworkBehaviour
         heldRefills.Clear();
         ResetStationSounds();
         PlacedDrinks.Clear();
+        ghostTrail = default;
     }
 
     public void RequestSupply(int station, int request, PopcornSupplyAction action) => CmdSupply(station, request, action);

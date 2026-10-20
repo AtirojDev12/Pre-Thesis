@@ -5256,6 +5256,7 @@ GameObject:
   - component: {fileID: 53235468}
   - component: {fileID: 53235467}
   - component: {fileID: 53235466}
+  - component: {fileID: 53235469}
   m_Layer: 0
   m_Name: Chore - Dirt (Men Toilet 3)
   m_TagString: Untagged
@@ -5344,6 +5345,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &53235469
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 53235464}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!1001 &53633365
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -8463,6 +8477,7 @@ GameObject:
   - component: {fileID: 106220747}
   - component: {fileID: 106220746}
   - component: {fileID: 106220745}
+  - component: {fileID: 106220748}
   m_Layer: 0
   m_Name: Chore - Dirt (Men Toilet 2)
   m_TagString: Untagged
@@ -8551,6 +8566,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &106220748
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 106220743}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!43 &110031332
 Mesh:
   m_ObjectHideFlags: 0
@@ -9409,7 +9437,6 @@ Transform:
   m_LocalScale: {x: 1, y: 0.22624, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1220888383}
   - {fileID: 1040463695}
   - {fileID: 1242290493}
   - {fileID: 1662780840}
@@ -9417,6 +9444,10 @@ Transform:
   - {fileID: 522356497}
   - {fileID: 1212395110}
   - {fileID: 400049678}
+  - {fileID: 2146521534}
+  - {fileID: 1873944523}
+  - {fileID: 1979727428}
+  - {fileID: 391475166}
   m_Father: {fileID: 2120715951}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &117809105
@@ -15546,7 +15577,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -28554,6 +28585,7 @@ GameObject:
   - component: {fileID: 362530616}
   - component: {fileID: 362530615}
   - component: {fileID: 362530614}
+  - component: {fileID: 362530617}
   m_Layer: 0
   m_Name: Chore - Dirt (Women Toilet 3)
   m_TagString: Untagged
@@ -28642,6 +28674,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &362530617
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 362530612}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!43 &362870466
 Mesh:
   m_ObjectHideFlags: 0
@@ -30241,19 +30286,31 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 0}
+    m_TransformParent: {fileID: 117103351}
     m_Modifications:
     - target: {fileID: 2809878415644940322, guid: 7f054b4d9cfd79f43bbb19b25726a3c0, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 13.678353
+      objectReference: {fileID: 0}
+    - target: {fileID: 2809878415644940322, guid: 7f054b4d9cfd79f43bbb19b25726a3c0, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 60.459484
+      objectReference: {fileID: 0}
+    - target: {fileID: 2809878415644940322, guid: 7f054b4d9cfd79f43bbb19b25726a3c0, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 13.678353
+      objectReference: {fileID: 0}
+    - target: {fileID: 2809878415644940322, guid: 7f054b4d9cfd79f43bbb19b25726a3c0, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -17.406
+      value: -0.07100105
       objectReference: {fileID: 0}
     - target: {fileID: 2809878415644940322, guid: 7f054b4d9cfd79f43bbb19b25726a3c0, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.0276148
+      value: 0.59500957
       objectReference: {fileID: 0}
     - target: {fileID: 2809878415644940322, guid: 7f054b4d9cfd79f43bbb19b25726a3c0, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 13.629
+      value: -0.51600075
       objectReference: {fileID: 0}
     - target: {fileID: 2809878415644940322, guid: 7f054b4d9cfd79f43bbb19b25726a3c0, type: 3}
       propertyPath: m_LocalRotation.w
@@ -30807,6 +30864,11 @@ MonoBehaviour:
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
+--- !u!4 &391475166 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
+  m_PrefabInstance: {fileID: 1415696392}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &393895736
 GameObject:
   m_ObjectHideFlags: 0
@@ -37331,6 +37393,7 @@ GameObject:
   - component: {fileID: 452559795}
   - component: {fileID: 452559794}
   - component: {fileID: 452559793}
+  - component: {fileID: 452559796}
   m_Layer: 0
   m_Name: Chore - Dirt (Women Toilet 2)
   m_TagString: Untagged
@@ -37419,6 +37482,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &452559796
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 452559791}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!1001 &454457487
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -54272,6 +54348,7 @@ GameObject:
   - component: {fileID: 615889575}
   - component: {fileID: 615889574}
   - component: {fileID: 615889573}
+  - component: {fileID: 615889576}
   m_Layer: 0
   m_Name: Chore - Dirt (Ghost Room 3)
   m_TagString: Untagged
@@ -54360,6 +54437,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &615889576
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 615889571}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!43 &616798834
 Mesh:
   m_ObjectHideFlags: 0
@@ -59106,6 +59196,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 653653306}
+  - component: {fileID: 8500000000001000}
   - component: {fileID: 653653305}
   - component: {fileID: 653653304}
   m_Layer: 0
@@ -59170,10 +59261,10 @@ MonoBehaviour:
   popcornMakerObject: {fileID: 117103351}
   bucketSpawner: {fileID: 522356497}
   cupSpawner: {fileID: 263387324}
-  cheeseStation: {fileID: 1242290493}
-  bbqStation: {fileID: 1040463695}
-  paprikaStation: {fileID: 1662780840}
-  ghostStation: {fileID: 1338506665}
+  cheeseStation: {fileID: 1873944523}
+  bbqStation: {fileID: 2146521534}
+  paprikaStation: {fileID: 1979727428}
+  ghostStation: {fileID: 391475166}
   ghostFavorRelocationPoints:
   - {fileID: 400049678}
   waterDispensers:
@@ -59211,7 +59302,6 @@ MonoBehaviour:
   heldPopcornPosition: {x: -0.3, y: -0.24, z: 0.65}
   heldPopcornRotation: {x: -10, y: 0, z: -8}
   cashierUiAnchor: {fileID: 285735979}
-  popcornMakerUiAnchor: {fileID: 1220888383}
   customerSpawnPoint: {fileID: 1562104676}
   customerWaitPoint: {fileID: 1153535064}
   customerExitPoint: {fileID: 1398791419}
@@ -63950,19 +64040,23 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 0}
+    m_TransformParent: {fileID: 117103351}
     m_Modifications:
     - target: {fileID: 14496193518359606, guid: 1d666d9ccbf280e45b8af16537afa466, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 60.459484
+      objectReference: {fileID: 0}
+    - target: {fileID: 14496193518359606, guid: 1d666d9ccbf280e45b8af16537afa466, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -17.402
+      value: -0.06700134
       objectReference: {fileID: 0}
     - target: {fileID: 14496193518359606, guid: 1d666d9ccbf280e45b8af16537afa466, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.0276148
+      value: 0.59500957
       objectReference: {fileID: 0}
     - target: {fileID: 14496193518359606, guid: 1d666d9ccbf280e45b8af16537afa466, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 13.007
+      value: -1.1380005
       objectReference: {fileID: 0}
     - target: {fileID: 14496193518359606, guid: 1d666d9ccbf280e45b8af16537afa466, type: 3}
       propertyPath: m_LocalRotation.w
@@ -70258,6 +70352,7 @@ GameObject:
   - component: {fileID: 756503361}
   - component: {fileID: 756503363}
   - component: {fileID: 756503362}
+  - component: {fileID: 756503364}
   m_Layer: 0
   m_Name: Box Drop Spot (last stall)
   m_TagString: Untagged
@@ -70321,6 +70416,19 @@ MonoBehaviour:
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
+--- !u!114 &756503364
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 756503360}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: SuspeciusObject
 --- !u!1 &758603804
 GameObject:
   m_ObjectHideFlags: 0
@@ -92825,6 +92933,7 @@ GameObject:
   - component: {fileID: 1022160636}
   - component: {fileID: 1022160635}
   - component: {fileID: 1022160634}
+  - component: {fileID: 1022160637}
   m_Layer: 0
   m_Name: Chore - Dirt (Normal Room 2)
   m_TagString: Untagged
@@ -92913,6 +93022,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &1022160637
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1022160632}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!1 &1024951535
 GameObject:
   m_ObjectHideFlags: 0
@@ -101479,6 +101601,7 @@ GameObject:
   - component: {fileID: 1083172980}
   - component: {fileID: 1083172979}
   - component: {fileID: 1083172978}
+  - component: {fileID: 1083172981}
   m_Layer: 0
   m_Name: Chore - Dirt (Men Toilet 1)
   m_TagString: Untagged
@@ -101567,6 +101690,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &1083172981
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1083172976}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!1 &1083404743 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 4427705808117855708, guid: eeb467bcc15f71c42b5c3e6b9dd3b655, type: 3}
@@ -105099,7 +105235,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -115461,37 +115597,6 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
---- !u!1 &1220888382
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1220888383}
-  m_Layer: 0
-  m_Name: Popcorn Maker UI Anchor
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1220888383
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1220888382}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.556, y: 3.22, z: -0.044}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 117103351}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!43 &1220950198
 Mesh:
   m_ObjectHideFlags: 0
@@ -132244,19 +132349,23 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 0}
+    m_TransformParent: {fileID: 117103351}
     m_Modifications:
     - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 60.459484
+      objectReference: {fileID: 0}
+    - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -17.396
+      value: -0.061000824
       objectReference: {fileID: 0}
     - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.0276148
+      value: 0.59500957
       objectReference: {fileID: 0}
     - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 11.811
+      value: -2.3340015
       objectReference: {fileID: 0}
     - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
       propertyPath: m_LocalRotation.w
@@ -134964,6 +135073,7 @@ GameObject:
   - component: {fileID: 1460633870}
   - component: {fileID: 1460633869}
   - component: {fileID: 1460633868}
+  - component: {fileID: 1460633871}
   m_Layer: 0
   m_Name: Chore - Dirt (Normal Room 1)
   m_TagString: Untagged
@@ -135052,6 +135162,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &1460633871
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1460633866}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!43 &1460734852
 Mesh:
   m_ObjectHideFlags: 0
@@ -136165,19 +136288,23 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 0}
+    m_TransformParent: {fileID: 117103351}
     m_Modifications:
     - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 60.459484
+      objectReference: {fileID: 0}
+    - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -17.397
+      value: -0.062000275
       objectReference: {fileID: 0}
     - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.0276148
+      value: 0.59500957
       objectReference: {fileID: 0}
     - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 12.411
+      value: -1.7340012
       objectReference: {fileID: 0}
     - target: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
       propertyPath: m_LocalRotation.w
@@ -136565,7 +136692,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -137875,6 +138002,7 @@ GameObject:
   - component: {fileID: 1495493096}
   - component: {fileID: 1495493095}
   - component: {fileID: 1495493094}
+  - component: {fileID: 1495493097}
   m_Layer: 0
   m_Name: Chore - Dirt (Ghost Room 1)
   m_TagString: Untagged
@@ -137963,6 +138091,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &1495493097
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1495493092}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!1 &1497441214
 GameObject:
   m_ObjectHideFlags: 0
@@ -144285,6 +144426,176 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1 &1583900214
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1583900215}
+  - component: {fileID: 1583900218}
+  - component: {fileID: 1583900217}
+  - component: {fileID: 1583900216}
+  - component: {fileID: 1583900219}
+  m_Layer: 0
+  m_Name: Paper
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1583900215
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1583900214}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 6.8727, y: -5.087, z: 12.082}
+  m_LocalScale: {x: 0.024748614, y: 0.21792194, z: 0.03464741}
+  m_ConstrainProportionsScale: 1
+  m_Children: []
+  m_Father: {fileID: 2120715951}
+  m_LocalEulerAnglesHint: {x: -90, y: 0, z: 0}
+--- !u!64 &1583900216
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1583900214}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 0
+  m_CookingOptions: 30
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!23 &1583900217
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1583900214}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &1583900218
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1583900214}
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &1583900219
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1583900214}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 45a20a21e31b45fa81d71946b6a019f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  interactionPrompt: '[E] Read popcorn instructions'
+  pages:
+  - {fileID: 2800000, guid: 0ad6b32017681e94c85f88b8c40d97cb, type: 3}
+  maximumSize: {x: 1400, y: 900}
+  screenMargin: {x: 60, y: 90}
+  centerOffset: {x: 0, y: 0}
+  backdropColor: {r: 0, g: 0, b: 0, a: 0.7}
+  sortingOrder: 2000
+  openDuration: 0.45
+  closeDuration: 0.25
+  slideCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  offscreenPadding: 30
+  closeKey: 19
+  nextPageKey: 62
+  previousPageKey: 61
+  onOpened:
+    m_PersistentCalls:
+      m_Calls: []
+  onClosed:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1001 &1585598928
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -159969,6 +160280,7 @@ GameObject:
   - component: {fileID: 1756271747}
   - component: {fileID: 1756271749}
   - component: {fileID: 1756271748}
+  - component: {fileID: 1756271750}
   m_Layer: 0
   m_Name: Box Drop Spot (last stall)
   m_TagString: Untagged
@@ -160032,6 +160344,19 @@ MonoBehaviour:
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
+--- !u!114 &1756271750
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1756271746}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: SuspeciusObject
 --- !u!43 &1756350746
 Mesh:
   m_ObjectHideFlags: 0
@@ -173070,6 +173395,11 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1612591131}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!4 &1873944523 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 14496193518359606, guid: 1d666d9ccbf280e45b8af16537afa466, type: 3}
+  m_PrefabInstance: {fileID: 669228435}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1873983314
 GameObject:
   m_ObjectHideFlags: 0
@@ -173082,6 +173412,7 @@ GameObject:
   - component: {fileID: 1873983318}
   - component: {fileID: 1873983317}
   - component: {fileID: 1873983316}
+  - component: {fileID: 1873983319}
   m_Layer: 0
   m_Name: Chore - Dirt (Ghost Room 2)
   m_TagString: Untagged
@@ -173170,6 +173501,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &1873983319
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1873983314}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!1 &1875495481
 GameObject:
   m_ObjectHideFlags: 0
@@ -177304,7 +177648,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -182499,6 +182843,7 @@ GameObject:
   - component: {fileID: 1968877667}
   - component: {fileID: 1968877666}
   - component: {fileID: 1968877665}
+  - component: {fileID: 1968877668}
   m_Layer: 0
   m_Name: Chore - Dirt (Women Toilet 1)
   m_TagString: Untagged
@@ -182587,6 +182932,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &1968877668
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1968877663}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!43 &1969147811
 Mesh:
   m_ObjectHideFlags: 0
@@ -183493,6 +183851,11 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
+--- !u!4 &1979727428 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2755526186653193024, guid: aebbb26bf29405e459408571f0c27391, type: 3}
+  m_PrefabInstance: {fileID: 1469253785}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1980917605
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -186965,6 +187328,7 @@ GameObject:
   - component: {fileID: 2008231734}
   - component: {fileID: 2008231733}
   - component: {fileID: 2008231732}
+  - component: {fileID: 2008231735}
   m_Layer: 0
   m_Name: Black Box Place (staff room later)
   m_TagString: Untagged
@@ -187044,6 +187408,19 @@ MonoBehaviour:
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
+--- !u!114 &2008231735
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2008231730}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: GhostFood
 --- !u!1 &2011007145
 GameObject:
   m_ObjectHideFlags: 0
@@ -193281,6 +193658,7 @@ GameObject:
   - component: {fileID: 2072137556}
   - component: {fileID: 2072137555}
   - component: {fileID: 2072137554}
+  - component: {fileID: 2072137557}
   m_Layer: 0
   m_Name: Chore - Dirt (Normal Room 3)
   m_TagString: Untagged
@@ -193369,6 +193747,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 0.06, z: 1}
   m_Center: {x: 0, y: 0.03, z: 0}
+--- !u!114 &2072137557
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2072137552}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: Dirt
 --- !u!43 &2076219100
 Mesh:
   m_ObjectHideFlags: 0
@@ -194483,6 +194874,7 @@ GameObject:
   - component: {fileID: 2088472045}
   - component: {fileID: 2088472044}
   - component: {fileID: 2088472043}
+  - component: {fileID: 2088472046}
   m_Layer: 0
   m_Name: Black Box Place (staff room later)
   m_TagString: Untagged
@@ -194562,6 +194954,19 @@ MonoBehaviour:
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
+--- !u!114 &2088472046
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2088472041}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290fae71aa7b4878a89da3a06aacc58a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
+  displayName: GhostFood
 --- !u!43 &2092053267
 Mesh:
   m_ObjectHideFlags: 0
@@ -197718,6 +198123,7 @@ Transform:
   - {fileID: 653653306}
   - {fileID: 993463013}
   - {fileID: 2039722018}
+  - {fileID: 1583900215}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2126367589
@@ -198594,6 +199000,11 @@ MonoBehaviour:
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
+--- !u!4 &2146521534 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2809878415644940322, guid: 7f054b4d9cfd79f43bbb19b25726a3c0, type: 3}
+  m_PrefabInstance: {fileID: 379500152}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &2147288655
 GameObject:
   m_ObjectHideFlags: 0
@@ -199189,6 +199600,53 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
   displayName: Light Swich
+--- !u!114 &8500000000001000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 653653303}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4cf7802cd10f4a589a622fe7892e11d8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GhostFavorTrail
+  settings:
+    enabled: 1
+    agentTypeId: 0
+    areaMask: -1
+    navMeshSampleRadius: 1.5
+    pickupReach: 2
+    maximumFloorHeightDifference: 1.8
+    blockedPathCheckInterval: 2
+    settleSeconds: 0.6
+    movementThreshold: 0.08
+    groundLayers:
+      serializedVersion: 2
+      m_Bits: 4294967295
+    groundProbeHeight: 0.4
+    groundProbeDepth: 0.5
+    maximumSurfaceError: 0.2
+    surfaceOffset: 0.012
+    spacing: 1.2
+    markSize: {x: 0.35, y: 0.65}
+    sidewaysVariation: 0.07
+    maximumMarks: 128
+    marksPerMesh: 24
+    bloodColor: {r: 0.3, g: 0.012, b: 0.025, a: 0.9}
+    bloodTexture: {fileID: 0}
+    minimumVisibility: 0.2
+    sweepColor: {r: 1, g: 0.2, b: 0.12, a: 1}
+    sweepIntensity: 1.4
+    sweepDuration: 1.5
+    sweepPause: 9
+    sweepWidth: 1.8
+    visibleDistance: 28
+    distanceFade: 5
+    fadeSeconds: 1.2
+  homeApproachPoint: {fileID: 0}
+  trailMaterial: {fileID: 2100000, guid: 09365b8f08de4f339bce888bde11aeac, type: 2}
 --- !u!1001 &7079278215447538088
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -199306,8 +199764,4 @@ SceneRoots:
   - {fileID: 1935719495}
   - {fileID: 660276656}
   - {fileID: 1842767164}
-  - {fileID: 379500152}
-  - {fileID: 669228435}
-  - {fileID: 1469253785}
-  - {fileID: 1415696392}
   - {fileID: 1277543737}

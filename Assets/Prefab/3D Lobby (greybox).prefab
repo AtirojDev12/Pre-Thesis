@@ -981,7 +981,6 @@ MonoBehaviour:
   heldPopcornPosition: {x: -0.3, y: -0.24, z: 0.65}
   heldPopcornRotation: {x: -10, y: 0, z: -8}
   cashierUiAnchor: {fileID: 6179797363711990104}
-  popcornMakerUiAnchor: {fileID: 8395672620812092437}
   customerSpawnPoint: {fileID: 2892214563088766511}
   customerWaitPoint: {fileID: 7864946215987630679}
   customerExitPoint: {fileID: 7726079898941535795}

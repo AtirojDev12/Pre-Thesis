@@ -72,6 +72,60 @@ The tank starts with **20 servings**. Each finished scoop consumes one serving. 
 
 ## Blackout recovery
 
+### Automatic blood trail (20 Oct 2026)
+
+`GhostFavorTrail` extends the existing `GhostFavorRecovery` and its existing
+**Ghost Favor Relocation Points** list. The server shuffles non-null unique points
+and selects a point with a complete walkable NavMesh route. It samples an approach
+position near the item, rather than trying to walk onto a countertop. If no point
+is reachable, the item stays home and one diagnostic identifies the NavMesh setup
+problem. Disabling the trail restores the legacy relocation behavior.
+
+Edit **Cinema_GamePlay > Popcorn Minigame Systems > Ghost Favor Trail**:
+
+- **Navigation**: use the same agent type/area mask as the baked `NavMeshSurface`.
+  **Home Approach Point** optionally supplies a floor position next to the counter.
+- **Floor Placement**: floor collider layers, short probe range, surface offset and
+  height tolerance. Probes ignore players and the carried item and do not search
+  down through distant floors. Solid floor colliders are required.
+- **Blood Marks**: spacing, size, jitter, tint, maximum count and marks per mesh.
+  The default shader draws procedural blood drops/drag marks. **Blood Texture**
+  optionally accepts a transparent PNG; no VFX Graph is required.
+- **Automatic Light Sweep**: color, intensity, duration, pause and width. The wave
+  always runs along the route, never depends on aiming, and is depth-tested by
+  the scene. It emits no real lights. Defaults: 1.5 seconds sweep / 9 seconds pause.
+- **Visibility and Pooling**: view distance, distance fade and pickup/drop fade.
+  The route remains logically present even while distant mesh chunks are culled.
+
+Adding another existing relocation Transform to the list is enough for automatic
+routing if its walkable area is already baked. For a bottle on a shelf, optionally
+add **Ghost Favor Trail Destination** to that relocation point and assign its
+**Pickup Point** to a nearby floor Transform. No second destination list is used.
+Changing the building's geometry requires rebaking the NavMesh. Doors/obstacles
+that must invalidate routes must update the NavMesh (e.g. carving obstacles).
+Off-mesh jumps/gaps are not painted as airborne paths.
+
+Relocation publishes a route immediately. Carrying pauses and fades the marks,
+including offline carrying where the carrier's netId is zero. A drop (R, downing,
+death or disconnect) waits for motion to settle before replacing the route. While
+stationary, the authority checks route validity every two seconds and replans only
+if blocked. An unreachable drop hides the guide and retries; it never paints a
+straight line through walls. Returning home clears it. Later ghost arrivals do not
+duplicate an unfinished recovery.
+
+The network spine sends a bounded corner-array snapshot only on route/activity
+changes, including its seed and pulse epoch for late joiners. Each client projects
+the same seeded marks onto its scene floors. Marks are pooled into meshes (128
+marks / 24 per mesh by default), with one local material and no colliders, point
+lights, particle systems or NetworkIdentity per mark. Dedicated servers skip the
+rendering allocation. Geometry edits in the component rebuild the local meshes;
+sweep/tint properties update live. Inspector edits made in Play mode are previews.
+
+Run `Tests/GhostFavorTrail/Run-GhostFavorTrailChecks.ps1` for synthetic wall-detour,
+unreachable point, carried/drop/return lifecycle, late-join serialization, bounded
+mesh reuse, authored Cinema route and URP sweep/occlusion rendering checks. Host +
+remote-client playtesting and profiling on the target mobile device remain manual.
+
 `GhostManager` notifies `GhostFavorRecovery` when the timed ghost actually spawns, including developer summons and arrivals while the lights are on. Warning flickers alone do not relocate the seasoning: each dark pulse is shorter than the 0.5-second blackout threshold. A separate sustained blackout of at least 0.5 seconds also triggers recovery. The bootstrap's optional **Ghost Favor Relocation Points** list supplies destinations chosen by the server. Leaving it empty uses the ticket booth's customer counter point.
 
 Any player can press **E** to pick up the displaced seasoning. Carry it within 1.8 metres of its original spot to restore its exact position and rotation automatically. **R** drops it for another player; death, being downed, or disconnecting also drops it from its last carried position. The server (or offline game) simulates gravity and floor collisions, and replicates the falling/resting pose to clients. Picking it up stops physics. Its colliders are disabled while carried. Existing containers remain held, but preparation is paused during recovery. Seasoning cannot be applied until the object is back home, and later blackouts leave an unfinished recovery alone.
@@ -97,7 +151,7 @@ The **Popcorn Minigame Systems** component in `Cinema_GamePlay` explicitly refer
 
 The prefabs live in `Assets/Prefab/Zone1Prefab`. Adding ghost seasoning to **any** drink swaps its hand visual to **PapperBotteWaterGhost**. The chosen drink type is preserved for order matching, along with the ghost-seasoning flag and HUD label. Station objects need enabled, non-trigger colliders. Existing scene names and materials are preserved.
 
-The Cashier UI Anchor shows customer type, base item, and ghost requirement on separate lines. The Popcorn Maker UI Anchor now displays instructions. Instant Make buttons are retired. Preparation has a high-contrast progress bar, percentage, countdown, and cancellation feedback. Hovering a world interactable adds a white silhouette outline without changing its materials.
+The Cashier UI Anchor shows customer type, base item, and ghost requirement on separate lines. Instructions are read from the Paper object using Readable Paper; the maker's world-space instruction panel has been removed. Instant Make buttons are retired. Preparation has a high-contrast progress bar, percentage, countdown, and cancellation feedback. Hovering a world interactable adds a white silhouette outline without changing its materials.
 
 Other scenes using `PopcornMinigameBootstrap` must assign the new station and container fields before using this loop. The older `Z1_Gameplay` layout predates these authored stations; the updated playable layout and regression target are **Cinema_GamePlay**.
 

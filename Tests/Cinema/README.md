@@ -6,7 +6,7 @@ The original `Z1_EnemyTest` scene remains available.
 - Ticket controls: `Ticket Sell/Cube/Cube (11)` (human) and `Cube (14)` (ghost).
 - Movie selection: `Ticket Sell/Cube (1)/Movie Selection UI Anchor`.
 - Popcorn order display: `Moniter/Cube (2)/Cashier UI Anchor`.
-- Flavor/Make panel: `PopcornTasteSelect/Popcorn Maker UI Anchor`.
+- Instructions: the `Paper` object opens the player's Readable Paper overlay.
 - Both customer spawn anchors belong to `Ticket n Popcorn Zone/Entrance/Door`.
 - The exit anchors belong to `Ticket n Popcorn Zone/Entrance (1)/Door`, separated horizontally by 2.5m.
 - Spawn/exit anchors use the door's horizontal position and a capsule-centre height of 1m. Customers leave after their order is resolved.

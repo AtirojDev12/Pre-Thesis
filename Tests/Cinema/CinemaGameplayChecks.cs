@@ -99,7 +99,7 @@ public static class CinemaGameplayChecks
                 var te = Anchor(ticket, "exitPoint"); var pe = Anchor(popcorn, "customerExitPoint");
                 Check(te.parent.name == "Door" && te.parent.parent.name == "Entrance (1)" && pe.parent == te.parent && Vector3.Distance(te.position, pe.position) >= 2.4f, "Separate exit lanes at Entrance (1)/Door, 2.5m apart");
                 Check(Anchor(ticket, "movieUiAnchor").parent.name == "Cube (1)" && ((TicketSellButton)Get(ticket, "humanButton")).transform.parent.name == "Cube", "Ticket controls attached to requested wall and countertop");
-                Check(Anchor(popcorn, "cashierUiAnchor").parent.parent.name == "Moniter" && Anchor(popcorn, "popcornMakerUiAnchor").parent.name == "PopcornTasteSelect", "Popcorn screens attached to requested props");
+                Check(Anchor(popcorn, "cashierUiAnchor").parent.parent.name == "Moniter", "Popcorn order screen attached to monitor");
                 if (host)
                 {
                     foreach (var p in All<PlayerHealth>()) Object.Destroy(p.gameObject);
@@ -174,7 +174,6 @@ public static class CinemaGameplayChecks
                 if (!host)
                 {
                     Screenshot("cinema-order-screen", new Vector3(-18.5f, 1.95f, 12.1f), Anchor(popcorn, "cashierUiAnchor").position);
-                    Screenshot("cinema-flavor-screen", new Vector3(-18.2f, 1.95f, 12f), Anchor(popcorn, "popcornMakerUiAnchor").position);
                 }
                 Call(interactor, "RequestInteract", GameObject.Find("Make Button").GetComponent<WorldButtonInteractable>());
                 Check(Find<ItemHoldingSystem>().HasItem, "Flavor selection and Make equip popcorn");

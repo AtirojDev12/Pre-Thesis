@@ -140,8 +140,6 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [Header("Scene-editable UI anchors")]
     [Tooltip("Move/rotate this Transform in the scene to place the cashier order display.")]
     [SerializeField] private Transform cashierUiAnchor;
-    [Tooltip("Move/rotate this Transform in the scene to place the popcorn maker controls.")]
-    [SerializeField] private Transform popcornMakerUiAnchor;
 
     [Header("Scene-editable customer route")]
     [Tooltip("Where a new customer first appears.")]
@@ -192,7 +190,10 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         preparation.AddStation(paprikaStation, PopcornStationKind.Scoop, PopcornFlavor.Paprika);
         preparation.AddStation(ghostStation, PopcornStationKind.Ghost);
         if (ghostStation != null)
+        {
+            if (GetComponent<GhostFavorTrail>() == null) gameObject.AddComponent<GhostFavorTrail>();
             gameObject.AddComponent<GhostFavorRecovery>().Configure(ghostStation, ghostFavorRelocationPoints);
+        }
         AddDrinkStations(preparation, waterDispensers, PopcornFlavor.Drink);
         AddDrinkStations(preparation, fantaDispensers, PopcornFlavor.Fanta);
         AddDrinkStations(preparation, orangeJuiceDispensers, PopcornFlavor.OrangeJuice);
@@ -202,7 +203,7 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
         foreach (Transform anchor in bottlePlacementAnchors)
             if (anchor != null && anchor.parent != null)
                 preparation.AddStation(anchor.parent, PopcornStationKind.Water, PopcornFlavor.Drink, anchor);
-        manager.Configure(holder, counterSlot, cashier, maker, cashierUiAnchor, popcornMakerUiAnchor,
+        manager.Configure(holder, counterSlot, cashier, cashierUiAnchor,
             delayBetweenCustomers);
 
         if (GetComponent<PopcornUiCursorController>() == null)
@@ -219,7 +220,7 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     }
 
     private bool HasAllAnchors() =>
-        cashierUiAnchor != null && popcornMakerUiAnchor != null &&
+        cashierUiAnchor != null &&
         customerSpawnPoint != null && customerWaitPoint != null && customerExitPoint != null;
 
     private void OnDrawGizmos()
@@ -234,7 +235,6 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
             Gizmos.matrix = Matrix4x4.identity;
         }
         DrawUiAnchor(cashierUiAnchor, new Color(0.2f, 1f, 0.85f), new Vector3(0.72f, 0.52f, 0.03f));
-        DrawUiAnchor(popcornMakerUiAnchor, new Color(1f, 0.72f, 0.15f), new Vector3(0.62f, 0.85f, 0.03f));
 
         DrawRoutePoint(customerSpawnPoint, Color.cyan, 0.28f);
         DrawRoutePoint(customerWaitPoint, Color.yellow, 0.32f);
@@ -524,17 +524,15 @@ public sealed class PopcornGameManager : MonoBehaviour
     private float delayBetweenCustomers;
     private Coroutine feedbackRoutine;
     private Canvas cashierCanvas;
-    private Canvas makerCanvas;
     private PopcornNetSync boundSync;
 
-    public void Configure(PopcornItemHoldingSystem itemHolder, CounterSlot slot, Transform cashier, Transform maker,
-        Transform cashierPlacement, Transform makerPlacement, float nextDelay)
+    public void Configure(PopcornItemHoldingSystem itemHolder, CounterSlot slot, Transform cashier,
+        Transform cashierPlacement, float nextDelay)
     {
         holder = itemHolder;
         counterSlot = slot;
         delayBetweenCustomers = nextDelay;
         BuildCashierScreen(cashier, cashierPlacement);
-        BuildMakerScreen(maker, makerPlacement);
         PlayerHealth.LocalInstanceChanged += BindWorldUiCamera;
         BindWorldUiCamera(PlayerHealth.LocalInstance);
         StartCoroutine(SpawnNextCustomerAfter(0.8f));
@@ -560,26 +558,10 @@ public sealed class PopcornGameManager : MonoBehaviour
         UiFactory.SetRect(feedbackText.rectTransform, new Vector2(0.05f, 0.03f), new Vector2(0.95f, 0.23f));
     }
 
-    private void BuildMakerScreen(Transform maker, Transform placement)
-    {
-        makerCanvas = UiFactory.CreateWorldCanvas("Popcorn Controls (World Space)", maker,
-            placement, new Vector2(620f, 850f));
-
-        GameObject panel = UiFactory.CreatePanel("Popcorn Maker Controls", makerCanvas.transform, new Color(0.09f, 0.045f, 0.015f, 0.97f));
-        UiFactory.Stretch(panel.GetComponent<RectTransform>());
-
-        TMP_Text instructions = UiFactory.CreateText("Preparation Steps", panel.transform,
-            "PREPARE AN ORDER\n\n1  Pick up a bucket or cup\n\n2  Bucket: Hold E at PopCornTank\nthen press E to choose a flavor\ncup: Press E to place on a dispenser\nthen hold E on the ordered drink\nPress E on the finished cup to retrieve it\n\n3  Ghost? Add Ghost Flavor\nthen serve the waiting customer\n\nREFILL: Hold E at Popcorn Maker\nCarry NewPopcorn to the tank\nand press E to top up\n\nCheck the cashier for order details",
-            38f, Color.white);
-        instructions.alignment = TextAlignmentOptions.Center;
-        UiFactory.SetRect(instructions.rectTransform, new Vector2(0.06f, 0.05f), new Vector2(0.94f, 0.95f));
-    }
-
     private void BindWorldUiCamera(PlayerHealth player)
     {
         Camera localCamera = player != null ? player.GetComponentInChildren<Camera>(true) : null;
         if (cashierCanvas != null) cashierCanvas.worldCamera = localCamera;
-        if (makerCanvas != null) makerCanvas.worldCamera = localCamera;
     }
 
     private void Update()
