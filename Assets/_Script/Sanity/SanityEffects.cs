@@ -75,7 +75,7 @@ public sealed class SanityEffects : MonoBehaviour
         string text = "SANITY " + Mathf.CeilToInt(sanity.Value)
             + (sanity.IsChanting ? (sanity.BlocksGain ? "   chanting (cannot recover now)" : "   chanting...") : "")
             + (!sanity.IsChanting && sanity.BlocksGain ? "   cannot recover" : "")
-            + (!sanity.IsChanting && !sanity.BlocksGain && sanity.Value < PlayerSanity.Max && sanity.InPlay ? $"   [{s.chantKey}] chant" : "");
+            + (!sanity.IsChanting && !sanity.BlocksGain && sanity.Value < PlayerSanity.Max && sanity.InPlay ? $"   [{Keybinds.KeyName(GameAction.Chant)}] chant" : "");
         if (text != shownText) { shownText = text; barLabel.text = text; }
 
         // Eat / feed progress

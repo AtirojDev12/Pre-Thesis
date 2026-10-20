@@ -71,10 +71,10 @@ public sealed class FlashlightHUD : MonoBehaviour
             label.text = $"{itemName}  {word}  {percent}%";
             if (usesBatteries)
                 hint.text = batteries > 0
-                    ? (low ? $"PRESS [R] FOR A NEW BATTERY (x{batteries})" : $"[{FlashlightController.ToggleHint}] on/off   [R] battery x{batteries}")
+                    ? (low ? $"PRESS [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] FOR A NEW BATTERY (x{batteries})" : $"[{FlashlightController.ToggleHint}] on/off   [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] battery x{batteries}")
                     : (low ? "NO BATTERIES - buy them in the lobby shop" : $"[{FlashlightController.ToggleHint}] on/off   no batteries");
             else
-                hint.text = low ? "MASH [SPACE] TO CHARGE" : $"[{FlashlightController.ToggleHint}] on/off   [Space] charge";
+                hint.text = low ? $"MASH [{Keybinds.KeyName(GameAction.FlashlightCrank).ToUpperInvariant()}] TO CHARGE" : $"[{FlashlightController.ToggleHint}] on/off   [{Keybinds.KeyName(GameAction.FlashlightCrank)}] charge";
         }
         fill.rectTransform.sizeDelta = new Vector2(BarWidth * charge, 14);
         fill.color = low ? Low : Full;

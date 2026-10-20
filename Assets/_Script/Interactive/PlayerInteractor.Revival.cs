@@ -49,7 +49,7 @@ public partial class PlayerInteractor
 
         _reviveLookTarget = null;
         bool canAct = _health != null && !_health.IsDead && !_health.IsDowned && !GameplayInput.Blocked;
-        bool keyHeld = Keyboard.current != null && Keyboard.current[interactKey].isPressed;
+        bool keyHeld = Keybinds.IsPressed(GameAction.Interact);
         if (!keyHeld || !canAct) _localReviveTarget = null;
         if (canAct && _localReviveTarget != null)
         {
@@ -168,7 +168,7 @@ public partial class PlayerInteractor
         Vector3 direction = _reviveLookTarget.transform.position - transform.position;
         string arrow = Vector3.Dot(transform.right, direction) >= 0f ? ">" : "<";
         string instruction = !facing ? arrow + " Turn toward teammate to revive " + arrow :
-            !clear ? "Path to teammate blocked" : "Hold " + interactKey + " to revive teammate";
+            !clear ? "Path to teammate blocked" : "Hold " + Keybinds.KeyName(GameAction.Interact) + " to revive teammate";
         Vector2 instructionSize = _reviveInstructionStyle.CalcSize(new GUIContent(instruction));
         Rect instructionRect = new Rect(screen.x - instructionSize.x / 2f,
             guiY - reviveMarkerSize / 2f - instructionSize.y - 8f,
@@ -203,7 +203,7 @@ public partial class PlayerInteractor
                 _reviveKeyStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 23, fontStyle = FontStyle.Bold };
             _reviveKeyStyle.normal.textColor = Color.black;
             GUI.color = Color.white;
-            GUI.Label(circle, interactKey.ToString(), _reviveKeyStyle);
+            GUI.Label(circle, Keybinds.KeyName(GameAction.Interact), _reviveKeyStyle);
             if (_reviveProgress > 0f)
             {
                 Rect bar = new Rect(screen.x - 45f, circle.yMax + 8f, 90f, 6f);

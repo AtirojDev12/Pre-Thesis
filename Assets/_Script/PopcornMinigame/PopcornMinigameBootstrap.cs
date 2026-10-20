@@ -907,7 +907,11 @@ public sealed class WorldButtonInteractable : MonoBehaviour, IInteractable, IInt
     }
 }
 
-/// <summary>Tab toggles between FPS look and a visible cursor for direct world-UI clicking.</summary>
+/// <summary>
+/// Toggles between FPS look and a visible cursor for direct world-UI clicking.
+/// 20 Oct (Mr.k): was Tab; Tab is now the player list. The key is "Free / lock mouse"
+/// in Settings > Controls and has NO key by default (world buttons work with E).
+/// </summary>
 public sealed class PopcornUiCursorController : MonoBehaviour
 {
     private void Update()
@@ -916,8 +920,7 @@ public sealed class PopcornUiCursorController : MonoBehaviour
         // including the frame one closes (else this re-frees the mouse right after).
         if (GameplayInput.Blocked || OverlayPanels.BlocksEscape) return;
 
-        if (UnityEngine.InputSystem.Keyboard.current == null ||
-            !UnityEngine.InputSystem.Keyboard.current.tabKey.wasPressedThisFrame) return;
+        if (!Keybinds.WasPressed(GameAction.FreeMouse)) return;
 
         bool unlock = Cursor.lockState == CursorLockMode.Locked;
         Cursor.lockState = unlock ? CursorLockMode.None : CursorLockMode.Locked;

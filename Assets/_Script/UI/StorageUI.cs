@@ -261,7 +261,7 @@ public sealed class StorageUI : MonoBehaviour
         var go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
         go.transform.SetParent(parent, false);
         var tmp = go.GetComponent<TextMeshProUGUI>();
-        tmp.text = text;
+        tmp.text = Keybinds.Fix(text); // 20 Oct: "(Q)" -> the player's key
         tmp.fontSize = size;
         tmp.color = color;
         tmp.fontStyle = style;

@@ -104,7 +104,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
             }
             PublishState();
         }
-        if (IsLocalCarrier && !GameplayInput.Blocked && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+        if (IsLocalCarrier && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.ReloadOrDiscard))
         {
             dropFrame = Time.frameCount;
             RequestInteraction(true);

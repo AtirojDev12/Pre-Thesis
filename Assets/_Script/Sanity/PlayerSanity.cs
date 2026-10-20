@@ -426,11 +426,8 @@ public sealed class PlayerSanity : NetworkBehaviour
         }
 
         bool canAct = inPlay && !GameplayInput.Blocked && Cursor.lockState == CursorLockMode.Locked;
-        Keyboard keyboard = Keyboard.current;
-        Mouse mouse = Mouse.current;
-
-        // Chant: hold the key.
-        bool chant = canAct && keyboard != null && keyboard[Settings.chantKey].isPressed;
+        // Chant: hold the key (20 Oct: Settings > Controls, default C; was H).
+        bool chant = canAct && Keybinds.IsPressed(GameAction.Chant);
         if (chant != wantChant)
         {
             wantChant = chant;
@@ -439,9 +436,9 @@ public sealed class PlayerSanity : NetworkBehaviour
         }
 
         // Snack: hold Left Click = eat, hold Right Click on a friend = feed.
-        bool holding = canAct && HoldsSnack() && mouse != null;
-        bool eat = holding && mouse.leftButton.isPressed;
-        PlayerSanity target = holding && mouse.rightButton.isPressed ? FriendInFront() : null;
+        bool holding = canAct && HoldsSnack();
+        bool eat = holding && Keybinds.IsPressed(GameAction.EatSnack);
+        PlayerSanity target = holding && Keybinds.IsPressed(GameAction.FeedFriend) ? FriendInFront() : null;
         if (target != null && target != feedTarget) useTimer = 0f;
         feedTarget = target;
 
@@ -537,8 +534,8 @@ public sealed class PlayerSanity : NetworkBehaviour
     {
         if (inventory == null || inventory.HeldSlot.IsEmpty || inventory.HeldSlot.spare) return string.Empty;
         string id = inventory.HeldSlot.itemId;
-        if (id == ItemCatalog.Snack) return "Hold [Left Click] eat   ·   Hold [Right Click] on a friend: feed them";
-        if (ItemCatalog.IsHolyItem(id)) return $"Carry it: hold [{Settings.chantKey}] to chant faster";
+        if (id == ItemCatalog.Snack) return $"Hold [{Keybinds.KeyName(GameAction.EatSnack)}] eat   ·   Hold [{Keybinds.KeyName(GameAction.FeedFriend)}] on a friend: feed them";
+        if (ItemCatalog.IsHolyItem(id)) return $"Carry it: hold [{Keybinds.KeyName(GameAction.Chant)}] to chant faster";
         return string.Empty;
     }
 }

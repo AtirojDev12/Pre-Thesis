@@ -27,7 +27,6 @@ public sealed class RuleInteractable : InteractableBase
     [SerializeField] private GameObject[] showWhenUsable;
 
     private const float ServerRange = 4.5f;
-    private const Key HoldKey = Key.E;
 
     [SyncVar(hook = nameof(OnUsableChanged))] private bool usable = true;
     [SyncVar(hook = nameof(OnLabelChanged))] private string label = "";
@@ -196,7 +195,7 @@ public sealed class RuleInteractable : InteractableBase
             return;
         }
         ChoreProgressHUD.Show(this, CurrentAction, (float)((Now - workStart) / holdSeconds));
-        bool holding = Keyboard.current != null && Keyboard.current[HoldKey].isPressed && !GameplayInput.Blocked;
+        bool holding = Keybinds.IsPressed(GameAction.Interact) && !GameplayInput.Blocked; // 20 Oct: rebindable
         if (holding || stopSent) return;
         stopSent = true;
         if (NetworkMode.IsOffline) StopWork();

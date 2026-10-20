@@ -36,6 +36,12 @@ public sealed class BoundButton
         return c != null && c.wasPressedThisFrame;
     }
 
+    public bool WasReleasedThisFrame(string currentPath)
+    {
+        ButtonControl c = Resolve(currentPath);
+        return c != null && c.wasReleasedThisFrame;
+    }
+
     /// <summary>"Left Button [Mouse]", "V [Keyboard]" — for the Settings screen.</summary>
     public static string DisplayName(string controlPath)
     {

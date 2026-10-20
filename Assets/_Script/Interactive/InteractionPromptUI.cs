@@ -62,7 +62,7 @@ public class InteractionPromptUI : MonoBehaviour
         if (promptText != null && text != _currentText)
         {
             _currentText = text;
-            promptText.text = text;
+            promptText.text = Keybinds.Fix(text); // 20 Oct: "[E]" -> the player's key
         }
 
         if (_canvas != null) _canvas.enabled = true;

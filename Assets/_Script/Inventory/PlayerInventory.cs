@@ -396,14 +396,11 @@ public class PlayerInventory : NetworkBehaviour
     {
         if (!NetworkMode.IsLocalController(this) || GameplayInput.Blocked) return;
 
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard != null)
-        {
-            if (keyboard.digit1Key.wasPressedThisFrame) RequestSelect(0);
-            else if (keyboard.digit2Key.wasPressedThisFrame) RequestSelect(1);
-            else if (keyboard.digit3Key.wasPressedThisFrame) RequestSelect(2);
-            else if (keyboard.digit4Key.wasPressedThisFrame) RequestSelect(3);
-        }
+        // 20 Oct: hotbar keys are rebindable (Keybinds, default 1-4).
+        if (Keybinds.WasPressed(GameAction.Hotbar1)) RequestSelect(0);
+        else if (Keybinds.WasPressed(GameAction.Hotbar2)) RequestSelect(1);
+        else if (Keybinds.WasPressed(GameAction.Hotbar3)) RequestSelect(2);
+        else if (Keybinds.WasPressed(GameAction.Hotbar4)) RequestSelect(3);
 
         Mouse mouse = Mouse.current;
         if (mouse != null && Cursor.lockState == CursorLockMode.Locked)

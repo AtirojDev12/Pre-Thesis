@@ -129,6 +129,9 @@ public class PauseMenuController : MonoBehaviour
         Keyboard kb = Keyboard.current;
         if (kb == null || !kb.escapeKey.wasPressedThisFrame || leaving) return;
 
+        // Esc while a Settings key waits for a new key only cancels that (20 Oct).
+        if (SettingsPanel.IsRebinding) return;
+
         // Esc while moving the noise meter only ends that (NoiseMeterHUD handles it).
         if (NoiseMeterHUD.IsEditing || NoiseMeterHUD.EditEndedFrame == Time.frameCount) return;
 

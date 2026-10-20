@@ -249,7 +249,7 @@ public sealed class ShopUI : MonoBehaviour
                 34f, TextColor, FontStyles.Bold, TextAlignmentOptions.TopLeft);
             Anchor(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0.72f, 1f), new Vector2(20f, 0f), new Vector2(0f, -10f));
 
-            TMP_Text desc = NewText("Description", rowRt, item.description ?? "", 22f, Muted, FontStyles.Normal, TextAlignmentOptions.TopLeft);
+            TMP_Text desc = NewText("Description", rowRt, Keybinds.Fix(item.description ?? ""), 22f, Muted, FontStyles.Normal, TextAlignmentOptions.TopLeft);
             desc.textWrappingMode = TextWrappingModes.Normal;
             Anchor(desc.rectTransform, new Vector2(0f, 0f), new Vector2(0.72f, 0.5f), new Vector2(20f, 8f), new Vector2(0f, 0f));
 

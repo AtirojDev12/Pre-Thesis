@@ -13,7 +13,9 @@ using UnityEngine.UI;
 ///   Display:  brightness, fullscreen, resolution
 ///   Sound:    master, music, SFX, ambient | microphone, mic meter sensitivity,
 ///             noise meter (bar direction, move it on screen, reset position)
-///   Controls: Walkie-Talkie talk key + on/off key (rebindable, any key or mouse button)
+///   Controls: EVERY game key (20 Oct, Keybinds): click a key, press a new one.
+///             The list is built at runtime from the old walkie button (same look),
+///             so the scene / pause menu prefab need no rebuild.
 ///
 /// Switching tabs keeps unapplied edits: Apply saves every page at once.
 ///
@@ -102,16 +104,23 @@ public class SettingsPanel : MonoBehaviour
     private string savedMicrophone;
     private bool pendingMeterVertical;
     private int savedResolutionIndex;
-    private string savedWalkieTalk, savedWalkiePower;
+    // ---- Key bindings (20 Oct, Mr.k): every action in Keybinds ----------------------
+    // Pending control paths, index = (int)GameAction. Written on Apply like everything else.
+    private string[] savedKeys, pendingKeys;
+    private readonly List<Keybinds.Def> keyRows = new List<Keybinds.Def>();
+    private readonly List<Button> keyButtons = new List<Button>();
+    private readonly List<Keybinds.Def> clashes = new List<Keybinds.Def>();
+    private Button resetKeysButton;
 
-    // Pending key bindings (control paths), written on Apply like everything else.
-    private string pendingWalkieTalk, pendingWalkiePower;
-
-    // Rebinding: which binding is waiting for a key (null = none).
-    private enum RebindTarget { None, WalkieTalk, WalkiePower }
-    private RebindTarget listening = RebindTarget.None;
+    // Rebinding: which action waits for a key (-1 = none).
+    private int listening = -1;
     private System.IDisposable rebindListener;
     private float ignoreClicksUntil;
+
+    /// <summary>True while a key button waits for a key, and in the frame it ended (PauseMenu: Esc is ours).</summary>
+    public static bool IsRebinding => rebinding || rebindEndedFrame == Time.frameCount;
+    private static bool rebinding;
+    private static int rebindEndedFrame = -1;
 
     private void Awake()
     {
@@ -142,8 +151,7 @@ public class SettingsPanel : MonoBehaviour
 
         backButton.onClick.AddListener(Back);
 
-        if (walkieTalkButton != null) walkieTalkButton.onClick.AddListener(() => StartRebind(RebindTarget.WalkieTalk));
-        if (walkiePowerButton != null) walkiePowerButton.onClick.AddListener(() => StartRebind(RebindTarget.WalkiePower));
+        BuildKeyList();
 
         BuildResolutionList();
 
@@ -206,8 +214,7 @@ public class SettingsPanel : MonoBehaviour
         savedAmbient = GameSettings.AmbientVolume;
         savedFullscreen = GameSettings.Fullscreen;
         savedResolutionIndex = Mathf.Max(0, resolutions.IndexOf(GameSettings.SavedResolution));
-        savedWalkieTalk = pendingWalkieTalk = GameSettings.WalkieTalkBinding;
-        savedWalkiePower = pendingWalkiePower = GameSettings.WalkiePowerBinding;
+        LoadSavedKeys();
         savedMicSensitivity = GameSettings.MicSensitivity;
         savedMeterVertical = pendingMeterVertical = GameSettings.NoiseMeterVertical;
         savedMicrophone = GameSettings.MicrophoneDevice;
@@ -269,8 +276,10 @@ public class SettingsPanel : MonoBehaviour
         if (index != savedResolutionIndex && index >= 0 && index < resolutions.Count)
             GameSettings.SetResolution(resolutions[index].x, resolutions[index].y);
 
-        if (pendingWalkieTalk != savedWalkieTalk) GameSettings.WalkieTalkBinding = pendingWalkieTalk;
-        if (pendingWalkiePower != savedWalkiePower) GameSettings.WalkiePowerBinding = pendingWalkiePower;
+        if (pendingKeys != null)
+            foreach (Keybinds.Def def in Keybinds.All)
+                if (pendingKeys[(int)def.action] != savedKeys[(int)def.action])
+                    Keybinds.SetPath(def.action, pendingKeys[(int)def.action]);
 
         GameSettings.Save();
 
@@ -302,7 +311,7 @@ public class SettingsPanel : MonoBehaviour
         if (noiseGateToggle != null && noiseGateToggle.isOn != savedNoiseGate) return true;
         if (Changed(gateThresholdSlider, savedGateThreshold)) return true;
         if (fullscreenToggle.isOn != savedFullscreen) return true;
-        if (pendingWalkieTalk != savedWalkieTalk || pendingWalkiePower != savedWalkiePower) return true;
+        if (KeysChanged()) return true;
         return resolutionDropdown.value != savedResolutionIndex;
     }
 
@@ -347,8 +356,7 @@ public class SettingsPanel : MonoBehaviour
         if (sensitivityText != null && sensitivitySlider != null)
             sensitivityText.text = $"Mouse sensitivity: {sensitivitySlider.value:0.0}x";
 
-        SetBindingLabel(walkieTalkButton, "Walkie talk (hold)", pendingWalkieTalk, listening == RebindTarget.WalkieTalk);
-        SetBindingLabel(walkiePowerButton, "Walkie on / off", pendingWalkiePower, listening == RebindTarget.WalkiePower);
+        RefreshKeyLabels();
 
         if (brightnessText != null && brightnessSlider != null)
         {
@@ -364,32 +372,206 @@ public class SettingsPanel : MonoBehaviour
         label.text = $"{name}: {Mathf.RoundToInt(slider.value * 100f)}%";
     }
 
-    // ---- Key rebinding ---------------------------------------------------------
-    // Click a binding button, then press any key or mouse button (Mouse0..4).
-    // Esc cancels. The new key is only pending until Apply, like every setting.
+    // ---- Key rebinding (20 Oct: every key) ------------------------------------------
+    // Click a key button, then press any key or mouse button (Mouse0..4).
+    // Esc cancels, Delete / Backspace clears the key. Pending until Apply.
 
-    private void StartRebind(RebindTarget target)
+    /// <summary>
+    /// Builds the scrolling key list inside the Controls page, using the old walkie
+    /// button as the look template. No scene / prefab change needed.
+    /// </summary>
+    private void BuildKeyList()
+    {
+        if (walkieTalkButton == null)
+        {
+            Debug.LogWarning("[SettingsPanel] No Controls page (walkieTalkButton empty): key list not built. " +
+                             "Run Tools > Pre-Thesis > Scenes > Menu: Rebuild Settings + Pause Menu.", this);
+            return;
+        }
+
+        Transform column = walkieTalkButton.transform.parent;
+        GameObject template = walkieTalkButton.gameObject;
+        int insertAt = template.transform.GetSiblingIndex();
+
+        Transform headerT = column.Find("Header");
+        TMP_Text header = headerT != null ? headerT.GetComponent<TMP_Text>() : null;
+        if (header != null) header.text = "Controls";
+        Transform hintT = column.Find("Hint");
+        TMP_Text hint = hintT != null ? hintT.GetComponent<TMP_Text>() : null;
+        if (hint != null) hint.text = "Click a key, then press the new key or mouse button. Esc cancels, Delete clears.";
+
+        // Scroll view: [Key List] > Viewport (mask) > Content (rows), + Scrollbar.
+        var scrollGo = new GameObject("Key List", typeof(RectTransform), typeof(Image), typeof(ScrollRect), typeof(LayoutElement));
+        scrollGo.transform.SetParent(column, false);
+        scrollGo.transform.SetSiblingIndex(insertAt);
+        scrollGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.18f); // also catches the mouse wheel between rows
+        LayoutElement scrollLayout = scrollGo.GetComponent<LayoutElement>();
+        scrollLayout.flexibleHeight = 1f;
+        scrollLayout.minHeight = 300f;
+
+        var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D)).GetComponent<RectTransform>();
+        viewport.SetParent(scrollGo.transform, false);
+        viewport.anchorMin = Vector2.zero;
+        viewport.anchorMax = Vector2.one;
+        viewport.offsetMin = Vector2.zero;
+        viewport.offsetMax = new Vector2(-18f, 0f);
+
+        var content = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter)).GetComponent<RectTransform>();
+        content.SetParent(viewport, false);
+        content.anchorMin = new Vector2(0f, 1f);
+        content.anchorMax = new Vector2(1f, 1f);
+        content.pivot = new Vector2(0.5f, 1f);
+        content.offsetMin = Vector2.zero;
+        content.offsetMax = Vector2.zero;
+        VerticalLayoutGroup rows = content.GetComponent<VerticalLayoutGroup>();
+        rows.spacing = 6f;
+        rows.padding = new RectOffset(8, 8, 8, 8);
+        rows.childControlWidth = true;
+        rows.childControlHeight = true;
+        rows.childForceExpandWidth = true;
+        rows.childForceExpandHeight = false;
+        content.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        GameObject barGo = DefaultControls.CreateScrollbar(new DefaultControls.Resources());
+        barGo.name = "Scrollbar";
+        RectTransform bar = (RectTransform)barGo.transform;
+        bar.SetParent(scrollGo.transform, false);
+        bar.anchorMin = new Vector2(1f, 0f);
+        bar.anchorMax = Vector2.one;
+        bar.pivot = new Vector2(1f, 0.5f);
+        bar.sizeDelta = new Vector2(14f, 0f);
+        bar.anchoredPosition = Vector2.zero;
+        Scrollbar scrollbar = barGo.GetComponent<Scrollbar>();
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+
+        ScrollRect scroll = scrollGo.GetComponent<ScrollRect>();
+        scroll.viewport = viewport;
+        scroll.content = content;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 40f;
+        scroll.verticalScrollbar = scrollbar;
+        scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+
+        string group = null;
+        foreach (Keybinds.Def def in Keybinds.All)
+        {
+            if (def.group != group)
+            {
+                group = def.group;
+                if (header != null)
+                {
+                    TMP_Text groupLabel = Instantiate(header.gameObject, content).GetComponent<TMP_Text>();
+                    groupLabel.name = "Group: " + group;
+                    groupLabel.text = group;
+                    groupLabel.fontSize = 22f;
+                    SetHeight(groupLabel.gameObject, 34f);
+                }
+            }
+
+            Button row = NewKeyButton(template, content, "Key: " + def.id);
+            int actionIndex = (int)def.action;
+            row.onClick.AddListener(() => StartRebind(actionIndex));
+            keyRows.Add(def);
+            keyButtons.Add(row);
+        }
+
+        resetKeysButton = NewKeyButton(template, column, "Reset Keys Button");
+        resetKeysButton.transform.SetSiblingIndex(scrollGo.transform.GetSiblingIndex() + 1);
+        resetKeysButton.onClick.AddListener(ResetKeysToDefault);
+        TMP_Text resetLabel = resetKeysButton.GetComponentInChildren<TMP_Text>(true);
+        if (resetLabel != null) resetLabel.text = "Reset all keys to default";
+
+        // The two old walkie buttons are rows in the list now.
+        walkieTalkButton.gameObject.SetActive(false);
+        if (walkiePowerButton != null) walkiePowerButton.gameObject.SetActive(false);
+    }
+
+    private static Button NewKeyButton(GameObject template, Transform parent, string name)
+    {
+        GameObject go = Instantiate(template, parent);
+        go.name = name;
+        go.SetActive(true);
+        Button button = go.GetComponent<Button>();
+        button.onClick.RemoveAllListeners();
+        SetHeight(go, 48f);
+        TMP_Text label = go.GetComponentInChildren<TMP_Text>(true);
+        if (label != null)
+        {
+            // Long names + "(same key: ...)" shrink instead of spilling out of the button.
+            label.richText = true;
+            label.textWrappingMode = TextWrappingModes.NoWrap;
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 14f;
+            label.fontSizeMax = 22f;
+        }
+        return button;
+    }
+
+    private static void SetHeight(GameObject go, float height)
+    {
+        LayoutElement layout = go.GetComponent<LayoutElement>();
+        if (layout == null) layout = go.AddComponent<LayoutElement>();
+        layout.minHeight = height;
+        layout.preferredHeight = height;
+        layout.flexibleHeight = 0f;
+    }
+
+    private void LoadSavedKeys()
+    {
+        int count = System.Enum.GetValues(typeof(GameAction)).Length;
+        savedKeys = new string[count];
+        pendingKeys = new string[count];
+        foreach (Keybinds.Def def in Keybinds.All)
+            savedKeys[(int)def.action] = pendingKeys[(int)def.action] = Keybinds.GetPath(def.action);
+    }
+
+    private bool KeysChanged()
+    {
+        if (pendingKeys == null) return false;
+        for (int i = 0; i < pendingKeys.Length; i++)
+            if (pendingKeys[i] != savedKeys[i]) return true;
+        return false;
+    }
+
+    private string PendingKey(GameAction action) =>
+        pendingKeys != null ? pendingKeys[(int)action] ?? string.Empty : Keybinds.GetPath(action);
+
+    private void ResetKeysToDefault()
+    {
+        StopRebind();
+        if (pendingKeys == null) return;
+        foreach (Keybinds.Def def in Keybinds.All) pendingKeys[(int)def.action] = def.defaultPath;
+        RefreshLabels();
+        RefreshApplyButton();
+    }
+
+    private void StartRebind(int actionIndex)
     {
         // The mouse click that picked a new binding also "clicks" this button when
         // it is released. Ignore that one so it does not start listening again.
         if (Time.unscaledTime < ignoreClicksUntil) return;
 
         StopRebind();
-        listening = target;
+        listening = actionIndex;
+        rebinding = true;
         RefreshLabels();
 
         rebindListener = InputSystem.onAnyButtonPress.CallOnce(control =>
         {
             rebindListener = null;
-            RebindTarget finished = listening;
-            listening = RebindTarget.None;
+            int finished = listening;
+            listening = -1;
+            rebinding = false;
+            rebindEndedFrame = Time.frameCount;
             ignoreClicksUntil = Time.unscaledTime + 0.35f;
 
-            bool cancelled = control == null || control.path.EndsWith("/escape");
-            if (!cancelled)
+            if (control != null && finished >= 0 && pendingKeys != null)
             {
-                if (finished == RebindTarget.WalkieTalk) pendingWalkieTalk = control.path;
-                else if (finished == RebindTarget.WalkiePower) pendingWalkiePower = control.path;
+                string path = control.path;
+                if (path.EndsWith("/delete") || path.EndsWith("/backspace")) pendingKeys[finished] = string.Empty;
+                else if (!path.EndsWith("/escape")) pendingKeys[finished] = Keybinds.GenericPath(control);
             }
 
             RefreshLabels();
@@ -401,19 +583,32 @@ public class SettingsPanel : MonoBehaviour
     {
         rebindListener?.Dispose();
         rebindListener = null;
-        if (listening == RebindTarget.None) return;
-        listening = RebindTarget.None;
+        if (listening < 0) return;
+        listening = -1;
+        rebinding = false;
+        rebindEndedFrame = Time.frameCount;
         RefreshLabels();
     }
 
-    private static void SetBindingLabel(Button button, string action, string path, bool isListening)
+    private void RefreshKeyLabels()
     {
-        if (button == null) return;
-        TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
-        if (label == null) return;
-        label.text = isListening
-            ? action + ": press a key... (Esc = cancel)"
-            : action + ": " + BoundButton.DisplayName(path);
+        for (int i = 0; i < keyRows.Count; i++)
+        {
+            Keybinds.Def def = keyRows[i];
+            TMP_Text label = keyButtons[i] != null ? keyButtons[i].GetComponentInChildren<TMP_Text>(true) : null;
+            if (label == null) continue;
+
+            if (listening == (int)def.action)
+            {
+                label.text = def.label + ":  <color=#D9A441>press a key...</color>  (Esc = cancel, Delete = clear)";
+                continue;
+            }
+
+            string text = def.label + ":  <b>" + Keybinds.KeyName(PendingKey(def.action)) + "</b>";
+            Keybinds.FindClashes(def.action, PendingKey, clashes);
+            if (clashes.Count > 0) text += "   <color=#FF6A5A>(same key: " + clashes[0].label + ")</color>";
+            label.text = text;
+        }
     }
 
     // ---- Noise meter / microphone ---------------------------------------------------

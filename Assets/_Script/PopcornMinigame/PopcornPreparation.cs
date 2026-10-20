@@ -201,7 +201,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
             return;
         }
         Keyboard keyboard = Keyboard.current;
-        if (!Holder.SubmissionPending && !awaitingResult && !BottleTransferPending && !GameplayInput.Blocked && keyboard != null && keyboard.rKey.wasPressedThisFrame && Holder.IsInHand &&
+        if (!Holder.SubmissionPending && !awaitingResult && !BottleTransferPending && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.ReloadOrDiscard) && Holder.IsInHand &&
             (GhostFavorRecovery.Instance == null || !GhostFavorRecovery.Instance.DroppedThisFrame))
         {
             Cancel(false);
@@ -213,7 +213,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
         PlayerHealth player = PlayerHealth.LocalInstance;
         PlayerInteractor interactor = player != null ? player.GetComponent<PlayerInteractor>() : null;
         Camera camera = player != null ? player.GetComponentInChildren<Camera>() : null;
-        if (GameplayInput.Blocked || keyboard == null || !keyboard.eKey.isPressed || player == null || player != preparingPlayer ||
+        if (GameplayInput.Blocked || !Keybinds.IsPressed(GameAction.Interact) || player == null || player != preparingPlayer ||
             player.IsDead || player.IsDowned || !CanPrepare(activeStation) ||
             interactor == null || !interactor.isActiveAndEnabled || camera == null ||
             !ReferenceEquals(interactor.GetInteractableAlongRay(new Ray(camera.transform.position, camera.transform.forward)), activeStation))
@@ -329,7 +329,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
         progressFill.anchorMax = new Vector2(fraction, 1f);
         string action = activeStation.Kind == PopcornStationKind.Maker ? "MAKING NEW POPCORN" :
             activeStation.Kind == PopcornStationKind.Tank ? "SCOOPING POPCORN" : "FILLING " + UiFactory.FlavorName(activeStation.Flavor).ToUpperInvariant();
-        progressText.text = action + $"  {Mathf.CeilToInt(fraction * 100f)}%\nHold E and keep aiming · {Mathf.Max(0f, PreparationSeconds - elapsed):0.0}s";
+        progressText.text = action + $"  {Mathf.CeilToInt(fraction * 100f)}%\nHold {Keybinds.KeyName(GameAction.Interact)} and keep aiming · {Mathf.Max(0f, PreparationSeconds - elapsed):0.0}s";
     }
 
     private void LateUpdate()
@@ -378,7 +378,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
     private void ShowStatus(string message)
     {
         if (statusText == null) return;
-        statusText.text = message;
+        statusText.text = Keybinds.Fix(message); // 20 Oct: "R to discard" -> the player's key
         statusUntil = Time.time + 4f;
     }
 

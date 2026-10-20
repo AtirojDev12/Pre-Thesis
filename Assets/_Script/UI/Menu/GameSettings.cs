@@ -62,6 +62,9 @@ public static class GameSettings
 
     private static void NotifyChanged() => Changed?.Invoke();
 
+    /// <summary>Keybinds calls this after a key changed (20 Oct).</summary>
+    public static void NotifyBindingsChanged() => NotifyChanged();
+
     /// <summary>Shown to other players in the waiting lobby.</summary>
     public static string PlayerName
     {
@@ -230,21 +233,22 @@ public static class GameSettings
     public static float BrightnessExposure => Mathf.Lerp(MinExposure, MaxExposure, Brightness);
 
     // ---- Key bindings ------------------------------------------------------------
-    // Stored as Input System control paths ("<Mouse>/leftButton", "/Keyboard/v").
-    // Read them through BoundButton, not InputSystem directly.
+    // 20 Oct: every key now lives in Keybinds (same PlayerPrefs names for the two
+    // walkie keys, "settings.bind.walkieTalk" / "settings.bind.walkiePower").
+    // These two stay so old code keeps compiling.
 
     /// <summary>Hold to talk on the Walkie-Talkie (walkie in hand and switched on).</summary>
     public static string WalkieTalkBinding
     {
-        get => PlayerPrefs.GetString(KeyWalkieTalk, DefaultWalkieTalkBinding);
-        set { PlayerPrefs.SetString(KeyWalkieTalk, string.IsNullOrEmpty(value) ? DefaultWalkieTalkBinding : value); NotifyChanged(); }
+        get => Keybinds.GetPath(GameAction.WalkieTalk);
+        set => Keybinds.SetPath(GameAction.WalkieTalk, string.IsNullOrEmpty(value) ? DefaultWalkieTalkBinding : value);
     }
 
     /// <summary>Press to switch the Walkie-Talkie in your hand on / off.</summary>
     public static string WalkiePowerBinding
     {
-        get => PlayerPrefs.GetString(KeyWalkiePower, DefaultWalkiePowerBinding);
-        set { PlayerPrefs.SetString(KeyWalkiePower, string.IsNullOrEmpty(value) ? DefaultWalkiePowerBinding : value); NotifyChanged(); }
+        get => Keybinds.GetPath(GameAction.WalkiePower);
+        set => Keybinds.SetPath(GameAction.WalkiePower, string.IsNullOrEmpty(value) ? DefaultWalkiePowerBinding : value);
     }
 
     // ---- Screen ----------------------------------------------------------------

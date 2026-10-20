@@ -114,10 +114,10 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
     private void RefreshLabel()
     {
         if (heldItemText != null)
-            heldItemText.text = IsRefill ? "NEW POPCORN\n[E] Refill PopCornTank" :
+            heldItemText.text = Keybinds.Fix(IsRefill ? "NEW POPCORN\n[E] Refill PopCornTank" :
                 !IsReady ? (IsCup ? "EMPTY CUP\nE to place at a dispenser" : HasPopcorn ?
                 "POPCORN\nChoose a flavor station" : "EMPTY BUCKET\nScoop from PopCornTank") :
-                UiFactory.ItemName(HeldFlavor) + (GhostMixed ? "\n+ GHOST FLAVOR" : "\nReady - Ghosts need mix");
+                UiFactory.ItemName(HeldFlavor) + (GhostMixed ? "\n+ GHOST FLAVOR" : "\nReady - Ghosts need mix")); // 20 Oct: rebindable keys
         if (heldItemPanel != null) heldItemPanel.SetActive(IsInHand);
         PlayerHeldItems network = itemOwner != null ? itemOwner.GetComponent<PlayerHeldItems>() : null;
         if (network != null) StateRevision = network.Publish(State);

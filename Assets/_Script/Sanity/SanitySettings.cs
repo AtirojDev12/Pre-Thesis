@@ -70,6 +70,7 @@ public sealed class SanitySettings : ScriptableObject
     // ---- Chant ---------------------------------------------------------------
 
     [Header("Gain: chant (hold the key, stand still)")]
+    [Tooltip("NOT USED since 20 Oct: the chant key is in Settings > Controls (default C). Kept so old assets load.")]
     public Key chantKey = Key.H;
     [Range(0f, 10f), Tooltip("Per second, alone and without a holy item. Slow on purpose.")]
     public float chantAlonePerSecond = 0.5f;

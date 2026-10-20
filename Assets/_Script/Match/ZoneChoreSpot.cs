@@ -42,7 +42,6 @@ public sealed class ZoneChoreSpot : InteractableBase
     [SerializeField] private GameObject[] showWhenNeeded;
 
     private const float ServerRange = 4.5f; // interaction range 3 m + slack
-    private const Key HoldKey = Key.E;
     private const int NightEndHour = 6;
 
     // Server writes, everyone reads.
@@ -229,7 +228,7 @@ public sealed class ZoneChoreSpot : InteractableBase
 
         ChoreProgressHUD.Show(this, actionText, (float)((Now - workStart) / holdSeconds));
 
-        bool holding = Keyboard.current != null && Keyboard.current[HoldKey].isPressed && !GameplayInput.Blocked;
+        bool holding = Keybinds.IsPressed(GameAction.Interact) && !GameplayInput.Blocked; // 20 Oct: rebindable
         if (holding || stopSent) return;
         stopSent = true;
         if (NetworkMode.IsOffline) StopWork();

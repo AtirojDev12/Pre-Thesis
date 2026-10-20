@@ -39,13 +39,13 @@ public class WaitingLobbyController : MonoBehaviour
 
     // ---- 3D lobby (1 Oct) ------------------------------------------------------
     // With a walking body the panel is hidden and opens with M (Esc closes).
-    // NOT Tab: Tab already frees the mouse for the popcorn / ticket screens
-    // (PopcornUiCursorController), in matches and at the practice stations.
+    // NOT Tab: Tab is the player list (PlayerListHUD, 20 Oct).
     // Without a body yet (still connecting, or lobby bodies switched off) it is
     // always shown, like the old flat lobby.
     [Header("3D lobby")]
-    [Tooltip("Opens / closes this panel while walking around the lobby. Do not use Tab (popcorn mouse key).")]
-    [SerializeField] private Key panelKey = Key.M;
+    // 20 Oct (Mr.k): M is gone. With a walking body this panel stays hidden: Ready /
+    // Start / Leave / Kick moved into the Tab player list (PlayerListHUD). The panel
+    // is still shown while there is no body yet (connecting), like the old flat lobby.
 
     private Canvas panelCanvas;
     private bool panelOpen;          // only meaningful while we have a body
@@ -102,8 +102,8 @@ public class WaitingLobbyController : MonoBehaviour
         if (PauseMenuController.IsOpen) return;
         if (!panelOpen && OverlayPanels.AnyOpen) return;
 
-        if (keyboard[panelKey].wasPressedThisFrame) panelOpen = !panelOpen;
-        else if (panelOpen && keyboard.escapeKey.wasPressedThisFrame) panelOpen = false;
+        // 20 Oct: no lobby-menu key any more (Tab = PlayerListHUD has the same buttons).
+        panelOpen = false;
     }
 
     private void ApplyPanelVisibility()
@@ -180,7 +180,8 @@ public class WaitingLobbyController : MonoBehaviour
         rt.anchorMax = Vector2.one;
         rt.offsetMin = rt.offsetMax = Vector2.zero;
         var text = textGo.GetComponent<TextMeshProUGUI>();
-        text.text = $"<b>{panelKey}</b>  Lobby menu (Ready / Start / Leave)     <b>E</b>  Use / Shop     <b>TAB</b>  Free / lock mouse";
+        text.text = $"<b>{Keybinds.KeyName(GameAction.PlayerList)}</b>  Players / Ready / Start / Leave     " +
+                    $"<b>{Keybinds.KeyName(GameAction.Interact)}</b>  Use / Shop";
         text.fontSize = 28;
         text.fontStyle = FontStyles.Bold;
         text.alignment = TextAlignmentOptions.Center;

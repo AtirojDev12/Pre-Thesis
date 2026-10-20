@@ -128,8 +128,7 @@ public sealed class LobbyBoard : MonoBehaviour
     {
         if (holdRow == null) return;
 
-        Keyboard keyboard = Keyboard.current;
-        bool keep = keyboard != null && keyboard.eKey.isPressed && !GameplayInput.Blocked
+        bool keep = Keybinds.IsPressed(GameAction.Interact) && !GameplayInput.Blocked // 20 Oct: rebindable
             && CanKick(holdSeat) && SeatAt(holdRow.Index) == holdSeat && IsLookingAt(holdRow.Collider);
         if (!keep) { CancelKickHold(); return; }
 

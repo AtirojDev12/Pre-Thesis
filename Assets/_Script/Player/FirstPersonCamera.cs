@@ -277,12 +277,12 @@ public class FirstPersonCamera : MonoBehaviour
         }
 
         isMoving = false;
-        if (!isIncapacitated && Keyboard.current != null && !GameplayInput.Blocked)
+        if (!isIncapacitated && !GameplayInput.Blocked)
         {
-            isMoving = Keyboard.current.wKey.isPressed
-                || Keyboard.current.aKey.isPressed
-                || Keyboard.current.sKey.isPressed
-                || Keyboard.current.dKey.isPressed;
+            isMoving = Keybinds.IsPressed(GameAction.MoveForward)
+                || Keybinds.IsPressed(GameAction.MoveLeft)
+                || Keybinds.IsPressed(GameAction.MoveBack)
+                || Keybinds.IsPressed(GameAction.MoveRight);
         }
 
         isSprinting = isMoving && playerStamina != null && playerStamina.IsSprinting;

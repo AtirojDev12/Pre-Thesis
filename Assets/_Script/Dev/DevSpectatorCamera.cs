@@ -361,7 +361,7 @@ public sealed class DevSpectatorCamera : MonoBehaviour
         var style = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(22f * scale), richText = true };
         string talk = SpectatorSession.TalkHeld ? "   <b><color=#73FF8C>● TALKING</color></b>" : "";
         string text = $"<b><color=#7FD7FF>SPECTATING</color></b>  ·  {FollowName()}{(firstPerson && followTarget != null ? "  (first person)" : "")}{talk}\n" +
-                      "<color=#DDDDDD>Hold LMB talk · E / Q next / previous player · Wheel zoom → first person · F free fly · WASD Space Ctrl Shift · M lobby · Esc menu · F1 cheats</color>";
+                      "<color=#DDDDDD>Hold LMB talk · E / Q next / previous player · Wheel zoom → first person · F free fly · WASD Space Ctrl Shift · Tab lobby / players · Esc menu · F1 cheats</color>";
         GUI.Label(new Rect(20f * scale, Screen.height - 90f * scale, 1400f * scale, 80f * scale), text, style);
     }
 }

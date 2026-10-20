@@ -26,8 +26,6 @@ public class WalkieTalkieController : MonoBehaviour
     private PlayerInventory inventory;
     private PlayerVoice voice;
     private PlayerHealth health;
-    private readonly BoundButton talkButton = new BoundButton();
-    private readonly BoundButton powerButton = new BoundButton();
 
     private GameObject heldModel;
     private WalkieTalkieVisual visual;
@@ -48,11 +46,11 @@ public class WalkieTalkieController : MonoBehaviour
             && (health == null || (!health.IsDead && !health.IsDowned));
 
         // Power: only the walkie in your hand.
-        if (canUseHands && inventory.IsHoldingRadio && powerButton.WasPressedThisFrame(GameSettings.WalkiePowerBinding))
+        if (canUseHands && inventory.IsHoldingRadio && Keybinds.WasPressed(GameAction.WalkiePower))
             inventory.RequestTogglePower(inventory.SelectedSlot);
 
         // Talk: held, powered walkie + key held down.
-        bool wantTalk = canUseHands && inventory.IsHoldingPoweredRadio && talkButton.IsPressed(GameSettings.WalkieTalkBinding);
+        bool wantTalk = canUseHands && inventory.IsHoldingPoweredRadio && Keybinds.IsPressed(GameAction.WalkieTalk);
         voice.RequestRadioTransmit(wantTalk);
 
         UpdateHeldModel();

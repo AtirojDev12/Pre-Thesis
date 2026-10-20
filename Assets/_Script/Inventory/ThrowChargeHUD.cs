@@ -68,7 +68,7 @@ public sealed class ThrowChargeHUD : MonoBehaviour
         gameObject.SetActive(true);
         label.text = itemName;
         fill.rectTransform.sizeDelta = new Vector2(24, 131 * Mathf.Clamp01(charge));
-        hint.text = charge >= 1f ? "MAX\nRelease Q to throw" : "Release Q to throw";
+        hint.text = Keybinds.Fix(charge >= 1f ? "MAX\nRelease Q to throw" : "Release Q to throw"); // 20 Oct: rebindable
     }
     public void Hide() => gameObject.SetActive(false);
 }

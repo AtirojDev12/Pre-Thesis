@@ -24,6 +24,12 @@ public sealed class VoicePlayback : MonoBehaviour
     private AudioSource clickSource; // separate: the voice filter would multiply the click away
     private bool radioOn;
 
+    // 20 Oct (Mr.k): per-friend volume from the Tab player list (FriendVoiceVolume).
+    private VoiceFilter proximityFilter, radioFilter;
+    private uint talkerNetId;      // "net:<netId>" streams
+    private string eosId;          // EOS backup streams (participant id = EOS id)
+    private float nextGainCheck;
+
     public VoiceStream Stream => stream;
 
     public static VoicePlayback Create(VoiceStream stream, Transform parent)
@@ -57,7 +63,8 @@ public sealed class VoicePlayback : MonoBehaviour
         // ---- Proximity (3D) ----
         proximity = gameObject.AddComponent<AudioSource>();
         proximity.clip = OnesClip();
-        gameObject.AddComponent<VoiceFilter>().Init(stream, VoiceStream.Output.Proximity);
+        proximityFilter = gameObject.AddComponent<VoiceFilter>();
+        proximityFilter.Init(stream, VoiceStream.Output.Proximity);
         proximity.loop = true;
         proximity.playOnAwake = false;
         proximity.dopplerLevel = 0f;
@@ -74,7 +81,8 @@ public sealed class VoicePlayback : MonoBehaviour
         radio = radioGo.AddComponent<AudioSource>();
         radio.clip = OnesClip();
         // Order matters: the voice filter must come BEFORE the radio filters.
-        radioGo.AddComponent<VoiceFilter>().Init(stream, VoiceStream.Output.Radio);
+        radioFilter = radioGo.AddComponent<VoiceFilter>();
+        radioFilter.Init(stream, VoiceStream.Output.Radio);
         radio.loop = true;
         radio.playOnAwake = false;
         radio.spatialBlend = 0f;
@@ -91,6 +99,22 @@ public sealed class VoicePlayback : MonoBehaviour
         clickSource.playOnAwake = false;
         clickSource.spatialBlend = 0f;
         SetSpatial(true);
+
+        // Who is talking, parsed once (the id never changes).
+        string id = stream.ParticipantId ?? string.Empty;
+        if (id.StartsWith("net:")) uint.TryParse(id.Substring(4), out talkerNetId);
+        else if (!id.StartsWith("spec:")) eosId = id;
+    }
+
+    // 4 times a second: apply this friend's volume (the Tab list can change it any time).
+    private void Update()
+    {
+        if (Time.unscaledTime < nextGainCheck) return;
+        nextGainCheck = Time.unscaledTime + 0.25f;
+        float gain = talkerNetId != 0 ? FriendVoiceVolume.ForTalker(talkerNetId)
+            : !string.IsNullOrEmpty(eosId) ? FriendVoiceVolume.ForEosId(eosId) : 1f;
+        if (proximityFilter != null) proximityFilter.Gain = gain;
+        if (radioFilter != null) radioFilter.Gain = gain;
     }
 
     /// <summary>3D from the body (match) or flat 2D (waiting lobby: nobody has a body).</summary>

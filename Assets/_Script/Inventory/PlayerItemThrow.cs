@@ -59,9 +59,8 @@ public sealed class PlayerItemThrow : NetworkBehaviour
     {
         if (localCharging && (!canUseInput || inventory.SelectedSlot != localSlot || inventory.HeldSlot.itemId != localItem))
             CancelLocal();
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard == null) { if (localCharging) CancelLocal(); return; }
-        if (!localCharging && canUseInput && keyboard.qKey.wasPressedThisFrame)
+        // 20 Oct: the throw key is rebindable (Keybinds.ThrowOrDrop, default Q).
+        if (!localCharging && canUseInput && Keybinds.WasPressed(GameAction.ThrowOrDrop))
         {
             ItemCatalog.ItemInfo info = ItemCatalog.Find(inventory.HeldSlot.itemId);
             if (info == null || !info.throwable) return;
@@ -80,7 +79,7 @@ public sealed class PlayerItemThrow : NetworkBehaviour
             if (hud == null) hud = ThrowChargeHUD.Create();
             hud.Show(ItemCatalog.DisplayName(localItem), Mathf.Clamp01((elapsed - tapDuration) / (fullChargeDuration - tapDuration)));
         }
-        if (keyboard.qKey.wasReleasedThisFrame)
+        if (Keybinds.WasReleased(GameAction.ThrowOrDrop))
         {
             Vector3 direction = aim.forward;
             bool tap = elapsed <= tapDuration;
@@ -88,7 +87,7 @@ public sealed class PlayerItemThrow : NetworkBehaviour
             if (NetworkMode.IsOffline) ReleaseCharge(direction, tap);
             else CmdReleaseCharge(direction, tap);
         }
-        else if (!keyboard.qKey.isPressed) CancelLocal();
+        else if (!Keybinds.IsPressed(GameAction.ThrowOrDrop)) CancelLocal();
         else if (Time.unscaledTime >= nextHeartbeat)
         {
             nextHeartbeat = Time.unscaledTime + 0.25f;

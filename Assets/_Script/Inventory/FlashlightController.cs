@@ -23,7 +23,8 @@ using UnityEngine.InputSystem;
 public sealed class FlashlightController : MonoBehaviour
 {
     /// <summary>Shown in the hotbar hint.</summary>
-    public const string ToggleHint = "Left Click / F";
+    /// <summary>"Left Click / F" with the player's keys (20 Oct: rebindable).</summary>
+    public static string ToggleHint => Keybinds.KeyName(GameAction.FlashlightToggleMouse) + " / " + Keybinds.KeyName(GameAction.FlashlightToggle);
 
     /// <summary>How often the server writes the drained battery into the SyncList (seconds).</summary>
     private const float DrainWriteInterval = 0.5f;
@@ -115,23 +116,21 @@ public sealed class FlashlightController : MonoBehaviour
             && (health == null || !health.IsDead);
         if (!canUseHands) return;
 
-        Keyboard keyboard = Keyboard.current;
-        Mouse mouse = Mouse.current;
-        bool toggle = (keyboard != null && keyboard.fKey.wasPressedThisFrame)
-            || (mouse != null && mouse.leftButton.wasPressedThisFrame);
+        bool toggle = Keybinds.WasPressed(GameAction.FlashlightToggle)
+            || Keybinds.WasPressed(GameAction.FlashlightToggleMouse);
         if (toggle && (health == null || !health.IsDowned))
             inventory.RequestTogglePower(inventory.SelectedSlot);
 
         ItemCatalog.ItemInfo info = ItemCatalog.Find(inventory.HeldSlot.itemId);
-        if (info == null || keyboard == null) return;
+        if (info == null) return;
 
         // Basic: charging by hand works while downed too, something to do while you wait for help.
-        if (info.secondsPerCrank > 0f && keyboard.spaceKey.wasPressedThisFrame)
+        if (info.secondsPerCrank > 0f && Keybinds.WasPressed(GameAction.FlashlightCrank))
             inventory.RequestCrank();
 
         // Paid: R swaps in a Battery from your hotbar. (R also drops the carried ghost
         // favor item; that one wins so a single press never does both.)
-        if (info.usesBatteries && keyboard.rKey.wasPressedThisFrame && !CarryingGhostFavor())
+        if (info.usesBatteries && Keybinds.WasPressed(GameAction.ReloadOrDiscard) && !CarryingGhostFavor())
             inventory.RequestReload();
     }
 

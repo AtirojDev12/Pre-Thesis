@@ -380,9 +380,8 @@ public static class LobbyBuilder
         // Middle of the room, first thing you see from the spawn (read looking north).
         Sign(signs, "Welcome Sign", new Vector3(0f, 1.55f, -3f), Quaternion.identity, 1900, 1100,
             "<size=125%><color=#FFCC4D>13RoH LOBBY</color></size>\n" +
-            "<color=#FFCC4D>M</color>  Ready / Start / Leave\n" +   // = WaitingLobbyController.panelKey
+            "<color=#FFCC4D>TAB</color>  Players / Ready / Start / Leave\n" +   // 20 Oct: PlayerListHUD (M removed)
             "<color=#FFCC4D>E</color>  Use / Shop\n" +
-            "<color=#FFCC4D>TAB</color>  Free / lock mouse\n" +
             "Board (right): Ready / Start\n" +
             "Shop: left.  Practice: ahead", 110f, true);
 

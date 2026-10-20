@@ -24,8 +24,7 @@ public partial class PlayerInteractor : NetworkBehaviour
     [Tooltip("Layers that can block interaction. This player's own colliders are ignored automatically.")]
     [SerializeField] private LayerMask interactableLayers = ~0;
 
-    [Header("Input")]
-    [SerializeField] private Key interactKey = Key.E;
+    // 20 Oct (Mr.k): the interact key is in Settings > Controls (Keybinds.Interact, default E).
 
     [Header("References")]
     [Tooltip("Optional. If empty, this finds a prompt UI on the player prefab, then falls back to one in the scene.")]
@@ -129,8 +128,7 @@ public partial class PlayerInteractor : NetworkBehaviour
         if (_currentTarget != null
             && !CanRevive(_reviveLookTarget)
             && !GameplayInput.Blocked
-            && Keyboard.current != null
-            && Keyboard.current[interactKey].wasPressedThisFrame
+            && Keybinds.WasPressed(GameAction.Interact)
             && _currentTarget.CanInteract())
         {
             RequestInteract(_currentTarget);

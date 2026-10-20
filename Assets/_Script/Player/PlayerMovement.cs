@@ -226,19 +226,17 @@ public class PlayerMovement : NetworkBehaviour
         float horizontal = 0f;
         float vertical = 0f;
 
-        if (Keyboard.current != null)
-        {
-            if (Keyboard.current.aKey.isPressed) horizontal -= 1f;
-            if (Keyboard.current.dKey.isPressed) horizontal += 1f;
-            if (Keyboard.current.wKey.isPressed) vertical += 1f;
-            if (Keyboard.current.sKey.isPressed) vertical -= 1f;
-        }
+        // 20 Oct (Mr.k): keys come from Settings > Controls (Keybinds), not fixed WASD.
+        if (Keybinds.IsPressed(GameAction.MoveLeft)) horizontal -= 1f;
+        if (Keybinds.IsPressed(GameAction.MoveRight)) horizontal += 1f;
+        if (Keybinds.IsPressed(GameAction.MoveForward)) vertical += 1f;
+        if (Keybinds.IsPressed(GameAction.MoveBack)) vertical -= 1f;
         if (Gamepad.current != null)
         {
             Vector2 stick = Gamepad.current.leftStick.ReadValue();
             if (stick.sqrMagnitude > 0.04f) { horizontal = stick.x; vertical = stick.y; }
         }
-        bool crouchHeld = (Keyboard.current != null && Keyboard.current.leftCtrlKey.isPressed) ||
+        bool crouchHeld = Keybinds.IsPressed(GameAction.Crouch) ||
                              (Gamepad.current != null && Gamepad.current.buttonEast.isPressed);
         if (crouchHeld && !localCrouch && IsGroundedForStance()) localCrouch = true;
         else if (!crouchHeld && localCrouch && CanStand()) localCrouch = false;
@@ -260,7 +258,7 @@ public class PlayerMovement : NetworkBehaviour
         // ป้องกันเดินเฉียงเร็วเกินไป
         movement = Vector3.ClampMagnitude(movement, 1f);
 
-        bool shift = (Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed) ||
+        bool shift = Keybinds.IsPressed(GameAction.Sprint) ||
                      (Gamepad.current != null && Gamepad.current.leftStickButton.isPressed);
         bool wantsToSprint = (itemThrow == null || !itemThrow.IsCharging) && !localCrouch && movement.sqrMagnitude > 0.01f && shift &&
                              (vertical > 0f || Mathf.Abs(horizontal) > 0.01f);

@@ -18,6 +18,10 @@ public sealed class VoiceFilter : MonoBehaviour
 {
     private VoiceStream stream;
     private VoiceStream.Output output;
+
+    /// <summary>20 Oct: this friend's volume on this PC (0..2). Set on the main thread, read on the audio thread.</summary>
+    public float Gain { get => gain; set => gain = value; }
+    private volatile float gain = 1f;
     private int outputRate;
 
     // Linear resampler (voice rate -> speaker rate). Buffers sized once, never reallocated on the audio thread.
@@ -43,6 +47,7 @@ public sealed class VoiceFilter : MonoBehaviour
         }
 
         int frames = data.Length / channels;
+        float g = gain;
         double step = (double)inRate / outputRate;
 
         // How many new voice samples cover these output frames.
@@ -59,7 +64,7 @@ public sealed class VoiceFilter : MonoBehaviour
             int i = (int)p;
             float t = (float)(p - i);
             int j = i + 1 > needed ? needed : i + 1;
-            float sample = input[i] + (input[j] - input[i]) * t;
+            float sample = (input[i] + (input[j] - input[i]) * t) * g;
 
             int offset = f * channels;
             for (int c = 0; c < channels; c++) data[offset + c] *= sample;

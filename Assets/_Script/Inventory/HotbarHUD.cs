@@ -113,14 +113,17 @@ public sealed class HotbarHUD : MonoBehaviour
                 labels[i].color = selected ? Color.black : TextColor;
             }
 
+            // 20 Oct: key names come from Settings > Controls (Keybinds).
             hintText.text = inventory.IsHoldingSpare
-                ? "Spare copy: you cannot use it.   [Q] drop it for a friend"
+                ? $"Spare copy: you cannot use it.   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
                 : inventory.IsHoldingRadio
-                ? $"Hold [{BoundButton.DisplayName(GameSettings.WalkieTalkBinding)}] talk on radio   ·   " +
-                  $"[{BoundButton.DisplayName(GameSettings.WalkiePowerBinding)}] on / off"
+                ? $"Hold [{Keybinds.KeyName(GameAction.WalkieTalk)}] talk on radio   ·   " +
+                  $"[{Keybinds.KeyName(GameAction.WalkiePower)}] on / off"
                 : inventory.IsHoldingFlashlight
                 ? $"[{FlashlightController.ToggleHint}] light on / off   ·   " +
-                  (ItemCatalog.Find(inventory.HeldSlot.itemId)?.usesBatteries == true ? "[R] new battery" : "Mash [Space] to charge")
+                  (ItemCatalog.Find(inventory.HeldSlot.itemId)?.usesBatteries == true
+                      ? $"[{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] new battery"
+                      : $"Mash [{Keybinds.KeyName(GameAction.FlashlightCrank)}] to charge")
                 : PlayerSanity.HotbarHint(inventory); // 8 Oct: snack / holy items
         }
 
