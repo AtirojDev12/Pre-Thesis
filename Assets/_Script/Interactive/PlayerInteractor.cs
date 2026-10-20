@@ -356,7 +356,11 @@ public partial class PlayerInteractor : NetworkBehaviour
     {
         if (targetIdentity == null) return;
 
-        IInteractable target = targetIdentity.GetComponent<IInteractable>();
+        // 21 Oct (Mr.k) bug: light switches did nothing online. The switch object also has an
+        // InteractionNameLabel (only shows its name, CanInteract = false), listed BEFORE the
+        // switch, so GetComponent<IInteractable>() picked the label. Offline worked because
+        // the client calls the switch directly. Skip name labels, same rule as the client side.
+        IInteractable target = ServerInteractableOn(targetIdentity);
         if (target == null) return;
 
         if (!target.CanInteract()) return;
@@ -374,6 +378,23 @@ public partial class PlayerInteractor : NetworkBehaviour
         }
 
         target.Interact(gameObject);
+    }
+
+    private readonly List<IInteractable> _serverInteractables = new List<IInteractable>();
+
+    /// <summary>SERVER: the real action on this object (never a name-only label).</summary>
+    private IInteractable ServerInteractableOn(NetworkIdentity identity)
+    {
+        identity.GetComponents(_serverInteractables);
+        IInteractable result = null;
+        foreach (IInteractable candidate in _serverInteractables)
+        {
+            if (candidate is InteractionNameLabel) continue;
+            result = candidate;
+            break;
+        }
+        _serverInteractables.Clear();
+        return result;
     }
 
     private void SetHighlight(IInteractable target, bool state)
