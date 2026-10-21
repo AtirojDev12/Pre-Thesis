@@ -92560,6 +92560,7 @@ MonoBehaviour:
   ordersToComplete: 5
   wrongGhostOrderDamage: 10
   twoItemOrderChance: 0.3
+  unfinishedQuestChance: 0.3
 --- !u!114 &993463012
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -108273,6 +108274,7 @@ MonoBehaviour:
   walkSpeed: 2.2
   delayBetweenCustomers: 2
   ghostChance: 0.5
+  unfinishedQuestChance: 0.3
   pointsPerSale: 1
   wrongGhostDamage: 10
   serverInteractionDistance: 4.5
