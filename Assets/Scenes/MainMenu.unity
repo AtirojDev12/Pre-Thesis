@@ -783,6 +783,72 @@ MonoBehaviour:
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
   m_LayoutPriority: 1
+--- !u!1 &46276449
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 46276451}
+  - component: {fileID: 46276450}
+  m_Layer: 0
+  m_Name: Video Player
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!328 &46276450
+VideoPlayer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 46276449}
+  m_Enabled: 1
+  m_VideoClip: {fileID: 32900000, guid: 06d0737c888510146a118ff86b132b01, type: 3}
+  m_TargetCameraAlpha: 1
+  m_TargetCamera3DLayout: 0
+  m_TargetCamera: {fileID: 0}
+  m_TargetTexture: {fileID: 8400000, guid: 484ef564326202d45a1c9bf8f721945b, type: 2}
+  m_TimeReference: 0
+  m_TargetMaterialRenderer: {fileID: 0}
+  m_TargetMaterialProperty: <noninit>
+  m_RenderMode: 2
+  m_AspectRatio: 2
+  m_DataSource: 0
+  m_TimeUpdateMode: 2
+  m_PlaybackSpeed: 1
+  m_AudioOutputMode: 2
+  m_TargetAudioSources: []
+  m_DirectAudioVolumes: []
+  m_Url: 
+  m_EnabledAudioTracks: 
+  m_DirectAudioMutes: 
+  m_ControlledAudioTrackCount: 0
+  m_PlayOnAwake: 1
+  m_SkipOnDrop: 1
+  m_Looping: 0
+  m_WaitForFirstFrame: 1
+  m_FrameReadyEventEnabled: 0
+  m_VideoShaders: []
+--- !u!4 &46276451
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 46276449}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 7.63206, y: 4.57241, z: 65.9917}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &47031592
 GameObject:
   m_ObjectHideFlags: 0
@@ -26741,7 +26807,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1835828711183286152, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_VersionIndex
-      value: 1084
+      value: 1090
       objectReference: {fileID: 0}
     - target: {fileID: 2071234776342300457, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_Mesh
@@ -26789,7 +26855,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2631806878567567953, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_VersionIndex
-      value: 1084
+      value: 1090
       objectReference: {fileID: 0}
     - target: {fileID: 3024977085549496573, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_Mesh
@@ -26905,7 +26971,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4123981608563850768, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_VersionIndex
-      value: 2866
+      value: 2872
       objectReference: {fileID: 0}
     - target: {fileID: 5195516036620849040, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_LocalScale.x
@@ -27005,7 +27071,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6666971929085676410, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_VersionIndex
-      value: 2866
+      value: 2872
       objectReference: {fileID: 0}
     - target: {fileID: 6815456797021635404, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_Mesh
@@ -27017,7 +27083,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6815456797021635404, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_VersionIndex
-      value: 3994
+      value: 4000
       objectReference: {fileID: 0}
     - target: {fileID: 7888362262421826101, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_Mesh
@@ -27037,7 +27103,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8440838342331240616, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_VersionIndex
-      value: 1084
+      value: 1090
       objectReference: {fileID: 0}
     - target: {fileID: 9138441178203492383, guid: 0c584fe153fefbd408a084f9e0696541, type: 3}
       propertyPath: m_Name
@@ -34404,3 +34470,4 @@ SceneRoots:
   - {fileID: 755384515}
   - {fileID: 1455845120}
   - {fileID: 445354361}
+  - {fileID: 46276451}
