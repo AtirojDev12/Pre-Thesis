@@ -620,7 +620,7 @@ public sealed class PopcornGameManager : MonoBehaviour
             yield break;
         }
 
-        // No net sync in the scene (a pure sandbox test): behave as before.
+        // No net sync in the scene: use the same default quest bias locally.
         PopcornCustomerType type = Random.value < 0.5f ? PopcornCustomerType.Human : PopcornCustomerType.Ghost;
         PopcornOrderState order = PopcornRecipe.RandomCustomerOrder(++localOrderId, type);
 

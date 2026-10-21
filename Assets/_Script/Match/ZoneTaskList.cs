@@ -142,6 +142,19 @@ public class ZoneTaskList : NetworkBehaviour
     }
     public bool IsTaskDone(int i) => ProgressOf(i) >= TargetOf(i);
 
+    /// <summary>Whether this sale can advance any active, unfinished task line.</summary>
+    public static bool HasUnfinishedSale(ZoneTaskKind kind, PopcornFlavor flavor, int movieIndex, bool ghost)
+    {
+        foreach (ZoneTaskList board in active)
+        {
+            if (board == null) continue;
+            for (int i = 0; i < board.tasks.Count; i++)
+                if (!board.IsTaskDone(i) && board.tasks[i].Matches(kind, flavor, movieIndex, ghost))
+                    return true;
+        }
+        return false;
+    }
+
     public bool AllDone
     {
         get

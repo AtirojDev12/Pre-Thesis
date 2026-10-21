@@ -63,6 +63,8 @@ public partial class PopcornNetSync : NetworkBehaviour
     [SerializeField] private float wrongGhostOrderDamage = 10f;
     [Header("Order size")]
     [Range(0f, 1f)] [SerializeField] private float twoItemOrderChance = 0.3f;
+    [Tooltip("Chance to choose the first menu item and customer type from unfinished quests. Otherwise uses normal random orders.")]
+    [Range(0f, 1f)] [SerializeField] private float unfinishedQuestChance = PopcornRecipe.DefaultUnfinishedQuestChance;
 
     // ---- Replicated shared state ------------------------------------------
 
@@ -344,7 +346,7 @@ public partial class PopcornNetSync : NetworkBehaviour
 
         PopcornCustomerType type = Random.value < 0.5f ? PopcornCustomerType.Human : PopcornCustomerType.Ghost;
 
-        currentOrder = PopcornRecipe.RandomCustomerOrder(++nextOrderId, type, twoItemOrderChance);
+        currentOrder = PopcornRecipe.RandomCustomerOrder(++nextOrderId, type, twoItemOrderChance, unfinishedQuestChance);
 
         // Hooks do not fire on the machine that made the change, so the host
         // raises its own event or the host's screens would sit on stale text.

@@ -42,6 +42,8 @@ public sealed class TicketMinigame : MonoBehaviour
     [SerializeField, Min(0.1f)] private float walkSpeed = 2.2f;
     [SerializeField, Min(0)] private float delayBetweenCustomers = 2f;
     [SerializeField, Range(0, 1)] private float ghostChance = 0.5f;
+    [Tooltip("Chance to choose a movie and customer type that advance an unfinished ticket quest.")]
+    [SerializeField, Range(0, 1)] private float unfinishedQuestChance = PopcornRecipe.DefaultUnfinishedQuestChance;
     [SerializeField, Min(1)] private int pointsPerSale = 1;
     [SerializeField, Min(0)] private float wrongGhostDamage = 10f;
     [SerializeField, Min(0.1f)] private float serverInteractionDistance = 4.5f;
@@ -118,6 +120,23 @@ public sealed class TicketMinigame : MonoBehaviour
         RefreshMoviePanel();
     }
 
+    private void BiasUnfinishedTicketQuest()
+    {
+        if (Random.value >= Mathf.Clamp01(unfinishedQuestChance)) return;
+        int matches = 0;
+        for (int movie = 0; movie < movies.Length; movie++)
+        {
+            for (int customer = 0; customer < 2; customer++)
+            {
+                bool ghost = customer == 1;
+                if (!ZoneTaskList.HasUnfinishedSale(ZoneTaskKind.Ticket, PopcornFlavor.None, movie, ghost)) continue;
+                if (Random.Range(0, ++matches) != 0) continue;
+                state.requestedMovieIndex = movie;
+                state.ghost = ghost;
+            }
+        }
+    }
+
     private void Advance(float dt)
     {
         if (state.stage == TicketCustomerStage.Waiting) return;
@@ -129,6 +148,7 @@ public sealed class TicketMinigame : MonoBehaviour
             state.hasMovie = false;
             state.ghost = Random.value < ghostChance;
             state.requestedMovieIndex = Random.Range(0, movies.Length);
+            BiasUnfinishedTicketQuest();
             state.position = spawnPoint.position;
             state.rotation = spawnPoint.rotation;
             state.stage = TicketCustomerStage.WalkingIn;
