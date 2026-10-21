@@ -1,6 +1,7 @@
 using Mirror;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 public enum TicketCustomerStage { BetweenCustomers, WalkingIn, Waiting, WalkingOut }
@@ -39,7 +40,8 @@ public sealed class TicketMinigame : MonoBehaviour
     [SerializeField] private Transform[] departurePath = new Transform[0];
     [SerializeField] private Transform exitPoint;
     [Header("Gameplay")]
-    [SerializeField, Min(0.1f)] private float walkSpeed = 2.2f;
+    [FormerlySerializedAs("walkSpeed")]
+    [SerializeField, Min(0.1f)] private float customerWalkSpeed = 2.2f;
     [SerializeField, Min(0)] private float delayBetweenCustomers = 2f;
     [SerializeField, Range(0, 1)] private float ghostChance = 0.5f;
     [Tooltip("Chance to choose a movie and customer type that advance an unfinished ticket quest.")]
@@ -162,7 +164,7 @@ public sealed class TicketMinigame : MonoBehaviour
         Vector3 direction = target.position - state.position;
         direction.y = 0;
         if (direction.sqrMagnitude > 0.001f) state.rotation = Quaternion.LookRotation(direction);
-        state.position = Vector3.MoveTowards(state.position, target.position, Mathf.Max(0.1f, walkSpeed) * dt);
+        state.position = Vector3.MoveTowards(state.position, target.position, Mathf.Max(0.1f, customerWalkSpeed) * dt);
         if ((state.position - target.position).sqrMagnitude > 0.000001f) return;
         if (waypoint < path.Length) { waypoint++; return; }
         state.stage = arriving ? TicketCustomerStage.Waiting : TicketCustomerStage.BetweenCustomers;

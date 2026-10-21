@@ -61728,6 +61728,7 @@ MonoBehaviour:
   - {fileID: 564001662}
   customerDeparturePath:
   - {fileID: 1916799961}
+  customerWalkSpeed: 2.2
   delayBetweenCustomers: 2
 --- !u!4 &653653306
 Transform:
@@ -108210,7 +108211,7 @@ GameObject:
   - component: {fileID: 1116862670}
   - component: {fileID: 1116862671}
   m_Layer: 0
-  m_Name: Ticket Sell
+  m_Name: Ticket Minigame
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -108271,7 +108272,7 @@ MonoBehaviour:
   departurePath:
   - {fileID: 955349289}
   exitPoint: {fileID: 689970924}
-  walkSpeed: 2.2
+  customerWalkSpeed: 2.2
   delayBetweenCustomers: 2
   ghostChance: 0.5
   unfinishedQuestChance: 0.3

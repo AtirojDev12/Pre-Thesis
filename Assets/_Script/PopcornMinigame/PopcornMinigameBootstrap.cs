@@ -150,7 +150,11 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [SerializeField] private Transform customerExitPoint;
     [SerializeField] private Transform[] customerApproachPath = new Transform[0];
     [SerializeField] private Transform[] customerDeparturePath = new Transform[0];
+    [Tooltip("Customer walking speed in metres per second, for both arrival and departure. Can be adjusted during Play Mode.")]
+    [SerializeField, Min(0.1f)] private float customerWalkSpeed = 2.2f;
     [SerializeField, Min(0f)] private float delayBetweenCustomers = 2f;
+
+    public float CustomerWalkSpeed => Mathf.Max(0.1f, customerWalkSpeed);
 
     private void Awake()
     {
@@ -400,7 +404,7 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
     private CustomerState state;
     private Collider interactionCollider;
     private Canvas submitPrompt;
-    private const float MoveSpeed = 2.2f;
+    private PopcornMinigameBootstrap movementSettings;
     private Transform[] approachPath = new Transform[0];
     private Transform[] departurePath = new Transform[0];
     private Quaternion waitFacing = Quaternion.identity;
@@ -417,6 +421,7 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
     {
         manager = owner;
         slot = ownerSlot;
+        movementSettings = ownerSlot.GetComponent<PopcornMinigameBootstrap>();
         OrderState = order;
         waitPosition = wait;
         exitPosition = exit;
@@ -467,7 +472,8 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
         Transform[] path = state == CustomerState.WalkingIn ? approachPath : departurePath;
         while (waypoint < path.Length && path[waypoint] == null) waypoint++;
         if (waypoint < path.Length) target = path[waypoint].position;
-        transform.position = Vector3.MoveTowards(transform.position, target, MoveSpeed * Time.deltaTime);
+        float walkSpeed = movementSettings != null ? movementSettings.CustomerWalkSpeed : 2.2f;
+        transform.position = Vector3.MoveTowards(transform.position, target, walkSpeed * Time.deltaTime);
         Vector3 flatDirection = target - transform.position;
         flatDirection.y = 0f;
         if (flatDirection.sqrMagnitude > 0.01f)
