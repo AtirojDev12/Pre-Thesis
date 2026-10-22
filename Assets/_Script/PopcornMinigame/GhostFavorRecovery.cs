@@ -104,7 +104,8 @@ public sealed class GhostFavorRecovery : MonoBehaviour
             }
             PublishState();
         }
-        if (IsLocalCarrier && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.ReloadOrDiscard))
+        if (IsLocalCarrier && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.ReloadOrDiscard) &&
+            !BlackBoxCarry.UsesLocalDiscardInput)
         {
             dropFrame = Time.frameCount;
             RequestInteraction(true);

@@ -82,6 +82,13 @@ so this list does not imply every type is placed in the Cinema scene):
 | `TicketSellButton` | Sell human or ghost tickets |
 | `ZoneChoreSpot` | Change film, clean screen rooms, clean toilets |
 | `RuleInteractable` | Toilet light, knock on a stall, shadow seat, pick up/throw a black box |
+
+Black Box: E picks it up; the discard action (default R, rebindable in Settings)
+returns it to the original shelf position and rotation, where it can be picked
+up again. E at the toilet drop point still consumes it for the Ghost Food rule.
+The server accepts a manual return only from the current living carrier.
+That R press takes priority over flashlight batteries and other carried-item
+discard actions, including the frame in which the box returns.
 | `LightSwitchInteractable` | Building or zone light switches |
 | `WarningTV` | Play/stop warning media |
 | `WorldInventoryItem` | Pick up dropped inventory items; item name comes from the catalog |

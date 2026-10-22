@@ -201,7 +201,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
             return;
         }
         Keyboard keyboard = Keyboard.current;
-        if (!Holder.SubmissionPending && !awaitingResult && !BottleTransferPending && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.ReloadOrDiscard) && Holder.IsInHand &&
+        if (!Holder.SubmissionPending && !awaitingResult && !BottleTransferPending && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.ReloadOrDiscard) && !BlackBoxCarry.UsesLocalDiscardInput && Holder.IsInHand &&
             (GhostFavorRecovery.Instance == null || !GhostFavorRecovery.Instance.DroppedThisFrame))
         {
             Cancel(false);

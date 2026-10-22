@@ -41426,6 +41426,7 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
+  buildingZoneId: MaleToilet
   lamps:
   - {fileID: 1472562784}
   - {fileID: 1210644481}
@@ -176085,6 +176086,7 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
+  buildingZoneId: FemaleToilet
   lamps:
   - {fileID: 1737353549}
   - {fileID: 112601295}
@@ -207190,18 +207192,32 @@ MonoBehaviour:
     areaSize: {x: 14.4, y: 8.4, z: 21.4}
   - zoneId: MaleToilet
     lightRoots:
-    - {fileID: 1024951536}
+    - {fileID: 741938041}
     additionalLights: []
     initiallyOn: 1
     areaCenter: {x: -35.584724, y: 2.3546488, z: 1.6381721}
     areaSize: {x: 12.560028, y: 5.3015776, z: 10.504658}
   - zoneId: FemaleToilet
     lightRoots:
-    - {fileID: 1498543591}
+    - {fileID: 1407261264}
     additionalLights: []
     initiallyOn: 1
     areaCenter: {x: -35.676807, y: 2.3507917, z: 12.916145}
     areaSize: {x: 12.744194, y: 5.3015833, z: 10.8441925}
+  - zoneId: HallwayMaleToilet
+    lightRoots:
+    - {fileID: 1024951536}
+    additionalLights: []
+    initiallyOn: 1
+    areaCenter: {x: 0, y: 0, z: 0}
+    areaSize: {x: 0, y: 0, z: 0}
+  - zoneId: HallwayFemaleToilet
+    lightRoots:
+    - {fileID: 1498543591}
+    additionalLights: []
+    initiallyOn: 1
+    areaCenter: {x: 0, y: 0, z: 0}
+    areaSize: {x: 0, y: 0, z: 0}
   - zoneId: TicketAndPopcorn
     lightRoots:
     - {fileID: 401765172}
@@ -207363,7 +207379,7 @@ MonoBehaviour:
   oneTimeUse: 0
   highlightRenderer: {fileID: 0}
   highlightColor: {r: 1, g: 1, b: 0, a: 1}
-  zoneId: MaleToilet
+  zoneId: HallwayMaleToilet
   switchRenderers: []
   lightsOffColor: {r: 1, g: 0, b: 0, a: 1}
 --- !u!114 &8200000000002008
@@ -207402,7 +207418,7 @@ MonoBehaviour:
   oneTimeUse: 0
   highlightRenderer: {fileID: 0}
   highlightColor: {r: 1, g: 1, b: 0, a: 1}
-  zoneId: FemaleToilet
+  zoneId: HallwayFemaleToilet
   switchRenderers: []
   lightsOffColor: {r: 1, g: 0, b: 0, a: 1}
 --- !u!114 &8300000000003000
@@ -207509,6 +207525,210 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
   displayName: Light Swich
+--- !u!1 &8351072200002000
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8351072200002001}
+  - component: {fileID: 8351072200002002}
+  - component: {fileID: 8351072200002003}
+  - component: {fileID: 8351072200002004}
+  m_Layer: 2
+  m_Name: Zone 1 Ambience
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8351072200002001
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8351072200002000}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 8351072200002011}
+  - {fileID: 8351072200002021}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8351072200002002
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8351072200002000}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 25.7, y: 6, z: 24.2}
+  m_Center: {x: -16.65, y: 2.5, z: 2.78}
+--- !u!114 &8351072200002003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8351072200002000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 74567e0f65ac47c3b84da2a392af01f7, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  clip: {fileID: 8300000, guid: 9e29672bd145ea64d8ffc3f14c3d092b, type: 3}
+  volume: 0.4
+  priority: 10
+  additionalAreas:
+  - {fileID: 8351072200002012}
+  - {fileID: 8351072200002022}
+  occasionalClip: {fileID: 8300000, guid: 0c475bbedbda02c47baa2850e4e2e096, type: 3}
+  occasionalVolume: 0.35
+  quietSeconds: {x: 50, y: 100}
+  burstChance: 0.15
+  burstExtraPlays: {x: 1, y: 2}
+  burstGapSeconds: {x: 3, y: 8}
+--- !u!114 &8351072200002004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8351072200002000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 329b08e4315d463391b352e459df0007, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  defaultAmbient: {fileID: 0}
+  defaultVolume: 0.4
+  fadeSeconds: 1.5
+  zones:
+  - {fileID: 8351072200002003}
+--- !u!1 &8351072200002010
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8351072200002011}
+  - component: {fileID: 8351072200002012}
+  m_Layer: 2
+  m_Name: Area - Men Toilet
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8351072200002011
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8351072200002010}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8351072200002001}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8351072200002012
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8351072200002010}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 12.560028, y: 5.2, z: 10.504658}
+  m_Center: {x: -35.584724, y: 2.354649, z: 1.638172}
+--- !u!1 &8351072200002020
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8351072200002021}
+  - component: {fileID: 8351072200002022}
+  m_Layer: 2
+  m_Name: Area - Women Toilet
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8351072200002021
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8351072200002020}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8351072200002001}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8351072200002022
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8351072200002020}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 12.744194, y: 5.2, z: 10.844193}
+  m_Center: {x: -35.676807, y: 2.350792, z: 12.916145}
 --- !u!114 &8500000000001000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -207519,7 +207739,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4cf7802cd10f4a589a622fe7892e11d8, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::GhostFavorTrail
   settings:
     enabled: 1
@@ -207743,3 +207963,4 @@ SceneRoots:
   - {fileID: 1935719495}
   - {fileID: 660276656}
   - {fileID: 1842767164}
+  - {fileID: 8351072200002001}

@@ -5,8 +5,8 @@ using UnityEngine;
 /// 16 Oct 2026 (Mr.k): the light of ONE toilet room + its wall switch.
 /// Toilet rules ask "is it dark in here?" (<see cref="IsDark"/> = the switch is off).
 ///
-/// ZONE LIGHT: separate from building power. The L key, the building switches and
-/// the ghost's warning flicker never touch it (the lamps carry IndependentLight).
+/// An optional building zone links the room's existing wall switches and fixtures.
+/// IndependentLight keeps the mood lamps under this component's flicker control.
 ///
 /// LOOK (designer, Inspector): dim, warm lamps that flicker now and then for mood.
 /// The flicker is only atmosphere: it is not a ghost warning and does not count
@@ -21,6 +21,12 @@ using UnityEngine;
 [RequireComponent(typeof(RuleInteractable))]
 public sealed class ToiletLight : NetworkBehaviour
 {
+    [Header("Room zone")]
+    [Tooltip("Optional Building Lights zone ID. All switches in this zone share the same room state.")]
+    [SerializeField] private string buildingZoneId = "";
+    private BuildingLightManager ZoneManager => BuildingLightManager.Instance != null &&
+        BuildingLightManager.Instance.HasZone(buildingZoneId) ? BuildingLightManager.Instance : null;
+
     [Header("Lamps")]
     [Tooltip("The lamp mockups on the ceiling (their Light components are driven from here).")]
     [SerializeField] private GameObject[] lamps;
@@ -51,9 +57,9 @@ public sealed class ToiletLight : NetworkBehaviour
     private const float Step = 0.07f;   // on/off speed inside a flicker
 
     /// <summary>Every machine: the switch is ON.</summary>
-    public bool SwitchOn => switchOn;
+    public bool SwitchOn => ZoneManager != null ? ZoneManager.ZoneLightsOn(buildingZoneId) : switchOn;
     /// <summary>Every machine: this room's light is off (the switch). Flicker does not count.</summary>
-    public bool IsDark => !switchOn;
+    public bool IsDark => !SwitchOn;
 
     /// <summary>SERVER. Someone used the switch (body, new state).</summary>
     public event System.Action<GameObject, bool> ServerSwitched;
@@ -81,7 +87,7 @@ public sealed class ToiletLight : NetworkBehaviour
         if (NetworkMode.HasServerAuthority(this))
         {
             button.ServerUsed += OnPressed;
-            button.ServerSetLabel(switchOn ? "Turn light off" : "Turn light on");
+            button.ServerSetLabel(SwitchOn ? "Turn light off" : "Turn light on");
         }
     }
 
@@ -90,12 +96,19 @@ public sealed class ToiletLight : NetworkBehaviour
         if (button != null) button.ServerUsed -= OnPressed;
     }
 
-    private void OnPressed(GameObject who) => ServerSet(!switchOn, who);
+    private void OnPressed(GameObject who)
+    {
+        bool previous = SwitchOn;
+        ServerSet(!previous, who);
+        if (SwitchOn != previous)
+            NetworkAudioRelay.Play(SwitchOn ? "LightSwitch_On" : "LightSwitch_Off", transform.position);
+    }
 
     /// <summary>SERVER. Turn the toilet light on / off.</summary>
     public void ServerSet(bool on, GameObject who = null)
     {
-        if (!NetworkMode.HasServerAuthority(this) || switchOn == on) return;
+        if (!NetworkMode.HasServerAuthority(this) || SwitchOn == on) return;
+        if (ZoneManager != null) ZoneManager.SetZoneLights(buildingZoneId, on);
         switchOn = on;
         button.ServerSetLabel(on ? "Turn light off" : "Turn light on");
         ServerSwitched?.Invoke(who, on);
@@ -105,10 +118,14 @@ public sealed class ToiletLight : NetworkBehaviour
 
     private void Update()
     {
+        bool roomOn = SwitchOn;
+        if (NetworkMode.HasServerAuthority(this))
+            button.ServerSetLabel(roomOn ? "Turn light off" : "Turn light on");
+        bool powered = roomOn && (ZoneManager == null || BuildingLightManager.LightsOn);
         double t = NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
         for (int i = 0; i < lights.Length; i++)
         {
-            float k = switchOn ? Brightness(i, t) : 0f;
+            float k = powered ? Brightness(i, t) : 0f;
             bool on = k > 0.05f;
             foreach (Light l in lights[i])
             {
