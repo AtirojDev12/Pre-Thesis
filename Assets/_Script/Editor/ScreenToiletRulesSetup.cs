@@ -248,6 +248,7 @@ public static class ScreenToiletRulesSetup
         RuleInteractable switchButton = switchGo.AddComponent<RuleInteractable>();
         ConfigureButton(switchButton, "Turn light off", 0f, new GameObject[0]);
         ToiletLight light = switchGo.AddComponent<ToiletLight>();
+        Set(light, "buildingZoneId", isMen ? "MaleToilet" : "FemaleToilet");
         GameObject switchLook = Instance(RuleMockupBuilder.LightSwitch, switchGo.transform, "Switch");
         switchLook.transform.localPosition = Vector3.zero;
         switchLook.transform.localRotation = Quaternion.identity;

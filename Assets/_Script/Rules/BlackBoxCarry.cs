@@ -7,6 +7,7 @@ using UnityEngine;
 /// FINAL GAME: a real item kept in a Staff Room.
 /// FOR NOW: a box place in each toilet room. Press E on the box to carry it
 /// (it floats in front of you), then press E on the drop spot to throw it in.
+/// Press the discard key (default R) to return it to its original place.
 /// Not an inventory item, so the save system is not touched.
 ///
 /// Lives on the box place (with a <see cref="RuleInteractable"/>: [E] Pick up black box).
@@ -27,6 +28,25 @@ public sealed class BlackBoxCarry : NetworkBehaviour
     private Quaternion homeRotation;
     private Collider[] boxColliders;
     private GameObject offlineCarrier;
+    private static int localReturnFrame = -1;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => localReturnFrame = -1;
+
+    private bool IsLocalCarrier => !gone && PlayerHealth.LocalInstance != null &&
+        ServerIsCarrier(PlayerHealth.LocalInstance.gameObject);
+
+    // Reserve this press even if another component updates after the box was returned.
+    public static bool UsesLocalDiscardInput
+    {
+        get
+        {
+            if (localReturnFrame == Time.frameCount) return true;
+            foreach (var carry in FindObjectsByType<BlackBoxCarry>(FindObjectsSortMode.None))
+                if (carry.IsLocalCarrier) return true;
+            return false;
+        }
+    }
 
     /// <summary>Every machine: netId of the carrier (1 offline), 0 = on its place.</summary>
     public uint CarrierId => carrierId;
@@ -66,7 +86,8 @@ public sealed class BlackBoxCarry : NetworkBehaviour
     }
 
     /// <summary>SERVER. Is this body the one carrying the box?</summary>
-    public bool ServerIsCarrier(GameObject who) => who != null && carrierId != 0 && IdOf(who) == carrierId;
+    public bool ServerIsCarrier(GameObject who) => who != null && carrierId != 0 &&
+        (NetworkMode.IsOffline ? offlineCarrier == who : IdOf(who) == carrierId);
 
     /// <summary>SERVER. The box was thrown in: it disappears until <see cref="ServerReturnHome"/>.</summary>
     public void ServerConsume()
@@ -84,7 +105,31 @@ public sealed class BlackBoxCarry : NetworkBehaviour
         offlineCarrier = null;
         gone = false;
         ApplyGone(false);
+        if (box != null) box.SetPositionAndRotation(homePosition, homeRotation);
         pickup.ServerSetUsable(true);
+    }
+
+    private void RequestReturnHome()
+    {
+        if (!IsLocalCarrier) return;
+        localReturnFrame = Time.frameCount;
+        if (NetworkMode.IsOffline) TryReturnHome(PlayerHealth.LocalInstance.gameObject);
+        else if (isClient) CmdReturnHome();
+    }
+
+    [Command(requiresAuthority = false)]
+    private void CmdReturnHome(NetworkConnectionToClient sender = null)
+    {
+        if (sender != null && sender.identity != null) TryReturnHome(sender.identity.gameObject);
+    }
+
+    private bool TryReturnHome(GameObject who)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || gone || !ServerIsCarrier(who)) return false;
+        PlayerHealth health = who.GetComponent<PlayerHealth>();
+        if (health == null || health.IsDead || health.IsDowned || !PlayerRegistry.IsInRound(health)) return false;
+        ServerReturnHome();
+        return true;
     }
 
     private void Update()
@@ -95,6 +140,8 @@ public sealed class BlackBoxCarry : NetworkBehaviour
             PlayerHealth carrier = CarrierBody();
             if (carrier == null || carrier.IsDead || carrier.IsDowned || !PlayerRegistry.IsInRound(carrier)) ServerReturnHome();
         }
+        if (IsLocalCarrier && !GameplayInput.Blocked && Cursor.lockState == CursorLockMode.Locked &&
+            Keybinds.WasPressed(GameAction.ReloadOrDiscard)) RequestReturnHome();
     }
 
     private void LateUpdate()

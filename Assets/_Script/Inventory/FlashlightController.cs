@@ -130,7 +130,8 @@ public sealed class FlashlightController : MonoBehaviour
 
         // Paid: R swaps in a Battery from your hotbar. (R also drops the carried ghost
         // favor item; that one wins so a single press never does both.)
-        if (info.usesBatteries && Keybinds.WasPressed(GameAction.ReloadOrDiscard) && !CarryingGhostFavor())
+        if (info.usesBatteries && Keybinds.WasPressed(GameAction.ReloadOrDiscard) &&
+            !BlackBoxCarry.UsesLocalDiscardInput && !CarryingGhostFavor())
             inventory.RequestReload();
     }
 

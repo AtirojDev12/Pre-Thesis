@@ -131,8 +131,38 @@ For each room add `AmbientZone` with a trigger BoxCollider, clip, volume and
 priority. The controller selects the highest-priority zone containing the local
 enabled AudioListener, including when the listener starts inside a room. It
 crossfades in unscaled time and falls back to the default outside all zones.
-Zone transforms may be rotated/scaled. These components are ready for scene
-configuration; no gameplay room layout or ambient clips have been assigned.
+Zone transforms may be rotated/scaled. Optional `additionalAreas` boxes share
+the same loop and event timer, so crossing between connected areas does not
+restart playback. Disabled or inactive boxes are ignored.
+
+### Zone 1 in Cinema_GamePlay
+
+Select **Zone 1 Ambience** in the Hierarchy. Its `AmbientZone` covers the ticket /
+popcorn lobby, with child boxes for the adjacent men's and women's toilets.
+The toilet bounds follow the existing room rule areas; the lobby box joins
+them and excludes the screen rooms and staff room. All three boxes are triggers
+on Ignore Raycast. Use **Edit Collider** on the root or its area children to
+adjust coverage in Scene view.
+
+- `clip` / `volume`: looping `OldAirCordinator`, initially 0.4.
+- `occasionalClip` / `occasionalVolume`: loudspeaker crackle, initially 0.35.
+- `quietSeconds`: random silence of 50–100 seconds before the first event and
+  after each ordinary event. Delays count after a clip finishes, preventing overlap.
+- `burstChance`: 0.15 (15%) per ordinary event; a burst adds `burstExtraPlays`
+  (1–2) repetitions with `burstGapSeconds` (3–8 seconds) of silence between them.
+  A completed burst always returns to the long quiet interval.
+- `AmbientController.fadeSeconds`: 1.5 seconds for entry/exit fades.
+
+Volume changes apply during Play mode; timing changes apply when the next gap
+is chosen. Leaving the zone fades both sounds out; reentering starts a fresh
+quiet interval. Both layers follow the Ambient settings slider and Master.
+Playback and random event timing are local to each player's enabled listener.
+Unity Play mode Inspector edits must be copied back after stopping to persist.
+
+`Tests/AudioNetwork/ZoneAmbienceChecks.cs` checks the authored scene coverage,
+clip references, shared timer, burst completion, reentry and cleanup. Copy it
+to the isolated test project's `Assets/Editor` folder and execute
+`ZoneAmbienceChecks.Run` in Unity batch mode.
 
 ## Verification in Unity
 
