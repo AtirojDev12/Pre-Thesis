@@ -35,6 +35,8 @@ public sealed class PopcornStationAudio : MonoBehaviour
         if (entry == null || entry.clips == null || entry.clips.Length == 0 || entry.clips[0] == null) return;
         var voice = new Voice { action = action, station = station, source = CreateSource(station, entry, "Station Action Sound") };
         voices[actor] = voice;
+        // 22 Oct (Mr.k): my own pouring / scooping / machine noise raises my GAME noise bar.
+        if (IsLocalActor(actor)) PlayerNoise.StartLocalLoop(voice.source, entry.volume * PlayerNoise.ActionNoiseScale);
         double elapsed = initialSnapshot ? System.Math.Max(0, Mirror.NetworkTime.time - action.started) : 0;
         double playAt = AudioSettings.dspTime + 0.05;
         if (station.Kind == PopcornStationKind.Water)
@@ -84,15 +86,22 @@ public sealed class PopcornStationAudio : MonoBehaviour
     {
         if (!voices.TryGetValue(actor, out var voice) || voice.action.request != request) return;
         voices.Remove(actor);
+        PlayerNoise.StopLocalLoop(voice.source);
         if (voice.source != null) { voice.source.Stop(); Destroy(voice.source.gameObject); }
         if (voice.click != null) { voice.click.Stop(); Destroy(voice.click.gameObject); }
         if (playEnd && isActiveAndEnabled && voice.station != null && voice.station.Kind == PopcornStationKind.Water)
             AudioManager.Instance?.Play("Popcorn_WaterEnd", voice.station.transform.position, gameObject.scene);
     }
 
+    private static uint LocalActor() =>
+        NetworkMode.IsOffline ? 0 : PlayerHealth.LocalInstance != null ? PlayerHealth.LocalInstance.netId : 0;
+
+    private static bool IsLocalActor(uint actor) =>
+        NetworkMode.IsOffline ? actor == 0 : PlayerHealth.LocalInstance != null && actor == PlayerHealth.LocalInstance.netId;
+
     public void StopLocal(int request)
     {
-        uint actor = NetworkMode.IsOffline ? 0 : PlayerHealth.LocalInstance != null ? PlayerHealth.LocalInstance.netId : 0;
+        uint actor = LocalActor();
         suppressed[actor] = request;
         End(actor, request);
     }
