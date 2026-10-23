@@ -58,8 +58,13 @@ public sealed class AudioManager : MonoBehaviour
     {
         var entry = Find(id);
         if (entry == null || entry.clips == null || clipIndex < 0 || clipIndex >= entry.clips.Length) return;
-        PlayClip(entry.clips[clipIndex], entry.category, entry.volume, position,
-            entry.spatial && !force2D, entry.minDistance, entry.maxDistance, scene);
+        AudioClip clip = entry.clips[clipIndex];
+        bool spatial = entry.spatial && !force2D;
+        PlayClip(clip, entry.category, entry.volume, position, spatial, entry.minDistance, entry.maxDistance, scene);
+        // 22 Oct (Mr.k): a 3D game sound next to the local player raises their GAME noise bar
+        // (ghosts hear it). UI clicks are 2D and never count.
+        if (spatial && clip != null)
+            PlayerNoise.ReportSoundAt(position, entry.volume * PlayerNoise.ActionNoiseScale, clip.length);
     }
 
     public void PlayClip(AudioClip clip, SoundCategory category, float volume, Vector3 position,

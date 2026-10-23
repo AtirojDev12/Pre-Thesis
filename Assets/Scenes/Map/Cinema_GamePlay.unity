@@ -77261,8 +77261,8 @@ MonoBehaviour:
   zone: {fileID: 1400358394}
   showBrokenMessage: 1
   debugLog: 1
-  loudLimit: 0.5
-  sanityLoss: 20
+  noiseLimit: 0.8
+  sanityPerHit: 10
   cooldownSeconds: 4
 --- !u!114 &810605073
 MonoBehaviour:

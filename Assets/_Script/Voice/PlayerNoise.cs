@@ -55,6 +55,15 @@ public sealed class PlayerNoise : MonoBehaviour
     public const float RadioVoiceBase = 0.45f;
     public const float RadioVoiceRange = 0.55f;
 
+    // ---- Action sounds (22 Oct, Mr.k) ------------------------------------------
+    // Every 3D game sound a player makes (light switch, ticket buttons, popcorn...)
+    // raises THAT player's GAME bar. Level = the sound's library volume x this.
+    public const float ActionNoiseScale = 0.75f;
+    /// <summary>The sound counts for the nearest player body within this many metres.</summary>
+    public const float ActionNoiseRadius = 3f;
+    /// <summary>A one-shot holds the bar for its clip length, at most this long.</summary>
+    public const float ActionNoiseMaxHold = 3f;
+
     // How fast the bars fall back (per second). Rising is instant.
     private const float MicRelease = 1.6f;
     private const float GameRelease = 1.2f;
@@ -79,6 +88,7 @@ public sealed class PlayerNoise : MonoBehaviour
     public float Game { get; private set; }
 
     private float spike;           // one-off noises (click, door...), falls back over time
+    private float spikeHoldUntil;  // the spike does not fall before this time (unscaled)
     private float radioOutput;     // set every frame by VoiceChatManager while the radio plays
     private float radioOutputTime = -999f;
 
@@ -96,11 +106,16 @@ public sealed class PlayerNoise : MonoBehaviour
     /// <summary>SERVER: louder than <see cref="LoudThreshold"/> right now.</summary>
     public bool ServerTooLoud => ServerLoudness >= LoudThreshold;
 
+    // Looping action sounds of the LOCAL player (popcorn pouring...). A List, not a Dictionary.
+    private struct Loop { public Object key; public float level; }
+    private static readonly List<Loop> localLoops = new List<Loop>(4);
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
         All.Clear();
         Local = null;
+        localLoops.Clear();
     }
 
     public void Init(PlayerVoice owner) => voice = owner;
@@ -126,7 +141,59 @@ public sealed class PlayerNoise : MonoBehaviour
         if (Local != null) Local.AddSpike(loudness);
     }
 
-    public void AddSpike(float loudness) => spike = Mathf.Max(spike, Mathf.Clamp01(loudness));
+    public void AddSpike(float loudness) => AddSpike(loudness, 0f);
+
+    /// <summary>One-off noise that stays at its level for <paramref name="holdSeconds"/>, then falls back.</summary>
+    public void AddSpike(float loudness, float holdSeconds)
+    {
+        spike = Mathf.Max(spike, Mathf.Clamp01(loudness));
+        if (holdSeconds > 0f) spikeHoldUntil = Mathf.Max(spikeHoldUntil, Time.unscaledTime + holdSeconds);
+    }
+
+    /// <summary>
+    /// 22 Oct: any machine, when a 3D game sound plays at <paramref name="position"/>.
+    /// If the LOCAL player is the closest player body (within <see cref="ActionNoiseRadius"/>),
+    /// that player made it: their GAME bar rises, and the server / ghosts get it with the
+    /// normal noise report. Every PC runs this, but only the nearest player's PC counts it.
+    /// </summary>
+    public static void ReportSoundAt(Vector3 position, float loudness, float holdSeconds)
+    {
+        if (Local == null || loudness <= 0f) return;
+        float mine = (Local.transform.position - position).sqrMagnitude;
+        if (mine > ActionNoiseRadius * ActionNoiseRadius) return;
+        for (int i = 0; i < All.Count; i++)
+        {
+            PlayerNoise other = All[i];
+            if (other == null || other == Local) continue;
+            if ((other.transform.position - position).sqrMagnitude + 0.01f < mine) return; // someone else is closer
+        }
+        Local.AddSpike(loudness, Mathf.Min(holdSeconds, ActionNoiseMaxHold));
+    }
+
+    /// <summary>22 Oct: the LOCAL player started a looping action sound (key = its AudioSource).</summary>
+    public static void StartLocalLoop(Object key, float loudness)
+    {
+        if (key == null) return;
+        StopLocalLoop(key);
+        localLoops.Add(new Loop { key = key, level = Mathf.Clamp01(loudness) });
+    }
+
+    public static void StopLocalLoop(Object key)
+    {
+        for (int i = localLoops.Count - 1; i >= 0; i--)
+            if (localLoops[i].key == key) localLoops.RemoveAt(i);
+    }
+
+    private static float LoopNoise()
+    {
+        float level = 0f;
+        for (int i = localLoops.Count - 1; i >= 0; i--)
+        {
+            if (localLoops[i].key == null) { localLoops.RemoveAt(i); continue; } // destroyed source
+            level = Mathf.Max(level, localLoops[i].level);
+        }
+        return level;
+    }
 
     /// <summary>VoiceChatManager, every frame the radio in your pocket plays a voice. level = voice peak 0..1.</summary>
     public void SetRadioOutput(float voicePeak)
@@ -170,7 +237,8 @@ public sealed class PlayerNoise : MonoBehaviour
         float target = MovementNoise();
         if (Time.unscaledTime - radioOutputTime < 0.15f) target = Mathf.Max(target, radioOutput);
         target = Mathf.Max(target, spike);
-        spike = Mathf.MoveTowards(spike, 0f, GameRelease * dt);
+        target = Mathf.Max(target, LoopNoise());
+        if (Time.unscaledTime >= spikeHoldUntil) spike = Mathf.MoveTowards(spike, 0f, GameRelease * dt);
         Game = Follow(Game, target, GameRelease, dt);
 
         SendToServer();

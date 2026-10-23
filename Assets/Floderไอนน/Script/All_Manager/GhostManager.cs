@@ -27,6 +27,9 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
     private bool isGhostActive = false;
     private bool isSequenceRunning = false;
     private bool flickerRunning; // true while the warning flicker may have the lights off
+    private Coroutine despawnRoutine;
+    // Safety: never wait longer than this for the appear animation before the life time starts.
+    private const float MaxAppearWait = 20f;
 
     /// <summary>True on the machine allowed to run the cycle: server, or anybody when offline.</summary>
     private bool HasAuthority => NetworkMode.HasServerAuthority(this);
@@ -105,7 +108,7 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
         if (ghostPrefab == null || spawnPoint == null)
         {
             Debug.LogWarning("[GhostManager] No ghost prefab or spawn point assigned — nothing spawned.", this);
-            Invoke(nameof(DespawnGhost), ghostDuration);
+            StartDespawnTimer();
             return;
         }
 
@@ -121,7 +124,38 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
         // Relocate seasoning on the authority when the ghost actually appears.
         GhostFavorRecovery.Instance?.ServerOnGhostAppeared();
 
-        Invoke(nameof(DespawnGhost), ghostDuration);
+        StartDespawnTimer();
+    }
+
+    /// <summary>
+    /// 22 Oct (Mr.k): ghostDuration starts AFTER the appear animation ends, so the
+    /// ghost gets its full time to hunt (before, the Entry animation used part of it).
+    /// </summary>
+    private void StartDespawnTimer()
+    {
+        StopDespawnTimer();
+        despawnRoutine = StartCoroutine(DespawnAfterAppear());
+    }
+
+    private void StopDespawnTimer()
+    {
+        if (despawnRoutine != null) StopCoroutine(despawnRoutine);
+        despawnRoutine = null;
+    }
+
+    private IEnumerator DespawnAfterAppear()
+    {
+        yield return null; // let the new ghost run its Start first
+        TimedGhost ghost = currentGhostInstance != null ? currentGhostInstance.GetComponentInChildren<TimedGhost>() : null;
+        float waited = 0f;
+        while (ghost != null && ghost.IsAppearing && waited < MaxAppearWait)
+        {
+            waited += Time.deltaTime;
+            yield return null;
+        }
+        yield return new WaitForSeconds(ghostDuration);
+        despawnRoutine = null;
+        DespawnGhost();
     }
 
     private void DespawnGhost()
@@ -144,6 +178,7 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
     {
         if (!HasAuthority) return;
         CancelInvoke(nameof(DespawnGhost));
+        StopDespawnTimer();
     }
 
     /// <summary>SERVER ONLY. Clears state after a jumpscare so the next cycle can start.</summary>

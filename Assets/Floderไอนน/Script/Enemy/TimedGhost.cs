@@ -17,9 +17,12 @@ public class TimedGhost : Enemy_Abstract_Class
     [Tooltip("GDD rule: a Jump Scare kills outright, skipping the downed state. Leave OFF while testing so a mistake does not end the run.")]
     [SerializeField] private bool killsOutright = false;
 
-    [Header("Mic Settings (Nonnapat)")]
-    [Tooltip("ServerMic (0..1) above this = too loud. ServerTooLoud (the red line on the noise meter) always counts too.")]
-    [SerializeField] private float micVolumeThreshold = 0.3f;
+    [Header("Hearing (Nonnapat, 3D since 22 Oct)")]
+    [Tooltip("The ghost hears a player when their noise, after 3D distance fall-off, is at least this (0..1). Higher = harder to hear. See GhostHearing for ranges.")]
+    [SerializeField, Range(0.01f, 1f)] private float hearThreshold = 0.12f;
+
+    [Tooltip("1 = hears exactly as far as a player hears. 1.2 = 20% farther.")]
+    [SerializeField, Min(0.1f)] private float hearRangeBonus = 1.2f;
 
     [Tooltip("OFF = the ghost only listens in the dark (Nonnapat's rule). ON = it also chases loud players while the lights are on.")]
     [SerializeField] private bool hearMicInLight = false;
@@ -53,6 +56,9 @@ public class TimedGhost : Enemy_Abstract_Class
     }
 
     private bool ManifestationBlocked => manifestation != null && manifestation.BlocksMovement;
+
+    /// <summary>22 Oct (Mr.k): true while the ghost is still appearing (Entry animation, or the appearSeconds fallback). GhostManager does not count its life time then.</summary>
+    public bool IsAppearing => ManifestationBlocked || (manifestation == null && Time.time < appearUntil);
 
     /// <summary>
     /// One Update for both appear systems (17 Oct merge, Mr.k + Atiroj):
@@ -151,9 +157,9 @@ public class TimedGhost : Enemy_Abstract_Class
         bool lit = IsLit(candidate);
         if (lit && CanSee(candidate)) return true;
         if (!canDetectMic || (lit && !hearMicInLight)) return false;
-        if ((candidate.transform.position - transform.position).sqrMagnitude > hearingRadius * hearingRadius) return false;
+        // 22 Oct (Mr.k): 3D hearing, like a player hears (mic + footsteps + action sounds).
         return candidate.TryGetComponent(out PlayerNoise noise) &&
-            (noise.ServerMic > micVolumeThreshold || noise.ServerTooLoud);
+            GhostHearing.HeardAt(noise, transform.position, hearRangeBonus) >= hearThreshold;
     }
 
     protected override bool CanSee(PlayerHealth candidate)
