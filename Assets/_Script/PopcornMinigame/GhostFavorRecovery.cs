@@ -9,6 +9,8 @@ public struct GhostFavorState
     public uint carrierId;
     public Vector3 position;
     public Quaternion rotation;
+    public uint disappearanceId;
+    public double disappearedAt;
 }
 
 /// <summary>Observes the existing light state; the popcorn network object owns replication.</summary>
@@ -30,6 +32,8 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     private bool blackoutHandled;
     private int dropFrame = -1;
     private GhostFavorTrail trail;
+    private GhostFavorDisappearVfx disappearVfx;
+    private uint disappearanceId;
     private bool HasAuthority => !NetworkMode.SessionEnding && (NetworkMode.IsOffline ||
         (PopcornNetSync.Instance != null && PopcornNetSync.Instance.isServer));
     public bool DroppedThisFrame => dropFrame == Time.frameCount;
@@ -66,6 +70,9 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         favorBody.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
         trail = GetComponent<GhostFavorTrail>();
         if (trail != null) trail.Configure(this);
+        disappearVfx = GetComponent<GhostFavorDisappearVfx>();
+        if (disappearVfx == null) disappearVfx = gameObject.AddComponent<GhostFavorDisappearVfx>();
+        disappearVfx.Configure(this);
     }
 
     private void Update()
@@ -90,7 +97,10 @@ public sealed class GhostFavorRecovery : MonoBehaviour
                 {
                     carrier = null;
                     wasCarried = false;
-                    state = new GhostFavorState { position = homePosition, rotation = homeRotation };
+                    state.displaced = false;
+                    state.carrierId = 0;
+                    state.position = homePosition;
+                    state.rotation = homeRotation;
                 }
             }
             else if (wasCarried)
@@ -116,6 +126,8 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     {
         if (favor == null) return;
         GhostFavorState visible = VisibleState;
+        // Observe the replicated event before moving the prop. The smoke stays at home.
+        if (!NetworkMode.SessionEnding && disappearVfx != null) disappearVfx.Observe(visible);
         // Only the authority simulates gravity. Clients follow the replicated pose.
         if (!HasAuthority || !falling)
             favor.SetPositionAndRotation(visible.displaced ? visible.position : homePosition,
@@ -188,7 +200,12 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         {
             Vector3[] route = null;
             if (trail != null && trail.RequiresReachableDestination && !trail.TryPlanDestination(destination, out route)) continue;
-            state = new GhostFavorState { displaced = true, position = destination.position, rotation = destination.rotation };
+            state = new GhostFavorState
+            {
+                displaced = true, position = destination.position, rotation = destination.rotation,
+                disappearanceId = ++disappearanceId,
+                disappearedAt = NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time
+            };
             if (trail != null) trail.AcceptRelocation(state.position, route);
             return;
         }

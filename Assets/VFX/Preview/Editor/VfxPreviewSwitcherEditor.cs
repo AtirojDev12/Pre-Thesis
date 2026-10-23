@@ -19,5 +19,10 @@ public sealed class VfxPreviewSwitcherEditor : Editor
             preview.ShowGhost();
             FoodVfxScenePreview.Frame(preview.ghostStage.transform);
         }
+        if (preview.favorStage != null && GUILayout.Button("Show Ghost Favor (2 seconds)"))
+        {
+            preview.ShowFavor();
+            FoodVfxScenePreview.Frame(preview.favorStage.transform);
+        }
     }
 }

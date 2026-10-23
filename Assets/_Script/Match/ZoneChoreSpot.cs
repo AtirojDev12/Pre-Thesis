@@ -62,6 +62,9 @@ public sealed class ZoneChoreSpot : InteractableBase
 
     public ZoneTaskKind Kind => kind;
     public bool Needed => needed;
+    // Audio observes the existing authoritative work state; no extra sound RPCs.
+    public bool IsWorking => workerId != 0 && !(IsLocalWorker && stopSent);
+    public double WorkStartedAt => workStart;
 
     // ---- Hooks for the zone rules (16 Oct) -------------------------------------------
     /// <summary>SERVER. A chore was finished (spot, worker body). Zone rules listen.</summary>
@@ -109,6 +112,7 @@ public sealed class ZoneChoreSpot : InteractableBase
         uint id = WorkerIdOf(interactor);
         if (workerId != 0 && workerId != id) return; // someone else is already on it
         offlineWorker = NetworkMode.IsOffline ? interactor : null;
+        stopSent = false;
         workerId = id;
         workStart = Now;
     }

@@ -164,6 +164,22 @@ clip references, shared timer, burst completion, reentry and cleanup. Copy it
 to the isolated test project's `Assets/Editor` folder and execute
 `ZoneAmbienceChecks.Run` in Unity batch mode.
 
+## Projectors in Cinema_GamePlay
+
+Both room projectors use `ProjectorAudio` with the clips in `Sound/SFX/ScreenRoom`.
+The running clip loops at 0.85; the five-second reel change plays once at 0.35.
+Both are 3D SFX, with 2–15 metre attenuation and the SFX/Master settings applied.
+The clips contain their own room reverb, so additional reverb zones are bypassed.
+
+The Ghost Room projector observes its existing `ZoneChoreSpot`: it stops when a
+film change is due, plays the change clip during an accepted hold, stops on
+release/cancellation, and resumes running only after the chore is complete.
+The normal room projector keeps running. Round end, session exit and component
+disable stop playback. No new network identity, sound command or RPC is added.
+Guests read the replicated needed/worker/start-time fields; a joining observer
+seeks into an ongoing change rather than replaying its beginning. The owner's
+release stops their sound immediately, while other observers follow the server.
+
 ## Verification in Unity
 
 1. Open MainMenu, hover and click buttons; verify one sound per event and silence

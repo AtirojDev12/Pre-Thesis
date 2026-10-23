@@ -12690,8 +12690,9 @@ GameObject:
   m_Component:
   - component: {fileID: 132377856}
   - component: {fileID: 132377857}
+  - component: {fileID: 132377858}
   m_Layer: 0
-  m_Name: Projecter
+  m_Name: GhostProjecter
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -12710,8 +12711,6 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1729815884}
-  - {fileID: 1401251831}
   - {fileID: 1292368357}
   m_Father: {fileID: 975292925}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -12728,6 +12727,25 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
   displayName: Projector
+--- !u!114 &132377858
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 132377855}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 99186d8a19ac465ca786daf51457b1b3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ProjectorAudio
+  filmChore: {fileID: 1690432382}
+  runningClip: {fileID: 8300000, guid: a86ac26894cb0464dac4fa0d151205ce, type: 3}
+  filmChangeClip: {fileID: 8300000, guid: 833c2193918a330468ccba528b12a83a, type: 3}
+  runningVolume: 0.85
+  filmChangeVolume: 0.35
+  minDistance: 2
+  maxDistance: 15
 --- !u!1001 &133314441
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -15736,6 +15754,9 @@ Transform:
   - {fileID: 783492629}
   - {fileID: 31845266}
   - {fileID: 1260115048}
+  - {fileID: 1760659172}
+  - {fileID: 1729815884}
+  - {fileID: 1401251831}
   m_Father: {fileID: 922571985}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!43 &184039282
@@ -117034,6 +117055,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1185130849}
   - component: {fileID: 1185130850}
+  - component: {fileID: 1185130851}
   m_Layer: 0
   m_Name: Projecter
   m_TagString: Untagged
@@ -117054,7 +117076,6 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1760659172}
   - {fileID: 47466606}
   m_Father: {fileID: 119937297}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -117071,6 +117092,25 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionNameLabel
   displayName: Projector
+--- !u!114 &1185130851
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1185130848}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 99186d8a19ac465ca786daf51457b1b3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ProjectorAudio
+  filmChore: {fileID: 0}
+  runningClip: {fileID: 8300000, guid: a86ac26894cb0464dac4fa0d151205ce, type: 3}
+  filmChangeClip: {fileID: 8300000, guid: 833c2193918a330468ccba528b12a83a, type: 3}
+  runningVolume: 0.85
+  filmChangeVolume: 0.35
+  minDistance: 2
+  maxDistance: 15
 --- !u!43 &1185132138
 Mesh:
   m_ObjectHideFlags: 0
@@ -135807,12 +135847,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1401251830}
   serializedVersion: 2
-  m_LocalRotation: {x: 1.110223e-17, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -29.712507, y: 9.107988, z: 26.936558}
+  m_LocalRotation: {x: -4.4648686e-20, y: 0.99999195, z: -1.1102141e-17, w: -0.004021596}
+  m_LocalPosition: {x: 38.694897, y: 8.887988, z: 10.685329}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 132377856}
+  m_Father: {fileID: 183763406}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!64 &1401251832
 MeshCollider:
@@ -162675,12 +162715,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1729815883}
   serializedVersion: 2
-  m_LocalRotation: {x: 1.110223e-17, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -29.712507, y: 9.107988, z: 11.220001}
+  m_LocalRotation: {x: -4.4648686e-20, y: 0.99999195, z: -1.1102141e-17, w: -0.004021596}
+  m_LocalPosition: {x: 38.821304, y: 8.887988, z: 26.401379}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 132377856}
+  m_Father: {fileID: 183763406}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!64 &1729815885
 MeshCollider:
@@ -167651,7 +167691,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1185130849}
+  m_Father: {fileID: 183763406}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!64 &1760659173
 MeshCollider:

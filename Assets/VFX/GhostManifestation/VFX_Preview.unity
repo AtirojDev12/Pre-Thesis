@@ -18804,6 +18804,8 @@ MonoBehaviour:
   food: {fileID: 60196121}
   ghost: {fileID: 159817015}
   ghostPool: {fileID: 5000000033}
+  favorStage: {fileID: 6200000002}
+  favor: {fileID: 6200000003}
 --- !u!4 &2105919346
 Transform:
   m_ObjectHideFlags: 0
@@ -19478,7 +19480,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &5100000001
 Transform:
   m_ObjectHideFlags: 0
@@ -59790,6 +59792,40 @@ Transform:
   - {fileID: 5000001293}
   m_Father: {fileID: 5000001859}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &6200000000
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications: []
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 694d47c142048df4489b314811478015, type: 3}
+--- !u!4 &6200000001 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 3615877877247571969, guid: 694d47c142048df4489b314811478015, type: 3}
+  m_PrefabInstance: {fileID: 6200000000}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &6200000002 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5424902081280953461, guid: 694d47c142048df4489b314811478015, type: 3}
+  m_PrefabInstance: {fileID: 6200000000}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &6200000003 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 846635104896375746, guid: 694d47c142048df4489b314811478015, type: 3}
+  m_PrefabInstance: {fileID: 6200000000}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6200000002}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 72338b078c264523bfbe55628e6b3236, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PreThesis.Vfx.GhostFavorVfxPreview
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -59798,3 +59834,4 @@ SceneRoots:
   - {fileID: 1827433588}
   - {fileID: 2105919346}
   - {fileID: 5100000001}
+  - {fileID: 6200000001}
