@@ -34,6 +34,14 @@ public static class ItemCatalog
     public const string WorldAmuletPath = "Items/WorldAmulet";
     public const string WorldHolyCrossPath = "Items/WorldHolyCross";
 
+    /// <summary>
+    /// 24 Oct (Mr.k): the map of this place. MATCH ONLY: not sold, never saved,
+    /// 1 per player from the map box (MapPickup). Hold the read key to read it.
+    /// The model is Assets/Prefab/Map.prefab (designer's), used inside WorldMap.
+    /// </summary>
+    public const string Map = "map";
+    public const string WorldMapPath = "Items/WorldMap";
+
     public sealed class ItemInfo
     {
         public string id;
@@ -69,12 +77,16 @@ public static class ItemCatalog
         /// <summary>Holy Book / Amulet / Cross: carried = faster chanting.</summary>
         public bool isHolyItem;
 
+        // ---- Match only (24 Oct) ----
+        /// <summary>Exists only during a match (the Map): not in the shop, never written to the save.</summary>
+        public bool matchOnly;
+
         // ---- Stacking (5 Oct) ----
         /// <summary>How many fit in ONE hotbar slot. 1 = no stacking. Also the most you can own.</summary>
         public int maxStack = 1;
         public bool Stackable => maxStack > 1;
-        /// <summary>Not permanent = a consumable: the save keeps a quantity (ConsumableItemData).</summary>
-        public bool Consumable => !permanent;
+        /// <summary>Not permanent = a consumable: the save keeps a quantity (ConsumableItemData). Match-only items are neither.</summary>
+        public bool Consumable => !permanent && !matchOnly;
     }
 
     // A List, not a Dictionary: a handful of entries, and it matches the
@@ -134,6 +146,14 @@ public static class ItemCatalog
             id = HolyCross, isHolyItem = true,
             permanent = true, inShop = true, throwable = true,
             worldPrefabPath = WorldHolyCrossPath,
+        },
+        // 24 Oct (Mr.k): the map. Taken from the map box in the match, gone after it.
+        new ItemInfo
+        {
+            id = Map, displayName = "Map", matchOnly = true,
+            permanent = false, inShop = false, throwable = true,
+            worldPrefabPath = WorldMapPath,
+            description = "Map of this place. Hold the read key to look at it. Only for this match.",
         },
     };
 
@@ -244,6 +264,9 @@ public static class ItemCatalog
         ItemInfo info = Find(id);
         return info != null && info.isHolyItem;
     }
+
+    /// <summary>24 Oct: the map (match only).</summary>
+    public static bool IsMap(string id) => id == Map;
 
     public static bool IsFlashlight(string id)
     {

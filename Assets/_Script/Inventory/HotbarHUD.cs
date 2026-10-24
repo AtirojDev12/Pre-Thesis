@@ -124,6 +124,8 @@ public sealed class HotbarHUD : MonoBehaviour
                   (ItemCatalog.Find(inventory.HeldSlot.itemId)?.usesBatteries == true
                       ? $"[{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] new battery"
                       : $"Mash [{Keybinds.KeyName(GameAction.FlashlightCrank)}] to charge")
+                : inventory.IsHoldingMap // 24 Oct
+                ? $"Hold [{Keybinds.KeyName(GameAction.ReadMap)}] read the map   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
                 : PlayerSanity.HotbarHint(inventory); // 8 Oct: snack / holy items
         }
 

@@ -22,12 +22,14 @@ public sealed class PlayerHeldItems : NetworkBehaviour
     [Header("Remote chest placement (world metres)")]
     [SerializeField] private Vector3 taskOffset = new Vector3(-.18f, -.1f, .3f);
     [SerializeField] private Vector3 radioOffset = new Vector3(.18f, -.08f, .3f);
+    [Tooltip("24 Oct (Mr.k): where other players see your map (only while it is in your hand).")]
+    [SerializeField] private Vector3 mapOffset = new Vector3(.14f, -.05f, .32f);
     private uint localRevision;
     private PlayerInventory inventory;
     private PlayerVoice voice;
     private PlayerHealth health;
     private Transform chest;
-    private GameObject taskVisual, radioVisual;
+    private GameObject taskVisual, radioVisual, mapVisual;
     private GameObject renderedPrefab;
     private TaskHeldState renderedState;
     public TaskHeldState TaskItem => taskItem;
@@ -103,7 +105,7 @@ public sealed class PlayerHeldItems : NetworkBehaviour
         if (NetworkMode.IsLocalController(this)) return;
         if (health != null && (health.IsDead || health.IsDowned))
         {
-            Clear(ref taskVisual); Clear(ref radioVisual); renderedPrefab = null;
+            Clear(ref taskVisual); Clear(ref radioVisual); Clear(ref mapVisual); renderedPrefab = null;
             if (isServer && taskItem.hasItem) taskItem = new TaskHeldState { revision = taskItem.revision };
             return;
         }
@@ -149,6 +151,18 @@ public sealed class PlayerHeldItems : NetworkBehaviour
                 Place(radioVisual, radioOffset);
                 radioVisual.GetComponentInChildren<WalkieTalkieVisual>()?.SetPower(inventory.HeldSlot.poweredOn, voice != null && voice.RadioTransmitting);
             }
+        }
+        // 24 Oct (Mr.k): other players see the map in your hand. The model is the Map inside WorldMap.
+        if (!inventory.IsHoldingMap) Clear(ref mapVisual);
+        else
+        {
+            if (mapVisual == null)
+            {
+                GameObject world = Resources.Load<GameObject>(ItemCatalog.WorldMapPath);
+                if (world != null && world.transform.childCount > 0)
+                    mapVisual = CreateVisual(world.transform.GetChild(0).gameObject, "Remote map", .3f);
+            }
+            if (mapVisual != null) Place(mapVisual, mapOffset);
         }
     }
 
@@ -200,5 +214,5 @@ public sealed class PlayerHeldItems : NetworkBehaviour
         if (model == null) return;
         model.SetActive(false); Destroy(model); model = null;
     }
-    private void OnDisable() { Clear(ref taskVisual); Clear(ref radioVisual); renderedPrefab = null; }
+    private void OnDisable() { Clear(ref taskVisual); Clear(ref radioVisual); Clear(ref mapVisual); renderedPrefab = null; }
 }

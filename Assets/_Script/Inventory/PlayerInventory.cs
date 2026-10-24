@@ -105,6 +105,9 @@ public class PlayerInventory : NetworkBehaviour
     /// <summary>The flashlight in your hand is switched on AND has battery: the beam is shining.</summary>
     public bool IsFlashlightShining => IsHoldingFlashlight && HeldSlot.poweredOn && HeldSlot.charge > 0f;
 
+    /// <summary>24 Oct: a usable map is in your hand.</summary>
+    public bool IsHoldingMap => !HeldSlot.IsEmpty && !HeldSlot.spare && ItemCatalog.IsMap(HeldSlot.itemId);
+
     /// <summary>Carries a switched-on radio in ANY slot: hears Walkie-Talkie traffic.</summary>
     public bool HasPoweredRadio
     {
@@ -125,6 +128,8 @@ public class PlayerInventory : NetworkBehaviour
         // 5 Oct: the flashlight beam/battery lives beside the hotbar. Added here so
         // the Player prefab needs no manual edit.
         if (GetComponent<FlashlightController>() == null) gameObject.AddComponent<FlashlightController>();
+        // 24 Oct: the map in your hand (read it while holding the read key).
+        if (GetComponent<MapController>() == null) gameObject.AddComponent<MapController>();
         // Mirror's default SyncList guard throws when neither server nor client is running.
         // Permit the project's offline test mode, preserving Mirror's guard in real sessions.
         System.Func<bool> mirrorCanWrite = slots.IsWritable;
@@ -782,7 +787,7 @@ public class PlayerInventory : NetworkBehaviour
     {
         if (!InLobby || string.IsNullOrEmpty(itemId)) return;
         ItemCatalog.ItemInfo info = ItemCatalog.Find(itemId);
-        if (info == null) return;
+        if (info == null || info.matchOnly) return; // 24 Oct: the map is never saved
         if (info.Consumable)
         {
             // 5 Oct: in the lobby the save's quantity follows the hotbar (drop one = own one less).

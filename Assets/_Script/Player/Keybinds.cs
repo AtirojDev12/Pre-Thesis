@@ -12,6 +12,7 @@ public enum GameAction
     FlashlightToggle, FlashlightToggleMouse, FlashlightCrank,
     EatSnack, FeedFriend,
     WalkieTalk, WalkiePower,
+    ReadMap, // 24 Oct
 }
 
 /// <summary>
@@ -80,6 +81,7 @@ public static class Keybinds
         new Def(GameAction.FeedFriend, "feedFriend", "Feed a friend (hold, look at them)", "Items in hand", "snack", "<Mouse>/rightButton"),
         new Def(GameAction.WalkieTalk, "walkieTalk", "Walkie talk (hold)", "Items in hand", "walkie", GameSettings.DefaultWalkieTalkBinding),
         new Def(GameAction.WalkiePower, "walkiePower", "Walkie on / off", "Items in hand", "walkie", GameSettings.DefaultWalkiePowerBinding),
+        new Def(GameAction.ReadMap, "readMap", "Read map (hold)", "Items in hand", "map", "<Mouse>/leftButton"), // 24 Oct
     };
 
     private static string[] paths;          // cached, index = (int)GameAction
