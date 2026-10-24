@@ -206288,7 +206288,7 @@ MonoBehaviour:
   ghostRosters:
   - {fileID: 11400000, guid: b81a86ea70d23454b896ad139bb89627, type: 2}
   logRoundSetup: 1
-  secondsPerInGameHourOverride: 60
+  secondsPerInGameHourOverride: 150
   simpleDawnRule: 1
   currencyPerTask: 10
   consolationPrize: 10

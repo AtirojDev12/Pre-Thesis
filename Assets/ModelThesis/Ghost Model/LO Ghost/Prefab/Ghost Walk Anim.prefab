@@ -195,7 +195,8 @@ MonoBehaviour:
   jumpscareDuration: 3
   jumpscareDamage: 25
   killsOutright: 0
-  micVolumeThreshold: 1
+  hearThreshold: 0.15
+  hearRangeBonus: 1.5
   hearMicInLight: 0
   randomPatrolRadius: 15
   jumpscareRange: 1.5
@@ -318,7 +319,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a5de7f6a91324efb8c02379b246ef342, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GhostManifestation
   syncDirection: 0
   syncMode: 0
