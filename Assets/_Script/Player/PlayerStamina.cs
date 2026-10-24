@@ -10,13 +10,13 @@ using UnityEngine;
 public class PlayerStamina : NetworkBehaviour
 {
     [Header("Stamina")]
-    [Min(1f)] [SerializeField] private float maxStamina = 100f;
-    [Min(0f)] [SerializeField] private float sprintDrainPerSecond = 25f;
-    [Min(0f)] [SerializeField] private float recoveryPerSecond = 20f;
-    [Min(0f)] [SerializeField] private float recoveryDelay = 1f;
+    [Min(1f)][SerializeField] private float maxStamina = 100f;
+    [Min(0f)][SerializeField] private float sprintDrainPerSecond = 25f;
+    [Min(0f)][SerializeField] private float recoveryPerSecond = 20f;
+    [Min(0f)][SerializeField] private float recoveryDelay = 1f;
 
     [Tooltip("After stamina reaches zero, it must recover to this amount before sprinting can resume.")]
-    [Min(0f)] [SerializeField] private float staminaRequiredAfterExhaustion = 20f;
+    [Min(0f)][SerializeField] private float staminaRequiredAfterExhaustion = 20f;
 
     public static PlayerStamina LocalInstance { get; private set; }
     public static event System.Action<PlayerStamina> LocalInstanceChanged;
@@ -142,3 +142,4 @@ public class PlayerStamina : NetworkBehaviour
         staminaRequiredAfterExhaustion = Mathf.Clamp(staminaRequiredAfterExhaustion, 0f, maxStamina);
     }
 }
+

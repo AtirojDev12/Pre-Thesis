@@ -282,7 +282,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 949416023753372381}
-  - {fileID: 5446086429512405771}
+  - {fileID: 7835085546899562071}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &322176415006952956
@@ -361,10 +361,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.2
-  m_Height: 2
+  m_Radius: 0.12
+  m_Height: 1.75
   m_Direction: 1
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Center: {x: 0, y: 0, z: 0.01}
 --- !u!54 &8516979305989066281
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -440,11 +440,11 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  maxStamina: 500
-  sprintDrainPerSecond: 25
-  recoveryPerSecond: 20
+  maxStamina: 100
+  sprintDrainPerSecond: 15
+  recoveryPerSecond: 5
   recoveryDelay: 1
-  staminaRequiredAfterExhaustion: 5
+  staminaRequiredAfterExhaustion: 1
 --- !u!114 &1447016046547223186
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -470,8 +470,9 @@ MonoBehaviour:
   interactableLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  interactKey: 19
   promptUI: {fileID: 0}
+  showNamesOnly: 0
+  logFocusedInteractable: 0
   serverRangeTolerance: 1.5
 --- !u!114 &2048010285176511286
 MonoBehaviour:
@@ -786,7 +787,7 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
---- !u!4 &5446086429512405771 stripped
+--- !u!4 &7835085546899562071 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
   m_PrefabInstance: {fileID: 7724071072915765692}
