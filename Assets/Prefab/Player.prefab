@@ -28,7 +28,7 @@ Transform:
   m_GameObject: {fileID: 459192558290352221}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.062, z: 0}
+  m_LocalPosition: {x: 0, y: 0.9, z: 0.05}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -48,7 +48,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FirstPersonCamera
   playerBody: {fileID: 6826038590600976497}
-  cameraLocalPosition: {x: 0, y: 0.81, z: 0.05}
+  cameraLocalPosition: {x: 0, y: 0.9, z: 0.05}
   crouchCameraDrop: 0.65
   crouchCameraLerpSpeed: 9
   mouseSensitivity: 0.1
@@ -124,8 +124,8 @@ Transform:
   m_GameObject: {fileID: 2808686165840420855}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.25333336, z: 0}
-  m_LocalScale: {x: 0, y: 0.41666663, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 949416023753372381}
