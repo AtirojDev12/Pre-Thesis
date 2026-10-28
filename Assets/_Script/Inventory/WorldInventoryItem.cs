@@ -11,10 +11,64 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
     private WalkieTalkieVisual visual;
     private FlashlightVisual flashlight; // 5 Oct: a dropped flashlight that is on keeps shining
     private bool pickupInProgress;
+    [Header("Ground impact VFX")]
+    [SerializeField, Min(.1f)] private float minimumImpactSpeed = .65f;
+    [SerializeField, Min(1f)] private float fullImpactSpeed = 4.5f;
+    [SerializeField, Range(.25f, 3f)] private float impactSize = 1f;
+    [SerializeField, Range(0f, 2f)] private float impactDust = 1f;
+    [Tooltip("Exclude water layers here; water needs its own splash effect.")]
+    [SerializeField] private LayerMask impactSurfaces = ~(1 << 4); // Unity's Water layer
+    private float nextImpactTime;
+    private Collider[] impactColliders;
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || claimed || Time.time < nextImpactTime ||
+            (impactSurfaces.value & (1 << collision.collider.gameObject.layer)) == 0 ||
+            collision.collider.GetComponentInParent<PlayerHealth>() != null ||
+            collision.collider.GetComponentInParent<WorldInventoryItem>() != null) return;
+        // The server supplies the actual contact, also for kinematic remote copies.
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            ContactPoint contact = collision.GetContact(i);
+            if (Vector3.Dot(contact.normal, Vector3.up) < .35f) continue;
+            float speed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal));
+            if (speed < minimumImpactSpeed) continue;
+            float power = Mathf.Lerp(.15f, 1f, Mathf.InverseLerp(minimumImpactSpeed, Mathf.Max(minimumImpactSpeed + .1f, fullImpactSpeed), speed));
+            nextImpactTime = Time.time + .10f;
+            GetImpactFootprint(contact, out Vector3 center, out float footprintScale);
+            if (NetworkMode.IsOffline) PlayImpact(center, contact.normal, power, footprintScale, impactDust);
+            else RpcImpact(center, contact.normal, power, footprintScale, impactDust);
+            break;
+        }
+    }
+
+    private void GetImpactFootprint(ContactPoint contact, out Vector3 center, out float scale)
+    {
+        Bounds bounds = new Bounds(body.worldCenterOfMass, Vector3.zero);
+        bool found = false;
+        foreach (var collider in impactColliders)
+        {
+            if (collider == null || !collider.enabled || collider.isTrigger || !collider.gameObject.activeInHierarchy) continue;
+            if (!found) { bounds = collider.bounds; found = true; }
+            else bounds.Encapsulate(collider.bounds);
+        }
+        // Centre the burst under the item, while keeping it on the actual supporting plane.
+        center = bounds.center - contact.normal * Vector3.Dot(bounds.center - contact.point, contact.normal);
+        float longestSide = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
+        scale = impactSize * Mathf.Clamp(Mathf.Sqrt(longestSide / .2f), 1f, 2f);
+    }
+
+    [ClientRpc]
+    private void RpcImpact(Vector3 point, Vector3 normal, float power, float scale, float dust) => PlayImpact(point, normal, power, scale, dust);
+
+    private void PlayImpact(Vector3 point, Vector3 normal, float power, float scale, float dust) =>
+        PreThesis.Vfx.ItemImpactVfx.Spawn(point, normal, power, scale, dust);
 
     private void Awake()
     {
         body = GetComponent<Rigidbody>();
+        impactColliders = GetComponentsInChildren<Collider>(true);
         visual = GetComponentInChildren<WalkieTalkieVisual>();
         flashlight = GetComponentInChildren<FlashlightVisual>();
     }

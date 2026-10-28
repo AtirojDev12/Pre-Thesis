@@ -15,4 +15,30 @@ The gameplay `Ghost Walk Anim.prefab` now assigns this water material and both V
 Editor menu: Tools > Pre-Thesis > VFX > Open Black Water Preview.
 Build Black Water Preview authors a fresh preview only and refuses to overwrite an existing one.
 
+## Resolve atmosphere — first visual pass
+
+The existing pool, splash graph, submerge smoke graph and body motion remain the base.
+`GhostPoolAtmosphere` adds 72 procedural smoke billboards (144 triangles per pool),
+which curl against one another and gather into an ambiguous upright silhouette.
+This silhouette is a visual approximation, not sampling of the ghost mesh. The
+shared water shader now supports inward ripples, a still surface at full Resolve,
+and frost along the inside of the pool edge. No reflection of the ghost is added.
+
+`GhostPoolEffect` drives this local presentation from the existing emergence and
+submergence times. Additional smoke fades within .8 seconds after body travel;
+the pool keeps its original hold/fade timing. There are no new gameplay,
+networking, model, animator or player dependencies. The graphs are unchanged.
+
+In Play mode in the existing Black Water preview (also available from the Ghost
+black water stage in the combined VFX preview), toggle **Resolve smoke + inward
+ripples + frost** to compare with the old look. Select **Pause and inspect
+Resolve** and drag the slider from 0 to 1 to inspect smoke and water independently
+of the body animation. Uncheck it to resume. This is a visual inspection control,
+not a new gameplay mechanic or a banishment trigger.
+
+Shader defaults preserve old materials until the local effect explicitly sets
+`_Horror = 1`. `_Resolve` controls formation, `_Phase` supplies time, and `_Mist`
+is reserved for the generated smoke material. Dynamic meshes and materials are
+owned by the effect and released when it is destroyed.
+
 The gameplay and preview share surface size 3.55 by 3.25 (about 15% wider than the first version). The pool stays fully visible for four seconds after the body motion finishes, then fades over 1.6 seconds. Submergence uses the original Entry clip duration; preview cycles last at least thirteen seconds. If expiry interrupts an unfinished Entry, reversal begins at that animation phase instead of jumping to the end pose.

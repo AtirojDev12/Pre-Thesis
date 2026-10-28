@@ -19,6 +19,9 @@ namespace PreThesis.Vfx
         private bool splashed;
         private Vector3 size;
         private float fadeStart;
+        private float travel;
+        private bool sinking;
+        private GhostPoolAtmosphere atmosphere;
 
         public static float LifetimeFor(float travelSeconds) =>
             GhostPoolVisual.GrowSeconds + travelSeconds + HoldSeconds + FadeSeconds + .2f;
@@ -28,6 +31,8 @@ namespace PreThesis.Vfx
         {
             began = Time.time - initialAge;
             fadeStart = GhostPoolVisual.GrowSeconds + travelSeconds + HoldSeconds;
+            travel = travelSeconds;
+            sinking = submerging;
             properties = new MaterialPropertyBlock();
             // Keep the complete effect in ground space, independent of the moving/destroyed ghost.
             var surface = GameObject.CreatePrimitive(PrimitiveType.Quad);
@@ -40,6 +45,7 @@ namespace PreThesis.Vfx
             surface.transform.localRotation = Quaternion.Euler(90, 0, 0);
             pool = surface.GetComponent<Renderer>();
             pool.sharedMaterial = water;
+            atmosphere = GhostPoolAtmosphere.Create(pool);
             size = SurfaceSize;
             splash = CreateVfx("Black Water Splash", splashAsset, new Vector3(0, .08f, -.35f));
             if (submerging)
@@ -80,6 +86,13 @@ namespace PreThesis.Vfx
             pool.transform.localScale = size * Mathf.Max(.005f, grow * Mathf.Lerp(.55f, 1, fade));
             properties.SetFloat("_Fade", fade);
             properties.SetFloat("_Phase", age);
+            float resolve = GhostPoolAtmosphere.ResolveAt(age, travel, sinking);
+            properties.SetFloat("_Resolve", resolve);
+            properties.SetFloat("_Horror", 1);
+            // Let the pool linger without leaving a standing smoke figure after the body has moved away.
+            float active = 1 - Mathf.SmoothStep(0, 1,
+                Mathf.Clamp01((age - GhostPoolVisual.GrowSeconds - travel) / .8f));
+            if (atmosphere != null) atmosphere.Sample(age, resolve, grow * fade * active);
             properties.SetFloat("_Impact", age >= GhostPoolVisual.GrowSeconds
                 ? Mathf.Clamp01(1 - (age - GhostPoolVisual.GrowSeconds) / 1.6f) : 0);
             pool.SetPropertyBlock(properties);

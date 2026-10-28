@@ -1,0 +1,2 @@
+PASS .5s timeline, shader, slope alignment, centred origin, automatic large-item scaling; Play-mode physical drops, cleanup, resting suppression, Water exclusion and real Mirror host RPC without duplicate effects. Physical impacts: 3
+PASS 3D smoke volume depth and front/side/above render review.
