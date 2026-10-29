@@ -577,8 +577,11 @@ public class PlayerMovement : NetworkBehaviour
         float distance = hasStepPosition ? Mathf.Min(stepDelta.magnitude, 1f) : 0f;
         lastStepPosition = transform.position;
         hasStepPosition = true;
-        // The authored lateral and crouch clips supply their own leg motion.
-        if (IsCrouching || UsesStrafeAnimation(direction))
+        // Idle already has planted feet. Solving locomotion goals while still
+        // pulls the knees/hips away from the authored standing pose, especially
+        // with the visual model's offset below the Animator root.
+        // The authored lateral and crouch clips also supply their own leg motion.
+        if (direction.sqrMagnitude <= 0.01f || IsCrouching || UsesStrafeAnimation(direction))
         {
             pendingStepPhase = 0f;
             playerAnimator.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 0f);

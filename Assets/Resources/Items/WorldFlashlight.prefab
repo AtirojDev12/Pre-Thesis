@@ -151,6 +151,13 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
+  minimumImpactSpeed: 0.65
+  fullImpactSpeed: 4.5
+  impactSize: 1
+  impactDust: 1
+  impactSurfaces:
+    serializedVersion: 2
+    m_Bits: 4294967279
 --- !u!1001 &996584901992281641
 PrefabInstance:
   m_ObjectHideFlags: 0

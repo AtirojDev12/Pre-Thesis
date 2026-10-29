@@ -54,6 +54,15 @@ public static class MapSetup
             Bounds bounds = BoundsOf(model);
             float longest = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
             if (longest > 0.0001f) model.transform.localScale *= 0.3f / longest;
+            // 26 Oct: thin like paper (1% of its width), so dropped / friends' maps are not a fat cube.
+            bounds = BoundsOf(model);
+            float face = Mathf.Max(bounds.size.x, bounds.size.y);
+            if (bounds.size.z > face * 0.01f)
+            {
+                Vector3 s = model.transform.localScale;
+                s.z *= face * 0.01f / bounds.size.z;
+                model.transform.localScale = s;
+            }
             bounds = BoundsOf(model);
             model.transform.position -= bounds.center;
             // The cube's own collider is used (pickup ray + physics). No collider on the model = add a box.

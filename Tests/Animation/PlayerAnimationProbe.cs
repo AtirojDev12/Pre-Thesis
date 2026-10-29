@@ -100,6 +100,13 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         QualitySettings.vSyncCount = 0;
         // Render faster than the physics tick to catch lost travel credit in IK.
         Application.targetFrameRate = 120;
+        // Install the test keyboard before gameplay caches its button controls.
+        // Otherwise FindControl can keep reading the physical keyboard while
+        // this probe sends events to a different device.
+        foreach (var device in InputSystem.devices.ToArray())
+            if (device is Keyboard) InputSystem.RemoveDevice(device);
+        var keyboard = InputSystem.AddDevice<Keyboard>();
+        keyboard.MakeCurrent();
         bool client = Array.IndexOf(Environment.GetCommandLineArgs(), "--client") >= 0;
         var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
         floor.name = "Grounding test floor";
@@ -126,10 +133,43 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         while ((NetworkClient.localPlayer == null || FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None).Length < 2) && Time.realtimeSinceStartup < timeout) yield return null;
         Check(NetworkClient.localPlayer != null, "Local network player spawned");
         var players = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
+        var standingCapsuleHeights = new Dictionary<PlayerHealth, float>();
+        foreach (var p in players) standingCapsuleHeights[p] = p.GetComponent<CapsuleCollider>().height;
         Check(players.Length == 2, "Host and joining player spawned");
         // Let spawn gravity, initial network snapshots and the first humanoid
         // evaluation settle before measuring locomotion rather than spawn poses.
         yield return new WaitForSecondsRealtime(1);
+        // Sample a complete idle loop. State-name checks alone do not catch
+        // locomotion IK bending the standing legs or an eye-height regression.
+        var localView = NetworkClient.localPlayer.GetComponentInChildren<FirstPersonCamera>();
+        var localCamera = localView.GetComponentInChildren<Camera>();
+        float worstIdleKneeBend = 0f, worstIdleCameraDrift = 0f;
+        float lowestIdleEyeHeight = float.PositiveInfinity;
+        for (float until = Time.realtimeSinceStartup + 8.5f; Time.realtimeSinceStartup < until;)
+        {
+            yield return new WaitForEndOfFrame();
+            foreach (var p in players)
+            {
+                var animator = p.GetComponent<Animator>();
+                foreach (bool left in new[] { true, false })
+                {
+                    var thigh = animator.GetBoneTransform(left ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg);
+                    var knee = animator.GetBoneTransform(left ? HumanBodyBones.LeftLowerLeg : HumanBodyBones.RightLowerLeg);
+                    var foot = animator.GetBoneTransform(left ? HumanBodyBones.LeftFoot : HumanBodyBones.RightFoot);
+                    worstIdleKneeBend = Mathf.Max(worstIdleKneeBend,
+                        180f - Vector3.Angle(thigh.position - knee.position, foot.position - knee.position));
+                }
+            }
+            worstIdleCameraDrift = Mathf.Max(worstIdleCameraDrift,
+                Vector3.Distance(localCamera.transform.position, localView.EyePosition(false)));
+            lowestIdleEyeHeight = Mathf.Min(lowestIdleEyeHeight,
+                localCamera.transform.position.y - NetworkClient.localPlayer.GetComponent<Collider>().bounds.min.y);
+        }
+        Check(worstIdleKneeBend < 25f, "Idle retains a relaxed standing pose through a full loop: knee bend=" + worstIdleKneeBend);
+        Check(worstIdleCameraDrift < 0.001f, "Idle camera remains on its stable eye mount: drift=" + worstIdleCameraDrift);
+        Check(lowestIdleEyeHeight > 1.75f && lowestIdleEyeHeight < 1.8f,
+            "Standing camera stays at eye level: height=" + lowestIdleEyeHeight);
+        CapturePose(NetworkClient.localPlayer.GetComponent<PlayerMovement>(), "idle-standing");
         groundingPlayers = players;
         foreach (var p in players) { worstPenetration[p] = 0; worstFloating[p] = 0; groundingSamples[p] = 0; }
         foreach (var p in players)
@@ -169,8 +209,6 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
         }
         if (NetworkClient.localPlayer != null)
         {
-            var keyboard = InputSystem.AddDevice<Keyboard>();
-            keyboard.MakeCurrent();
             var bones = new Dictionary<PlayerHealth, Transform>();
             var last = new Dictionary<PlayerHealth, Quaternion>();
             var angles = new Dictionary<PlayerHealth, float>();
@@ -360,7 +398,7 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
             yield return new WaitForSecondsRealtime(0.4f);
             foreach (var p in players)
                 Check(!p.GetComponent<PlayerMovement>().IsCrouching &&
-                      Mathf.Abs(p.GetComponent<CapsuleCollider>().height - 2f) < 0.01f,
+                      Mathf.Abs(p.GetComponent<CapsuleCollider>().height - standingCapsuleHeights[p]) < 0.01f,
                       (p.isLocalPlayer ? "Local" : "Remote") + " stands after ceiling clears");
             var movingBody = mover.GetComponent<Rigidbody>();
             // Teleporting for the airborne input check is outside locomotion;
@@ -389,7 +427,9 @@ public sealed class PlayerAnimationProbe : MonoBehaviour
                 yield return null;
             }
             float wallTravel = Vector3.Dot(mover.transform.position - wallStart, mover.transform.forward);
-            Check(wallTravel > 1f && wallTravel < 1.5f, "Sprint capsule stops at a thin wall: travel=" + wallTravel);
+            float expectedWallTravel = 2f - 0.05f - mover.GetComponent<CapsuleCollider>().radius;
+            Check(Mathf.Abs(wallTravel - expectedWallTravel) < 0.05f,
+                "Sprint capsule stops at a thin wall: travel=" + wallTravel);
             int blockedSteps = footsteps[mover.GetComponent<PlayerHealth>()].Count;
             for (float until = Time.time + 0.4f; Time.time < until;)
             {

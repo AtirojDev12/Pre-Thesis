@@ -19,7 +19,7 @@ public class FirstPersonCamera : MonoBehaviour
 
     [Header("Stable Camera Mount")]
     [Tooltip("Camera-pivot position relative to the non-animated player controller.")]
-    [SerializeField] private Vector3 cameraLocalPosition = new Vector3(0f, 0.81f, 0.05f);
+    [SerializeField] private Vector3 cameraLocalPosition = new Vector3(0f, 0.9f, 0.05f);
     [SerializeField] private float crouchCameraDrop = 0.65f;
     [SerializeField] private float crouchCameraLerpSpeed = 9f;
 
