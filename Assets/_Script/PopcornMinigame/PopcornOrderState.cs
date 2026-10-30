@@ -10,6 +10,7 @@ public struct PopcornOrderState
     public PopcornFlavor first, second;
     public byte delivered;
     public bool waiting;
+    public bool chooseAny;
     public int Count => second == PopcornFlavor.None ? 1 : 2;
     public int DeliveredCount => ((delivered & 1) != 0 ? 1 : 0) + ((delivered & 2) != 0 ? 1 : 0);
     public bool Complete => DeliveredCount >= Count;
@@ -20,6 +21,7 @@ public struct PopcornOrderState
     public int Match(PopcornFlavor flavor, bool ghostMixed)
     {
         if (!waiting || ghostMixed != (customerType == PopcornCustomerType.Ghost)) return -1;
+        if (chooseAny) return (delivered & 1) == 0 && PopcornRecipe.IsOrder(flavor) ? 0 : -1;
         if ((delivered & 1) == 0 && first == flavor) return 0;
         if (second != PopcornFlavor.None && (delivered & 2) == 0 && second == flavor) return 1;
         return -1;
@@ -30,7 +32,9 @@ public struct PopcornOrderState
     public string Label()
     {
         string items;
-        if (second == first)
+        if (chooseAny)
+            items = "YOUR CHOICE: ANY 1 PREPARED ITEM  " + DeliveredCount + "/1";
+        else if (second == first)
             items = PopcornRecipe.ItemLabel(first) + " ×2  " + DeliveredCount + "/2";
         else
         {

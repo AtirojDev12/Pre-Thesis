@@ -369,7 +369,7 @@ public sealed class CounterSlot : MonoBehaviour
         if (IsOccupied) return null;
 
         GameObject customerObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        customerObject.name = $"{order.customerType} Customer";
+        customerObject.name = $"{order.customerType}{(order.chooseAny ? " Choice" : "")} Customer";
         customerObject.transform.position = spawnPosition;
         customerObject.transform.localScale = new Vector3(0.75f, 1f, 0.75f);
 
@@ -527,6 +527,7 @@ public sealed class PopcornGameManager : MonoBehaviour
     private TMP_Text feedbackText;
     private int score;
     private uint localOrderId;
+    private readonly QuestOrderDirector localOrderDirector = new QuestOrderDirector();
     private float delayBetweenCustomers;
     private Coroutine feedbackRoutine;
     private Canvas cashierCanvas;
@@ -593,6 +594,7 @@ public sealed class PopcornGameManager : MonoBehaviour
 
     private void UnbindSync()
     {
+        localOrderDirector.Reset();
         if (boundSync != null)
         {
             boundSync.OrderChanged -= OnSyncOrderChanged;
@@ -626,9 +628,9 @@ public sealed class PopcornGameManager : MonoBehaviour
             yield break;
         }
 
-        // No net sync in the scene: use the same default quest bias locally.
+        // No net sync in the scene: use the same guarantees locally.
         PopcornCustomerType type = Random.value < 0.5f ? PopcornCustomerType.Human : PopcornCustomerType.Ghost;
-        PopcornOrderState order = PopcornRecipe.RandomCustomerOrder(++localOrderId, type);
+        PopcornOrderState order = localOrderDirector.NextFood(++localOrderId, type);
 
         counterSlot.Occupy(this, order);
         TaskTimer.Begin(TimerKey);
@@ -752,6 +754,8 @@ public sealed class PopcornGameManager : MonoBehaviour
         bool correct = entry >= 0;
         if (correct)
         {
+            localOrderDirector.RecordSale(PopcornRecipe.IsDrink(served) ? ZoneTaskKind.Water : ZoneTaskKind.Popcorn,
+                served, -1, order.customerType == PopcornCustomerType.Ghost);
             score++;
             order.Accept(entry);
             customer.UpdateOrder(order);
@@ -774,6 +778,7 @@ public sealed class PopcornGameManager : MonoBehaviour
             }
         }
 
+        localOrderDirector.ResolveCustomer(correct);
         TaskTimer.Complete(TimerKey, TimerKey, server != null ? server.name : "player", correct);
         orderText.text = correct ? "ORDER COMPLETE" : "ORDER ENDED";
         PlayOrderResult(correct);

@@ -49,6 +49,27 @@ public static class ProjectorAudioChecks
 
             // Isolate transition checks from match/scene startup, scoring and EOS.
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            var loadingChoreObject = new GameObject("Uninitialized remote film chore");
+            loadingChoreObject.SetActive(false);
+            loadingChoreObject.AddComponent<NetworkIdentity>();
+            var loadingChore = loadingChoreObject.AddComponent<ZoneChoreSpot>();
+            var loadingAudioObject = new GameObject("Always-active projector audio");
+            var loadingAudio = loadingAudioObject.AddComponent<ProjectorAudio>();
+            Set(loadingAudio, "filmChore", loadingChore);
+            var connectionState = typeof(NetworkClient).GetField("connectState", BindingFlags.Static | BindingFlags.NonPublic);
+            var previousConnectionState = connectionState.GetValue(null);
+            try
+            {
+                connectionState.SetValue(null, Enum.Parse(connectionState.FieldType, "Connecting"));
+                Check(loadingChore.netIdentity == null, "Loading fixture reproduces scene identity before Awake");
+                Tick(loadingAudio, "Silent");
+            }
+            finally
+            {
+                connectionState.SetValue(null, previousConnectionState);
+                Object.DestroyImmediate(loadingAudioObject);
+                Object.DestroyImmediate(loadingChoreObject);
+            }
             var go = new GameObject("Test film chore");
             go.AddComponent<NetworkIdentity>();
             var chore = go.AddComponent<ZoneChoreSpot>();
