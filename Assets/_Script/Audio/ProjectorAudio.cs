@@ -24,8 +24,10 @@ public sealed class ProjectorAudio : MonoBehaviour
     private void LateUpdate()
     {
         // Wait for the chore's initial snapshot. Dedicated servers stay silent.
+        // Mirror disables scene identities before their Awake on remote clients.
         bool ready = !NetworkMode.SessionEnding && (NetworkMode.IsOffline || NetworkClient.active)
-            && (filmChore == null || NetworkMode.IsOffline || filmChore.isClient);
+            && (filmChore == null || NetworkMode.IsOffline ||
+                (filmChore.netIdentity != null && filmChore.isClient));
         bool roundRunning = MatchDirector.Instance == null || MatchDirector.Instance.RoundRunning;
         Playback next = !ready || !roundRunning ? Playback.Silent
             : filmChore == null || !filmChore.Needed ? Playback.Running

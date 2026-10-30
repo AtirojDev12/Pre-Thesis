@@ -63,8 +63,7 @@ public partial class PopcornNetSync : NetworkBehaviour
     [SerializeField] private float wrongGhostOrderDamage = 10f;
     [Header("Order size")]
     [Range(0f, 1f)] [SerializeField] private float twoItemOrderChance = 0.3f;
-    [Tooltip("Chance to choose the first menu item and customer type from unfinished quests. Otherwise uses normal random orders.")]
-    [Range(0f, 1f)] [SerializeField] private float unfinishedQuestChance = PopcornRecipe.DefaultUnfinishedQuestChance;
+    private readonly QuestOrderDirector orderDirector = new QuestOrderDirector();
 
     // ---- Replicated shared state ------------------------------------------
 
@@ -195,6 +194,7 @@ public partial class PopcornNetSync : NetworkBehaviour
     public override void OnStartServer()
     {
         base.OnStartServer();
+        orderDirector.Reset();
         PopcornPreparation preparation = PopcornPreparation.Instance;
         tankCapacity = preparation != null ? preparation.Capacity : 20;
         refillServings = preparation != null ? preparation.RefillServings : 10;
@@ -342,11 +342,11 @@ public partial class PopcornNetSync : NetworkBehaviour
     /// </summary>
     public void ServerSeatCustomer()
     {
-        if (!HasAuthority) return;
+        if (!HasAuthority || currentOrder.waiting) return;
 
         PopcornCustomerType type = Random.value < 0.5f ? PopcornCustomerType.Human : PopcornCustomerType.Ghost;
 
-        currentOrder = PopcornRecipe.RandomCustomerOrder(++nextOrderId, type, twoItemOrderChance, unfinishedQuestChance);
+        currentOrder = orderDirector.NextFood(++nextOrderId, type, twoItemOrderChance);
 
         // Hooks do not fire on the machine that made the change, so the host
         // raises its own event or the host's screens would sit on stale text.
@@ -429,6 +429,8 @@ public partial class PopcornNetSync : NetworkBehaviour
 
         if (correct)
         {
+            orderDirector.RecordSale(PopcornRecipe.IsDrink(heldFlavor) ? ZoneTaskKind.Water : ZoneTaskKind.Popcorn,
+                heldFlavor, -1, currentOrder.customerType == PopcornCustomerType.Ghost);
             ServerAddZoneProgress(health);
 
             // Prototype loop: count it on the task boards (per flavor / water, human / ghost).
@@ -452,6 +454,7 @@ public partial class PopcornNetSync : NetworkBehaviour
             SendResult(sender, false, "Incorrect", heldRevision, true);
         }
 
+        orderDirector.ResolveCustomer(correct);
         // Sent after the seller's feedback, and only for a fully resolved order.
         if (NetworkMode.IsOffline) PlayOrderResult(correct);
         else RpcOrderResult(correct);
