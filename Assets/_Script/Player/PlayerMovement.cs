@@ -107,7 +107,13 @@ public class PlayerMovement : NetworkBehaviour
     [Min(0f)] [SerializeField] private float stepHeight = 0.12f;
     [Min(0f)] [SerializeField] private float groundProbeDistance = 0.2f;
     [Range(0f, 80f)] [SerializeField] private float maximumGroundAngle = 50f;
+    [Tooltip("Maximum low threshold the grounded player can step over, with head and landing clearance checks.")]
+    [Range(0f, .4f)] [SerializeField] private float maximumStepHeight = .3f;
+    [Min(0f)] [SerializeField] private float groundStickSpeed = 1f;
     private readonly RaycastHit[] groundHits = new RaycastHit[24];
+    private readonly RaycastHit[] stepHits = new RaycastHit[24];
+    private bool wasMovementGrounded;
+    private float groundReleaseTime;
     private float stepPhase;
     private float pendingStepPhase;
     private float directionalWeight;
@@ -553,7 +559,7 @@ public class PlayerMovement : NetworkBehaviour
         if (bodyCollider == null) return false;
         float bottom = bodyCollider.bounds.min.y;
         Vector3 origin = new Vector3(point.x, bottom + 0.3f, point.z);
-        int count = Physics.RaycastNonAlloc(origin, Vector3.down, groundHits, 0.3f + reach,
+        int count = gameObject.scene.GetPhysicsScene().Raycast(origin, Vector3.down, groundHits, 0.3f + reach,
             Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
         float nearest = float.PositiveInfinity;
         for (int i = 0; i < count; i++)
@@ -565,6 +571,106 @@ public class PlayerMovement : NetworkBehaviour
             support = hit;
         }
         return nearest < float.PositiveInfinity;
+    }
+
+    private bool TryMovementGround(out RaycastHit support, out float gap)
+    {
+        support = default; gap = 0f;
+        if (bodyCollider == null || !bodyCollider.enabled) return false;
+        Bounds bounds = bodyCollider.bounds;
+        const float lift = .1f;
+        float radius = Mathf.Max(.01f, Mathf.Min(bounds.extents.x, bounds.extents.z) * .9f);
+        Vector3 origin = new Vector3(bounds.center.x, bounds.min.y + radius + lift, bounds.center.z);
+        int count = gameObject.scene.GetPhysicsScene().SphereCast(origin, radius, Vector3.down, groundHits,
+            lift + groundProbeDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        float nearest = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = groundHits[i];
+            if (hit.collider == bodyCollider || hit.collider.transform.IsChildOf(transform) || hit.distance >= nearest) continue;
+            // Rounded sweep normals at a wall edge are not a walkable floor.
+            if (!hit.collider.Raycast(new Ray(hit.point + Vector3.up * .05f, Vector3.down), out RaycastHit surface, .1f) ||
+                surface.normal.y < Mathf.Cos(maximumGroundAngle * Mathf.Deg2Rad)) continue;
+            nearest = hit.distance; support = surface; gap = Mathf.Max(0f, hit.distance - lift);
+        }
+        if (nearest < float.PositiveInfinity) return true;
+        // A shallow overlap between a ramp and tread can invalidate the sphere
+        // sweep. A real horizontal surface beneath the centre is still support.
+        if (!TryGround(bounds.center, groundProbeDistance, out support)) return false;
+        gap = Mathf.Max(0f, bounds.min.y - support.point.y);
+        return true;
+    }
+
+    private bool FindCapsuleObstacle(Vector3 bottom, Vector3 top, float radius, Vector3 direction,
+        float distance, bool ignoreWalkable, out RaycastHit obstacle)
+    {
+        obstacle = default;
+        float nearest = float.PositiveInfinity;
+        int count = gameObject.scene.GetPhysicsScene().CapsuleCast(bottom, top, radius, direction,
+            stepHits, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = stepHits[i];
+            if (hit.collider == bodyCollider || hit.collider.transform.IsChildOf(transform) || hit.distance >= nearest) continue;
+            if (ignoreWalkable && hit.normal.y >= Mathf.Cos(maximumGroundAngle * Mathf.Deg2Rad))
+            {
+                // A capsule rounds off a vertical threshold's corner. Check
+                // its actual front face before discarding it as a gentle ramp.
+                Vector3 origin = hit.point - direction * .05f - Vector3.up * .02f;
+                if (!hit.collider.Raycast(new Ray(origin, direction), out RaycastHit face, .1f) ||
+                    face.normal.y >= Mathf.Cos(maximumGroundAngle * Mathf.Deg2Rad)) continue;
+            }
+            nearest = hit.distance; obstacle = hit;
+        }
+        return nearest < float.PositiveInfinity;
+    }
+
+    private bool TryStepUp(Vector3 desiredVelocity, out RaycastHit landing)
+    {
+        landing = default;
+        Vector3 planar = Vector3.ProjectOnPlane(desiredVelocity, Vector3.up);
+        if (maximumStepHeight <= 0f || planar.sqrMagnitude < .01f) return false;
+        Bounds bounds = bodyCollider.bounds;
+        float actualRadius = Mathf.Min(bounds.extents.x, bounds.extents.z);
+        float radius = Mathf.Max(.01f, actualRadius - .001f);
+        Vector3 bottom = bounds.center - Vector3.up * (bounds.extents.y - actualRadius);
+        Vector3 top = bounds.center + Vector3.up * (bounds.extents.y - actualRadius);
+        Vector3 direction = planar.normalized;
+        float distance = planar.magnitude * Time.fixedDeltaTime + .025f;
+        if (!FindCapsuleObstacle(bottom, top, radius, direction, distance, true, out RaycastHit obstruction)) return false;
+        float previousRise = 0f;
+        // A short tread and the following riser can both lie inside one physics
+        // step. Resolve the next tread too, keeping the total lift within the
+        // same height limit rather than rejecting an otherwise climbable stair.
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            // Initial overlaps have no meaningful reported contact point.
+            Vector3 probe = obstruction.distance == 0f
+                ? bounds.center + direction * (actualRadius + .005f)
+                : obstruction.point + direction * .005f;
+            probe.y = bounds.min.y + maximumStepHeight + .08f;
+            int count = gameObject.scene.GetPhysicsScene().Raycast(probe, Vector3.down, stepHits,
+                maximumStepHeight + .08f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            float nearest = float.PositiveInfinity;
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit hit = stepHits[i];
+                if (hit.collider == bodyCollider || hit.collider.transform.IsChildOf(transform) || hit.distance >= nearest) continue;
+                nearest = hit.distance; landing = hit;
+            }
+            if (nearest == float.PositiveInfinity || landing.normal.y < Mathf.Cos(maximumGroundAngle * Mathf.Deg2Rad) ||
+                (landing.rigidbody != null && !landing.rigidbody.isKinematic)) return false;
+            float rise = landing.point.y - bounds.min.y;
+            if (rise < previousRise + .001f || rise > maximumStepHeight) return false;
+            Vector3 lift = Vector3.up * (rise + .008f);
+            // Sweep only the head upward; the feet may overlap the tread being
+            // climbed. The raised full capsule must also clear the path ahead.
+            if (FindCapsuleObstacle(top, top, radius, Vector3.up, lift.y, false, out _)) return false;
+            if (!FindCapsuleObstacle(bottom + lift, top + lift, radius, direction, distance, true, out obstruction))
+            { rb.position += lift; return true; }
+            previousRise = rise;
+        }
+        return false;
     }
 
     private void OnAnimatorIK(int layerIndex)
@@ -663,17 +769,34 @@ public class PlayerMovement : NetworkBehaviour
         if (!NetworkMode.IsLocalController(this)) return;
         if (rb == null || rb.isKinematic) return;
 
+        ApplyMovement();
+    }
+
+    private void ApplyMovement()
+    {
+
         float currentSpeed = CurrentMovementSpeed;
         // Let the solver resolve walls and gravity instead of teleporting the
         // dynamic capsule through collisions with MovePosition every step.
         Vector3 velocity = movement * currentSpeed;
         float verticalVelocity = rb.linearVelocity.y;
-        if (TryGround(rb.position, groundProbeDistance, out RaycastHit ground) && Vector3.Dot(rb.linearVelocity, ground.normal) <= 0.5f)
+        bool grounded = TryMovementGround(out RaycastHit ground, out float gap) &&
+            (wasMovementGrounded || verticalVelocity <= .5f);
+        if (grounded)
         {
+            if (TryStepUp(velocity, out RaycastHit landing)) { ground = landing; gap = 0f; }
+            groundReleaseTime = .08f;
             velocity = Vector3.ProjectOnPlane(velocity, ground.normal).normalized * velocity.magnitude;
-            float gap = Mathf.Max(0f, bodyCollider.bounds.min.y - ground.point.y);
-            verticalVelocity = velocity.y - Mathf.Max(1f, gap / Time.fixedDeltaTime);
+            velocity -= Vector3.ProjectOnPlane(Physics.gravity, ground.normal) * Time.fixedDeltaTime;
+            velocity -= ground.normal * groundStickSpeed;
+            verticalVelocity = velocity.y - Mathf.Max(0f, gap / Time.fixedDeltaTime - groundStickSpeed * ground.normal.y);
         }
+        else
+        {
+            if (groundReleaseTime > 0f) verticalVelocity = Mathf.Min(verticalVelocity, 0f);
+            groundReleaseTime = Mathf.Max(0f, groundReleaseTime - Time.fixedDeltaTime);
+        }
+        wasMovementGrounded = grounded;
         rb.linearVelocity = new Vector3(velocity.x, verticalVelocity, velocity.z);
     }
 }

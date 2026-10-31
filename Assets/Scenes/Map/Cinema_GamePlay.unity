@@ -6317,8 +6317,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &61948084
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -8736,8 +8736,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0, y: 0, z: 0.02162981}
 --- !u!23 &94168282
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -35621,8 +35621,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &355423462
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -91558,8 +91558,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &795080493
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -111888,8 +111888,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0, y: 0, z: 0.02175814}
 --- !u!23 &991543897
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -116160,8 +116160,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0, y: 0, z: 0.02162981}
 --- !u!23 &1016322050
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -122952,8 +122952,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &1054556383
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -124476,8 +124476,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &1062603997
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -152070,8 +152070,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0, y: 0, z: 0.021621212}
 --- !u!23 &1311395248
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -154480,8 +154480,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &1329325002
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -160320,8 +160320,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0.1306882, y: -0.03011544, z: 0.02162981}
 --- !u!23 &1384262460
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -164219,7 +164219,7 @@ MonoBehaviour:
   earliestHour: 0
   latestHour: 3
   ticketCounterChance: 0.5
-  timeLimitHours: 2
+  timeLimitInGameHours: 1
   attackRadius: 50
   attackDamage: 25
   sanityLossFraction: 0.25
@@ -164262,6 +164262,8 @@ MonoBehaviour:
     m_Center: {x: -16.1, y: 2.5, z: 12.1}
     m_Extent: {x: 7, y: 2.5, z: 7}
   partSpawnPoints: []
+  insideAreas: []
+  maxCeilingHeight: 12
   minDistanceFromCounters: 12
   minDistanceBetweenParts: 8
   attackClip: {fileID: 0}
@@ -167780,8 +167782,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &1439781426
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -172290,8 +172292,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0, y: 0, z: 0.021741718}
 --- !u!23 &1497441217
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -182649,8 +182651,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &1625658480
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -186675,8 +186677,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &1657941389
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -189422,8 +189424,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0, y: 0, z: 0.02162981}
 --- !u!23 &1683659666
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -203632,8 +203634,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0, y: 0, z: 0.02162981}
 --- !u!23 &1777819133
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -218481,8 +218483,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926391}
+  m_Center: {x: 0, y: 0, z: 0.02175799}
 --- !u!23 &1895596851
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -230607,8 +230609,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0, y: 0, z: 0.02175814}
 --- !u!23 &1998766262
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -232174,8 +232176,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 1, z: 0.8926394}
+  m_Center: {x: 0, y: 0, z: 0.02162981}
 --- !u!23 &2013390223
 MeshRenderer:
   m_ObjectHideFlags: 0
