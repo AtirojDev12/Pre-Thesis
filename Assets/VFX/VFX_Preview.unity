@@ -19212,7 +19212,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &5100000001
 Transform:
   m_ObjectHideFlags: 0
@@ -20141,6 +20141,11 @@ MonoBehaviour:
   entry: {fileID: 1827226128182048838, guid: 2f24184795e946e449913a0ce6e62989, type: 3}
   cycleSeconds: 13
   autoReplay: 1
+  waterEruption: 1
+  eruptionStrength: 1
+  waterOnly: 0
+  manualWaterTime: 0
+  waterTime: 0.4
 --- !u!4 &5000000034
 Transform:
   m_ObjectHideFlags: 0

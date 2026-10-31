@@ -9,11 +9,11 @@ namespace PreThesis.Vfx
         public const float HoldSeconds = 4f;
         public const float FadeStart = GhostPoolVisual.HiddenAt + HoldSeconds;
         public const float FadeSeconds = 1.6f;
-        public const float Lifetime = FadeStart + FadeSeconds + .2f;
+        public const float EvaporationSeconds = 2.5f;
+        public const float Lifetime = FadeStart + FadeSeconds + EvaporationSeconds + .2f;
         public static readonly Vector3 SurfaceSize = new Vector3(3.55f, 3.25f, 1);
         private Renderer pool;
         private VisualEffect splash;
-        private VisualEffect smoke;
         private MaterialPropertyBlock properties;
         private float began;
         private bool splashed;
@@ -21,10 +21,12 @@ namespace PreThesis.Vfx
         private float fadeStart;
         private float travel;
         private bool sinking;
-        private GhostPoolAtmosphere atmosphere;
+        private GhostPoolSurface waterSurface;
 
+        public static float EvaporationStartFor(float travelSeconds) =>
+            GhostPoolVisual.GrowSeconds + travelSeconds + HoldSeconds + FadeSeconds;
         public static float LifetimeFor(float travelSeconds) =>
-            GhostPoolVisual.GrowSeconds + travelSeconds + HoldSeconds + FadeSeconds + .2f;
+            EvaporationStartFor(travelSeconds) + EvaporationSeconds + .2f;
 
         public void Initialize(Material water, VisualEffectAsset splashAsset, VisualEffectAsset smokeAsset,
             float initialAge, bool submerging, float travelSeconds = GhostPoolVisual.TravelSeconds)
@@ -45,14 +47,9 @@ namespace PreThesis.Vfx
             surface.transform.localRotation = Quaternion.Euler(90, 0, 0);
             pool = surface.GetComponent<Renderer>();
             pool.sharedMaterial = water;
-            atmosphere = GhostPoolAtmosphere.Create(pool);
+            waterSurface = GhostPoolSurface.Create(pool, splashAsset, smokeAsset);
             size = SurfaceSize;
             splash = CreateVfx("Black Water Splash", splashAsset, new Vector3(0, .08f, -.35f));
-            if (submerging)
-            {
-                smoke = CreateVfx("Submerge Smoke", smokeAsset, new Vector3(0, .65f, 0));
-                Seek(smoke, initialAge, 2.5f);
-            }
             Sample(initialAge);
             Destroy(gameObject, Mathf.Max(.01f, LifetimeFor(travelSeconds) - initialAge));
         }
@@ -81,18 +78,18 @@ namespace PreThesis.Vfx
         public void Sample(float age)
         {
             if (pool == null) return;
-            float grow = Mathf.SmoothStep(0, 1, Mathf.Clamp01(age / GhostPoolVisual.GrowSeconds));
+            float grow = GhostPoolSurface.SpreadAt(age);
             float fade = 1 - Mathf.SmoothStep(0, 1, Mathf.Clamp01((age - fadeStart) / FadeSeconds));
-            pool.transform.localScale = size * Mathf.Max(.005f, grow * Mathf.Lerp(.55f, 1, fade));
-            properties.SetFloat("_Fade", fade);
+            pool.transform.localScale = size * Mathf.Max(.005f, grow);
+            properties.SetFloat("_Fade", 1);
+            properties.SetFloat("_Absorb", 1 - fade);
             properties.SetFloat("_Phase", age);
             float resolve = GhostPoolAtmosphere.ResolveAt(age, travel, sinking);
             properties.SetFloat("_Resolve", resolve);
             properties.SetFloat("_Horror", 1);
-            // Let the pool linger without leaving a standing smoke figure after the body has moved away.
-            float active = 1 - Mathf.SmoothStep(0, 1,
-                Mathf.Clamp01((age - GhostPoolVisual.GrowSeconds - travel) / .8f));
-            if (atmosphere != null) atmosphere.Sample(age, resolve, grow * fade * active);
+            properties.SetFloat("_Eruption", 1);
+            waterSurface.Sample(age, true, 1);
+            waterSurface.SampleEvaporation(age, travel);
             properties.SetFloat("_Impact", age >= GhostPoolVisual.GrowSeconds
                 ? Mathf.Clamp01(1 - (age - GhostPoolVisual.GrowSeconds) / 1.6f) : 0);
             pool.SetPropertyBlock(properties);

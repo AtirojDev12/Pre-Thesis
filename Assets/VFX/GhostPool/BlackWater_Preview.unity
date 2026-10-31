@@ -1024,6 +1024,11 @@ MonoBehaviour:
   entry: {fileID: 1827226128182048838, guid: 2f24184795e946e449913a0ce6e62989, type: 3}
   cycleSeconds: 13
   autoReplay: 1
+  waterEruption: 1
+  eruptionStrength: 1
+  waterOnly: 0
+  manualWaterTime: 0
+  waterTime: 0.4
 --- !u!4 &1599765477
 Transform:
   m_ObjectHideFlags: 0

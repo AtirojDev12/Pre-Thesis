@@ -25,8 +25,11 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - _Absorb: 0
+    - _EdgeSoftness: 0.18
     - _Fade: 1
     - _Impact: 0
+    - _Opacity: 0.94
     - _Phase: 0
     m_Colors: []
   m_BuildTextureStacks: []

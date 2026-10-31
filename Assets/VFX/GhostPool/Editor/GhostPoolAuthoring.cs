@@ -212,6 +212,7 @@ public static class GhostPoolAuthoring
             .Replace("m_InitialEventName: OnPlay", "m_InitialEventName: Idle")
             .Replace("attribute: size\n  Composition: 2", "attribute: size\n  Composition: 0")
             .Replace("attribute: size\r\n  Composition: 2", "attribute: size\r\n  Composition: 0");
+        if (!smoke) yaml = yaml.Replace("  capacity: 128", "  capacity: 512");
         var texture = new Texture2D(128,128,TextureFormat.RGBA32,false);
         for (int y=0;y<128;y++) for (int x=0;x<128;x++)
         {
@@ -234,12 +235,13 @@ public static class GhostPoolAuthoring
             string slot=property.Groups[1].Value.Trim(), value=null;
             switch(slot)
             {
-                case "Count": value=smoke ? "85" : "110"; break;
-                case "A": value=smoke ? "1.4" : "0.45"; break;
-                case "B": value=smoke ? "2.5" : "0.85"; break;
-                case "MinSpeed": value=smoke ? "0.15" : "1.2"; break;
-                case "MaxSpeed": value=smoke ? "0.65" : "3.0"; break;
-                case "DirectionBlend": value=smoke ? "0.85" : "0.55"; break;
+                case "Count": value=smoke ? "85" : "210"; break;
+                case "A": value=smoke ? "1.4" : "0.65"; break;
+                case "B": value=smoke ? "2.5" : "1.05"; break;
+                case "MinSpeed": value=smoke ? "0.15" : "2.4"; break;
+                case "MaxSpeed": value=smoke ? "0.65" : "4.2"; break;
+                case "DirectionBlend": value=smoke ? "0.85" : "0.78"; break;
+                case "dragCoefficient": value=smoke ? null : "0.18"; break;
                 case "mainTexture": value="'{\"obj\":{\"fileID\":2800000,\"guid\":\""+textureGuid+"\",\"type\":3}}'"; break;
                 case "Force": value=smoke ? "'{\"vector\":{\"x\":0,\"y\":0.12,\"z\":0}}'" : null; break;
                 case "Color":
@@ -250,10 +252,10 @@ public static class GhostPoolAuthoring
                 case "Size":
                     value=smoke
                         ? "'{\"frames\":[{\"time\":0,\"value\":0.35,\"inTangent\":0,\"outTangent\":1},{\"time\":1,\"value\":1.3,\"inTangent\":0,\"outTangent\":0}],\"preWrapMode\":8,\"postWrapMode\":8,\"version\":1}'"
-                        : "'{\"frames\":[{\"time\":0,\"value\":0.065,\"inTangent\":0,\"outTangent\":0},{\"time\":1,\"value\":0.025,\"inTangent\":0,\"outTangent\":0}],\"preWrapMode\":8,\"postWrapMode\":8,\"version\":1}'";
+                        : "'{\"frames\":[{\"time\":0,\"value\":0.11,\"inTangent\":0,\"outTangent\":0},{\"time\":1,\"value\":0.035,\"inTangent\":0,\"outTangent\":0}],\"preWrapMode\":8,\"postWrapMode\":8,\"version\":1}'";
                     break;
                 case "arcSphere": value=smoke
-                    ? "'{\"sphere\":{\"transform\":{\"position\":{\"x\":0,\"y\":0,\"z\":0},\"angles\":{\"x\":0,\"y\":0,\"z\":0},\"scale\":{\"x\":1,\"y\":1.3,\"z\":1}},\"radius\":0.6},\"arc\":6.283185}'"
+                    ? "'{\"sphere\":{\"transform\":{\"position\":{\"x\":0,\"y\":0,\"z\":0},\"angles\":{\"x\":0,\"y\":0,\"z\":0},\"scale\":{\"x\":1.5,\"y\":0.05,\"z\":1.3}},\"radius\":0.6},\"arc\":6.283185}'"
                     : "'{\"sphere\":{\"transform\":{\"position\":{\"x\":0,\"y\":0,\"z\":0},\"angles\":{\"x\":0,\"y\":0,\"z\":0},\"scale\":{\"x\":1,\"y\":0.08,\"z\":1}},\"radius\":0.55},\"arc\":6.283185}'"; break;
             }
             return value==null ? block : Regex.Replace(block,@"(?m)^      m_SerializableObject:.*$",_ => "      m_SerializableObject: " + value);
