@@ -100,6 +100,8 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
     }
 
     public string DisplayName => ItemCatalog.DisplayName(item.itemId);
+    /// <summary>31 Oct: the item ID (MissingPartsGhost removes its parts from the map).</summary>
+    public string ItemId => item.itemId;
 
     public string GetInteractionPrompt()
     {

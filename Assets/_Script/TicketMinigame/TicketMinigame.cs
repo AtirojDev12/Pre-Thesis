@@ -127,6 +127,7 @@ public sealed class TicketMinigame : MonoBehaviour
         if (state.stage == TicketCustomerStage.Waiting) return;
         if (state.stage == TicketCustomerStage.BetweenCustomers)
         {
+            if (GhostCounterGate.TicketHeld) return; // 31 Oct: a ghost holds the counter (MissingPartsGhost)
             delay -= dt;
             if (delay > 0) return;
             state.round++;

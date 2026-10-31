@@ -42,6 +42,15 @@ public static class ItemCatalog
     public const string Map = "map";
     public const string WorldMapPath = "Items/WorldMap";
 
+    /// <summary>
+    /// 31 Oct (Mr.k): the Missing Parts ghost's body parts. MATCH ONLY, found in the map,
+    /// given back by holding E on the ghost (MissingPartsGhost). Never sold, never saved.
+    /// </summary>
+    public const string GhostLeftArm = "ghost_left_arm";
+    public const string GhostRightArm = "ghost_right_arm";
+    public const string GhostHead = "ghost_head";
+    public const string GhostUpperBody = "ghost_upper_body";
+
     public sealed class ItemInfo
     {
         public string id;
@@ -155,7 +164,24 @@ public static class ItemCatalog
             worldPrefabPath = WorldMapPath,
             description = "Map of this place. Hold the read key to look at it. Only for this match.",
         },
+        // 31 Oct (Mr.k): the Missing Parts ghost's parts. World prefabs made by the setup tool.
+        GhostPartItem(GhostLeftArm, "Left Arm", "Items/WorldGhostPart_LeftArm"),
+        GhostPartItem(GhostRightArm, "Right Arm", "Items/WorldGhostPart_RightArm"),
+        GhostPartItem(GhostHead, "Head", "Items/WorldGhostPart_Head"),
+        GhostPartItem(GhostUpperBody, "Upper Body", "Items/WorldGhostPart_UpperBody"),
     };
+
+    private static ItemInfo GhostPartItem(string id, string name, string worldPath) => new ItemInfo
+    {
+        id = id, displayName = name, matchOnly = true,
+        permanent = false, inShop = false, throwable = true,
+        worldPrefabPath = worldPath,
+        description = "A ghost's " + name.ToLowerInvariant() + ". Hold it, then hold E on the ghost to give it back.",
+    };
+
+    /// <summary>31 Oct: one of the Missing Parts ghost's body parts.</summary>
+    public static bool IsGhostPart(string id) =>
+        id == GhostLeftArm || id == GhostRightArm || id == GhostHead || id == GhostUpperBody;
 
     // ---- Designer values (FlashlightTuning) --------------------------------------
 

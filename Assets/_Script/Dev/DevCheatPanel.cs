@@ -219,6 +219,7 @@ public sealed class DevCheatPanel : MonoBehaviour
 
     // 14 Oct: collapsible sections (click the arrow line). All closed at start = small panel.
     private bool showMoney, showPlayer, showMatch, showTasks, showDarkness, showGhost;
+    private bool showXRay; // 31 Oct: see everything through walls (DevXRayView)
     private readonly System.Collections.Generic.HashSet<string> openBoards = new System.Collections.Generic.HashSet<string>();
     private System.Collections.Generic.List<IDevGhostSource> ghostSources = new System.Collections.Generic.List<IDevGhostSource>();
     private System.Collections.Generic.List<ZoneTaskList> boards = new System.Collections.Generic.List<ZoneTaskList>();
@@ -376,6 +377,8 @@ public sealed class DevCheatPanel : MonoBehaviour
             GhostSummons();
         }
 
+        if (Section("X-ray  (see through walls, this PC only)", ref showXRay)) XRayToggles();
+
         GUILayout.EndScrollView();
         GUILayout.Label(lastAction);
         GUILayout.EndArea();
@@ -454,6 +457,38 @@ public sealed class DevCheatPanel : MonoBehaviour
             GUILayout.EndHorizontal();
         }
     }
+
+    // ---- X-ray (31 Oct) ----------------------------------------------------------------
+
+    private void XRayToggles()
+    {
+        bool on = DevXRayView.Enabled;
+        Row((on ? "X-ray: ON" : "X-ray: OFF", () => { DevXRayView.Enabled = !on; Done(on ? "X-ray off" : "X-ray on"); }),
+            (DevXRayView.Labels ? "Names + distance: ON" : "Names + distance: OFF", () => DevXRayView.Labels = !DevXRayView.Labels));
+        GUILayout.Label("  <size=17>Tick what to show. Colour = the highlight colour.</size>");
+        var kinds = DevXRayView.AllKinds;
+        for (int i = 0; i < kinds.Length; i += 2)
+        {
+            GUILayout.BeginHorizontal();
+            XRayToggle(kinds[i]);
+            if (i + 1 < kinds.Length) XRayToggle(kinds[i + 1]);
+            GUILayout.EndHorizontal();
+        }
+        Row(("Show all", () => { foreach (var k in kinds) DevXRayView.SetShown(k, true); }),
+            ("Hide all", () => { foreach (var k in kinds) DevXRayView.SetShown(k, false); }));
+    }
+
+    private static void XRayToggle(DevXRayView.Kind kind)
+    {
+        string hex = ColorUtility.ToHtmlStringRGB(DevXRayView.KindColor(kind));
+        bool was = DevXRayView.IsShown(kind);
+        if (tick == null) tick = new GUIStyle(GUI.skin.toggle) { richText = true };
+        tick.fontSize = 22;
+        bool now = GUILayout.Toggle(was, $" <color=#{hex}>\u25A0</color> {DevXRayView.KindName(kind)}", tick, GUILayout.Width(235f), GUILayout.Height(34f));
+        if (now != was) DevXRayView.SetShown(kind, now);
+    }
+
+    private static GUIStyle tick;
 
     // ---- Ghost summons (14 Oct) ------------------------------------------------------
 

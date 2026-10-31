@@ -30,6 +30,8 @@ public sealed class PlayerHeldItems : NetworkBehaviour
     private PlayerHealth health;
     private Transform chest;
     private GameObject taskVisual, radioVisual, mapVisual;
+    private GameObject partVisual; // 31 Oct: a Missing Parts ghost body part
+    private string partVisualId;
     private GameObject renderedPrefab;
     private TaskHeldState renderedState;
     public TaskHeldState TaskItem => taskItem;
@@ -105,7 +107,7 @@ public sealed class PlayerHeldItems : NetworkBehaviour
         if (NetworkMode.IsLocalController(this)) return;
         if (health != null && (health.IsDead || health.IsDowned))
         {
-            Clear(ref taskVisual); Clear(ref radioVisual); Clear(ref mapVisual); renderedPrefab = null;
+            Clear(ref taskVisual); Clear(ref radioVisual); Clear(ref mapVisual); Clear(ref partVisual); renderedPrefab = null;
             if (isServer && taskItem.hasItem) taskItem = new TaskHeldState { revision = taskItem.revision };
             return;
         }
@@ -164,6 +166,22 @@ public sealed class PlayerHeldItems : NetworkBehaviour
             }
             if (mapVisual != null) Place(mapVisual, mapOffset);
         }
+        // 31 Oct (Mr.k): other players see the ghost part in your hand (model = first child of its world prefab).
+        string heldId = inventory.HeldSlot.IsEmpty ? null : inventory.HeldSlot.itemId;
+        if (!ItemCatalog.IsGhostPart(heldId)) { Clear(ref partVisual); partVisualId = null; }
+        else
+        {
+            if (partVisual == null || partVisualId != heldId)
+            {
+                Clear(ref partVisual);
+                partVisualId = heldId;
+                ItemCatalog.ItemInfo info = ItemCatalog.Find(heldId);
+                GameObject world = info != null ? Resources.Load<GameObject>(info.worldPrefabPath) : null;
+                if (world != null && world.transform.childCount > 0)
+                    partVisual = CreateVisual(world.transform.GetChild(0).gameObject, "Remote ghost part", .3f);
+            }
+            if (partVisual != null) Place(partVisual, mapOffset);
+        }
     }
 
     private Transform Chest()
@@ -214,5 +232,5 @@ public sealed class PlayerHeldItems : NetworkBehaviour
         if (model == null) return;
         model.SetActive(false); Destroy(model); model = null;
     }
-    private void OnDisable() { Clear(ref taskVisual); Clear(ref radioVisual); Clear(ref mapVisual); renderedPrefab = null; }
+    private void OnDisable() { Clear(ref taskVisual); Clear(ref radioVisual); Clear(ref mapVisual); Clear(ref partVisual); renderedPrefab = null; }
 }

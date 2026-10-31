@@ -612,6 +612,7 @@ public sealed class PopcornGameManager : MonoBehaviour
     private IEnumerator SpawnNextCustomerAfter(float delay)
     {
         yield return new WaitForSeconds(delay);
+        while (GhostCounterGate.PopcornHeld) yield return null; // 31 Oct: a ghost holds the counter (MissingPartsGhost)
         if (counterSlot.IsOccupied) yield break;
 
         // MULTIPLAYER: the SERVER picks who walks in and what they want, so all
