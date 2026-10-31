@@ -49,6 +49,8 @@ public struct RoundPlayerEntry
 ///   - Tasks done x 10 = currency, counted up from 0
 ///   - Died: the consolation prize (+10) with a sorry message
 ///   - Back to Lobby (host, when the whole round is over) / Main Menu
+///   - 31 Oct: when the whole round is over, a 10 s countdown takes everyone back
+///     to the lobby by itself (MatchDirector.SecondsUntilLobby). The host can still go now.
 ///   - PLAYERS list (30 Sep): who is still playing / escaped / dead / left.
 ///     Players whose round is over hear each other flat, like the lobby
 ///     (VoiceNetwork routes it); players still inside cannot hear them.
@@ -73,6 +75,8 @@ public sealed class MatchResultsUI : MonoBehaviour
     private TMP_Text statusText;
     private Button lobbyButton;
     private Button menuButton;
+    private Button watchButton; // 31 Oct: spectate living teammates
+    private Canvas canvas;
     private TMP_Text lobbyLabel;
     private bool leaving;
     private string lostItems = "";
@@ -80,6 +84,8 @@ public sealed class MatchResultsUI : MonoBehaviour
 
     private const int MaxRows = 6;
     private readonly TMP_Text[] playerRows = new TMP_Text[MaxRows];
+    private float nextWatchCheck;
+    private bool watchable;
     private float nextListRefresh;
 
     private static readonly Color Gold = new Color(1f, 0.8f, 0.3f);
@@ -327,7 +333,7 @@ public sealed class MatchResultsUI : MonoBehaviour
             es.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
         }
 
-        var canvas = gameObject.AddComponent<Canvas>();
+        canvas = gameObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 31000; // under the pause menu's "leaving" cover (32000)
         var scaler = gameObject.AddComponent<CanvasScaler>();
@@ -417,6 +423,9 @@ public sealed class MatchResultsUI : MonoBehaviour
         layout.childControlWidth = true;
         layout.childControlHeight = true;
 
+        // 31 Oct (Mr.k): watch a living teammate (PlayerSpectateCamera). Esc comes back here.
+        watchButton = NewButton("Watch Teammates", row, "Watch Teammates", out _);
+        watchButton.onClick.AddListener(() => PlayerSpectateCamera.Begin());
         lobbyButton = NewButton("Back To Lobby", row, "Back to Lobby", out lobbyLabel);
         menuButton = NewButton("Main Menu", row, "Main Menu", out _);
         lobbyButton.onClick.AddListener(BackToLobby);
@@ -427,6 +436,11 @@ public sealed class MatchResultsUI : MonoBehaviour
 
     private void LateUpdate()
     {
+        // 31 Oct: while spectating, this screen is hidden and the spectate camera owns the mouse.
+        bool watching = PlayerSpectateCamera.Active;
+        if (canvas != null && canvas.enabled == watching) canvas.enabled = !watching;
+        if (watching) { GameplayInput.Blocked = true; return; }
+
         // Keep the mouse free and the player still while this is open.
         GameplayInput.Blocked = true;
         if (Cursor.lockState != CursorLockMode.None) Cursor.lockState = CursorLockMode.None;
@@ -447,15 +461,24 @@ public sealed class MatchResultsUI : MonoBehaviour
         bool offline = NetworkMode.IsOffline;
 
         lobbyButton.gameObject.SetActive(!offline);
+        watchButton.gameObject.SetActive(!roundOver && !offline);
+        if (Time.unscaledTime >= nextWatchCheck)
+        {
+            nextWatchCheck = Time.unscaledTime + 0.5f;
+            watchable = PlayerSpectateCamera.AnyoneToWatch(); // someone still alive in the round
+        }
+        watchButton.interactable = !leaving && watchable;
         lobbyButton.interactable = hosting && roundOver && !leaving;
         lobbyLabel.text = hosting ? "Back to Lobby" : "Host takes everyone to Lobby";
 
         // The host leaving early would end the match for everyone still playing.
         menuButton.interactable = !leaving && (!hosting || roundOver);
 
-        statusText.text = roundOver
-            ? (hosting ? "Round over." : "Round over. Waiting for the host...")
-            : "Waiting for the other players...";
+        // 31 Oct: when the round is over, everyone goes back to the lobby after a countdown.
+        float lobbyIn = director != null ? director.SecondsUntilLobby : -1f;
+        statusText.text = !roundOver ? "Waiting for the other players..."
+            : lobbyIn >= 0f ? $"<color=#FFCC4D>Back to the lobby in {Mathf.CeilToInt(lobbyIn)}...</color>"
+            : (hosting ? "Round over." : "Round over. Waiting for the host...");
 
         if (Time.unscaledTime >= nextListRefresh)
         {
@@ -502,12 +525,13 @@ public sealed class MatchResultsUI : MonoBehaviour
 
     private void BackToLobby()
     {
-        RoHRoomManager room = RoHRoomManager.Instance;
-        if (room == null || !NetworkServer.active || leaving) return;
-        leaving = true;
+        if (!NetworkServer.active || leaving) return;
+        MatchDirector director = MatchDirector.Instance;
+        if (director != null) { leaving = true; director.ServerBackToLobby(); return; } // 31 Oct: same path as the countdown
 
-        // The room is joinable / listed again, then Mirror swaps everyone back
-        // to their lobby player (NetworkRoomManager handles the return).
+        RoHRoomManager room = RoHRoomManager.Instance;
+        if (room == null) return;
+        leaving = true;
         if (LobbyController.Instance != null) LobbyController.Instance.MarkRoomInProgress(false);
         room.ServerChangeScene(room.RoomScene);
     }

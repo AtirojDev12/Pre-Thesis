@@ -532,8 +532,12 @@ public sealed class VoiceChatManager : MonoBehaviour
         // My round is over (results screen): the server only sends me other
         // finished players, and they are played flat like the lobby, no radio.
         bool finished = inMatch && MatchResultsUI.IsShowing;
+        // 31 Oct: a finished player who WATCHES a living one (PlayerSpectateCamera) hears living
+        // players 3D at their bodies (the server only sends what the watched player hears) + their walkie.
+        bool watching = finished && PlayerSpectateCamera.Active;
+        MatchDirector match = MatchDirector.Instance;
         PlayerInventory myInventory = PlayerInventory.Local;
-        bool iHearRadio = spectating || (inMatch && !finished && myInventory != null && myInventory.HasPoweredRadio);
+        bool iHearRadio = spectating || watching || (inMatch && !finished && myInventory != null && myInventory.HasPoweredRadio);
         PlayerNoise myNoise = PlayerNoise.Local;
 
         foreach (VoiceStream stream in snapshot)
@@ -561,7 +565,8 @@ public sealed class VoiceChatManager : MonoBehaviour
             bool fromNetwork = stream.ParticipantId.StartsWith(NetStreamPrefix);
             PlayerVoice talker = FindTalker(stream.ParticipantId);
             // Flat when there is no body to play from (lobby RoomPlayer, mixed EOS audio).
-            bool flat = !inMatch || finished || stream.IsMixed || (fromNetwork && talker == null);
+            bool talkerLiving = talker != null && match != null && !match.IsFinished(talker.netId);
+            bool flat = !inMatch || (finished && !(watching && talkerLiving)) || stream.IsMixed || (fromNetwork && talker == null);
             Transform parent = !flat && talker != null ? talker.Mouth : transform;
 
             VoicePlayback playback = FindPlayback(stream);

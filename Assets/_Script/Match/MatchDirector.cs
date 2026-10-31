@@ -249,6 +249,43 @@ public class MatchDirector : NetworkBehaviour
         return Mathf.Min(inMap, Mathf.Clamp(wanted, 1, maxZonesToFinish));
     }
 
+    // ---- 31 Oct (Mr.k): everyone back to the lobby by itself after the round ----
+    [Header("Back to lobby (31 Oct)")]
+    [Tooltip("Seconds after the round ends (every player still in the room is on the results screen) " +
+             "before everyone is taken back to the lobby. 0 = off (only the host's button).")]
+    [SerializeField, Min(0f)] private float autoLobbySeconds = 10f;
+
+    // NetworkTime.time when the room goes back to the lobby. 0 = no countdown. Read on every machine.
+    [SyncVar] private double lobbyReturnAt;
+    private bool lobbyReturnSent; // server only: the scene change was already asked for
+
+    /// <summary>Every machine: seconds left before everyone goes back to the lobby, or -1 if no countdown.</summary>
+    public float SecondsUntilLobby =>
+        lobbyReturnAt <= 0d ? -1f : Mathf.Max(0f, (float)(lobbyReturnAt - NetworkTime.time));
+
+    /// <summary>
+    /// SERVER. Everyone back to the lobby: the host's results button, or the countdown.
+    /// Runs once; a second call (button + countdown in the same moment) does nothing.
+    /// </summary>
+    public void ServerBackToLobby()
+    {
+        if (lobbyReturnSent || !NetworkServer.active || NetworkMode.SessionEnding) return;
+        RoHRoomManager room = RoHRoomManager.Instance;
+        if (room == null) return;
+        lobbyReturnSent = true;
+
+        // The room is joinable / listed again, then Mirror swaps everyone back
+        // to their lobby player (NetworkRoomManager handles the return).
+        if (LobbyController.Instance != null) LobbyController.Instance.MarkRoomInProgress(false);
+        room.ServerChangeScene(room.RoomScene);
+    }
+
+    private void ServerTickLobbyCountdown()
+    {
+        if (lobbyReturnSent || lobbyReturnAt <= 0d || !NetworkServer.active) return;
+        if (NetworkTime.time >= lobbyReturnAt) ServerBackToLobby();
+    }
+
     // ---- Difficulty, replicated for the dev overlay and for ghost scripts (6 Oct) ----
     [SyncVar] private string profileName = "";
     [SyncVar] private int taskExtraPerLine;
@@ -725,6 +762,11 @@ public class MatchDirector : NetworkBehaviour
 
         // Everyone who has not seen their result yet gets it now.
         if (next == MatchPhase.Ended && NetworkMode.HasServerAuthority(this)) ServerSendAllResults();
+
+        // 31 Oct: the round is over = every player still in the room is on the results
+        // screen now (their result was just sent). Start the back-to-lobby countdown.
+        if (next == MatchPhase.Ended && NetworkServer.active && !NetworkMode.IsOffline && autoLobbySeconds > 0f)
+            lobbyReturnAt = NetworkTime.time + autoLobbySeconds;
     }
 
     private void Update()
@@ -742,6 +784,7 @@ public class MatchDirector : NetworkBehaviour
                     RefreshPlayerRoster();
                     ServerUpdateRoundPlayers();
                 }
+                ServerTickLobbyCountdown(); // 31 Oct
             }
             return;
         }

@@ -251,8 +251,16 @@ public static class VoiceNetwork
             else if (director != null && (talkerFinished || director.ServerIsFinished(listener.identity)))
             {
                 // Both finished: heard at any distance (played flat). Only one: not sent.
-                if (!talkerFinished || !director.ServerIsFinished(listener.identity)) continue;
-                flags = FlagProximity;
+                bool listenerFinished = director.ServerIsFinished(listener.identity);
+                if (talkerFinished && listenerFinished) flags = FlagProximity;
+                else if (!talkerFinished && listenerFinished)
+                {
+                    // 31 Oct (Mr.k): a finished player SPECTATING a living one hears what that
+                    // player hears (their area + their walkie). Living players never hear spectators.
+                    flags = SpectatorFlags(listener, talkerVoice, talkerPosition, onRadio, maxDistance, director);
+                    if (flags == 0) continue;
+                }
+                else continue;
             }
             else
             {
@@ -280,6 +288,30 @@ public static class VoiceNetwork
             }, Channels.Unreliable);
             RelayedPackets++;
         }
+    }
+
+    /// <summary>
+    /// SERVER (31 Oct). Flags for a finished listener who watches a living player:
+    /// proximity if the talker is near the WATCHED player (or shouting), radio if the
+    /// talker is on the radio and the watched player carries a switched-on walkie.
+    /// </summary>
+    private static byte SpectatorFlags(NetworkConnectionToClient listener, PlayerVoice talker, Vector3 talkerPosition,
+        bool onRadio, float maxDistance, MatchDirector director)
+    {
+        PlayerVoice listenerVoice = listener.identity.GetComponent<PlayerVoice>();
+        PlayerVoice watched = listenerVoice != null ? listenerVoice.ServerSpectateTarget : null;
+        if (watched == null || director.ServerIsFinished(watched.netIdentity)) return 0;
+
+        byte flags = 0;
+        if (talker == watched || talker.Shouting ||
+            (watched.transform.position - talkerPosition).sqrMagnitude <= maxDistance * maxDistance)
+            flags |= FlagProximity;
+        if (onRadio)
+        {
+            PlayerInventory inventory = watched.GetComponent<PlayerInventory>();
+            if (inventory != null && inventory.HasPoweredRadio) flags |= FlagRadio;
+        }
+        return flags;
     }
 
     /// <summary>

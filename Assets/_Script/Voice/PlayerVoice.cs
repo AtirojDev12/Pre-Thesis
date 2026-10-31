@@ -51,6 +51,9 @@ public class PlayerVoice : NetworkBehaviour
     [SyncVar] private bool shoutUsed;
     private double shoutEndsAt; // server
 
+    // 31 Oct: SERVER only. The living player this finished (dead / escaped) player is watching (0 = none).
+    private uint serverSpectateNetId;
+
     // 3 Oct (Mr.k): where this player is looking, for the spectator's first-person
     // view. Body yaw already syncs (NetworkTransform); this adds up/down + the
     // downed head turn. Owner -> server (unreliable, max 10x/s, only on change).
@@ -281,6 +284,37 @@ public class PlayerVoice : NetworkBehaviour
         shoutEndsAt = Now + settings.shoutSeconds;
         if (settings.ShoutUsesVoice) shouting = true;
         if (settings.ShoutUsesClip) AlertSounds.ServerShoutClip(mouth != null ? mouth.position : transform.position);
+    }
+
+    // ---- Spectate (31 Oct, Mr.k) ------------------------------------------------------
+    // A finished player watching a living one (PlayerSpectateCamera) tells the server who,
+    // so VoiceNetwork can send them the voices that player hears.
+
+    /// <summary>Local player: I now watch this player (0 = stopped).</summary>
+    public void RequestSpectate(uint targetNetId)
+    {
+        if (NetworkMode.IsOffline || !isLocalPlayer || !NetworkClient.ready) return;
+        CmdSpectate(targetNetId);
+    }
+
+    [Command]
+    private void CmdSpectate(uint targetNetId)
+    {
+        MatchDirector director = MatchDirector.Instance;
+        // Only players whose round is over may watch.
+        if (targetNetId != 0 && (director == null || !director.ServerIsFinished(netIdentity))) return;
+        serverSpectateNetId = targetNetId;
+    }
+
+    /// <summary>SERVER: the living player this one watches, or null.</summary>
+    public PlayerVoice ServerSpectateTarget
+    {
+        get
+        {
+            if (serverSpectateNetId == 0 || !NetworkServer.spawned.TryGetValue(serverSpectateNetId, out NetworkIdentity id) || id == null)
+                return null;
+            return id.GetComponent<PlayerVoice>();
+        }
     }
 
     /// <summary>Local player: hint text while downed (null when not downed). Read by HotbarHUD.</summary>
