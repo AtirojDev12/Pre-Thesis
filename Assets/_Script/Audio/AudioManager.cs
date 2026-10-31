@@ -67,10 +67,25 @@ public sealed class AudioManager : MonoBehaviour
             PlayerNoise.ReportSoundAt(position, entry.volume * PlayerNoise.ActionNoiseScale, clip.length);
     }
 
-    public void PlayClip(AudioClip clip, SoundCategory category, float volume, Vector3 position,
+    /// <summary>
+    /// 31 Oct (Mr.k): a 3D sound the WHOLE map hears (AlertSounds): full volume near,
+    /// quieter far away, but never silent (custom roll-off that ends at reach.farVolume).
+    /// </summary>
+    public void PlayMapWide(AudioClip clip, Vector3 position, float volume, AlertSounds.Reach reach, Scene scene)
+    {
+        if (clip == null || reach == null) return;
+        AudioSource source = PlayClip(clip, SoundCategory.Sfx, volume, position, true,
+            reach.nearDistance, Mathf.Max(reach.farDistance, reach.nearDistance + 1f), scene);
+        if (source == null) return;
+        source.rolloffMode = AudioRolloffMode.Custom;
+        source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, AlertSounds.RolloffCurve(reach));
+    }
+
+    /// <summary>Plays a clip from the pool. Returns the AudioSource used (null = nothing played). 31 Oct: was void.</summary>
+    public AudioSource PlayClip(AudioClip clip, SoundCategory category, float volume, Vector3 position,
         bool spatial, float minDistance, float maxDistance, Scene scene, double scheduledStart = -1)
     {
-        if (clip == null || Application.isBatchMode) return;
+        if (clip == null || Application.isBatchMode) return null;
         Voice voice = voices.Find(v => !v.source.isPlaying && AudioSettings.dspTime >= v.started);
         if (voice == null && voices.Count < PoolSize)
         {
@@ -86,7 +101,7 @@ public sealed class AudioManager : MonoBehaviour
         {
             foreach (Voice candidate in voices)
                 if (candidate.scene.IsValid() && (voice == null || candidate.started < voice.started)) voice = candidate;
-            if (voice == null) return;
+            if (voice == null) return null;
         }
         voice.source.Stop();
         voice.scene = scene;
@@ -104,6 +119,7 @@ public sealed class AudioManager : MonoBehaviour
         voice.volume.SetBaseVolume(volume);
         if (scheduledStart > AudioSettings.dspTime) voice.source.PlayScheduled(scheduledStart);
         else voice.source.Play();
+        return voice.source;
     }
 
     private void OnSceneUnloaded(Scene scene)

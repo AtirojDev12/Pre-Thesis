@@ -580,6 +580,7 @@ public sealed class VoiceChatManager : MonoBehaviour
             // Lobby: flat.
             playback.SetSpatial(!flat && talker != null);
             playback.SetProximityMuted(!flat && talker == null);
+            playback.SetShout(!flat && talker != null && talker.Shouting); // 31 Oct: downed shout, map-wide
 
             // Network voices: the SERVER already decided the radio (it only sends
             // radio audio to players carrying a switched-on walkie), so just follow it.

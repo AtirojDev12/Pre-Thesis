@@ -13,6 +13,7 @@ public enum GameAction
     EatSnack, FeedFriend,
     WalkieTalk, WalkiePower,
     ReadMap, // 24 Oct
+    Shout,   // 31 Oct: downed players only
 }
 
 /// <summary>
@@ -82,6 +83,7 @@ public static class Keybinds
         new Def(GameAction.WalkieTalk, "walkieTalk", "Walkie talk (hold)", "Items in hand", "walkie", GameSettings.DefaultWalkieTalkBinding),
         new Def(GameAction.WalkiePower, "walkiePower", "Walkie on / off", "Items in hand", "walkie", GameSettings.DefaultWalkiePowerBinding),
         new Def(GameAction.ReadMap, "readMap", "Read map (hold)", "Items in hand", "map", "<Mouse>/leftButton"), // 24 Oct
+        new Def(GameAction.Shout, "shout", "Shout for help (when downed, once)", "Actions", World, "<Keyboard>/v"), // 31 Oct
     };
 
     private static string[] paths;          // cached, index = (int)GameAction

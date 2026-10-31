@@ -79,8 +79,8 @@ public class ZoneTask
 /// One sale adds +1 to EVERY unfinished line it matches.
 ///
 /// DIFFICULTY (6 Oct): a line's 'target' in the Inspector is the BASE. Tonight's
-/// real target = base + the difficulty's per-line extra + random extras for each
-/// player past the first (DifficultyProfile). The server works it out at round
+/// real target = base + the difficulty's per-line extra (DifficultyProfile).
+/// 31 Oct: more players no longer add tasks; they add ZONES to finish (MatchDirector). The server works it out at round
 /// start and sends it to everyone (SyncList 'targets').
 /// </summary>
 [RequireComponent(typeof(NetworkIdentity))]
@@ -357,6 +357,7 @@ public class ZoneTaskList : NetworkBehaviour
         {
             zoneReported = true;
             if (MatchDirector.Instance != null) MatchDirector.Instance.ServerReportZoneCompleted(zoneID);
+            AlertSounds.ServerZoneDone(transform.position); // 31 Oct: map-wide 3D alarm from this board
             Debug.Log($"[ZoneTaskList] '{title}' ({zoneID}) — every task done.", this);
         }
     }
@@ -385,6 +386,7 @@ public class ZoneTaskList : NetworkBehaviour
         if (zoneReported || !AllDone) return;
         zoneReported = true;
         if (MatchDirector.Instance != null) MatchDirector.Instance.ServerReportZoneCompleted(zoneID);
+        AlertSounds.ServerZoneDone(transform.position);
     }
 
     /// <summary>SERVER. Dev cheat: fill every line of every task board (and report the zones).</summary>
@@ -400,6 +402,7 @@ public class ZoneTaskList : NetworkBehaviour
             {
                 board.zoneReported = true;
                 if (MatchDirector.Instance != null) MatchDirector.Instance.ServerReportZoneCompleted(board.zoneID);
+                AlertSounds.ServerZoneDone(board.transform.position);
             }
         }
     }

@@ -12,8 +12,17 @@ public struct WorldSoundMessage : NetworkMessage
 /// <summary>Only authoritative gameplay calls Play. No client request handler exists.</summary>
 public static class NetworkAudioRelay
 {
-    public static void RegisterClient() => NetworkClient.RegisterHandler<WorldSoundMessage>(Receive);
-    public static void UnregisterClient() => NetworkClient.UnregisterHandler<WorldSoundMessage>();
+    public static void RegisterClient()
+    {
+        NetworkClient.RegisterHandler<WorldSoundMessage>(Receive);
+        AlertSounds.RegisterClient(); // 31 Oct (Mr.k): map-wide alerts (zone done, downed shout)
+    }
+
+    public static void UnregisterClient()
+    {
+        NetworkClient.UnregisterHandler<WorldSoundMessage>();
+        AlertSounds.UnregisterClient();
+    }
 
     public static void Play(string id, Vector3 position, int clipIndex = 0)
     {

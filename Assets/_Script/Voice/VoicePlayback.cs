@@ -29,6 +29,7 @@ public sealed class VoicePlayback : MonoBehaviour
     private uint talkerNetId;      // "net:<netId>" streams
     private string eosId;          // EOS backup streams (participant id = EOS id)
     private float nextGainCheck;
+    private bool shouting; // 31 Oct: talker is shouting (downed): heard across the map
 
     public VoiceStream Stream => stream;
 
@@ -114,6 +115,7 @@ public sealed class VoicePlayback : MonoBehaviour
         float slider = talkerNetId != 0 ? FriendVoiceVolume.ForTalker(talkerNetId)
             : !string.IsNullOrEmpty(eosId) ? FriendVoiceVolume.ForEosId(eosId) : 1f;
         float gain = FriendVoiceVolume.ToGain(slider);
+        if (shouting) gain *= AlertSounds.Current.shoutVoiceGain; // 31 Oct: louder while shouting
         if (proximityFilter != null) proximityFilter.Gain = gain;
         if (radioFilter != null) radioFilter.Gain = gain;
     }
@@ -122,6 +124,28 @@ public sealed class VoicePlayback : MonoBehaviour
     public void SetSpatial(bool spatial)
     {
         if (proximity != null) proximity.spatialBlend = spatial ? 1f : 0f;
+    }
+
+    /// <summary>
+    /// 31 Oct (Mr.k): the talker is shouting (downed). Their body voice reaches the whole map:
+    /// 3D, quieter with distance, never silent (AlertSounds shout reach). Off = normal 25 m voice.
+    /// </summary>
+    public void SetShout(bool on)
+    {
+        if (proximity == null || on == shouting) return;
+        shouting = on;
+        nextGainCheck = 0f; // apply the gain change at once
+        if (on)
+        {
+            AlertSounds.Reach reach = AlertSounds.Current.shoutReach;
+            proximity.maxDistance = Mathf.Max(reach.farDistance, reach.nearDistance + 1f);
+            proximity.SetCustomCurve(AudioSourceCurveType.CustomRolloff, AlertSounds.RolloffCurve(reach));
+        }
+        else
+        {
+            proximity.maxDistance = MaxHearingDistance;
+            proximity.SetCustomCurve(AudioSourceCurveType.CustomRolloff, RolloffCurve());
+        }
     }
 
     /// <summary>

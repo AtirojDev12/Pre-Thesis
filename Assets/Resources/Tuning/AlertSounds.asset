@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9466156d894db8c4bb1b512014af3e75, type: 3}
+  m_Name: AlertSounds
+  m_EditorClassIdentifier: Assembly-CSharp::AlertSounds
+  zoneClip: {fileID: 8300000, guid: 154423826af27aa41838864b93cc8280, type: 3}
+  zoneVolume: 1
+  zoneReach:
+    nearDistance: 8
+    farDistance: 90
+    farVolume: 0.25
+  shoutMode: 0
+  shoutSeconds: 3
+  oncePerDown: 1
+  shoutVoiceGain: 2
+  shoutClip: {fileID: 0}
+  shoutClipVolume: 1
+  shoutReach:
+    nearDistance: 8
+    farDistance: 90
+    farVolume: 0.25

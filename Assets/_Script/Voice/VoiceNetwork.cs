@@ -257,7 +257,9 @@ public static class VoiceNetwork
             else
             {
                 flags = 0;
-                if ((listener.identity.transform.position - talkerPosition).sqrMagnitude <= maxDistance * maxDistance)
+                // 31 Oct (Mr.k): a downed player who SHOUTS is heard across the whole map.
+                if (talkerVoice.Shouting ||
+                    (listener.identity.transform.position - talkerPosition).sqrMagnitude <= maxDistance * maxDistance)
                     flags |= FlagProximity;
 
                 if (onRadio)

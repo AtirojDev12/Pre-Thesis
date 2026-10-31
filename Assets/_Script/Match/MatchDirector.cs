@@ -227,6 +227,28 @@ public class MatchDirector : NetworkBehaviour
     [SyncVar] private int extraTasksThisRound;
     public int ExtraTasksThisRound => extraTasksThisRound;
 
+    // ---- 31 Oct (Mr.k): more players = more ZONES to finish (not more tasks) ----
+    [Header("Zones to finish (by player count, 31 Oct)")]
+    [Tooltip("Zones the team must finish when 1 player is in the room.")]
+    [SerializeField, Min(1)] private int zonesForOnePlayer = 2;
+    [Tooltip("Extra zones for each player past the first.")]
+    [SerializeField, Min(0)] private int extraZonesPerPlayer = 1;
+    [Tooltip("Never more than this many zones (also never more than the map has).")]
+    [SerializeField, Min(1)] private int maxZonesToFinish = 6;
+
+    /// <summary>
+    /// Zones the team must finish tonight: 1 player = 2, +1 per extra player, max 6,
+    /// and never more than the zones this map has. Any zones count, not specific ones.
+    /// Before the round is configured: every zone in the map (old behaviour).
+    /// </summary>
+    private int ZonesToFinish()
+    {
+        int inMap = registeredZones.Count;
+        if (!roundConfigured) return inMap;
+        int wanted = zonesForOnePlayer + extraZonesPerPlayer * Mathf.Max(0, startPlayerCount - 1);
+        return Mathf.Min(inMap, Mathf.Clamp(wanted, 1, maxZonesToFinish));
+    }
+
     // ---- Difficulty, replicated for the dev overlay and for ghost scripts (6 Oct) ----
     [SyncVar] private string profileName = "";
     [SyncVar] private int taskExtraPerLine;
@@ -556,7 +578,8 @@ public class MatchDirector : NetworkBehaviour
 
         if (profile != null)
         {
-            extraTasksThisRound = profile.ExtraTasksFor(playerCount);
+            // 31 Oct (Mr.k): more players no longer add tasks; they add zones (ZonesToFinish).
+            extraTasksThisRound = 0;
             taskExtraPerLine = Mathf.Max(0, profile.flatExtraTasksPerZone);
             maxExtraTasksPerBoard = Mathf.Max(0, profile.maxExtraTasksPerZone);
             randomGhostCount = Mathf.Max(0, profile.randomGhostCount);
@@ -599,7 +622,6 @@ public class MatchDirector : NetworkBehaviour
         guaranteedGhostCount = activeGhostRoster != null ? activeGhostRoster.guaranteedGhosts.Count : 0;
 
         zonesCompleted = 0;
-        zonesRequired = registeredZones.Count;
         overtimeSeconds = 0f;
         completedZones.Clear();
         playersInSecretRoom.Clear();
@@ -620,6 +642,7 @@ public class MatchDirector : NetworkBehaviour
 
         // 6 Oct: the task boards take tonight's targets from the difficulty.
         roundConfigured = true;
+        zonesRequired = ZonesToFinish(); // 31 Oct: by player count (needs roundConfigured)
         ZoneTaskList.ServerApplyDifficulty();
 
         // Mirror does not call a SyncVar hook on the machine that made the change,
@@ -634,7 +657,7 @@ public class MatchDirector : NetworkBehaviour
 
             Debug.Log(
                 $"[MatchDirector] Round configured — map={syncedMapID}, difficulty={syncedDifficulty}, " +
-                $"players={playerCount}, zones={zonesRequired} (all required), tasks=+{taskExtraPerLine} per line +{extraTasksThisRound} random (max {maxExtraTasksPerBoard}/board), " +
+                $"players={playerCount}, zones={zonesRequired} of {registeredZones.Count} in map, tasks=+{taskExtraPerLine} per line +{extraTasksThisRound} random (max {maxExtraTasksPerBoard}/board), " +
                 $"placeRules={placeRuleCount}, " +
                 $"night={nightLengthSeconds / 60f:F1} min ({StartHour:00}:00 → {EndHour:00}:00, " +
                 $"{SecondsPerInGameHour:F0}s per in-game hour), " +
@@ -1210,7 +1233,7 @@ public class MatchDirector : NetworkBehaviour
 
         if (!registeredZones.Add(zoneID)) return;
 
-        zonesRequired = registeredZones.Count;
+        zonesRequired = ZonesToFinish(); // 31 Oct: by player count once the round is set
         ZoneProgressChanged?.Invoke(zonesCompleted, zonesRequired);
 
         if (logRoundSetup)

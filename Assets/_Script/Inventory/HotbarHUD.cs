@@ -19,6 +19,7 @@ public sealed class HotbarHUD : MonoBehaviour
     private readonly Image[] frames = new Image[PlayerInventory.SlotCount];
     private readonly TMP_Text[] labels = new TMP_Text[PlayerInventory.SlotCount];
     private TMP_Text hintText;
+    private bool showingShoutHint; // 31 Oct
     private TMP_Text statusText;
     private bool dirty = true;
 
@@ -127,6 +128,19 @@ public sealed class HotbarHUD : MonoBehaviour
                 : inventory.IsHoldingMap // 24 Oct
                 ? $"Hold [{Keybinds.KeyName(GameAction.ReadMap)}] read the map   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
                 : PlayerSanity.HotbarHint(inventory); // 8 Oct: snack / holy items
+        }
+
+        // 31 Oct: while downed, the hint line shows the Shout key (polled: downed has no event here).
+        string shoutHint = PlayerVoice.Local != null ? PlayerVoice.Local.LocalShoutHint : null;
+        if (shoutHint != null)
+        {
+            if (hintText.text != shoutHint) hintText.text = shoutHint;
+            showingShoutHint = true;
+        }
+        else if (showingShoutHint)
+        {
+            showingShoutHint = false;
+            dirty = true; // put the item hint back next frame
         }
 
         // Voice status changes without events (menu, connection), so poll it.

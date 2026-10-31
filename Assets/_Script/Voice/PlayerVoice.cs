@@ -45,6 +45,12 @@ public class PlayerVoice : NetworkBehaviour
     /// <summary>True while talking on the Walkie-Talkie.</summary>
     [SyncVar] private bool radioTransmitting;
 
+    /// <summary>31 Oct (Mr.k): true while this DOWNED player shouts (the whole map hears their voice).</summary>
+    [SyncVar] private bool shouting;
+    /// <summary>31 Oct: already shouted during this down (AlertSounds.oncePerDown).</summary>
+    [SyncVar] private bool shoutUsed;
+    private double shoutEndsAt; // server
+
     // 3 Oct (Mr.k): where this player is looking, for the spectator's first-person
     // view. Body yaw already syncs (NetworkTransform); this adds up/down + the
     // downed head turn. Owner -> server (unreliable, max 10x/s, only on change).
@@ -65,6 +71,8 @@ public class PlayerVoice : NetworkBehaviour
 
     public string ProductUserId => productUserId;
     public bool RadioTransmitting => radioTransmitting;
+    /// <summary>31 Oct: shouting with the real voice right now (VoiceNetwork / VoicePlayback hear it map-wide).</summary>
+    public bool Shouting => shouting;
     public Transform Mouth => mouth;
     public PlayerNoise Noise => noise;
 
@@ -97,6 +105,9 @@ public class PlayerVoice : NetworkBehaviour
     public override void OnStartClient()
     {
         if (!All.Contains(this)) All.Add(this);
+
+        // 31 Oct (Mr.k): other players' names above their heads (lobby only). Plain MonoBehaviour.
+        if (!isLocalPlayer && GetComponent<PlayerNameTag>() == null) gameObject.AddComponent<PlayerNameTag>();
 
         // Only YOUR camera may listen. Remote players' cameras kept their
         // AudioListener enabled ("3 listeners in scene"), so Unity could hear
@@ -222,12 +233,65 @@ public class PlayerVoice : NetworkBehaviour
         return true;
     }
 
-    [ServerCallback]
     private void Update()
     {
+        // 31 Oct: the downed player's Shout key (local machine only asks).
+        if (NetworkMode.IsLocalController(this) && health != null && health.IsDowned && !health.IsDead
+            && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.Shout))
+            RequestShout();
+
+        if (!NetworkMode.HasServerAuthority(this)) return;
+
         // Cheap safety net: downed / dead players drop off the radio even if
         // nothing else told us.
         if (radioTransmitting && health != null && (health.IsDead || health.IsDowned))
             radioTransmitting = false;
+
+        // 31 Oct: the shout ends after its time, or when the player is no longer downed.
+        bool downed = health != null && health.IsDowned && !health.IsDead;
+        if (shouting && (!downed || Now >= shoutEndsAt)) shouting = false;
+        if (!downed && shoutUsed) shoutUsed = false; // next down = a new shout
+    }
+
+    // ---- Downed shout (31 Oct, Mr.k) ---------------------------------------------
+    // A downed player presses Shout (default V): for AlertSounds.shoutSeconds the whole
+    // map hears them, 3D and quieter with distance but never silent. Once per down.
+    // Real voice and/or a sound effect: AlertSounds.asset > Shout Mode.
+
+    private double Now => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
+
+    /// <summary>Local player: ask to shout (the server checks everything).</summary>
+    public void RequestShout()
+    {
+        if (NetworkMode.IsOffline) { ServerShout(); return; }
+        if (!isLocalPlayer || !NetworkClient.ready) return;
+        CmdShout();
+    }
+
+    [Command]
+    private void CmdShout() => ServerShout();
+
+    private void ServerShout()
+    {
+        if (!NetworkMode.HasServerAuthority(this)) return;
+        if (health == null || !health.IsDowned || health.IsDead || shouting) return;
+        AlertSounds settings = AlertSounds.Current;
+        if (settings.oncePerDown && shoutUsed) return;
+        shoutUsed = true;
+        shoutEndsAt = Now + settings.shoutSeconds;
+        if (settings.ShoutUsesVoice) shouting = true;
+        if (settings.ShoutUsesClip) AlertSounds.ServerShoutClip(mouth != null ? mouth.position : transform.position);
+    }
+
+    /// <summary>Local player: hint text while downed (null when not downed). Read by HotbarHUD.</summary>
+    public string LocalShoutHint
+    {
+        get
+        {
+            if (health == null || !health.IsDowned || health.IsDead) return null;
+            if (shouting) return "SHOUTING... the whole map can hear you";
+            if (shoutUsed && AlertSounds.Current.oncePerDown) return "You already shouted. Wait for a friend.";
+            return $"[{Keybinds.KeyName(GameAction.Shout)}] Shout for help (the whole map hears you, once)";
+        }
     }
 }
