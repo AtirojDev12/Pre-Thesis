@@ -73,10 +73,14 @@ public sealed class PlayerNameTag : MonoBehaviour
 
     private void Build()
     {
-        tagRoot = new GameObject("Name Tag").transform;
+        // Create WITH a RectTransform. TextMeshPro needs one; if the object starts with a plain
+        // Transform, AddComponent<TextMeshPro> swaps it and the old Transform is destroyed
+        // (MissingReferenceException + a new tag object every 0.5 s).
+        var go = new GameObject("Name Tag", typeof(RectTransform));
+        tagRoot = go.transform;
         tagRoot.SetParent(transform, false);
         tagRoot.localPosition = Vector3.up * Height;
-        label = tagRoot.gameObject.AddComponent<TextMeshPro>();
+        label = go.AddComponent<TextMeshPro>();
         label.alignment = TextAlignmentOptions.Center;
         label.fontSize = FontSize;
         label.color = Color.white;
