@@ -138,7 +138,7 @@ public static class ScreenToiletRulesSetup
 
         // 4. Staff time
         RuleStaffTime staff = Rule<RuleStaffTime>(parent, "Rule 4 - Staff Time", center, zone, "Staff time",
-            "If a ghost movie plays and the room is almost empty when you come to change the film: sit on the shadow's seat until the screen goes dark, then change the film. Else a ghost roams all night.");
+            "When the screen turns to static (all ghosts in the room vanish): stand on the black shadow within 13 s and stay until the static stops (3-6 s). Else a ghost comes out of the screen and roams the map until 06:00.");
         Set(staff, "audience", audience);
         Set(staff, "roamer", roamer);
 

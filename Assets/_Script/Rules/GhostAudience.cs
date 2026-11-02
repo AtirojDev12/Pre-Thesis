@@ -20,6 +20,10 @@ public sealed class GhostAudience : NetworkBehaviour
     [SerializeField] private float seatedHeadHeight = 0.85f;
     [Tooltip("Height of a standing member's head above its pivot.")]
     [SerializeField] private float standingHeadHeight = 1.7f;
+    [Tooltip("2 Nov (Mr.k): scale the mockup looks (seated + standing) so every ghost is as tall as a player.")]
+    [SerializeField] private bool matchPlayerHeight = true;
+    [Tooltip("Player height in metres (the Y Bot player model is about 1.8 m). Used when \"Match Player Height\" is on.")]
+    [SerializeField, Min(0.5f)] private float playerHeight = 1.8f;
 
     [SyncVar(hook = nameof(OnStateChanged))] private bool visible = true;
     [SyncVar(hook = nameof(OnStateChanged))] private bool standing;
@@ -28,6 +32,8 @@ public sealed class GhostAudience : NetworkBehaviour
     private Quaternion[] seatedRotations;
     private GameObject[] seatedLooks;
     private GameObject[] standingLooks;
+    private float seatedHead;
+    private float standingHead;
 
     public bool Visible => visible;
     public bool Standing => standing;
@@ -35,7 +41,7 @@ public sealed class GhostAudience : NetworkBehaviour
     public Transform Member(int i) => members[i];
 
     /// <summary>Head point of member i (for "is the player looking at it").</summary>
-    public Vector3 HeadOf(int i) => members[i].position + Vector3.up * (standing ? standingHeadHeight : seatedHeadHeight);
+    public Vector3 HeadOf(int i) => members[i].position + Vector3.up * (standing ? standingHead : seatedHead);
 
     private void Awake()
     {
@@ -43,6 +49,8 @@ public sealed class GhostAudience : NetworkBehaviour
         seatedRotations = new Quaternion[n];
         seatedLooks = new GameObject[n];
         standingLooks = new GameObject[n];
+        seatedHead = matchPlayerHeight ? playerHeight - 0.15f : seatedHeadHeight;
+        standingHead = matchPlayerHeight ? playerHeight - 0.15f : standingHeadHeight;
         for (int i = 0; i < n; i++)
         {
             if (members[i] == null) continue;
@@ -51,6 +59,11 @@ public sealed class GhostAudience : NetworkBehaviour
             Transform u = members[i].Find("Standing");
             seatedLooks[i] = s != null ? s.gameObject : null;
             standingLooks[i] = u != null ? u.gameObject : null;
+            if (matchPlayerHeight)
+            {
+                RuleFx.ScaleToHeight(s, members[i].position.y, playerHeight);
+                RuleFx.ScaleToHeight(u, members[i].position.y, playerHeight);
+            }
             // Members never block walking or the interaction ray.
             foreach (Collider c in members[i].GetComponentsInChildren<Collider>(true)) c.enabled = false;
         }

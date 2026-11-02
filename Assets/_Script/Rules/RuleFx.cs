@@ -186,6 +186,41 @@ public sealed class RuleFx : MonoBehaviour
                 if (body != null && c != null && body.enabled && c.enabled) Physics.IgnoreCollision(c, body, true);
     }
 
+    // ---- Mockup size (2 Nov, Mr.k: room ghosts as tall as a player) -------------------------
+
+    /// <summary>
+    /// Scales a mockup look (pivot at its feet / seat) so its top is <paramref name="height"/>
+    /// metres above <paramref name="baseY"/>. Uses mesh bounds, so it works on hidden objects too.
+    /// </summary>
+    public static void ScaleToHeight(Transform look, float baseY, float height)
+    {
+        if (look == null || height <= 0f || !TopAbove(look, baseY, out float top)) return;
+        look.localScale *= height / top;
+    }
+
+    private static bool TopAbove(Transform look, float baseY, out float top)
+    {
+        top = float.MinValue;
+        bool any = false;
+        foreach (MeshFilter mf in look.GetComponentsInChildren<MeshFilter>(true))
+        {
+            Mesh mesh = mf.sharedMesh;
+            if (mesh == null) continue;
+            Bounds b = mesh.bounds;
+            Matrix4x4 toWorld = mf.transform.localToWorldMatrix;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 corner = b.center + Vector3.Scale(b.extents,
+                    new Vector3((i & 1) == 0 ? -1f : 1f, (i & 2) == 0 ? -1f : 1f, (i & 4) == 0 ? -1f : 1f));
+                float y = toWorld.MultiplyPoint3x4(corner).y;
+                if (y > top) top = y;
+                any = true;
+            }
+        }
+        top -= baseY;
+        return any && top > 0.05f;
+    }
+
     // ---- Placeholder sound ------------------------------------------------------------
 
     public enum PlaceholderSound { Crying, Whisper, Hum }
