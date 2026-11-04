@@ -12,6 +12,8 @@ using UnityEngine.SceneManagement;
 ///   - Screen Room zone (zone_screen):
 ///       * Change film in the GHOST room "TeaterZone/GhostScreenRoom" at 02:00 and 04:00 (hold E 5 s)
 ///       * 3 dirt marks in EACH screen room, from 01:00 (hold E 3 s)
+///       * 4 Nov: the NORMAL room's marks + a normal-room film change (00:30, 02:30) are
+///         BONUS tasks (money only, not on the board). See ScreenRoomBonusSetup.
 ///   - Toilet zone (zone_toilet): 3 dirt marks in the men's and 3 in the women's toilet, from 03:00
 ///   - 2 task boards ("SCREEN ROOMS", "TOILETS") next to the Tickets board.
 /// Nonnapat's room objects are only READ (positions), never changed.
@@ -114,11 +116,14 @@ public static class ScreenToiletZoneSetup
             AddTask(so, "Clean both toilets (after 03:00)", ZoneTaskKind.CleanToilet, toiletSpots);
         });
 
+        // 4 Nov (Mr.k): normal screen room = bonus tasks (money only, not on the zone board).
+        string bonus = ScreenRoomBonusSetup.Apply(scene, root.transform, normalRoom);
+
         EditorSceneManager.MarkSceneDirty(scene);
         Selection.activeGameObject = root;
         EditorUtility.DisplayDialog("Screen + Toilet Zones",
             $"Done.\n\nScreen Room: 1 film spot (Ghost Room) + {screenSpots} dirt marks.\n" +
-            $"Toilets: {toiletSpots} dirt marks.\n2 task boards next to the Tickets board.\n\n" +
+            $"Toilets: {toiletSpots} dirt marks.\n2 task boards next to the Tickets board.\n\n" + bonus + "\n\n" +
             "Check the dirt marks and boards in the Scene view (move any that look wrong), then SAVE the scene (Ctrl+S).",
             "OK");
     }

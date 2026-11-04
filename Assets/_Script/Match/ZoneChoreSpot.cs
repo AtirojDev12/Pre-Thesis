@@ -36,6 +36,14 @@ public sealed class ZoneChoreSpot : InteractableBase
     [SerializeField, Range(0, 5)] private int fromHour = 1;
     [Tooltip("0 = once. 2 = again every 2 in-game hours (film: 02:00 and 04:00).")]
     [SerializeField, Min(0)] private int repeatEveryHours = 0;
+    [Tooltip("4 Nov: minutes after From Hour, e.g. 30 with From Hour 0 = 00:30.")]
+    [SerializeField, Range(0, 59)] private int fromMinute = 0;
+    [Tooltip("4 Nov: 0 = no limit. 2 = needed at most 2 times a night.")]
+    [SerializeField, Min(0)] private int maxTimes = 0;
+
+    [Header("Bonus (4 Nov, Mr.k)")]
+    [Tooltip("Off = BONUS chore: +1 task (money) for the player only. It does NOT count on the zone's task board, so skipping it is fine (e.g. the normal screen room).")]
+    [SerializeField] private bool countsForZoneBoard = true;
 
     [Header("Look")]
     [Tooltip("Shown only while the chore is needed (dirt mark, warning light).")]
@@ -51,7 +59,8 @@ public sealed class ZoneChoreSpot : InteractableBase
 
     // Server only.
     private int pending;
-    private int nextSlotHour;
+    private int nextSlotMinute; // minutes after 00:00 on the match clock
+    private int slotsMade;
     private GameObject offlineWorker;
 
     // Local only.
@@ -61,6 +70,7 @@ public sealed class ZoneChoreSpot : InteractableBase
     private PlayerHealth ignoredBody; // 16 Oct: our colliders never block this body
 
     public ZoneTaskKind Kind => kind;
+    public bool CountsForZoneBoard => countsForZoneBoard;
     public bool Needed => needed;
     // Audio observes the existing authoritative work state; no extra sound RPCs.
     public bool IsWorking => workerId != 0 && !(IsLocalWorker && stopSent);
@@ -86,9 +96,9 @@ public sealed class ZoneChoreSpot : InteractableBase
     protected override void Awake()
     {
         base.Awake();
-        promptText = "[Hold E] " + actionText;
+        promptText = "[Hold E] " + actionText + (countsForZoneBoard ? "" : " (bonus)");
         colliders = GetComponents<Collider>();
-        nextSlotHour = fromHour;
+        nextSlotMinute = fromHour * 60 + fromMinute;
         ApplyLook(needed);
     }
 
@@ -135,11 +145,13 @@ public sealed class ZoneChoreSpot : InteractableBase
         }
 
         // New slot on the clock: the chore is needed (again).
-        match.GetInGameTime(out int hour, out _);
-        while (nextSlotHour < NightEndHour && hour >= nextSlotHour)
+        match.GetInGameTime(out int hour, out int minute);
+        int now = hour * 60 + minute;
+        while (nextSlotMinute < NightEndHour * 60 && now >= nextSlotMinute && (maxTimes == 0 || slotsMade < maxTimes))
         {
             pending++;
-            nextSlotHour = repeatEveryHours > 0 ? nextSlotHour + repeatEveryHours : NightEndHour;
+            slotsMade++;
+            nextSlotMinute = repeatEveryHours > 0 ? nextSlotMinute + repeatEveryHours * 60 : NightEndHour * 60;
         }
         if (!needed && pending > 0) SetNeeded(true);
 
@@ -159,7 +171,8 @@ public sealed class ZoneChoreSpot : InteractableBase
         pending = Mathf.Max(0, pending - 1);
         if (pending == 0) SetNeeded(false);
 
-        ZoneTaskList.ServerReportSale(kind, PopcornFlavor.None, -1, false);
+        // Bonus chores (4 Nov) pay the player only; they never move the zone's board.
+        if (countsForZoneBoard) ZoneTaskList.ServerReportSale(kind, PopcornFlavor.None, -1, false);
         if (MatchDirector.Instance != null)
             MatchDirector.Instance.ServerReportTaskCompleted(worker.GetComponent<NetworkIdentity>(), zoneID);
         Debug.Log($"[ZoneChoreSpot] '{name}' done by {worker.name} ({kind}).", this);
