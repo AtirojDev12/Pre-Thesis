@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 642a6bab34dcbd842b5b2ec6dbc957e3, type: 3}
+  m_Name: demo_map_01
+  m_EditorClassIdentifier: Assembly-CSharp::MapGuide
+  mapID: demo_map_01
+  mapName: Cinema
+  zonesForOnePlayer: 2
+  extraZonesPerPlayer: 1
+  maxZonesToFinish: 6
+  howToWin: "\u2022 The night runs from 00:00 to 06:00. The exits stay locked during
+    the night.\n\u2022 Finish the zones you need (goal above). Each zone's TASK BOARD
+    shows its lines; take a map from the map box to find your way.\n\u2022 Zones
+    done by 06:00 = the EXITS OPEN for one in-game hour. Walk out through an exit.
+    Each exit lets only 2 people out, so split up.\n\u2022 Not done by 06:00: if
+    2 or more players are dead, the night goes on (overtime) and the ghosts get angrier
+    until you finish. If fewer than 2 are dead, you are LOCKED IN for one hour.\n\u2022
+    Downed players can be revived by a teammate (hold E). A downed player with a
+    switched-on walkie can still call for help on it.\n\u2022 Money = the tasks YOU
+    finished. Dying loses the items you brought in."
+  zones:
+  - name: Tickets
+    where: The ticket counter at the front of the cinema.
+    tasks: 'Sell tickets until the board''s goal. Each customer needs the right ticket:
+      HUMAN ticket for people, GHOST ticket for ghosts. Look at the customer before
+      you sell.'
+    rules: []
+    otherDangers: "Wrong tickets cost sanity and the sale pays nothing; too many
+      wrong tickets call a punishing ghost.\nMISSING PARTS GHOST (once a night, 00:00\u201303:00):
+      a ghost missing an arm, the head or its body comes to the ticket or popcorn
+      counter and blocks it. Press E on it and it follows you. Find its parts inside
+      the building, hold a part and hold E on the ghost for 3 s. You have 1 in-game
+      hour (countdown above its head). Time up = -25 HP and -25% sanity for everyone
+      near it."
+  - name: Popcorn & Water
+    where: The popcorn and drinks counter next to the ticket counter.
+    tasks: Make each customer's order (popcorn flavour + drink) until the board's
+      goal. Ghost customers need the SPECIAL INGREDIENT in their food.
+    rules: []
+    otherDangers: Food for a ghost without the special ingredient = you lose HP and
+      sanity. If the special ingredient goes missing, follow its trail, find it and
+      bring it back before you serve ghosts again.
+  - name: Screen Rooms
+    where: 'The two screen rooms in the theatre wing: the normal (human) room and
+      the GHOST room.'
+    tasks: 'Change the film in the GHOST room at 02:00 and 04:00 (hold E 5 s at the
+      projector). Clean the 3 dirt marks in the ghost room after 01:00 (hold E 3
+      s).
+
+      Bonus (money only, not needed for the zone): clean the normal room
+      and change its film at 00:30 and 02:30.'
+    rules:
+    - title: No noise
+      whatToDo: 'Inside the ghost room, keep quiet: walk slowly, do not sprint, do
+        not shout into your mic.'
+      ifYouBreakIt: big sanity loss
+    - title: Don't look at the audience
+      whatToDo: Never look at the ghost customers sitting in the seats.
+      ifYouBreakIt: you lose HP every second you look
+    - title: The audience stands
+      whatToDo: 'If every customer stands up and stares at you: stand still. When
+        they sit down again, leave the room at once.'
+      ifYouBreakIt: they chase you inside the room
+    - title: Staff time (static screen)
+      whatToDo: "If the screen turns to TV static and the ghosts vanish: stand on
+        the black shadow in the seats within 13 s and stay until the static stops
+        (3\u20136 s). One player is enough."
+      ifYouBreakIt: a ghost comes out of the screen and roams the whole building
+        until 06:00
+    otherDangers: 
+  - name: Toilets
+    where: The men's and women's toilets.
+    tasks: 'After 03:00 clean both toilets: 3 dirt marks in each (hold E 3 s).'
+    rules:
+    - title: Cracked mirror
+      whatToDo: If a mirror has a crack, look at the crack for a few seconds.
+      ifYouBreakIt: 'it shatters: jumpscare, HP and sanity loss for everyone inside'
+    - title: The last stall (women's)
+      whatToDo: 'If the last stall is closed and you hear crying: switch the light
+        OFF at once and stand still.'
+      ifYouBreakIt: a ghost comes out and chases you
+    - title: Cigarette smoke (men's)
+      whatToDo: 'If smoke comes out of a stall: knock on that stall (E), then switch
+        the light OFF.'
+      ifYouBreakIt: HP loss for a while and the toilet's tasks are locked
+    - title: Ghost food
+      whatToDo: 'When the toilet is fully cleaned: light OFF, throw the black box
+        into the last stall, then everyone out fast.'
+      ifYouBreakIt: ghosts swarm the toilet
+    otherDangers: 
+  generalTips: "\u2022 Talk to your team: share which rules you saw tonight.\n\u2022
+    Keep your flashlight charged; dark rooms hide ghosts.\n\u2022 Low sanity? Hold
+    C to chant, or eat a snack.\n\u2022 Carry a walkie: it reaches every teammate
+    with a switched-on walkie, and it still works when you are downed."

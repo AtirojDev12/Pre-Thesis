@@ -231,23 +231,22 @@ public class PlayerVoice : NetworkBehaviour
 
     private bool ServerCanTransmit()
     {
-        if (inventory == null || !inventory.IsHoldingPoweredRadio) return false;
-        if (health != null && (health.IsDead || health.IsDowned)) return false;
-        return true;
+        if (inventory == null || (health != null && health.IsDead)) return false;
+        // 5 Nov (Mr.k): DOWNED players can talk on any switched-on walkie in the hotbar
+        // (it replaces the old downed shout). Standing players must hold a powered walkie.
+        if (health != null && health.IsDowned) return inventory.HasPoweredRadio;
+        return inventory.IsHoldingPoweredRadio;
     }
 
     private void Update()
     {
-        // 31 Oct: the downed player's Shout key (local machine only asks).
-        if (NetworkMode.IsLocalController(this) && health != null && health.IsDowned && !health.IsDead
-            && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.Shout))
-            RequestShout();
+        // 5 Nov (Mr.k): the downed Shout key is removed. Downed players use the walkie instead.
 
         if (!NetworkMode.HasServerAuthority(this)) return;
 
-        // Cheap safety net: downed / dead players drop off the radio even if
-        // nothing else told us.
-        if (radioTransmitting && health != null && (health.IsDead || health.IsDowned))
+        // Cheap safety net: anyone who can no longer transmit drops off the radio
+        // (dead, or downed without a switched-on walkie, or walkie put away).
+        if (radioTransmitting && !ServerCanTransmit())
             radioTransmitting = false;
 
         // 31 Oct: the shout ends after its time, or when the player is no longer downed.
@@ -323,9 +322,10 @@ public class PlayerVoice : NetworkBehaviour
         get
         {
             if (health == null || !health.IsDowned || health.IsDead) return null;
-            if (shouting) return "SHOUTING... the whole map can hear you";
-            if (shoutUsed && AlertSounds.Current.oncePerDown) return "You already shouted. Wait for a friend.";
-            return $"[{Keybinds.KeyName(GameAction.Shout)}] Shout for help (the whole map hears you, once)";
+            // 5 Nov: downed = talk on the walkie (no more shout).
+            if (inventory != null && inventory.HasPoweredRadio)
+                return RadioTransmitting ? "TALKING on the walkie..." : $"Hold [{Keybinds.KeyName(GameAction.WalkieTalk)}] call for help on your walkie";
+            return "No switched-on walkie. Wait for a friend.";
         }
     }
 }

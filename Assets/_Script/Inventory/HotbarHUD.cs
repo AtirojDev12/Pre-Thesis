@@ -127,10 +127,12 @@ public sealed class HotbarHUD : MonoBehaviour
                       : $"Mash [{Keybinds.KeyName(GameAction.FlashlightCrank)}] to charge")
                 : inventory.IsHoldingMap // 24 Oct
                 ? $"Hold [{Keybinds.KeyName(GameAction.ReadMap)}] read the map   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
+                : !inventory.HeldSlot.IsEmpty && !inventory.HeldSlot.spare && ItemCatalog.IsWorksheet(inventory.HeldSlot.itemId) // 5 Nov
+                ? $"[{Keybinds.KeyName(GameAction.ReadMap)}] open the work sheet   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it"
                 : PlayerSanity.HotbarHint(inventory); // 8 Oct: snack / holy items
         }
 
-        // 31 Oct: while downed, the hint line shows the Shout key (polled: downed has no event here).
+        // 31 Oct: while downed, the hint line shows the downed hint (5 Nov: the walkie key, polled).
         string shoutHint = PlayerVoice.Local != null ? PlayerVoice.Local.LocalShoutHint : null;
         if (shoutHint != null)
         {

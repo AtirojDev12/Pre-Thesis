@@ -11,6 +11,15 @@ using UnityEngine.UI;
 /// Canvas, promptText assigned. It can live either on the player prefab or in
 /// the scene; PlayerInteractor finds it either way.
 /// </summary>
+/// <summary>
+/// 5 Nov 2026 (Mr.k): an interactable can say where its prompt sits (offset from its
+/// transform). Used by the Staff NPC (its transform is at its feet).
+/// </summary>
+public interface IPromptOffset
+{
+    Vector3 PromptOffset { get; }
+}
+
 public class InteractionPromptUI : MonoBehaviour
 {
     [SerializeField] private TextMeshProUGUI promptText;
@@ -40,6 +49,14 @@ public class InteractionPromptUI : MonoBehaviour
         // good look for a first-person prompt (most games put it at screen
         // centre), so this supports both instead of demanding one.
         _followsTargetInWorld = _canvas != null && _canvas.renderMode == RenderMode.WorldSpace;
+
+        // 5 Nov 2026 (Mr.k): the text box is only 200 wide, so long prompts became a tall
+        // one-word-per-line column. One wide line instead (a "\n" in a prompt still breaks).
+        if (promptText != null)
+        {
+            promptText.textWrappingMode = TextWrappingModes.NoWrap;
+            promptText.overflowMode = TextOverflowModes.Overflow;
+        }
 
         Hide();
     }

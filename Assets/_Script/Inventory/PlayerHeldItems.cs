@@ -167,8 +167,9 @@ public sealed class PlayerHeldItems : NetworkBehaviour
             if (mapVisual != null) Place(mapVisual, mapOffset);
         }
         // 31 Oct (Mr.k): other players see the ghost part in your hand (model = first child of its world prefab).
+        // 5 Nov: the work sheet too (same way).
         string heldId = inventory.HeldSlot.IsEmpty ? null : inventory.HeldSlot.itemId;
-        if (!ItemCatalog.IsGhostPart(heldId)) { Clear(ref partVisual); partVisualId = null; }
+        if (!ItemCatalog.IsGhostPart(heldId) && !ItemCatalog.IsWorksheet(heldId)) { Clear(ref partVisual); partVisualId = null; }
         else
         {
             if (partVisual == null || partVisualId != heldId)
@@ -178,7 +179,7 @@ public sealed class PlayerHeldItems : NetworkBehaviour
                 ItemCatalog.ItemInfo info = ItemCatalog.Find(heldId);
                 GameObject world = info != null ? Resources.Load<GameObject>(info.worldPrefabPath) : null;
                 if (world != null && world.transform.childCount > 0)
-                    partVisual = CreateVisual(world.transform.GetChild(0).gameObject, "Remote ghost part", .3f);
+                    partVisual = CreateVisual(world.transform.GetChild(0).gameObject, "Remote held item", ItemCatalog.IsWorksheet(heldId) ? .22f : .3f);
             }
             if (partVisual != null) Place(partVisual, mapOffset);
         }

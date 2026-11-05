@@ -51,6 +51,15 @@ public static class ItemCatalog
     public const string GhostHead = "ghost_head";
     public const string GhostUpperBody = "ghost_upper_body";
 
+    /// <summary>
+    /// 5 Nov (Mr.k): the WORK SHEET from the lobby Staff NPC. Takes a hotbar slot.
+    /// Match only: carried from the lobby hotbar into ONE match, then gone. Never saved.
+    /// Press the read key to open it (WorksheetReader). 5 Nov: a real object: Q drops it,
+    /// anyone can pick it up. Model: Assets/Prefab/WorkSheet.prefab inside WorldWorksheet.
+    /// </summary>
+    public const string Worksheet = "worksheet";
+    public const string WorldWorksheetPath = "Items/WorldWorksheet";
+
     public sealed class ItemInfo
     {
         public string id;
@@ -89,6 +98,8 @@ public static class ItemCatalog
         // ---- Match only (24 Oct) ----
         /// <summary>Exists only during a match (the Map): not in the shop, never written to the save.</summary>
         public bool matchOnly;
+        /// <summary>5 Nov: a match-only item that a player may carry from the LOBBY hotbar into the next match (the work sheet).</summary>
+        public bool carryFromLobby;
 
         // ---- Stacking (5 Oct) ----
         /// <summary>How many fit in ONE hotbar slot. 1 = no stacking. Also the most you can own.</summary>
@@ -163,6 +174,14 @@ public static class ItemCatalog
             permanent = false, inShop = false, throwable = true,
             worldPrefabPath = WorldMapPath,
             description = "Map of this place. Hold the read key to look at it. Only for this match.",
+        },
+        // 5 Nov (Mr.k): the work sheet from the lobby Staff NPC (free, match only, carried in once).
+        new ItemInfo
+        {
+            id = Worksheet, displayName = "Work Sheet", matchOnly = true, carryFromLobby = true,
+            permanent = false, inShop = false, throwable = true,
+            worldPrefabPath = WorldWorksheetPath,
+            description = "Your job list from the Staff. Press the read key to open it. Q = drop it. Carried into ONE match, then gone.",
         },
         // 31 Oct (Mr.k): the Missing Parts ghost's parts. World prefabs made by the setup tool.
         GhostPartItem(GhostLeftArm, "Left Arm", "Items/WorldGhostPart_LeftArm"),
@@ -293,6 +312,9 @@ public static class ItemCatalog
 
     /// <summary>24 Oct: the map (match only).</summary>
     public static bool IsMap(string id) => id == Map;
+
+    /// <summary>5 Nov: the work sheet (lobby Staff NPC).</summary>
+    public static bool IsWorksheet(string id) => id == Worksheet;
 
     public static bool IsFlashlight(string id)
     {

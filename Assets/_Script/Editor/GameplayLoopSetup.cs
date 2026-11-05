@@ -7,9 +7,9 @@ using UnityEngine;
 /// Tools > Pre-Thesis > Scenes > Map: Setup Gameplay Loop (Task Boards + Exit)
 ///
 /// Adds the prototype game-loop objects to the OPEN scene (Cinema_GamePlay):
-///   - "Task Board - Popcorn & Water"  (BBQ / Cheese / Paprika / Water, 15 each)
-///   - "Task Board - Tickets"          (Ticket 1/2/3 x Human/Ghost, 15 each)
-///     (an existing board with the old 2 lines is updated to these 6)
+///   - "Task Board - Ticket Zone"      (5 Nov: ONE zone = Ticket 1/2/3 x Human/Ghost
+///                                      + BBQ / Cheese / Paprika / Water, 15 each)
+///     (an existing ticket board with the old 2 ticket lines is updated to the 6 ticket lines)
 ///   - "Exit (Prototype)"               (walk-in exit, glows when open, fits 6)
 /// They appear in front of the Scene view camera. MOVE THEM to the right places,
 /// then save the scene (Ctrl+S). Running it again does not make duplicates.
@@ -43,11 +43,15 @@ public static class GameplayLoopSetup
         int made = 0;
         GameObject last = null;
 
-        if (FindBoard("zone_popcorn") == null)
+        // 5 Nov (Mr.k): Tickets + Popcorn & Water are ONE zone ("Ticket Zone"): one board with
+        // both kinds of lines. An old map with two boards: run "Map: Merge Ticket + Popcorn Boards".
+        ZoneTaskList ticketBoard = FindBoard("zone_ticket");
+        if (ticketBoard == null && FindBoard("zone_popcorn") == null)
         {
-            last = MakeBoard("Task Board - Popcorn & Water", "zone_popcorn", "POPCORN & WATER",
-                origin + facing * new Vector3(-1.2f, 1.6f, 0f), facing, so =>
+            last = MakeBoard("Task Board - Ticket Zone", "zone_ticket", "TICKET ZONE",
+                origin + facing * new Vector3(0f, 1.6f, 0f), facing, so =>
                 {
+                    AddTicketTasks(so);
                     AddTask(so, "Sell BBQ popcorn", ZoneTaskKind.Popcorn, PopcornFlavor.BBQ, 0, 15);
                     AddTask(so, "Sell Cheese popcorn", ZoneTaskKind.Popcorn, PopcornFlavor.Cheese, 0, 15);
                     AddTask(so, "Sell Paprika popcorn", ZoneTaskKind.Popcorn, PopcornFlavor.Paprika, 0, 15);
@@ -55,15 +59,12 @@ public static class GameplayLoopSetup
                 });
             made++;
         }
-
-        ZoneTaskList ticketBoard = FindBoard("zone_ticket");
-        if (ticketBoard == null)
+        else if (FindBoard("zone_popcorn") != null)
         {
-            last = MakeBoard("Task Board - Tickets", "zone_ticket", "TICKETS",
-                origin + facing * new Vector3(1.2f, 1.6f, 0f), facing, AddTicketTasks);
-            made++;
+            Debug.LogWarning("[GameplayLoopSetup] This map still has a separate popcorn board. Run Tools > Pre-Thesis > Scenes > " +
+                             "Map: Merge Ticket + Popcorn Boards (one Ticket Zone).");
         }
-        else if (HasOldTicketLines(ticketBoard))
+        if (ticketBoard != null && HasOldTicketLines(ticketBoard))
         {
             // 30 Sep: Mr.k wants one line per ticket x customer (6 lines), not 2.
             var so = new SerializedObject(ticketBoard);

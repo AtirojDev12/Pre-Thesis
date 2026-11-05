@@ -208,7 +208,10 @@ public partial class PlayerInteractor : NetworkBehaviour
             bool bottlePrompt = target is PlacedBottleInteractable ||
                 (target is PopcornStation station && station.Kind == PopcornStationKind.Water && station.PlacementAnchor != null);
             Transform promptAnchor = target is PopcornStation promptStation ? promptStation.PromptAnchor : target.GetTransform();
-            promptUI.Show(text, promptAnchor, bottlePrompt ? (Vector3?)(Vector3.up * .12f) : null);
+            // 5 Nov (Mr.k): an object may set its own prompt height (IPromptOffset, e.g. the Staff NPC).
+            Vector3? promptOffset = bottlePrompt ? (Vector3?)(Vector3.up * .12f)
+                : target is IPromptOffset custom ? (Vector3?)custom.PromptOffset : null;
+            promptUI.Show(text, promptAnchor, promptOffset);
         }
     }
 

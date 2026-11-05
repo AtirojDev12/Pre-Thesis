@@ -82,8 +82,8 @@ public static class Keybinds
         new Def(GameAction.FeedFriend, "feedFriend", "Feed a friend (hold, look at them)", "Items in hand", "snack", "<Mouse>/rightButton"),
         new Def(GameAction.WalkieTalk, "walkieTalk", "Walkie talk (hold)", "Items in hand", "walkie", GameSettings.DefaultWalkieTalkBinding),
         new Def(GameAction.WalkiePower, "walkiePower", "Walkie on / off", "Items in hand", "walkie", GameSettings.DefaultWalkiePowerBinding),
-        new Def(GameAction.ReadMap, "readMap", "Read map (hold)", "Items in hand", "map", "<Mouse>/leftButton"), // 24 Oct
-        new Def(GameAction.Shout, "shout", "Shout for help (when downed, once)", "Actions", World, "<Keyboard>/v"), // 31 Oct
+        new Def(GameAction.ReadMap, "readMap", "Read map (hold) / open work sheet", "Items in hand", "map", "<Mouse>/leftButton"), // 24 Oct
+        // 5 Nov (Mr.k): the downed Shout key is removed from Settings (downed players use the walkie).
     };
 
     private static string[] paths;          // cached, index = (int)GameAction

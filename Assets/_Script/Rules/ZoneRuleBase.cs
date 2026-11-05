@@ -31,6 +31,8 @@ public abstract class ZoneRuleBase : NetworkBehaviour
     [TextArea(2, 5)] [SerializeField] protected string ruleText = "";
     [Tooltip("Where this rule works. Players outside are never affected.")]
     [SerializeField] protected RuleZone zone;
+    [Tooltip("5 Nov: rules with the same group are ONE zone for difficulty (both toilets = \"Toilet\"). Empty = from the zone name.")]
+    [SerializeField] protected string zoneGroup = "";
 
     [Header("Feedback (testing)")]
     [Tooltip("Show a short red line when a player breaks this rule (good for testing, maybe off for the final game).")]
@@ -44,10 +46,35 @@ public abstract class ZoneRuleBase : NetworkBehaviour
     public string RuleTitle => ruleTitle;
     public RuleZone Zone => zone;
 
+    /// <summary>Difficulty group of this rule (one quest zone). Both toilets share "Toilet".</summary>
+    public string ZoneGroup
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(zoneGroup)) return zoneGroup.Trim();
+            string n = zone != null ? zone.ZoneName : name;
+            if (n.IndexOf("Toilet", System.StringComparison.OrdinalIgnoreCase) >= 0) return "Toilet";
+            if (n.IndexOf("Screen", System.StringComparison.OrdinalIgnoreCase) >= 0) return "Screen Room";
+            return n;
+        }
+    }
+
+    // 5 Nov (Mr.k, GDD difficulty): which zone rules run this round. Picked once per
+    // round on the server (random), sent to clients.
+    [SyncVar] private bool activeThisRound = true;
+    public bool ActiveThisRound => activeThisRound;
+    private static MatchDirector pickedForMatch; // the round we picked for (a new match = a new MatchDirector)
+    private static bool pickedOffline;
+
     protected readonly List<PlayerHealth> inside = new List<PlayerHealth>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => All.Clear();
+    private static void ResetStatics()
+    {
+        All.Clear();
+        pickedForMatch = null;
+        pickedOffline = false;
+    }
 
     protected virtual void OnEnable()
     {
@@ -83,8 +110,60 @@ public abstract class ZoneRuleBase : NetworkBehaviour
         {
             if (!isActiveAndEnabled || zone == null || !RulesActiveNow) return false;
             MatchDirector match = MatchDirector.Instance;
-            return match == null || match.RoundRunning;
+            if (match != null && !match.RoundRunning) return false;
+            if (!ServerPickRulesIfNeeded(match)) return false; // round not set up yet
+            return activeThisRound;
         }
+    }
+
+    // ---- Difficulty: which rules run (5 Nov, Mr.k) ----------------------------------------
+    //
+    //   A zone with 4 rules or fewer: Easy = 1 random, Normal = 2 random.
+    //   A zone with 5 rules or more : Easy = 2 random, Normal = 3 random.
+    //   Hard and 13 Rules           : every zone rule.
+    //   (Map Rules: Hard 5 of 13, 13 Rules all 13 -> not built yet.)
+    // The same rule placed in two rooms (the mirror in both toilets) counts once.
+
+    /// <summary>How many of a zone's <paramref name="ruleCount"/> rules run at this difficulty.</summary>
+    public static int RulesForDifficulty(DifficultyLevel level, int ruleCount)
+    {
+        int k;
+        switch (level)
+        {
+            case DifficultyLevel.Easy: k = ruleCount <= 4 ? 1 : 2; break;
+            case DifficultyLevel.Normal: k = ruleCount <= 4 ? 2 : 3; break;
+            default: k = ruleCount; break; // Hard, 13 Rules
+        }
+        return Mathf.Clamp(k, 0, ruleCount);
+    }
+
+    /// <summary>SERVER. Picks this round's rules once (per MatchDirector). False while the round is not set up.</summary>
+    private static bool ServerPickRulesIfNeeded(MatchDirector match)
+    {
+        if (match != null ? ReferenceEquals(match, pickedForMatch) : pickedOffline) return true;
+        if (match != null && !match.ServerTaskPlan(out _, out _, out _, out _)) return false; // difficulty not known yet
+        if (match != null) pickedForMatch = match; else pickedOffline = true;
+        DifficultyLevel level = match != null ? match.Difficulty : DifficultyLevel.Normal;
+
+        var groups = new Dictionary<string, List<ZoneRuleBase>>();
+        foreach (ZoneRuleBase r in All)
+        {
+            if (r == null || !r.IsServerSide) continue;
+            string g = r.ZoneGroup;
+            if (!groups.TryGetValue(g, out List<ZoneRuleBase> list)) groups[g] = list = new List<ZoneRuleBase>();
+            list.Add(r);
+        }
+        foreach (KeyValuePair<string, List<ZoneRuleBase>> pair in groups)
+        {
+            var titles = new List<string>();
+            foreach (ZoneRuleBase r in pair.Value) if (!titles.Contains(r.ruleTitle)) titles.Add(r.ruleTitle);
+            for (int i = titles.Count - 1; i > 0; i--) { int j = Random.Range(0, i + 1); (titles[i], titles[j]) = (titles[j], titles[i]); }
+            int k = RulesForDifficulty(level, titles.Count);
+            var chosen = titles.GetRange(0, k);
+            foreach (ZoneRuleBase r in pair.Value) r.activeThisRound = chosen.Contains(r.ruleTitle);
+            Debug.Log($"[Rules] {level}: {pair.Key} uses {k} of {titles.Count} rules this round: {string.Join(", ", chosen)}");
+        }
+        return true;
     }
 
     /// <summary>In-game hour 0..7 (0 when there is no match).</summary>

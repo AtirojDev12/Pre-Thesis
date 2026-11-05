@@ -243,9 +243,12 @@ public class PlayerInventory : NetworkBehaviour
             }
 
         // Order: the hotbar choice first, then the rest.
+        // 5 Nov: a match also brings "carry from lobby" items that were in the lobby hotbar
+        // (the work sheet). They are not in the save, so they are only ever carried in once.
         var order = new List<string>();
         if (HotbarChoice != null)
-            foreach (string id in HotbarChoice) if (owned.Contains(id) && !order.Contains(id)) order.Add(id);
+            foreach (string id in HotbarChoice)
+                if ((owned.Contains(id) || (!lobby && ItemCatalog.Find(id)?.carryFromLobby == true)) && !order.Contains(id)) order.Add(id);
         bool matchWithChoice = !lobby && HotbarChoice != null;
         if (!matchWithChoice)
             foreach (string id in owned) if (!order.Contains(id)) order.Add(id);
@@ -369,6 +372,11 @@ public class PlayerInventory : NetworkBehaviour
                 if (ServerAddItem(id)) added++;
                 else if (lobby) ServerStore(InventorySlot.Of(id)); // 8 Oct: the rest waits in storage
             }
+            else if (info.carryFromLobby)
+            {
+                // 5 Nov: the work sheet. Match only, one copy, never into storage.
+                if (!lobby && ServerCountOf(id) == 0 && ServerAddItem(id)) added++;
+            }
             else if (info.Stackable)
             {
                 InventorySlot stack = InventorySlot.Of(id);
@@ -408,7 +416,7 @@ public class PlayerInventory : NetworkBehaviour
         else if (Keybinds.WasPressed(GameAction.Hotbar4)) RequestSelect(3);
 
         Mouse mouse = Mouse.current;
-        if (mouse != null && Cursor.lockState == CursorLockMode.Locked)
+        if (mouse != null && Cursor.lockState == CursorLockMode.Locked && !WorksheetReader.IsReading) // 5 Nov: the wheel scrolls the sheet
         {
             float scroll = mouse.scroll.ReadValue().y;
             if (scroll > 0.01f) RequestSelect((selectedSlot + SlotCount - 1) % SlotCount);

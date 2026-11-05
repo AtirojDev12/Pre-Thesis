@@ -51,6 +51,11 @@ public class WalkieTalkieController : MonoBehaviour
 
         // Talk: held, powered walkie + key held down.
         bool wantTalk = canUseHands && inventory.IsHoldingPoweredRadio && Keybinds.IsPressed(GameAction.WalkieTalk);
+        // 5 Nov (Mr.k): downed = any switched-on walkie in the hotbar works (no need to hold it).
+        bool downed = health != null && health.IsDowned && !health.IsDead;
+        if (downed && !GameplayInput.Blocked && Cursor.lockState == CursorLockMode.Locked
+            && inventory.HasPoweredRadio && Keybinds.IsPressed(GameAction.WalkieTalk))
+            wantTalk = true;
         voice.RequestRadioTransmit(wantTalk);
 
         UpdateHeldModel();

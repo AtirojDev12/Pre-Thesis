@@ -235,6 +235,8 @@ public class MatchDirector : NetworkBehaviour
     [SerializeField, Min(0)] private int extraZonesPerPlayer = 1;
     [Tooltip("Never more than this many zones (also never more than the map has).")]
     [SerializeField, Min(1)] private int maxZonesToFinish = 6;
+    // 5 Nov (Mr.k): if the map has a MapGuide asset (Resources/MapGuides/<mapID>), its three
+    // numbers win, so the lobby work sheet and the real round always say the same.
 
     /// <summary>
     /// Zones the team must finish tonight: 1 player = 2, +1 per extra player, max 6,
@@ -245,8 +247,11 @@ public class MatchDirector : NetworkBehaviour
     {
         int inMap = registeredZones.Count;
         if (!roundConfigured) return inMap;
-        int wanted = zonesForOnePlayer + extraZonesPerPlayer * Mathf.Max(0, startPlayerCount - 1);
-        return Mathf.Min(inMap, Mathf.Clamp(wanted, 1, maxZonesToFinish));
+        int forOne = zonesForOnePlayer, perPlayer = extraZonesPerPlayer, max = maxZonesToFinish;
+        MapGuide guide = MapGuide.LoadAsset(syncedMapID);
+        if (guide != null) { forOne = guide.zonesForOnePlayer; perPlayer = guide.extraZonesPerPlayer; max = guide.maxZonesToFinish; }
+        int wanted = forOne + perPlayer * Mathf.Max(0, startPlayerCount - 1);
+        return Mathf.Min(inMap, Mathf.Clamp(wanted, 1, max));
     }
 
     // ---- 31 Oct (Mr.k): everyone back to the lobby by itself after the round ----
