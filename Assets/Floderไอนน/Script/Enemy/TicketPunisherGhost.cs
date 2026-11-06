@@ -1,4 +1,5 @@
 using Mirror;
+using System.Collections;
 using UnityEngine;
 
 /// <summary>Stationary ticket punishment, driven by accepted sales on the server.</summary>
@@ -6,7 +7,8 @@ public class TicketPunisherGhost : Enemy_Abstract_Class
 {
     [Header("Punishment Settings")]
     [SerializeField, Min(1)] private int maxWrongAttempts = 3;
-    [SerializeField, Min(0)] private float riseAmountPerMistake = 0.8f;
+    [Header("Wall Appearance")]
+    [SerializeField, Min(0.01f)] private float emergeDuration = 0.8f;
     [SerializeField, Min(0)] private float attackDamage = 40f;
     [Header("Jumpscare")]
     [SerializeField] private GameObject jumpscareUI;
@@ -20,13 +22,31 @@ public class TicketPunisherGhost : Enemy_Abstract_Class
     private Animator ghostAnimator;
     private TicketGhostSpawner owner;
     private bool isShowingJumpscare;
+    private Vector3 wallNormal;
+    private float emergeDistance;
+    private Coroutine emergeRoutine;
 
-    public void Initialize(TicketGhostSpawner spawner)
+    public void Initialize(TicketGhostSpawner spawner, Collider wall = null)
     {
         owner = spawner;
-        // The authored spawn point already describes the hidden position.
+        wallNormal = transform.forward;
+        float halfDepth = 0.5f;
+        foreach (Renderer visual in GetComponentsInChildren<Renderer>())
+            halfDepth = Mathf.Max(halfDepth, ProjectExtent(visual.bounds.extents, wallNormal));
+        float wallHalfDepth = wall != null ? ProjectExtent(wall.bounds.extents, wallNormal) : 0f;
         initialPosition = transform.position;
+        if (wall != null)
+        {
+            // Keep the authored height and lateral placement, but start fully behind this wall.
+            float surfaceDistance = Vector3.Dot(wall.bounds.center - initialPosition, wallNormal);
+            initialPosition += wallNormal * (surfaceDistance - wallHalfDepth - halfDepth - 0.15f);
+        }
+        emergeDistance = 2f * (halfDepth + wallHalfDepth) + 0.25f;
+        transform.position = initialPosition;
     }
+
+    private static float ProjectExtent(Vector3 extents, Vector3 direction) =>
+        Vector3.Dot(extents, new Vector3(Mathf.Abs(direction.x), Mathf.Abs(direction.y), Mathf.Abs(direction.z)));
 
     protected override void Start()
     {
@@ -60,11 +80,32 @@ public class TicketPunisherGhost : Enemy_Abstract_Class
 
     public void RecordWrongSale(PlayerHealth seller)
     {
-        if (!HasAiAuthority || isAttackTriggered || !PlayerRegistry.IsHuntable(seller)) return;
+        // Appearance follows accepted mistakes even in developer God Mode.
+        // Untargetability still blocks the attack in TriggerJumpscare below.
+        if (!HasAiAuthority || isAttackTriggered || seller == null || seller.IsDowned ||
+            !PlayerRegistry.IsInRound(seller)) return;
         currentWrongCount++;
-        transform.position = initialPosition + Vector3.up * (currentWrongCount * riseAmountPerMistake);
+        if (emergeRoutine != null) StopCoroutine(emergeRoutine);
+        Vector3 target = initialPosition + wallNormal *
+            (emergeDistance * Mathf.Clamp01((float)currentWrongCount / Mathf.Max(1, maxWrongAttempts)));
+        emergeRoutine = StartCoroutine(Emerge(target));
         if (currentWrongCount >= Mathf.Max(1, maxWrongAttempts)) TriggerJumpscare(seller);
         else GetComponent<GhostWarningSource>()?.WarnPlayer(seller);
+    }
+
+    private IEnumerator Emerge(Vector3 target)
+    {
+        Vector3 start = transform.position;
+        float elapsed = 0f;
+        while (elapsed < emergeDuration)
+        {
+            elapsed += Time.deltaTime;
+            transform.position = Vector3.Lerp(start, target,
+                Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / emergeDuration)));
+            yield return null;
+        }
+        transform.position = target;
+        emergeRoutine = null;
     }
 
     protected override void CheckForPlayer() { }

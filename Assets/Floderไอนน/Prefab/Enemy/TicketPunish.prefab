@@ -164,7 +164,7 @@ MonoBehaviour:
     m_Bits: 0
   canDetectMic: 1
   maxWrongAttempts: 3
-  riseAmountPerMistake: 1
+  emergeDuration: 0.8
   attackDamage: 40
   jumpscareDuration: 3
   attackTriggerName: Attack

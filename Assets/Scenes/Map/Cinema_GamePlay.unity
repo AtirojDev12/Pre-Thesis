@@ -6236,6 +6236,7 @@ MonoBehaviour:
   ruleText: 'If every customer stands and stares at you: stay still. When they sit,
     leave at once. Else they chase you (inside the room only).'
   zone: {fileID: 1400358394}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   audience: {fileID: 1461493711}
@@ -38849,6 +38850,7 @@ MonoBehaviour:
     change the film: sit on the shadow''s seat until the screen goes dark, then change
     the film. Else a ghost roams all night.'
   zone: {fileID: 1400358394}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   audience: {fileID: 1461493711}
@@ -46465,6 +46467,7 @@ MonoBehaviour:
   ruleText: 'If a mirror has a crack, look at it for a while. Else it shatters: jumpscare,
     damage and sanity for everyone inside.'
   zone: {fileID: 1374735382}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   mirrors:
@@ -51820,6 +51823,7 @@ MonoBehaviour:
     box in (drop spot at the last stall) and get out fast. Else the ghosts swarm
     you.'
   zone: {fileID: 1374735382}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   toiletLight: {fileID: 1828393756}
@@ -81163,6 +81167,7 @@ MonoBehaviour:
   ticketGhostPrefab: {fileID: 1861064145875742129, guid: d96fcc698428e5448afba5a14428759e, type: 3}
   minigame: {fileID: 1116862671}
   spawnPoint: {fileID: 2054884402}
+  appearanceWall: {fileID: 2111063089}
   respawnDelay: 2
 --- !u!1 &683719927
 GameObject:
@@ -92062,6 +92067,7 @@ MonoBehaviour:
   ruleText: 'If the last stall is closed and someone cries inside: turn off the toilet
     light at once and stay still. Else a ghost comes out and chases you.'
   zone: {fileID: 1374735382}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   toiletLight: {fileID: 1828393756}
@@ -92570,6 +92576,7 @@ MonoBehaviour:
   ruleText: Inside the ghost room do not make noise over the limit (loud talking,
     sprinting). Big sanity drop.
   zone: {fileID: 1400358394}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   noiseLimit: 0.8
@@ -202488,6 +202495,7 @@ MonoBehaviour:
     box in (drop spot at the last stall) and get out fast. Else the ghosts swarm
     you.'
   zone: {fileID: 1852690109}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   toiletLight: {fileID: 487567765}
@@ -214732,6 +214740,7 @@ MonoBehaviour:
   ruleText: 'If smoke comes out of a stall: knock on that door, then turn off the
     light. Else health drains until it goes, and this toilet''s chores lock.'
   zone: {fileID: 1852690109}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   toiletLight: {fileID: 487567765}
@@ -237804,13 +237813,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2054884401}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 7.137, y: -1.2, z: 11.647}
+  m_LocalRotation: {x: 0, y: -0.7071068, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 8.797398, y: 1.25, z: 11.564123}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 682732019}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -90, z: 0}
 --- !u!1 &2056659894
 GameObject:
   m_ObjectHideFlags: 0
@@ -240922,6 +240931,7 @@ MonoBehaviour:
   ruleText: 'If a mirror has a crack, look at it for a while. Else it shatters: jumpscare,
     damage and sanity for everyone inside.'
   zone: {fileID: 1852690109}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   mirrors:
@@ -247024,6 +247034,7 @@ MonoBehaviour:
   ruleText: Do not look at the customers watching the movie. You lose health while
     you look.
   zone: {fileID: 1400358394}
+  zoneGroup: 
   showBrokenMessage: 1
   debugLog: 1
   audience: {fileID: 1461493711}

@@ -8,6 +8,8 @@ public class TicketGhostSpawner : NetworkBehaviour, IDevGhostSource
     [SerializeField] private TicketMinigame minigame;
     [Header("Spawn Position")]
     [SerializeField] private Transform spawnPoint;
+    [Tooltip("The specific booth wall the ghost emerges through; spawn point forward faces into the booth.")]
+    [SerializeField] private Collider appearanceWall;
     [Header("Respawn Delay")]
     [SerializeField, Min(0)] private float respawnDelay = 2f;
 
@@ -15,7 +17,14 @@ public class TicketGhostSpawner : NetworkBehaviour, IDevGhostSource
     private bool subscribed;
     private bool HasAuthority => NetworkMode.HasServerAuthority(this);
 
-    public override void OnStartServer() => BeginSpawning();
+    public override void OnStartServer()
+    {
+        // Direct Play can create the offline ghost before a host starts. That
+        // existing instance must join the server too, otherwise it rejects sales.
+        if (currentGhost != null && !currentGhost.isServer)
+            NetworkServer.Spawn(currentGhost.gameObject);
+        BeginSpawning();
+    }
 
     private void Start()
     {
@@ -52,7 +61,7 @@ public class TicketGhostSpawner : NetworkBehaviour, IDevGhostSource
             Destroy(instance);
             return;
         }
-        currentGhost.Initialize(this);
+        currentGhost.Initialize(this, appearanceWall);
         if (NetworkServer.active) NetworkServer.Spawn(instance);
     }
 

@@ -1,4 +1,8 @@
-param([string] $UnityPath = 'C:/InstallUnity/6000.5.7f1/Editor/Unity.exe')
+param(
+    [string] $UnityPath = 'C:/InstallUnity/6000.5.7f1/Editor/Unity.exe',
+    [ValidateSet('Regression', 'WallMotion', 'WallMotionOffline')]
+    [string] $Suite = 'Regression'
+)
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $testRoot = Join-Path $repoRoot '.utmp/ticket-regression'
@@ -11,10 +15,23 @@ foreach ($folder in @('Assets', 'Packages', 'ProjectSettings', 'Library/PackageC
 $editorPath = Join-Path $projectPath 'Assets/Editor'
 New-Item -ItemType Directory -Force $editorPath | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'TicketRegressionRunner.cs') $editorPath -Force
-$logPath = Join-Path $testRoot 'unity.log'
-$resultPath = Join-Path $projectPath 'ticket-results.txt'
+Copy-Item (Join-Path $PSScriptRoot 'TicketWallMotionRunner.cs') $editorPath -Force
+$method = 'TicketRegressionRunner.Build'
+$resultName = 'ticket-results.txt'
+$logName = 'unity.log'
+if ($Suite -eq 'WallMotion') {
+    $method = 'TicketWallMotionRunner.Build'
+    $resultName = 'ticket-wall-motion-results.txt'
+    $logName = 'wall-motion.log'
+} elseif ($Suite -eq 'WallMotionOffline') {
+    $method = 'TicketWallMotionRunner.BuildOffline'
+    $resultName = 'ticket-wall-offline-results.txt'
+    $logName = 'wall-offline.log'
+}
+$logPath = Join-Path $testRoot $logName
+$resultPath = Join-Path $projectPath $resultName
 if (Test-Path -LiteralPath $resultPath) { Remove-Item -LiteralPath $resultPath }
-$arguments = '-batchmode -force-d3d11 -projectPath "{0}" -executeMethod TicketRegressionRunner.Build -logFile "{1}"' -f $projectPath, $logPath
+$arguments = '-batchmode -force-d3d11 -projectPath "{0}" -executeMethod {1} -logFile "{2}"' -f $projectPath, $method, $logPath
 $process = Start-Process $UnityPath -ArgumentList $arguments -WindowStyle Hidden -PassThru
 if (!$process.WaitForExit(600000)) { Stop-Process -Id $process.Id; throw "Unity checks timed out. See $logPath" }
 if (!(Test-Path -LiteralPath $resultPath)) { throw "Unity did not produce results. See $logPath" }

@@ -22,6 +22,8 @@ public static class TicketRegressionRunner
         {
             if (change == PlayModeStateChange.EnteredPlayMode && SessionState.GetBool("TicketChecks", false))
             {
+                EditorSceneManager.LoadSceneInPlayMode("Assets/Scenes/Map/Cinema_GamePlay.unity",
+                    new UnityEngine.SceneManagement.LoadSceneParameters(UnityEngine.SceneManagement.LoadSceneMode.Additive));
                 var loop = UnityEngine.LowLevel.PlayerLoop.GetCurrentPlayerLoop();
                 var systems = loop.subSystemList.ToList();
                 systems.Add(new UnityEngine.LowLevel.PlayerLoopSystem { type = typeof(TicketRegressionRunner), updateDelegate = CheckGameplay });
@@ -56,7 +58,7 @@ public static class TicketRegressionRunner
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Floderไอนน/Prefab/Enemy/TicketPunish.prefab");
         var networkManager = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefab/NetworkManager.prefab").GetComponent<NetworkManager>();
         Check(networkManager.spawnPrefabs.Contains(prefab), "Ticket ghost registered for client spawning");
-        Check(prefab.GetComponent<NetworkTransformReliable>() != null, "Ticket ghost replicates rising position");
+        Check(prefab.GetComponent<NetworkTransformReliable>() != null, "Ticket ghost replicates wall emergence");
         Check(!prefab.GetComponent<Collider>().enabled, "Stationary ghost cannot block the booth");
         var hud = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefab/GAME HUD.prefab");
         var hudOverlay = hud.GetComponentsInChildren<UnityEngine.UI.Image>(true)
@@ -280,6 +282,36 @@ public static class TicketRegressionRunner
         EditorApplication.Exit(failures == 0 ? 0 : 1);
     }
 
+    static void CaptureWallStages(TicketPunisherGhost ghost, Collider wall)
+    {
+        Vector3 hidden = ghost.transform.position;
+        float distance = (float)Get(ghost, "emergeDistance");
+        var cameraObject = new GameObject("Wall emergence preview", typeof(Camera));
+        var camera = cameraObject.GetComponent<Camera>();
+        camera.transform.position = new Vector3(wall.bounds.min.x - 3f, hidden.y + 0.2f, hidden.z - 0.5f);
+        camera.transform.LookAt(new Vector3(wall.bounds.center.x, hidden.y, hidden.z));
+        camera.fieldOfView = 55f;
+        var target = new RenderTexture(800, 600, 24);
+        camera.targetTexture = target;
+        for (int stage = 0; stage <= 2; stage++)
+        {
+            ghost.transform.position = hidden + ghost.transform.forward * distance * stage / 3f;
+            camera.Render();
+            RenderTexture.active = target;
+            var texture = new Texture2D(800, 600, TextureFormat.RGB24, false);
+            texture.ReadPixels(new Rect(0, 0, 800, 600), 0, 0);
+            texture.Apply();
+            File.WriteAllBytes("ticket-wall-stage-" + stage + ".png", texture.EncodeToPNG());
+            Object.Destroy(texture);
+        }
+        ghost.transform.position = hidden;
+        RenderTexture.active = null;
+        camera.targetTexture = null;
+        target.Release();
+        Object.Destroy(target);
+        Object.Destroy(cameraObject);
+    }
+
     static void CheckTicketPunishment(TicketMinigame manager, PlayerHealth seller)
     {
         Set(seller, "currentHealth", 100f);
@@ -287,9 +319,17 @@ public static class TicketRegressionRunner
         Set(seller, "isDead", false);
         Set(seller, "_invincibleUntil", float.NegativeInfinity);
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Floderไอนน/Prefab/Enemy/TicketPunish.prefab");
+        var cinemaScene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath("Assets/Scenes/Map/Cinema_GamePlay.unity");
+        var sceneSpawner = Object.FindObjectsByType<TicketGhostSpawner>(FindObjectsInactive.Include)
+            .First(source => source.gameObject.scene == cinemaScene);
+        var wall = (Collider)Get(sceneSpawner, "appearanceWall");
+        var authoredSpawn = (Transform)Get(sceneSpawner, "spawnPoint");
+        Check(wall != null && wall.name == "Cube (5)" && wall.transform.parent == ((TicketMinigame)Get(sceneSpawner, "minigame")).transform,
+            "Scene references the actual Cube (5) rear wall inside Ticket Minigame");
         var root = new GameObject("Ticket Spawner Test", typeof(NetworkIdentity), typeof(TicketGhostSpawner));
         var spawner = root.GetComponent<TicketGhostSpawner>();
-        root.transform.position = new Vector3(20, -1.2f, 20);
+        Set(spawner, "spawnPoint", authoredSpawn);
+        Set(spawner, "appearanceWall", wall);
         Set(spawner, "minigame", manager);
         Set(spawner, "ticketGhostPrefab", prefab);
         Call(spawner, "Start");
@@ -313,7 +353,12 @@ public static class TicketRegressionRunner
         var roamingManager = Object.FindObjectOfType<GhostManager>();
         roamingManager.Invoke("DespawnGhost", 60f);
         Vector3 hidden = ghost.transform.position;
-        Check(hidden == root.transform.position, "Ghost uses authored hidden height without another downward offset");
+        Check(Vector3.Distance(hidden, authoredSpawn.position) < 0.01f && hidden.y > 1f &&
+              ghost.GetComponent<Renderer>().bounds.min.x > wall.bounds.max.x,
+            "Ghost spawns fully behind the real Cube (5), at body height, before any wrong sale");
+        Check(Vector3.Dot(ghost.transform.forward, Vector3.left) > 0.99f,
+            "Authored spawn points left through Cube (5) into the booth");
+        CaptureWallStages(ghost, wall);
         spawner.SpawnNewGhost();
         Check(ReferenceEquals(ghost, Get(spawner, "currentGhost")), "Repeated spawn does not create another ghost");
         Call(spawner, "OnSaleResolved", seller, true);
@@ -331,10 +376,20 @@ public static class TicketRegressionRunner
         bystander.transform.position = hidden;
         float bystanderHealth = bystander.CurrentHealth;
         seller.transform.position = hidden + Vector3.right * 10f;
+        seller.transform.rotation = Quaternion.identity;
+        Set(ghost, "emergeDuration", 0f); // Complete motion synchronously for sale assertions.
         Call(spawner, "OnSaleResolved", seller, false);
+        Vector3 wallHidden = (Vector3)Get(ghost, "initialPosition");
+        Vector3 firstAppearance = ghost.transform.position;
+        Check(ghost.GetComponent<Renderer>().bounds.min.x < wall.bounds.min.x,
+            "First mistake visibly protrudes through the booth-facing surface of Cube (5)");
+        seller.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
         Call(spawner, "OnSaleResolved", seller, false);
         Check(Mathf.Approximately(seller.CurrentHealth, 100f) &&
-              Mathf.Approximately(ghost.transform.position.y, hidden.y + 2f), "Two mistakes raise ghost without attacking");
+              Mathf.Approximately(ghost.transform.position.y, wallHidden.y) &&
+              ghost.transform.position.x < firstAppearance.x &&
+              (Vector3)Get(ghost, "initialPosition") == wallHidden,
+              "Two mistakes emerge horizontally from the same wall without attacking or following seller rotation");
         seller.transform.position = ((TicketSellButton)Get(manager, "humanButton")).transform.position;
         Set(manager, "state", new TicketCustomerState
         {
@@ -359,9 +414,11 @@ public static class TicketRegressionRunner
             "Respawn resets mistake count and hidden position");
         Call(spawner, "StopSpawning");
         Check(!spawner.IsInvoking("SpawnNewGhost"), "Teardown cancels pending respawn");
+        UnityEngine.SceneManagement.SceneManager.UnloadSceneAsync(cinemaScene);
         Object.Destroy(root);
         Object.Destroy(replacement.gameObject);
         Object.Destroy(bystanderObject);
+        Object.Destroy(wall);
         roamingManager.CancelInvoke("DespawnGhost");
         Object.Destroy(overlay);
         foreach (var existing in otherOverlays) if (existing != null) existing.tag = "JumpscareUI";
