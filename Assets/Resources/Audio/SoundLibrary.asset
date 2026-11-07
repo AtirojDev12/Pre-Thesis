@@ -13,6 +13,24 @@ MonoBehaviour:
   m_Name: SoundLibrary
   m_EditorClassIdentifier: Assembly-CSharp::SoundLibrary
   sounds:
+  - id: UI_MenuOpen
+    clips:
+    - {fileID: 8300000, guid: 200cd0e2296e79b4e8b126dd2e632427, type: 3}
+    category: 1
+    volume: 0.5
+    spatial: 0
+    minDistance: 1
+    maxDistance: 15
+    cooldown: 0
+  - id: Chore_Sweep
+    clips:
+    - {fileID: 8300000, guid: 0dd5f98aa0cfab043b03d1b071400ecd, type: 3}
+    category: 1
+    volume: 0.2
+    spatial: 1
+    minDistance: 2
+    maxDistance: 5
+    cooldown: 0
   - id: Ticket_MovieClick
     clips:
     - {fileID: 8300000, guid: fae445c8d9ea510439d84a1d6303a304, type: 3}
@@ -60,7 +78,7 @@ MonoBehaviour:
     cooldown: 0.025
   - id: UI_Hover
     clips:
-    - {fileID: 8300000, guid: 36260855fddd9f5478f46c1931acf16a, type: 3}
+    - {fileID: 8300000, guid: c8966d3fda0443d4a9db25d00956ead6, type: 3}
     category: 1
     volume: 0.45
     spatial: 0

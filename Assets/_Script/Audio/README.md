@@ -16,6 +16,17 @@ pages and leave confirmation, has one `UISoundEmitter` at startup. It uses the
 same `UI_Click` sound, with hover disabled on these buttons, without rebuilding
 the existing prefab. MainMenu buttons keep `UI_Hover` enabled.
 
+Opening the ESC menu plays `UI_MenuOpen` using
+`ui_pause_menu_open_bright_keyboard_v3` once, locally in 2D. Closing it or
+returning from Settings does not replay the opening sound. Gameplay keeps running.
+
+Cleaning chores (`CleanScreenRoom` and `CleanToilet`, including bonus spots)
+loop `Chore_Sweep` using `gentle_broom_short_4beat_v11` while the accepted hold
+is active. Each spot uses its own 3D SFX source (2–15 metres), following the
+existing replicated worker/start time. Release, completion, round/session end
+and disable stop playback; joining observers seek to the current loop position.
+Film changes keep their existing projector sound. Both new clips preload audio.
+
 The existing `AdvancedLightLoop` in MainMenu controls its configured light group:
 
 - `LongRun` loops on a separate, scene-owned 2D Ambient source.

@@ -161,6 +161,7 @@ public class PauseMenuController : MonoBehaviour
         EnsureEventSystem();
         content.SetActive(true);
         ShowPause();
+        AudioManager.Instance?.PlayUI("UI_MenuOpen");
 
         GameplayInput.Blocked = true;
         Cursor.lockState = CursorLockMode.None;
