@@ -10,10 +10,11 @@ using UnityEngine.AI;
 ///      flicker, and both RESTROOM BREAK signs appear at their orange spots.
 ///      Players have 10 s: put each sign on its blue spot, switch the lights OFF, stay quiet.
 ///   2. The ghost comes (short light cut, the special ingredient vanishes). It walks:
-///        Popcorn sign -> sign not placed and a player in the green seller area = attack him.
-///                        Else stand 3 s.
-///        Ticket sign  -> same.
-///        Then roams inside the yellow roam area until its time (21 s) is over.
+///        Popcorn sign's RED stop spot -> sign not on its blue spot and a player in the green
+///                        seller area = attack him. Else stand 3 s.
+///        Ticket sign's RED stop spot  -> same.
+///        Then roams inside the yellow roam area until its time (21 s) is over, never into a
+///        green seller area (Popcorn / Ticket seller: behind the counters).
 ///      If it senses a player on the way (sees in the light, hears in the dark) it chases and
 ///      attacks (the visit ends). A noise that is not a player: it checks it, then goes on.
 ///   3. The ghost leaves: the signs vanish and the lights come back ON by themselves.
@@ -48,7 +49,6 @@ public sealed class TicketGhostVisit : MonoBehaviour
     private float legStarted;
     private float waitUntil = -1f;
     private float nextPath;
-    private Vector3 roamTarget;
     private bool hasRoamTarget;
 
     private void Awake()
@@ -114,7 +114,9 @@ public sealed class TicketGhostVisit : MonoBehaviour
                 continue;
             }
 
-            Vector3 at = sign.CurrentPosition;
+            // 7 Nov (Mr.k): the ghost walks to the sign's RED stop spot (in front of the counter),
+            // not to the sign itself (which may be inside the shop).
+            Vector3 at = sign.GhostStopPosition;
             bool arrived = Flat(ghost.transform.position - at) <= arriveDistance ||
                            (!agent.pathPending && agent.hasPath && agent.remainingDistance <= Mathf.Max(0.5f, agent.stoppingDistance) &&
                             Flat(agent.destination - at) <= arriveDistance + 1.5f) ||
@@ -124,7 +126,8 @@ public sealed class TicketGhostVisit : MonoBehaviour
                 if (Time.time >= nextPath)
                 {
                     nextPath = Time.time + 0.25f;
-                    if (NavMesh.SamplePosition(at, out NavMeshHit hit, 3f, NavMesh.AllAreas)) agent.SetDestination(hit.position);
+                    if (NavMesh.SamplePosition(at, out NavMeshHit hit, 1.5f, NavMesh.AllAreas) ||
+                        NavMesh.SamplePosition(at, out hit, 3f, NavMesh.AllAreas)) agent.SetDestination(hit.position);
                     else agent.SetDestination(at);
                 }
                 return true;
@@ -156,27 +159,58 @@ public sealed class TicketGhostVisit : MonoBehaviour
         legStarted = Time.time;
     }
 
+    private NavMeshPath roamPath;
+
+    /// <summary>
+    /// 7 Nov (Mr.k): roam inside the yellow area, but NEVER into a green seller area (Popcorn /
+    /// Ticket seller): the target and the whole path must stay outside them. (Chasing a player
+    /// or punishing a broken sign rule may still go in.)
+    /// </summary>
     private bool Roam(NavMeshAgent agent)
     {
         if (roamArea == null) return false;
         bool reached = hasRoamTarget && !agent.pathPending &&
                        (!agent.hasPath || agent.remainingDistance <= Mathf.Max(1f, agent.stoppingDistance));
-        if (!hasRoamTarget || reached)
+        if (hasRoamTarget && !reached) return true;
+        if (Time.time < nextPath) { StandStill(agent); return true; }
+        nextPath = Time.time + 0.3f;
+        if (roamPath == null) roamPath = new NavMeshPath();
+        for (int tries = 0; tries < 12; tries++)
         {
-            for (int tries = 0; tries < 8; tries++)
-            {
-                Vector3 local = new Vector3(Random.Range(-0.5f, 0.5f), 0f, Random.Range(-0.5f, 0.5f));
-                Vector3 world = roamArea.TransformPoint(local);
-                if (NavMesh.SamplePosition(world, out NavMeshHit hit, 2f, NavMesh.AllAreas))
-                {
-                    roamTarget = hit.position;
-                    hasRoamTarget = true;
-                    agent.SetDestination(roamTarget);
-                    break;
-                }
-            }
+            Vector3 local = new Vector3(Random.Range(-0.5f, 0.5f), 0f, Random.Range(-0.5f, 0.5f));
+            Vector3 world = roamArea.TransformPoint(local);
+            if (!NavMesh.SamplePosition(world, out NavMeshHit hit, 2f, NavMesh.AllAreas)) continue;
+            if (InAnySellerArea(hit.position)) continue;
+            if (!NavMesh.CalculatePath(agent.transform.position, hit.position, NavMesh.AllAreas, roamPath) ||
+                roamPath.status != NavMeshPathStatus.PathComplete || PathEntersSellerArea(roamPath)) continue;
+            hasRoamTarget = true;
+            agent.SetPath(roamPath);
+            return true;
         }
+        hasRoamTarget = false;
+        StandStill(agent); // nothing safe found this time: wait, try again shortly
         return true;
+    }
+
+    private bool InAnySellerArea(Vector3 point)
+    {
+        foreach (RestBreakSign sign in signs)
+            if (sign != null && sign.InSellerArea(point + Vector3.up * 0.5f)) return true;
+        return false;
+    }
+
+    /// <summary>Checks the path corners and points every 0.5 m between them.</summary>
+    private bool PathEntersSellerArea(NavMeshPath path)
+    {
+        Vector3[] corners = path.corners;
+        for (int i = 1; i < corners.Length; i++)
+        {
+            Vector3 a = corners[i - 1], b = corners[i];
+            int steps = Mathf.Max(1, Mathf.CeilToInt(Vector3.Distance(a, b) / 0.5f));
+            for (int s = 1; s <= steps; s++)
+                if (InAnySellerArea(Vector3.Lerp(a, b, s / (float)steps))) return true;
+        }
+        return false;
     }
 
     private static void StandStill(NavMeshAgent agent)

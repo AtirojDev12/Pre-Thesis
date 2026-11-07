@@ -14,6 +14,7 @@ using UnityEngine;
 ///   ... Appear Spot (orange)               where each sign appears        -> MOVE it
 ///   ... Put Here Spot (blue)               where each sign must be put    -> MOVE it
 ///   ... Seller Area (green)                the box the ghost checks for players (scale = size)
+///   ... Ghost Stops Here (red)             where the ghost walks to and stops (in front of the counter)
 ///   Ghost Roam Area (yellow)               where the ghost roams after both signs (scale = size)
 /// First guess: near the popcorn stations / ticket counter. Move the spots, then save the scene.
 /// Running it again asks before rebuilding (rebuilding resets your positions).
@@ -79,6 +80,31 @@ public static class TicketGhostSignsSetup
                   "the GREEN seller areas and the YELLOW roam area, then save the scene.", root);
     }
 
+    /// <summary>7 Nov: signs made before the red spot existed get one (1 m in front of the blue spot). Positions are kept.</summary>
+    [MenuItem("Tools/Pre-Thesis/Scenes/Map: Ticket Ghost - Add Ghost Stop Spots (red)", false, 63)]
+    private static void AddStopSpots()
+    {
+        if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog("Ghost Stop Spots", "Stop Play mode first.", "OK"); return; }
+        int added = 0;
+        foreach (RestBreakSign sign in Object.FindObjectsByType<RestBreakSign>(FindObjectsInactive.Include))
+        {
+            if (sign.HasGhostStopSpot) continue;
+            Transform parent = sign.PlaceSpotTransform != null ? sign.PlaceSpotTransform.parent : sign.transform.parent;
+            Transform stop = new GameObject(sign.SellerName + " Sign - Ghost Stops Here (red)").transform;
+            Undo.RegisterCreatedObjectUndo(stop.gameObject, "Ghost stop spot");
+            stop.SetParent(parent, false);
+            stop.position = Floor(sign.GhostStopPosition);
+            var so = new SerializedObject(sign);
+            so.FindProperty("ghostStopSpot").objectReferenceValue = stop;
+            so.ApplyModifiedProperties();
+            EditorSceneManager.MarkSceneDirty(sign.gameObject.scene);
+            added++;
+        }
+        Debug.Log(added > 0
+            ? "[TicketGhostSignsSetup] Added " + added + " RED ghost stop spot(s). Move each in front of its counter (on the floor), then save the scene."
+            : "[TicketGhostSignsSetup] Every sign already has a red ghost stop spot.");
+    }
+
     private static RestBreakSign MakeStation(Transform root, string seller, Vector3 at)
     {
         Vector3 floor = Floor(at);
@@ -112,8 +138,13 @@ public static class TicketGhostSignsSetup
         Label(go.transform, "Front Text", new Vector3(0f, 0.5f, -0.115f), new Vector3(-11f, 0f, 0f));
         Label(go.transform, "Back Text", new Vector3(0f, 0.5f, 0.115f), new Vector3(11f, 180f, 0f));
 
+        Transform stop = new GameObject(seller + " Sign - Ghost Stops Here (red)").transform;
+        stop.SetParent(root, false);
+        stop.position = floor + new Vector3(-1.2f, 0f, -1.2f);
+
         RestBreakSign sign = go.AddComponent<RestBreakSign>();
         var so = new SerializedObject(sign);
+        so.FindProperty("ghostStopSpot").objectReferenceValue = stop;
         so.FindProperty("appearSpot").objectReferenceValue = appear;
         so.FindProperty("placeSpot").objectReferenceValue = place;
         so.FindProperty("sellerArea").objectReferenceValue = area;

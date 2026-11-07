@@ -6544,8 +6544,8 @@ Transform:
   m_GameObject: {fileID: 68644116}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -10.950001, y: 1.5, z: 11.049998}
-  m_LocalScale: {x: 5, y: 3, z: 4}
+  m_LocalPosition: {x: -7.21, y: 1.5, z: 13.175}
+  m_LocalScale: {x: 3.13, y: 3.06, z: 3.27}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 724675761}
@@ -9295,6 +9295,37 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 7552750119785610699, guid: 53ae1ce63e397f14eb8cf2bd24f0495d, type: 3}
   m_PrefabInstance: {fileID: 1320338241}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &104336506
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 104336507}
+  m_Layer: 0
+  m_Name: Popcorn Sign - Ghost Stops Here (red)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &104336507
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 104336506}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -20.202, y: 4.1942422e-16, z: 9.879}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 724675761}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &104416230
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -36284,7 +36315,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -8.998
+      value: -8.672
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
       propertyPath: m_LocalPosition.y
@@ -36292,11 +36323,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 12.426
+      value: 12.432
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.69317514
+      value: 0.68182963
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
       propertyPath: m_LocalRotation.x
@@ -36304,7 +36335,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.7207693
+      value: 0.73151106
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
       propertyPath: m_LocalRotation.z
@@ -36316,7 +36347,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 92.236
+      value: 94.026
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
@@ -65413,6 +65444,37 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1 &624502365
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 624502366}
+  m_Layer: 0
+  m_Name: Ticket Sign - Ghost Stops Here (red)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &624502366
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 624502365}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -10.174001, y: 2.9019444e-16, z: 13.377}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 724675761}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &625217657
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -76544,9 +76606,9 @@ Transform:
   m_GameObject: {fileID: 688060500}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -20.27, y: 1.21, z: 12.76}
-  m_LocalScale: {x: 7.46, y: 4.476, z: 5.968}
-  m_ConstrainProportionsScale: 1
+  m_LocalPosition: {x: -20.686, y: 1.21, z: 13.252}
+  m_LocalScale: {x: 6.5, y: 2.2319999, z: 2.976}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 724675761}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -80534,6 +80596,8 @@ Transform:
   - {fileID: 68644117}
   - {fileID: 1587341257}
   - {fileID: 425724039}
+  - {fileID: 624502366}
+  - {fileID: 104336507}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &728122536
@@ -133673,8 +133737,15 @@ MonoBehaviour:
   appearSpot: {fileID: 1262486465}
   placeSpot: {fileID: 217283826}
   sellerArea: {fileID: 688060501}
+  ghostStopSpot: {fileID: 104336507}
+  appearTurn: 0
+  placeTurn: 0
   sellerName: Popcorn
   snapDistance: 1.6
+  firstPersonScale: 0.3
+  firstPersonOffset: {x: 0.3, y: -0.38, z: 0.65}
+  carriedScale: 0.6
+  placeHintColor: {r: 0.35, g: 0.65, b: 1, a: 0.3}
 --- !u!65 &1193044381
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -133722,7 +133793,7 @@ Transform:
   m_GameObject: {fileID: 1193044379}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -13.597616, y: 0.394, z: 17.419962}
+  m_LocalPosition: {x: -23.133, y: 1.08, z: 15.112}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -139902,7 +139973,7 @@ Transform:
   m_GameObject: {fileID: 1262486464}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -23.245, y: 1.08, z: 15.112}
+  m_LocalPosition: {x: -23.133, y: 1.08, z: 15.112}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -171529,8 +171600,15 @@ MonoBehaviour:
   appearSpot: {fileID: 1193407392}
   placeSpot: {fileID: 1641246687}
   sellerArea: {fileID: 68644117}
+  ghostStopSpot: {fileID: 624502366}
+  appearTurn: 0
+  placeTurn: 0
   sellerName: Ticket
   snapDistance: 1.6
+  firstPersonScale: 0.3
+  firstPersonOffset: {x: 0.3, y: -0.38, z: 0.65}
+  carriedScale: 0.6
+  placeHintColor: {r: 0.35, g: 0.65, b: 1, a: 0.3}
 --- !u!65 &1587341255
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -171578,7 +171656,7 @@ Transform:
   m_GameObject: {fileID: 1587341253}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -8.450001, y: 3.2994612e-16, z: 10.474}
+  m_LocalPosition: {x: -7.754, y: -0.006, z: 14.354}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -175552,13 +175630,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1641246686}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: -8.772, y: 0.925, z: 13.377}
+  m_LocalRotation: {x: 0, y: 0.7071068, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: -9.174, y: 0.925, z: 13.377}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 724675761}
-  m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 90, z: 0}
 --- !u!1 &1643083402
 GameObject:
   m_ObjectHideFlags: 0
@@ -235206,7 +235284,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8685549154519194685, guid: 826061334befde143b92392224e7473a, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -8.959
+      value: -8.652108
       objectReference: {fileID: 0}
     - target: {fileID: 8685549154519194685, guid: 826061334befde143b92392224e7473a, type: 3}
       propertyPath: m_LocalPosition.y
@@ -235214,11 +235292,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8685549154519194685, guid: 826061334befde143b92392224e7473a, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 11.815
+      value: 11.820079
       objectReference: {fileID: 0}
     - target: {fileID: 8685549154519194685, guid: 826061334befde143b92392224e7473a, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.71399915
+      value: 0.7029735
       objectReference: {fileID: 0}
     - target: {fileID: 8685549154519194685, guid: 826061334befde143b92392224e7473a, type: 3}
       propertyPath: m_LocalRotation.x
@@ -235226,7 +235304,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8685549154519194685, guid: 826061334befde143b92392224e7473a, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.7001466
+      value: 0.7112161
       objectReference: {fileID: 0}
     - target: {fileID: 8685549154519194685, guid: 826061334befde143b92392224e7473a, type: 3}
       propertyPath: m_LocalRotation.z
@@ -235238,7 +235316,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8685549154519194685, guid: 826061334befde143b92392224e7473a, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 88.878
+      value: 90.668
       objectReference: {fileID: 0}
     - target: {fileID: 8685549154519194685, guid: 826061334befde143b92392224e7473a, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
