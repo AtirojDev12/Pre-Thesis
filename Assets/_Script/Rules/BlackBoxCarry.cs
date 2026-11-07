@@ -42,6 +42,7 @@ public sealed class BlackBoxCarry : NetworkBehaviour
         get
         {
             if (localReturnFrame == Time.frameCount) return true;
+            if (RestBreakSign.LocalUsesDiscardInput) return true; // 7 Nov: carrying a restroom break sign
             foreach (var carry in FindObjectsByType<BlackBoxCarry>(FindObjectsSortMode.None))
                 if (carry.IsLocalCarrier) return true;
             return false;

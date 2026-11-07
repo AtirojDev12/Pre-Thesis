@@ -21,7 +21,8 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
     [UnityEngine.Serialization.FormerlySerializedAs("flickerDuration")]
     [SerializeField] private float arrivalLeadTime = 3f;
     [SerializeField] private float countdownDuration = 10f;
-    [SerializeField] private float ghostDuration = 15f;
+    [Tooltip("7 Nov (Mr.k): seconds the ghost stays after it has appeared (was 15: too short for the sign visits).")]
+    [SerializeField, Min(1f)] private float ghostLifeSeconds = 21f;
 
     private float timer = 0f;
     private bool isGhostActive = false;
@@ -51,6 +52,17 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
         if (Instance == this) Instance = null;
     }
 
+    /// <summary>7 Nov (Mr.k): is this the ghost this manager spawned (TimedGhost asks before visiting the signs)?</summary>
+    public bool IsCurrentGhost(GameObject go) =>
+        go != null && currentGhostInstance != null && (go == currentGhostInstance || go.transform.IsChildOf(currentGhostInstance.transform));
+
+    /// <summary>7 Nov (Mr.k): the ghost is gone: restroom break signs vanish, the lights come back on by themselves.</summary>
+    private void AfterGhostGone()
+    {
+        if (TicketGhostVisit.Instance != null) TicketGhostVisit.Instance.ServerGhostGone();
+        if (BuildingLightManager.Instance != null) BuildingLightManager.Instance.SetLights(true);
+    }
+
     private void Start()
     {
         timer = 0f;
@@ -76,9 +88,13 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
 
         // Warning flicker before the ghost arrives (restored 14 Oct, same timing as
         // the old version: 1.1 s). Driven by BuildingLightManager, so every machine
-        // sees it. Only when the lights are ON; if a player switched them off, the
-        // building stays dark (Atiroj, 11 Oct: the ghost never turns lights back on).
+        // sees it.
+        // 7 Nov (Mr.k): lights that are OFF are switched ON first (power + Ticket Zone),
+        // then they flicker and stay on. The restroom break signs appear now; players have
+        // the countdown to place them and switch the lights off themselves.
         BuildingLightManager power = BuildingLightManager.Instance;
+        if (TicketGhostVisit.Instance != null) TicketGhostVisit.Instance.ServerWarningStarted();
+        if (power != null && !BuildingLightManager.LightsOn) power.SetLights(true);
         if (power != null && BuildingLightManager.LightsOn)
         {
             flickerRunning = true;
@@ -97,6 +113,16 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
         }
 
         yield return new WaitForSeconds(countdownDuration);
+
+        // 7 Nov (Mr.k): a short light cut as it arrives (the special ingredient vanishes in
+        // SpawnGhost). The lights end as they were: on stays on, off (switched by a player) stays off.
+        if (power != null && BuildingLightManager.LightsOn)
+        {
+            flickerRunning = true;
+            power.SetLights(false); yield return new WaitForSeconds(0.3f);
+            power.SetLights(true);
+            flickerRunning = false;
+        }
 
         SpawnGhost();
     }
@@ -153,7 +179,7 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
             waited += Time.deltaTime;
             yield return null;
         }
-        yield return new WaitForSeconds(ghostDuration);
+        yield return new WaitForSeconds(ghostLifeSeconds);
         despawnRoutine = null;
         DespawnGhost();
     }
@@ -170,7 +196,7 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
             else if (NetworkServer.active) NetworkServer.Destroy(currentGhostInstance);
             else Destroy(currentGhostInstance);
         }
-
+        AfterGhostGone(); // 7 Nov
     }
 
     /// <summary>SERVER ONLY. Stops the despawn timer so a jumpscare is not cut short.</summary>
@@ -189,6 +215,7 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
         isGhostActive = false;
         isSequenceRunning = false;
         currentGhostInstance = null;
+        AfterGhostGone(); // 7 Nov
 
     }
 
@@ -207,6 +234,7 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
         flickerRunning = false;
         isSequenceRunning = true; // blocks Update until DespawnGhost resets it
         timer = 0f;
+        if (TicketGhostVisit.Instance != null) TicketGhostVisit.Instance.ServerWarningStarted(); // 7 Nov: signs too
         SpawnGhost();
     }
 

@@ -111,6 +111,45 @@ public class ZoneTaskList : NetworkBehaviour
 
     public string ZoneID => zoneID;
     public string Title => title;
+
+    // ---- 7 Nov 2026 (Mr.k): Tickets + Popcorn & Water = ONE zone, the "Ticket Zone" ----
+    // (Zone Quest Detail). The map still has two boards (zone_ticket + zone_popcorn); both now
+    // count as ONE zone: zone_popcorn joins zone_ticket. The zone is done when BOTH boards are
+    // done (reported once, by whichever board finishes last). No scene change needed.
+    public const string TicketZoneID = "zone_ticket";
+    private const string PopcornBoardID = "zone_popcorn";
+
+    /// <summary>The zone a board ID counts as (zone_popcorn -> zone_ticket, others unchanged).</summary>
+    public static string CountedZoneOf(string boardZoneID) => boardZoneID == PopcornBoardID ? TicketZoneID : boardZoneID;
+
+    /// <summary>The zone MatchDirector counts this board in.</summary>
+    public string CountedZoneID => CountedZoneOf(zoneID);
+
+    /// <summary>Board heading: Ticket Zone boards say "TICKET ZONE - ..." so players see they are one zone.</summary>
+    private string DisplayTitle =>
+        CountedZoneID == TicketZoneID && !title.ToUpperInvariant().Contains("TICKET ZONE") ? "TICKET ZONE - " + title : title;
+
+    /// <summary>
+    /// SERVER. This board is finished: report its ZONE once every board of that zone is finished.
+    /// </summary>
+    private void ServerBoardFinished()
+    {
+        zoneReported = true;
+        string zone = CountedZoneID;
+        for (int b = 0; b < active.Count; b++)
+        {
+            ZoneTaskList other = active[b];
+            if (other == null || other == this || other.CountedZoneID != zone) continue;
+            if (!other.AllDone)
+            {
+                Debug.Log($"[ZoneTaskList] '{title}' done — zone '{zone}' still has '{other.title}' to finish.", this);
+                return;
+            }
+        }
+        if (MatchDirector.Instance != null) MatchDirector.Instance.ServerReportZoneCompleted(zone);
+        AlertSounds.ServerZoneDone(transform.position); // 31 Oct: map-wide 3D alarm from this board
+        Debug.Log($"[ZoneTaskList] Zone '{zone}' — every task done ('{title}' was the last board).", this);
+    }
     public int TaskCount => tasks.Count;
 
     /// <summary>Every task board in the scene (read only). Used by the dev overlay.</summary>
@@ -206,7 +245,7 @@ public class ZoneTaskList : NetworkBehaviour
         }
 
         // Tell the match this zone exists (every zone is required).
-        if (MatchDirector.Instance != null) MatchDirector.Instance.ServerRegisterZone(zoneID);
+        if (MatchDirector.Instance != null) MatchDirector.Instance.ServerRegisterZone(CountedZoneID); // 7 Nov: popcorn board = Ticket Zone
 
         // Tonight's targets (works whichever of MatchDirector / this board starts first).
         ServerApplyDifficulty();
@@ -353,13 +392,7 @@ public class ZoneTaskList : NetworkBehaviour
             changed = true;
         }
 
-        if (changed && !zoneReported && AllDone)
-        {
-            zoneReported = true;
-            if (MatchDirector.Instance != null) MatchDirector.Instance.ServerReportZoneCompleted(zoneID);
-            AlertSounds.ServerZoneDone(transform.position); // 31 Oct: map-wide 3D alarm from this board
-            Debug.Log($"[ZoneTaskList] '{title}' ({zoneID}) — every task done.", this);
-        }
+        if (changed && !zoneReported && AllDone) ServerBoardFinished(); // 7 Nov: zone done when all its boards are
     }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -384,9 +417,7 @@ public class ZoneTaskList : NetworkBehaviour
     private void ServerDevReportIfDone()
     {
         if (zoneReported || !AllDone) return;
-        zoneReported = true;
-        if (MatchDirector.Instance != null) MatchDirector.Instance.ServerReportZoneCompleted(zoneID);
-        AlertSounds.ServerZoneDone(transform.position);
+        ServerBoardFinished();
     }
 
     /// <summary>SERVER. Dev cheat: fill every line of every task board (and report the zones).</summary>
@@ -398,12 +429,7 @@ public class ZoneTaskList : NetworkBehaviour
             if (board == null || !NetworkMode.HasServerAuthority(board)) continue;
             if (!board.ProgressReady) board.ServerInit();
             for (int i = 0; i < board.tasks.Count; i++) board.SetProgress(i, board.TargetOf(i));
-            if (!board.zoneReported)
-            {
-                board.zoneReported = true;
-                if (MatchDirector.Instance != null) MatchDirector.Instance.ServerReportZoneCompleted(board.zoneID);
-                AlertSounds.ServerZoneDone(board.transform.position);
-            }
+            if (!board.zoneReported) board.ServerBoardFinished();
         }
     }
 #endif
@@ -440,8 +466,11 @@ public class ZoneTaskList : NetworkBehaviour
         Image background = NewImage("Background", canvasRt, new Color(0.05f, 0.04f, 0.04f, 0.92f));
         Stretch(background.rectTransform, 0f, 0f);
 
-        TMP_Text titleText = NewText("Title", canvasRt, title, 56, new Color(1f, 0.8f, 0.3f), FontStyles.Bold);
+        TMP_Text titleText = NewText("Title", canvasRt, DisplayTitle, 56, new Color(1f, 0.8f, 0.3f), FontStyles.Bold);
         titleText.alignment = TextAlignmentOptions.Center;
+        titleText.enableAutoSizing = true; // 7 Nov: "TICKET ZONE - POPCORN & WATER" must fit the board
+        titleText.fontSizeMin = 28f;
+        titleText.fontSizeMax = 56f;
         Anchor(titleText.rectTransform, 30f, 20f, 90f);
 
         lineTexts = new TMP_Text[tasks.Count];

@@ -17,6 +17,7 @@ MonoBehaviour:
   zonesForOnePlayer: 2
   extraZonesPerPlayer: 1
   maxZonesToFinish: 6
+  mapPicture: {fileID: 0}
   howToWin: "\u2022 The night runs from 00:00 to 06:00. The exits stay locked during
     the night.\n\u2022 Finish the zones you need (goal above). Each zone's TASK BOARD
     shows its lines; take a map from the map box to find your way.\n\u2022 Zones
@@ -28,28 +29,54 @@ MonoBehaviour:
     switched-on walkie can still call for help on it.\n\u2022 Money = the tasks YOU
     finished. Dying loses the items you brought in."
   zones:
-  - name: Tickets
-    where: The ticket counter at the front of the cinema.
-    tasks: 'Sell tickets until the board''s goal. Each customer needs the right ticket:
-      HUMAN ticket for people, GHOST ticket for ghosts. Look at the customer before
-      you sell.'
-    rules: []
-    otherDangers: "Wrong tickets cost sanity and the sale pays nothing; too many
-      wrong tickets call a punishing ghost.\nMISSING PARTS GHOST (once a night, 00:00\u201303:00):
-      a ghost missing an arm, the head or its body comes to the ticket or popcorn
-      counter and blocks it. Press E on it and it follows you. Find its parts inside
-      the building, hold a part and hold E on the ghost for 3 s. You have 1 in-game
-      hour (countdown above its head). Time up = -25 HP and -25% sanity for everyone
-      near it."
-  - name: Popcorn & Water
-    where: The popcorn and drinks counter next to the ticket counter.
-    tasks: Make each customer's order (popcorn flavour + drink) until the board's
-      goal. Ghost customers need the SPECIAL INGREDIENT in their food.
-    rules: []
-    otherDangers: Food for a ghost without the special ingredient = you lose HP and
-      sanity. If the special ingredient goes missing, follow its trail, find it and
-      bring it back before you serve ghosts again.
+  - name: Ticket Zone
+    picture: {fileID: 0}
+    where: 'The front of the cinema: the ticket counter and the popcorn & drinks
+      counter next to it.'
+    tasks: 'Sell tickets: HUMAN ticket for people, GHOST ticket for ghosts. Look
+      at the customer before you sell.
+
+      Make each customer''s order (popcorn
+      flavour + drink). Ghost customers need the SPECIAL INGREDIENT in their food.
+
+      Keep
+      selling until every line on the Ticket Zone board is done.'
+    rules:
+    - title: Sell tickets
+      whatToDo: 'Give the right ticket: a ghost ticket to a ghost, a human ticket
+        to a person.'
+      ifYouBreakIt: sanity loss and no money for that sale; too many wrong tickets
+        call a punishing ghost
+    - title: Sell food
+      whatToDo: All food looks the same, but a ghost's food must have the special
+        ingredient in it.
+      ifYouBreakIt: HP and sanity loss
+    - title: The missing bucket
+      whatToDo: Every 2 minutes the lights flicker; 10 seconds later the Ticket Zone
+        lights cut out and the special ingredient bucket vanishes (if the returning
+        ghost is around tonight, it vanishes when that ghost walks in instead). Switching
+        the lights off also makes it vanish. Follow its trail, carry it back to its
+        place, then switch the lights back on.
+      ifYouBreakIt: 'no special ingredient: you cannot make ghost food, so ghost
+        customers cannot be served'
+    - title: The one who returns
+      whatToDo: 'When the lights flicker, two RESTROOM BREAK signs appear. You have
+        10 seconds: pick each one up (E) and put it on its spot at the popcorn and
+        the ticket counter (R), then switch the lights OFF and stay quiet. The ghost
+        checks the popcorn sign, then the ticket sign, then walks around the Ticket
+        Zone. In the light it sees anyone near it; in the dark it only hears you.'
+      ifYouBreakIt: 'a sign not on its spot: the ghost attacks the player at that
+        counter. Seen or heard: it chases you; caught = jumpscare and damage'
+    - title: The one looking for its parts
+      whatToDo: Once a night (00:00-03:00) a ghost missing an arm, its head or its
+        body blocks the ticket or popcorn counter. Press E on it and it follows you.
+        Find its parts in the building, hold a part and hold E on the ghost for 3
+        s. You have 1 in-game hour (countdown above its head).
+      ifYouBreakIt: -25 HP and -25% sanity for everyone near it
+    allRulesOn: 1
+    otherDangers: 
   - name: Screen Rooms
+    picture: {fileID: 0}
     where: 'The two screen rooms in the theatre wing: the normal (human) room and
       the GHOST room.'
     tasks: 'Change the film in the GHOST room at 02:00 and 04:00 (hold E 5 s at the
@@ -76,8 +103,10 @@ MonoBehaviour:
         (3\u20136 s). One player is enough."
       ifYouBreakIt: a ghost comes out of the screen and roams the whole building
         until 06:00
+    allRulesOn: 0
     otherDangers: 
   - name: Toilets
+    picture: {fileID: 0}
     where: The men's and women's toilets.
     tasks: 'After 03:00 clean both toilets: 3 dirt marks in each (hold E 3 s).'
     rules:
@@ -96,6 +125,7 @@ MonoBehaviour:
       whatToDo: 'When the toilet is fully cleaned: light OFF, throw the black box
         into the last stall, then everyone out fast.'
       ifYouBreakIt: ghosts swarm the toilet
+    allRulesOn: 0
     otherDangers: 
   generalTips: "\u2022 Talk to your team: share which rules you saw tonight.\n\u2022
     Keep your flashlight charged; dark rooms hide ghosts.\n\u2022 Low sanity? Hold

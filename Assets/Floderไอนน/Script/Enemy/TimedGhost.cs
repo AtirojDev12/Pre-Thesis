@@ -35,6 +35,10 @@ public class TimedGhost : Enemy_Abstract_Class
     [Tooltip("Height above the ghost/player origin for wall occlusion checks.")]
     [SerializeField, Min(0f)] private float sightHeight = 1.2f;
 
+    [Header("Hunt nearby (7 Nov, Mr.k)")]
+    [Tooltip("In the LIGHT, a player this close (metres) is noticed in every direction, not only in front (walls still block). Then the ghost walks straight to them.")]
+    [SerializeField, Min(0f)] private float nearSenseRadius = 8f;
+
     [Header("Search after losing a player")]
     [SerializeField, Min(0f)] private float searchWaitSeconds = 3f;
     [SerializeField, Min(1f)] private float searchTravelTimeout = 15f;
@@ -44,6 +48,18 @@ public class TimedGhost : Enemy_Abstract_Class
     private float appearUntil;
 
     private bool isJumpscareTriggered;
+    // 7 Nov (Mr.k): a player the ghost MUST attack (Ticket Zone sign rule broken). Server only.
+    private PlayerHealth forcedTarget;
+
+    /// <summary>SERVER. Ticket Zone rule (TicketGhostVisit): attack this player, lights or not.</summary>
+    public void ServerForceAttack(PlayerHealth victim)
+    {
+        if (!HasAiAuthority || isJumpscareTriggered || !PlayerRegistry.IsHuntable(victim)) return;
+        forcedTarget = victim;
+        targetPlayer = victim;
+        lastKnownPosition = victim.transform.position;
+        OnPlayerSpotted();
+    }
     private Vector3 lastKnownPosition;
     private float searchStartedAt;
     private float searchArrivedAt = -1f;
@@ -124,6 +140,14 @@ public class TimedGhost : Enemy_Abstract_Class
         if (!HasAiAuthority || isJumpscareTriggered) return;
         PlayerHealth noticed = null;
         float nearest = float.PositiveInfinity;
+        if (forcedTarget != null && !PlayerRegistry.IsHuntable(forcedTarget)) forcedTarget = null;
+        if (forcedTarget != null)
+        {
+            targetPlayer = forcedTarget;
+            lastKnownPosition = forcedTarget.transform.position;
+            OnPlayerSpotted();
+            return;
+        }
         foreach (PlayerHealth candidate in PlayerRegistry.All)
         {
             if (!CanPerceive(candidate)) continue;
@@ -167,7 +191,9 @@ public class TimedGhost : Enemy_Abstract_Class
         if (candidate == null || !IsLit(candidate)) return false;
         Vector3 offset = candidate.transform.position - transform.position;
         float distance = offset.magnitude;
-        if (distance > viewDistance || Vector3.Angle(transform.forward, offset) >= viewAngle) return false;
+        if (distance > viewDistance) return false;
+        // 7 Nov (Mr.k): close players in the light are noticed from any side.
+        if (distance > nearSenseRadius && Vector3.Angle(transform.forward, offset) >= viewAngle) return false;
         // Existing prefabs have an empty obstacle mask. Treat that as normal solid geometry,
         // rather than letting the ghost see through every wall.
         int mask = obstacleLayer.value == 0 ? Physics.DefaultRaycastLayers : obstacleLayer.value;
@@ -180,6 +206,9 @@ public class TimedGhost : Enemy_Abstract_Class
     protected override void PatrolBehavior()
     {
         if (isJumpscareTriggered || !AgentReady) return;
+        // 7 Nov (Mr.k): the timed ghost first visits the Ticket Zone's restroom break signs (TicketGhostVisit).
+        if (TicketGhostVisit.Instance != null && GhostManager.Instance != null && GhostManager.Instance.IsCurrentGhost(gameObject) &&
+            TicketGhostVisit.Instance.ServerPatrol(this, agent)) return;
         // Patrol independently of where silent/hidden players are standing.
         if (!agent.pathPending && (!agent.hasPath || agent.remainingDistance <= Mathf.Max(1f, agent.stoppingDistance)))
             agent.SetDestination(GetRandomNavMeshLocation());

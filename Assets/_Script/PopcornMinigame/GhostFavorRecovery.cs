@@ -80,7 +80,8 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         if (favor == null || NetworkMode.SessionEnding) return;
         if (HasAuthority)
         {
-            bool dark = BuildingLightManager.Instance != null && !BuildingLightManager.LightsOn;
+            // 7 Nov (Mr.k): also when a player switches the Ticket Zone lights OFF (zone switch), not only a power cut.
+            bool dark = BuildingLightManager.Instance != null && !BuildingLightManager.Instance.LightsOnAt(homePosition);
             darkSeconds = dark ? darkSeconds + Time.deltaTime : 0f;
             if (!dark) blackoutHandled = false;
             // Warning flickers last at most 0.2s; a sustained outage is a blackout.
