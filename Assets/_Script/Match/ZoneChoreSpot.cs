@@ -68,6 +68,9 @@ public sealed class ZoneChoreSpot : InteractableBase
     private bool stopSent;
     private Collider[] colliders;
     private PlayerHealth ignoredBody; // 16 Oct: our colliders never block this body
+    private AudioSource sweepSource;
+    private double sweepStartedAt;
+    private bool sweepPlaying;
 
     public ZoneTaskKind Kind => kind;
     public bool CountsForZoneBoard => countsForZoneBoard;
@@ -252,7 +255,60 @@ public sealed class ZoneChoreSpot : InteractableBase
         else CmdStopWork();
     }
 
-    private void OnDisable() => ChoreProgressHUD.Hide(this);
+    // Read the existing replicated hold state so host/guests hear one loop each.
+    private void LateUpdate()
+    {
+        bool ready = !NetworkMode.SessionEnding && (NetworkMode.IsOffline || (NetworkClient.active && isClient));
+        bool cleaning = kind == ZoneTaskKind.CleanScreenRoom || kind == ZoneTaskKind.CleanToilet;
+        bool playing = ready && RoundRunning && cleaning && needed && IsWorking;
+        if (!playing)
+        {
+            StopSweepAudio();
+            return;
+        }
+        if (sweepPlaying && sweepStartedAt == workStart) return;
+        StopSweepAudio();
+
+        var entry = AudioManager.Instance?.Find("Chore_Sweep");
+        if (entry == null || entry.clips == null || entry.clips.Length == 0 || entry.clips[0] == null) return;
+        AudioClip clip = entry.clips[0];
+        if (clip.length <= 0) return;
+        if (sweepSource == null)
+        {
+            var emitter = new GameObject("Sweep Sound");
+            emitter.transform.SetParent(transform, false);
+            sweepSource = emitter.AddComponent<AudioSource>();
+            sweepSource.playOnAwake = false;
+            sweepSource.loop = true;
+            sweepSource.dopplerLevel = 0;
+            sweepSource.rolloffMode = AudioRolloffMode.Linear;
+            emitter.AddComponent<SoundCategoryVolume>();
+        }
+        sweepSource.clip = clip;
+        sweepSource.spatialBlend = entry.spatial ? 1 : 0;
+        sweepSource.minDistance = Mathf.Max(0.1f, entry.minDistance);
+        sweepSource.maxDistance = Mathf.Max(sweepSource.minDistance + 0.1f, entry.maxDistance);
+        var volume = sweepSource.GetComponent<SoundCategoryVolume>();
+        volume.Category = entry.category;
+        volume.SetBaseVolume(entry.volume);
+        // Joining observers seek to the current stroke rather than replaying the start.
+        sweepSource.time = (float)(System.Math.Max(0, Now - workStart) % clip.length);
+        sweepSource.Play();
+        sweepStartedAt = workStart;
+        sweepPlaying = true;
+    }
+
+    private void StopSweepAudio()
+    {
+        if (sweepSource != null) sweepSource.Stop();
+        sweepPlaying = false;
+    }
+
+    private void OnDisable()
+    {
+        ChoreProgressHUD.Hide(this);
+        StopSweepAudio();
+    }
 
     /// <summary>
     /// 16 Oct bug fix: a chore collider is only a LOOK target (the interaction ray
