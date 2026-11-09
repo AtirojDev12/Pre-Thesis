@@ -138,7 +138,7 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     [SerializeField] private Vector3 heldPopcornRotation = new Vector3(-10f, 0f, -8f);
 
     [Header("Scene-editable UI anchors")]
-    [Tooltip("Move/rotate this Transform in the scene to place the cashier order display.")]
+    [Tooltip("Use the Rect Tool (T) or change Width and Height on a RectTransform to resize the cashier display. Older Transform anchors use Scale.")]
     [SerializeField] private Transform cashierUiAnchor;
 
     [Header("Scene-editable customer route")]
@@ -266,6 +266,13 @@ public sealed class PopcornMinigameBootstrap : MonoBehaviour
     {
         if (anchor == null) return;
         Gizmos.color = color;
+        if (anchor is RectTransform rect)
+        {
+            Gizmos.matrix = rect.localToWorldMatrix;
+            Gizmos.DrawWireCube(rect.rect.center, rect.rect.size);
+            Gizmos.matrix = Matrix4x4.identity;
+            return;
+        }
         Gizmos.matrix = Matrix4x4.TRS(anchor.position, anchor.rotation, Vector3.one);
         Gizmos.DrawWireCube(Vector3.zero, size);
         Gizmos.DrawRay(Vector3.zero, Vector3.back * 0.5f);
@@ -531,6 +538,8 @@ public sealed class PopcornGameManager : MonoBehaviour
     private float delayBetweenCustomers;
     private Coroutine feedbackRoutine;
     private Canvas cashierCanvas;
+    private Transform cashierDisplayPlacement;
+    private Transform cashierDisplayRoot;
     private PopcornNetSync boundSync;
 
     public void Configure(PopcornItemHoldingSystem itemHolder, CounterSlot slot, Transform cashier,
@@ -547,8 +556,21 @@ public sealed class PopcornGameManager : MonoBehaviour
 
     private void BuildCashierScreen(Transform cashier, Transform placement)
     {
-        cashierCanvas = UiFactory.CreateWorldCanvas("Order Screen (World Space)", cashier,
+        cashierDisplayPlacement = placement;
+        cashierDisplayRoot = new GameObject("Cashier Display Placement").transform;
+        cashierDisplayRoot.SetParent(cashier, false);
+        // Start at unit world scale so the factory keeps its usual pixel size.
+        // Scale the shared parent afterwards: UI Hub skins and replacement designs
+        // then inherit the anchor size without overwriting their own transforms.
+        cashierDisplayRoot.SetPositionAndRotation(placement.position, placement.rotation);
+        Vector3 parentScale = cashier.lossyScale;
+        cashierDisplayRoot.localScale = new Vector3(
+            1f / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
+            1f / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
+            1f / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
+        cashierCanvas = UiFactory.CreateWorldCanvas("Order Screen (World Space)", cashierDisplayRoot,
             placement, new Vector2(600f, 350f));
+        UpdateCashierDisplayPlacement();
 
         GameObject panel = UiFactory.CreatePanel("Cashier Display", cashierCanvas.transform, new Color(0.025f, 0.08f, 0.085f, 0.97f));
         UiFactory.Stretch(panel.GetComponent<RectTransform>());
@@ -563,6 +585,34 @@ public sealed class PopcornGameManager : MonoBehaviour
         feedbackText = UiFactory.CreateText("Feedback Text", panel.transform, string.Empty, 30f, Color.white);
         feedbackText.alignment = TextAlignmentOptions.Center;
         UiFactory.SetRect(feedbackText.rectTransform, new Vector2(0.05f, 0.03f), new Vector2(0.95f, 0.23f));
+    }
+
+    private void LateUpdate() => UpdateCashierDisplayPlacement();
+
+    private void UpdateCashierDisplayPlacement()
+    {
+        if (cashierDisplayPlacement == null || cashierDisplayRoot == null) return;
+        if (cashierDisplayPlacement is RectTransform placementRect)
+        {
+            Rect bounds = placementRect.rect;
+            Vector3 center = placementRect.TransformPoint(bounds.center);
+            cashierDisplayRoot.SetPositionAndRotation(center, placementRect.rotation);
+            float width = placementRect.TransformVector(Vector3.right * bounds.width).magnitude;
+            float height = placementRect.TransformVector(Vector3.up * bounds.height).magnitude;
+            var displayRect = (RectTransform)cashierCanvas.transform;
+            Vector2 size = new Vector2(width, height) / UiFactory.WorldUnitsPerPixel;
+            if (displayRect.sizeDelta != size) displayRect.sizeDelta = size;
+            return;
+        }
+
+        cashierDisplayRoot.SetPositionAndRotation(cashierDisplayPlacement.position, cashierDisplayPlacement.rotation);
+        Vector3 parentScale = cashierDisplayRoot.parent != null
+            ? cashierDisplayRoot.parent.lossyScale : Vector3.one;
+        Vector3 scale = cashierDisplayPlacement.localScale;
+        cashierDisplayRoot.localScale = new Vector3(
+            scale.x / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
+            scale.y / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
+            scale.z / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
     }
 
     private void BindWorldUiCamera(PlayerHealth player)
@@ -942,6 +992,8 @@ public sealed class PopcornUiCursorController : MonoBehaviour
 
 internal static class UiFactory
 {
+    public const float WorldUnitsPerPixel = 0.001f;
+
     public static Canvas CreateWorldCanvas(string name, Transform physicalParent, Transform placement, Vector2 size)
     {
         GameObject canvasObject = new GameObject(name, typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
@@ -952,9 +1004,9 @@ internal static class UiFactory
         canvasObject.transform.localScale = Vector3.one;
         Vector3 inheritedScale = canvasObject.transform.lossyScale;
         canvasObject.transform.localScale = new Vector3(
-            0.001f / Mathf.Max(0.0001f, Mathf.Abs(inheritedScale.x)),
-            0.001f / Mathf.Max(0.0001f, Mathf.Abs(inheritedScale.y)),
-            0.001f / Mathf.Max(0.0001f, Mathf.Abs(inheritedScale.z)));
+            WorldUnitsPerPixel / Mathf.Max(0.0001f, Mathf.Abs(inheritedScale.x)),
+            WorldUnitsPerPixel / Mathf.Max(0.0001f, Mathf.Abs(inheritedScale.y)),
+            WorldUnitsPerPixel / Mathf.Max(0.0001f, Mathf.Abs(inheritedScale.z)));
 
         RectTransform rect = canvasObject.GetComponent<RectTransform>();
         rect.sizeDelta = size;

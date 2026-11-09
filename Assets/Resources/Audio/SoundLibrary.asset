@@ -31,6 +31,24 @@ MonoBehaviour:
     minDistance: 2
     maxDistance: 5
     cooldown: 0
+  - id: Projector_Running
+    clips:
+    - {fileID: 8300000, guid: a86ac26894cb0464dac4fa0d151205ce, type: 3}
+    category: 1
+    volume: 0.5
+    spatial: 1
+    minDistance: 2
+    maxDistance: 3
+    cooldown: 0
+  - id: Projector_FilmChange
+    clips:
+    - {fileID: 8300000, guid: 833c2193918a330468ccba528b12a83a, type: 3}
+    category: 1
+    volume: 0.5
+    spatial: 1
+    minDistance: 2
+    maxDistance: 5
+    cooldown: 0
   - id: Ticket_MovieClick
     clips:
     - {fileID: 8300000, guid: fae445c8d9ea510439d84a1d6303a304, type: 3}

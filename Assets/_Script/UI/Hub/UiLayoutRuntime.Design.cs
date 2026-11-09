@@ -165,7 +165,13 @@ public sealed partial class UiLayoutRuntime
         if (visible != d.visible) { d.wrapper.SetActive(visible); d.visible = visible; }
         if (!visible) return;
 
-        if (s.canvas.renderMode == RenderMode.WorldSpace) d.wrapper.transform.SetPositionAndRotation(s.root.position, s.root.rotation);
+        if (s.canvas.renderMode == RenderMode.WorldSpace)
+        {
+            var wrapperRect = (RectTransform)d.wrapper.transform;
+            wrapperRect.SetPositionAndRotation(s.root.position, s.root.rotation);
+            Vector2 size = ((RectTransform)s.root).sizeDelta;
+            if (wrapperRect.sizeDelta != size) wrapperRect.sizeDelta = size;
+        }
         if (d.canvas.sortingOrder != s.canvas.sortingOrder) d.canvas.sortingOrder = s.canvas.sortingOrder;
         if (d.group != null)
         {

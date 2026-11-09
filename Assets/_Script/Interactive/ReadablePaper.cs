@@ -11,6 +11,7 @@ public sealed class ReadablePaper : MonoBehaviour, ILocalInteractable
     [SerializeField] private string interactionPrompt = "[E] Read paper";
     [Tooltip("Drag instruction images here in reading order. No Sprite import setting is required.")]
     [SerializeField] private Texture2D[] pages = new Texture2D[0];
+    [SerializeField] private AudioClip openSound;
 
     [Header("Screen layout")]
     [Tooltip("Maximum paper size on a 1920 x 1080 reference canvas. Image proportions are preserved.")]
@@ -69,7 +70,11 @@ public sealed class ReadablePaper : MonoBehaviour, ILocalInteractable
             root.transform.SetParent(interactor.transform, false);
             reader = root.AddComponent<PaperReaderUI>();
         }
-        if (reader.Open(this, interactor)) onOpened.Invoke();
+        if (!reader.Open(this, interactor)) return;
+        if (openSound != null)
+            AudioManager.Instance?.PlayClip(openSound, SoundCategory.Sfx, 1f, Vector3.zero,
+                false, 1f, 10f, gameObject.scene);
+        onOpened.Invoke();
     }
 
     public void NotifyClosed() => onClosed.Invoke();

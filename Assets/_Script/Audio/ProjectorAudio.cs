@@ -7,6 +7,8 @@ public sealed class ProjectorAudio : MonoBehaviour
 {
     [Tooltip("Leave empty for a projector that never needs a film change.")]
     [SerializeField] private ZoneChoreSpot filmChore;
+    [Tooltip("Uses Projector_Running and Projector_FilmChange from this library. The local settings below are fallbacks for missing entries.")]
+    [SerializeField] private SoundLibrary soundLibrary;
     [SerializeField] private AudioClip runningClip;
     [SerializeField] private AudioClip filmChangeClip;
     [SerializeField, Range(0, 1)] private float runningVolume = 0.85f;
@@ -46,15 +48,24 @@ public sealed class ProjectorAudio : MonoBehaviour
         changeStartedAt = start;
         if (next == Playback.Silent) return;
 
-        AudioClip clip = next == Playback.Running ? runningClip : filmChangeClip;
+        bool running = next == Playback.Running;
+        SoundLibrary.Entry entry = soundLibrary != null
+            ? soundLibrary.Find(running ? "Projector_Running" : "Projector_FilmChange") : null;
+        AudioClip clip = running ? runningClip : filmChangeClip;
+        if (entry != null)
+            clip = entry.clips != null && entry.clips.Length > 0 ? entry.clips[0] : null;
         if (clip == null) return;
         double elapsed = next == Playback.Changing ? System.Math.Max(0, Now - start) : 0;
         if (next == Playback.Changing && elapsed >= clip.length) return;
         EnsureSource();
         source.clip = clip;
-        source.loop = next == Playback.Running;
+        source.loop = running;
         source.time = (float)elapsed;
-        categoryVolume.SetBaseVolume(next == Playback.Running ? runningVolume : filmChangeVolume);
+        source.spatialBlend = entry == null || entry.spatial ? 1 : 0;
+        source.minDistance = Mathf.Max(0.1f, entry?.minDistance ?? minDistance);
+        source.maxDistance = Mathf.Max(source.minDistance + 0.1f, entry?.maxDistance ?? maxDistance);
+        categoryVolume.Category = entry?.category ?? SoundCategory.Sfx;
+        categoryVolume.SetBaseVolume(entry?.volume ?? (running ? runningVolume : filmChangeVolume));
         source.Play();
     }
 
@@ -80,15 +91,11 @@ public sealed class ProjectorAudio : MonoBehaviour
         }
         source = emitter.AddComponent<AudioSource>();
         source.playOnAwake = false;
-        source.spatialBlend = 1;
         source.dopplerLevel = 0;
         source.rolloffMode = AudioRolloffMode.Linear;
-        source.minDistance = Mathf.Max(0.1f, minDistance);
-        source.maxDistance = Mathf.Max(source.minDistance + 0.1f, maxDistance);
         // Both clips already contain room reverb.
         source.reverbZoneMix = 0;
         categoryVolume = emitter.AddComponent<SoundCategoryVolume>();
-        categoryVolume.Category = SoundCategory.Sfx;
     }
 
     private void OnDisable()

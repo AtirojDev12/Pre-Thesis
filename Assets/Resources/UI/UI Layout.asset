@@ -13,4 +13,278 @@ MonoBehaviour:
   m_Name: UI Layout
   m_EditorClassIdentifier: Assembly-CSharp::UiLayoutData
   fontForAllUi: {fileID: 0}
-  screens: []
+  screens:
+  - screenName: Held Popcorn HUD
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 6928125825432525269, guid: f6b683b981c3d744eb492c02c1c3322c, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Task Board Canvas
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 6835862415374170519, guid: 8d541717a3b32cb41b7a4dde3973de02, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Preparation HUD
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 1809375598507931981, guid: 3ad39ce6e2abb0943833c0a31371cf66, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Movie Selection (World Space)
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 734400952342564459, guid: 99e5b38d339589e499b462f6611dbea1, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Hotbar HUD
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 4575892378148100493, guid: 177adc72ebbf5f049b2b15c51411c7b9, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Order Screen (World Space)
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 335990434534866901, guid: cee086a6d060f1d4790d3d383930a620, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Tank Supply Display
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 970893348380291528, guid: 06998b220132f284a9875305d1efbc55, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Noise Meter HUD
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 729974411408478691, guid: b580fb2e4a3f6a241974cb7e0a0779de, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Ghost Speech
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 3482762914258764854, guid: ac8764d22c3cd0543b45b6b6177fa534, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Ghost Countdown
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 1756208759183936457, guid: 0db2b9bbc82e3f94ea1bdedd5c138933, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Match HUD (clock)
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 918841531240438967, guid: 9d690e34db6172f41841f4c19ea49a9f, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Ticket Score
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 272864790672183151, guid: b3d8cb050b050a34984a9aab3068867d, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Sanity Screen
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 2846396867943248643, guid: 46eec8788622d9a44a0a61d60062d3d9, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Customer Submit Prompt
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 1312797638197678957, guid: a59da1fe17fd96b468b02ec4c5628a88, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Ticket Request
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 7808295346819569085, guid: 7ebd597a405fe8042ac4ebe411014a7a, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Paper Reader
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 6130005890616574492, guid: f53d589950660504d97a25bfdbbd72f2, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: GAME HUD
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 0}
+    design: {fileID: 0}
+    elements:
+    - path: Stamina Bar/Fill Area/Fill
+      fromSkin: 0
+      hide: 0
+      layout: 1
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 1, y: 1}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 8, y: 0}
+      rotation: {x: -0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Slider/Fill Area/Fill
+      fromSkin: 0
+      hide: 0
+      layout: 1
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 1, y: 1}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 5.3, y: 0}
+      size: {x: 10, y: 0}
+      rotation: {x: -0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    added: []
+  - screenName: Chore Progress HUD
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 1890972286739575569, guid: af490305ad40eb7428f3a4d113b89b1d, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
+  - screenName: Rule Toast
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 8191998339398908459, guid: 23189626ec63e6e4f9dd5ae779495bbc, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []

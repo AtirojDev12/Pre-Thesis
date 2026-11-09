@@ -13852,6 +13852,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProjectorAudio
   filmChore: {fileID: 1690432382}
+  soundLibrary: {fileID: 11400000, guid: 488e60b79a4b4c96a1ea73c519e6082e, type: 2}
   runningClip: {fileID: 8300000, guid: a86ac26894cb0464dac4fa0d151205ce, type: 3}
   filmChangeClip: {fileID: 8300000, guid: 833c2193918a330468ccba528b12a83a, type: 3}
   runningVolume: 0.85
@@ -29196,21 +29197,25 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &285735979
-Transform:
+--- !u!224 &285735979
+RectTransform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 285735978}
-  serializedVersion: 2
   m_LocalRotation: {x: -0.00000003090862, y: 0.7071068, z: -0.7071068, w: -0.000000030908623}
-  m_LocalPosition: {x: -0.004, y: 1.41, z: 0.111}
-  m_LocalScale: {x: 0.6937492, y: 0.6937492, z: 0.6937492}
-  m_ConstrainProportionsScale: 0
+  m_LocalPosition: {x: 0, y: 0, z: 0.111}
+  m_LocalScale: {x: 1.0064913, y: 1.0064913, z: 1.0064913}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 496579033}
   m_LocalEulerAnglesHint: {x: 4.866, y: 180, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: -0.004, y: 1.41}
+  m_SizeDelta: {x: 0.6, y: 0.19628736}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!43 &285931114
 Mesh:
   m_ObjectHideFlags: 0
@@ -132840,6 +132845,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProjectorAudio
   filmChore: {fileID: 0}
+  soundLibrary: {fileID: 11400000, guid: 488e60b79a4b4c96a1ea73c519e6082e, type: 2}
   runningClip: {fileID: 8300000, guid: a86ac26894cb0464dac4fa0d151205ce, type: 3}
   filmChangeClip: {fileID: 8300000, guid: 833c2193918a330468ccba528b12a83a, type: 3}
   runningVolume: 0.85
@@ -143763,6 +143769,7 @@ MonoBehaviour:
   interactionPrompt: '[E] Read the Guide'
   pages:
   - {fileID: 2800000, guid: c4476b44dafb75f4ea20411998a5a03f, type: 3}
+  openSound: {fileID: 8300000, guid: f9cbcc28cf1c46a488d24ea06ac825e9, type: 3}
   maximumSize: {x: 1400, y: 900}
   screenMargin: {x: 60, y: 90}
   centerOffset: {x: 0, y: 0}
@@ -172542,6 +172549,7 @@ MonoBehaviour:
   interactionPrompt: '[E] Read the Guide'
   pages:
   - {fileID: 2800000, guid: 2563cd0f4eb73534ba38242de0d1bb3e, type: 3}
+  openSound: {fileID: 8300000, guid: f9cbcc28cf1c46a488d24ea06ac825e9, type: 3}
   maximumSize: {x: 1400, y: 900}
   screenMargin: {x: 70, y: 100}
   centerOffset: {x: 0, y: 0}
