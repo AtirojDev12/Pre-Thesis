@@ -170,6 +170,17 @@ quiet interval. Both layers follow the Ambient settings slider and Master.
 Playback and random event timing are local to each player's enabled listener.
 Unity Play mode Inspector edits must be copied back after stopping to persist.
 
+### Ticket Check + Arcade in Cinema_GamePlay
+
+**Ticket Check + Arcade Ambience** is a second `AmbientZone`, registered in the
+same `AmbientController.zones` list on Zone 1 Ambience. Its single trigger box
+covers the ticket-check room and its arcade machines (world x -24.8 to -4.2,
+z 14.85 to 37.95), meeting the Zone 1 lobby box at z ~14.9 so walking between
+them crossfades from `OldAirCordinator` to the hallway loop.
+
+- `clip` / `volume`: looping `HallWay_Loop_60s`, initially 0.4.
+- `priority`: 10 (same as Zone 1); no occasional clip.
+
 `Tests/AudioNetwork/ZoneAmbienceChecks.cs` checks the authored scene coverage,
 clip references, shared timer, burst completion, reentry and cleanup. Copy it
 to the isolated test project's `Assets/Editor` folder and execute

@@ -25,28 +25,36 @@ public static class ZoneAmbienceChecks
         try
         {
             EditorSceneManager.OpenScene("Assets/Scenes/Map/Cinema_GamePlay.unity");
-            var root = GameObject.Find("Zone 1 Ambience");
-            Check(root != null, "Scene contains the authored ambience root");
-            var zone = root.GetComponent<AmbientZone>();
-            var controller = root.GetComponent<AmbientController>();
-            Check(zone.clip.name == "OldAirCordinator" && zone.occasionalClip.name == "old_loudspeaker_horror_crackle_extended", "Both clips resolve");
+            var controller = UnityEngine.Object.FindFirstObjectByType<AmbientController>();
+            Check(controller != null, "Scene contains the authored ambience controller");
+            var zone = controller.GetComponent<AmbientZone>();
+            Check(zone.clip.name == "OldAirCordinator", "Ticket/popcorn loop resolves");
             Check(zone.Contains(new Vector3(-16, 1.7f, 2)), "Ticket and popcorn area included");
-            Check(zone.Contains(new Vector3(-35.58f, 1.7f, 1.64f)), "Men toilet included");
-            Check(zone.Contains(new Vector3(-35.68f, 1.7f, 12.92f)), "Women toilet included");
+            Check(!zone.Contains(new Vector3(-35.58f, 1.7f, 1.64f)), "Toilets are their own zones now");
             Check(!zone.Contains(new Vector3(-50, 1.7f, 58)), "Screen rooms excluded");
             Check(!zone.Contains(new Vector3(36, 1.7f, 80)), "Staff room excluded");
-            for (float x = -35; x < -16; x += .1f)
-                Check(zone.Contains(new Vector3(x, 1.7f, 2)), "No ambience gap along lobby/toilet crossing " + x);
-            zone.additionalAreas[0].enabled = false;
-            Check(!zone.Contains(new Vector3(-35.58f, 1.7f, 1.64f)), "Disabled extra area is ignored");
-            zone.additionalAreas[0].enabled = true;
-            Call(controller, "AddLayer", zone, zone.clip);
-            var layers = (IList)Get(controller, "layers");
-            var layer = layers[0];
-            var loop = (AudioSource)Get(layer, "source");
-            var occasional = (AudioSource)Get(layer, "occasional");
+            int controllers = UnityEngine.Object.FindObjectsByType<AmbientController>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length;
+            Check(controllers == 1, "Exactly one AmbientController in the scene (" + controllers + ")");
+            var all = UnityEngine.Object.FindObjectsByType<AmbientZone>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var z in all) Check(z.clip != null, "Zone has a loop clip: " + z.name);
+            Check(zone.Weight(new Vector3(-16, 1.7f, 2)) == 1, "Weight is 1 inside the box");
+            float edge = zone.Weight(new Vector3(-16, 1.7f, 14.88f + zone.blendDistance * 0.5f));
+            Check(edge > 0.4f && edge < 0.6f, "Weight is about half at half the blend distance outside");
+            Call(controller, "Register", zone);
+            var occasionals = (IList)Get(controller, "occasionals");
+            var layer = occasionals[0];
+            var loops = (IList)Get(controller, "loops");
+            var loop = (AudioSource)Get(loops[0], "source");
+            var occasional = (AudioSource)Get(layer, "source");
             Check(loop.loop && !occasional.loop && loop != occasional, "Loop and occasional sounds have separate sources");
             Check(loop.clip == zone.clip && loop.spatialBlend == 0, "Room loop uses the air clip in 2D");
+            var twin = new GameObject("Twin zone", typeof(BoxCollider)).AddComponent<AmbientZone>();
+            twin.clip = zone.clip;
+            Call(controller, "Register", twin);
+            Check(loops.Count == 1, "Zones with the same clip share one looping source (no restart)");
+            UnityEngine.Object.DestroyImmediate(twin.gameObject);
+            // The scene no longer authors an occasional clip; use one in-memory for the timer checks.
+            zone.occasionalClip = zone.clip;
             Call(controller, "UpdateOccasional", layer, true);
             float wait = (float)Get(layer, "wait");
             Check(wait >= 49 && wait <= 100, "First entry waits for a quiet interval");
