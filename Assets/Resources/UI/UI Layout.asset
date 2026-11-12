@@ -188,7 +188,7 @@ MonoBehaviour:
       hide: 0
       layout: 1
       anchorMin: {x: 0, y: 0}
-      anchorMax: {x: 0.5772259, y: 1}
+      anchorMax: {x: 0.14442192, y: 1}
       pivot: {x: 0.5, y: 0.5}
       position: {x: 0, y: 0}
       size: {x: 8, y: 0}
