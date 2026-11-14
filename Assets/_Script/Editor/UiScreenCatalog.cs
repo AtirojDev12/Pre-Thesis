@@ -55,7 +55,6 @@ public static class UiScreenCatalog
         E("Customer Submit Prompt", "Popcorn customer prompt", "Ticket Zone: give an order to a customer.", "Assets/_Script/PopcornMinigame/PopcornMinigameBootstrap.cs"),
         E("Movie Selection (World Space)", "Ticket movie selection (in the world)", "Ticket Zone: the ticket counter.", "Assets/_Script/TicketMinigame/TicketMinigame.cs"),
         E("Ticket Request", "Ticket customer request", "Ticket Zone: a customer asks for a ticket.", "Assets/_Script/TicketMinigame/TicketMinigame.cs"),
-        E("Ticket Score", "Ticket score", "Ticket Zone: sell tickets.", "Assets/_Script/TicketMinigame/TicketMinigame.cs"),
         E("Ghost Countdown", "Missing Parts Ghost countdown", "Match: the Missing Parts Ghost asks for its parts.", "Assets/_Script/Ghosts/MissingPartsGhost.cs",
             "Assets/Resources/Items/WorldGhostPart_Head.prefab", "Assets/Resources/Items/WorldGhostPart_LeftArm.prefab",
             "Assets/Resources/Items/WorldGhostPart_RightArm.prefab", "Assets/Resources/Items/WorldGhostPart_UpperBody.prefab"),

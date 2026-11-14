@@ -13,13 +13,16 @@ public struct TicketCustomerState
     public Vector3 position;
     public Quaternion rotation;
     public int round;
-    public int score;
     public bool hasMovie;
     public int movieIndex;
     public int requestedMovieIndex;
 }
 
-/// <summary>One customer at a time. Route points describe the centre of the capsule.</summary>
+/// <summary>
+/// One customer at a time. Route points describe the centre of the capsule (about 1 m
+/// above the floor). Human customers are drawn with an NPC model (CustomerModelVisual
+/// keeps its feet on the floor); ghost customers are still drawn as a capsule.
+/// </summary>
 [DisallowMultipleComponent]
 public sealed class TicketMinigame : MonoBehaviour
 {
@@ -28,6 +31,8 @@ public sealed class TicketMinigame : MonoBehaviour
     [SerializeField] private TicketSellButton ghostButton;
     [SerializeField] private TicketNetSync networkSync;
     [Header("Movie selection")]
+    [Tooltip("Centre of the movie selection panel. The panel faces the player standing on this anchor's -Z side " +
+             "(blue arrow = the way the player looks). The cyan frame in the Scene view shows its exact in-game size.")]
     [SerializeField] private Transform movieUiAnchor;
     [Tooltip("Both humans and ghosts randomly request one of these movies.")]
     [SerializeField] private string[] movies = { "Movie 1", "Movie 2", "Movie 3" };
@@ -45,14 +50,12 @@ public sealed class TicketMinigame : MonoBehaviour
     [SerializeField, Min(0)] private float delayBetweenCustomers = 2f;
     [SerializeField, Range(0, 1)] private float ghostChance = 0.5f;
     private readonly QuestOrderDirector orderDirector = new QuestOrderDirector(true);
-    [SerializeField, Min(1)] private int pointsPerSale = 1;
     [SerializeField, Min(0)] private float wrongGhostDamage = 10f;
     [SerializeField, Min(0.1f)] private float serverInteractionDistance = 4.5f;
-    [Header("Customer speech and score display")]
+    [Header("Customer speech")]
     [SerializeField] private string humanRequest = "One human ticket, please!";
     [SerializeField] private string ghostRequest = "One ghost ticket, please!";
     [SerializeField] private Vector3 bubbleOffset = new Vector3(0, 1.2f, 0);
-    [SerializeField] private Transform scoreAnchor;
     [Header("Zone quest")]
     [Tooltip("The Ticket Zone's shared sales total. Tickets, popcorn and drinks all count toward ONE target, so a correct ticket sale adds to the popcorn counter's score. Leave empty to use the one in the scene (PopcornNetSync.Instance).")]
     [SerializeField] private PopcornNetSync zoneCounter;
@@ -66,11 +69,10 @@ public sealed class TicketMinigame : MonoBehaviour
     private float delay;
     private int waypoint;
     private GameObject customer;
+    private CustomerModelVisual customerModel;
     private Canvas bubble;
     private TMP_Text requestText;
-    private TMP_Text scoreText;
     private int visualRound = -1;
-    private int displayedScore = -1;
     private bool wasOnline;
     private Canvas movieCanvas;
     private TMP_Text movieSelectionText;
@@ -93,15 +95,13 @@ public sealed class TicketMinigame : MonoBehaviour
     private void Awake()
     {
         if (humanButton == null || ghostButton == null || spawnPoint == null ||
-            counterPoint == null || exitPoint == null || scoreAnchor == null || networkSync == null ||
+            counterPoint == null || exitPoint == null || networkSync == null ||
             movieUiAnchor == null || movies == null || movies.Length == 0)
         {
-            Debug.LogError("[Tickets] Assign the buttons, route points, score/movie UI anchors, movies and network sync.", this);
+            Debug.LogError("[Tickets] Assign the buttons, route points, movie UI anchor, movies and network sync.", this);
             enabled = false;
             return;
         }
-        scoreText = CreateDisplay("Ticket Score", scoreAnchor, new Vector2(420, 100), out _);
-        scoreText.text = "TICKETS: 0";
         delay = delayBetweenCustomers;
         BuildMoviePanel();
     }
@@ -222,7 +222,7 @@ public sealed class TicketMinigame : MonoBehaviour
     private void BuildMoviePanel()
     {
         movieCanvas = UiFactory.CreateWorldCanvas("Movie Selection (World Space)", movieUiAnchor,
-            movieUiAnchor, new Vector2(620, 850));
+            movieUiAnchor, MoviePanelPixels);
         var panel = UiFactory.CreatePanel("Movie Controls", movieCanvas.transform, new Color(0.035f, 0.06f, 0.1f, 0.97f));
         UiFactory.Stretch(panel.GetComponent<RectTransform>());
         var title = UiFactory.CreateText("Title", panel.transform, "SELECT MOVIE", 46, new Color(1f, 0.8f, 0.22f));
@@ -277,7 +277,6 @@ public sealed class TicketMinigame : MonoBehaviour
         if (correct)
         {
             orderDirector.RecordSale(ZoneTaskKind.Ticket, PopcornFlavor.None, state.movieIndex, state.ghost);
-            state.score += Mathf.Max(1, pointsPerSale);
             ReportSale(player);
         }
         orderDirector.ResolveCustomer(correct);
@@ -296,11 +295,6 @@ public sealed class TicketMinigame : MonoBehaviour
 
     private void DrawCustomer(TicketCustomerState visible)
     {
-        if (scoreText != null && displayedScore != visible.score)
-        {
-            displayedScore = visible.score;
-            scoreText.text = $"TICKETS: {visible.score}";
-        }
         if (visible.stage == TicketCustomerStage.BetweenCustomers)
         {
             if (customer != null) Destroy(customer);
@@ -310,20 +304,40 @@ public sealed class TicketMinigame : MonoBehaviour
         if (customer == null || visualRound != visible.round)
         {
             if (customer != null) Destroy(customer);
-            // Same primitive, proportions and colours as the popcorn CounterSlot.
-            customer = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            customer.name = visible.ghost ? "Ghost Ticket Customer" : "Human Ticket Customer";
-            customer.transform.localScale = new Vector3(0.75f, 1, 0.75f);
-            customer.GetComponent<Collider>().enabled = false;
-            CustomerAppearance.Apply(customer.GetComponent<Renderer>(), visible.ghost);
-            requestText = CreateDisplay("Ticket Request", customer.transform, new Vector2(440, 100), out bubble);
+            customerModel = null;
+            if (!visible.ghost)
+            {
+                // Human: NPC model picked from the synced round, so every client sees the same one.
+                // The bubble keeps the same gap above the head as it had above the capsule top.
+                float gapAboveHead = Mathf.Max(0.1f, bubbleOffset.y - 1f);
+                customerModel = CustomerModelVisual.TryCreate("Human Ticket Customer", visible.position,
+                    visible.rotation, (uint)visible.round, visible.stage != TicketCustomerStage.Waiting,
+                    gapAboveHead, false);
+            }
+            if (customerModel != null)
+            {
+                customer = customerModel.gameObject;
+                requestText = CreateDisplay("Ticket Request", customerModel.LabelAnchor, new Vector2(440, 100), out bubble);
+                bubble.transform.localPosition = Vector3.zero;
+            }
+            else
+            {
+                // Ghost (or no model configured): same primitive, proportions and colours as the popcorn CounterSlot.
+                customer = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                customer.name = visible.ghost ? "Ghost Ticket Customer" : "Human Ticket Customer";
+                customer.transform.localScale = new Vector3(0.75f, 1, 0.75f);
+                customer.GetComponent<Collider>().enabled = false;
+                CustomerAppearance.Apply(customer.GetComponent<Renderer>(), visible.ghost);
+                requestText = CreateDisplay("Ticket Request", customer.transform, new Vector2(440, 100), out bubble);
+                bubble.transform.localScale = new Vector3(0.002f / 0.75f, 0.002f, 0.002f / 0.75f);
+                bubble.transform.localPosition = bubbleOffset;
+            }
             requestText.text = (visible.ghost ? ghostRequest : humanRequest) +
                 "\nMovie: " + movies[visible.requestedMovieIndex];
-            bubble.transform.localScale = new Vector3(0.002f / 0.75f, 0.002f, 0.002f / 0.75f);
-            bubble.transform.localPosition = bubbleOffset;
             visualRound = visible.round;
         }
         customer.transform.SetPositionAndRotation(visible.position, visible.rotation);
+        if (customerModel != null) customerModel.SetWalking(visible.stage != TicketCustomerStage.Waiting);
         bubble.enabled = visible.stage == TicketCustomerStage.Waiting;
     }
 
@@ -355,6 +369,45 @@ public sealed class TicketMinigame : MonoBehaviour
     {
         if (customer != null) Destroy(customer);
         visualRound = -1;
+    }
+
+    // Same size the runtime panel is built with (UiFactory: 1 px = 1 mm, independent of the anchor's scale).
+    private static readonly Vector2 MoviePanelPixels = new Vector2(620, 850);
+
+    /// <summary>
+    /// Always-visible frame of the movie panel, so the anchor can be placed in the Scene
+    /// view without entering Play Mode. Turn on Gizmos in the Scene view to see it.
+    /// </summary>
+    private void OnDrawGizmos()
+    {
+        if (movieUiAnchor == null) return;
+        Vector2 size = MoviePanelPixels * UiFactory.WorldUnitsPerPixel;
+        Matrix4x4 previous = Gizmos.matrix;
+        Gizmos.matrix = Matrix4x4.TRS(movieUiAnchor.position, movieUiAnchor.rotation, Vector3.one);
+
+        Gizmos.color = new Color(0.2f, 0.85f, 1f, 0.18f);
+        Gizmos.DrawCube(Vector3.zero, new Vector3(size.x, size.y, 0.002f));
+        Gizmos.color = new Color(0.2f, 0.85f, 1f, 1f);
+        Gizmos.DrawWireCube(Vector3.zero, new Vector3(size.x, size.y, 0f));
+        // Inner frame offset 1 cm so the border reads clearly at any zoom.
+        Gizmos.DrawWireCube(Vector3.zero, new Vector3(size.x - 0.02f, size.y - 0.02f, 0f));
+        // Title strip (top 11% of the panel holds "SELECT MOVIE").
+        float titleY = size.y * (0.87f - 0.5f);
+        Gizmos.DrawLine(new Vector3(-size.x * 0.5f, titleY, 0f), new Vector3(size.x * 0.5f, titleY, 0f));
+        // Viewing direction: the player stands on the -Z side and looks along +Z.
+        Gizmos.color = new Color(0.25f, 0.45f, 1f, 1f);
+        Vector3 eye = new Vector3(0f, 0f, -0.35f);
+        Gizmos.DrawLine(eye, Vector3.zero);
+        Gizmos.DrawLine(Vector3.zero, new Vector3(0.05f, 0f, -0.06f));
+        Gizmos.DrawLine(Vector3.zero, new Vector3(-0.05f, 0f, -0.06f));
+        Gizmos.DrawWireSphere(eye, 0.025f);
+
+        Gizmos.matrix = previous;
+#if UNITY_EDITOR
+        UnityEditor.Handles.color = Color.white;
+        UnityEditor.Handles.Label(movieUiAnchor.position + movieUiAnchor.up * (size.y * 0.5f + 0.06f),
+            $"Movie Selection UI ({size.x:0.00} x {size.y:0.00} m)");
+#endif
     }
 
     private void OnDrawGizmosSelected()

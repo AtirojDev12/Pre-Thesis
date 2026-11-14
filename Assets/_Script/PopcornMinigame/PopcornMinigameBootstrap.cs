@@ -375,13 +375,22 @@ public sealed class CounterSlot : MonoBehaviour
     {
         if (IsOccupied) return null;
 
-        GameObject customerObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        customerObject.name = $"{order.customerType}{(order.chooseAny ? " Choice" : "")} Customer";
-        customerObject.transform.position = spawnPosition;
-        customerObject.transform.localScale = new Vector3(0.75f, 1f, 0.75f);
-
-        Renderer renderer = customerObject.GetComponent<Renderer>();
-        CustomerAppearance.Apply(renderer, order.customerType == PopcornCustomerType.Ghost);
+        string customerName = $"{order.customerType}{(order.chooseAny ? " Choice" : "")} Customer";
+        bool ghost = order.customerType == PopcornCustomerType.Ghost;
+        // Humans use an NPC model (picked from the synced order id so every client sees the
+        // same one, feet kept on the floor by CustomerModelVisual). Ghosts stay capsules.
+        CustomerModelVisual model = ghost ? null : CustomerModelVisual.TryCreate(customerName, spawnPosition,
+            Quaternion.identity, order.id, true, PopcornCustomer.PromptGapAboveHead, true);
+        GameObject customerObject;
+        if (model != null) customerObject = model.gameObject;
+        else
+        {
+            customerObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            customerObject.name = customerName;
+            customerObject.transform.position = spawnPosition;
+            customerObject.transform.localScale = new Vector3(0.75f, 1f, 0.75f);
+            CustomerAppearance.Apply(customerObject.GetComponent<Renderer>(), ghost);
+        }
 
         ActiveCustomer = customerObject.AddComponent<PopcornCustomer>();
         ActiveCustomer.Configure(manager, this, order, waitPosition, exitPosition);
@@ -398,6 +407,8 @@ public sealed class CounterSlot : MonoBehaviour
 public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteractionHighlight
 {
     private enum CustomerState { WalkingIn, Waiting, WalkingOut }
+    /// <summary>Gap between the top of an NPC model's head and the centre of its submit prompt.</summary>
+    public const float PromptGapAboveHead = 0.25f;
 
     public PopcornOrderState OrderState { get; private set; }
     public PopcornCustomerType CustomerType => OrderState.customerType;
@@ -416,6 +427,7 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
     private Transform[] departurePath = new Transform[0];
     private Quaternion waitFacing = Quaternion.identity;
     private int waypoint;
+    private CustomerModelVisual model;
 
     public void ConfigureRoute(Transform[] approach, Transform[] departure, Quaternion facing)
     {
@@ -433,6 +445,7 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
         waitPosition = wait;
         exitPosition = exit;
         state = CustomerState.WalkingIn;
+        model = GetComponent<CustomerModelVisual>();
         interactionCollider = GetComponent<Collider>();
         interactionCollider.enabled = false;
         BuildSubmitPrompt();
@@ -441,11 +454,13 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
     private void BuildSubmitPrompt()
     {
         GameObject promptObject = new GameObject("Customer Submit Prompt", typeof(RectTransform), typeof(Canvas));
-        promptObject.transform.SetParent(transform, false);
-        promptObject.transform.localPosition = Vector3.up * 1.45f;
-        // Compensate for the capsule's scale so the label has the same world size on every customer.
-        promptObject.transform.localScale = new Vector3(0.002f / transform.lossyScale.x,
-            0.002f / transform.lossyScale.y, 0.002f / transform.lossyScale.z);
+        // NPC model: the label anchor already sits just above the head. Capsule: 1.45 m above its centre.
+        Transform anchor = model != null ? model.LabelAnchor : transform;
+        promptObject.transform.SetParent(anchor, false);
+        promptObject.transform.localPosition = model != null ? Vector3.zero : Vector3.up * 1.45f;
+        // Compensate for the parent's scale so the label has the same world size on every customer.
+        promptObject.transform.localScale = new Vector3(0.002f / anchor.lossyScale.x,
+            0.002f / anchor.lossyScale.y, 0.002f / anchor.lossyScale.z);
         promptObject.GetComponent<RectTransform>().sizeDelta = new Vector2(300f, 80f);
         submitPrompt = promptObject.GetComponent<Canvas>();
         submitPrompt.renderMode = RenderMode.WorldSpace;
@@ -492,6 +507,7 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
         if (state == CustomerState.WalkingIn)
         {
             state = CustomerState.Waiting;
+            if (model != null) model.SetWalking(false);
             interactionCollider.enabled = true;
             // The authored wait anchor determines which side of this map's counter to face.
             transform.rotation = waitFacing;
@@ -511,6 +527,7 @@ public sealed class PopcornCustomer : MonoBehaviour, IInteractable, IInteraction
         SetHighlighted(false);
         interactionCollider.enabled = false;
         state = CustomerState.WalkingOut;
+        if (model != null) model.SetWalking(true);
         waypoint = 0;
     }
 

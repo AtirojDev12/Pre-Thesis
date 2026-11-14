@@ -288,3 +288,13 @@ MonoBehaviour:
     design: {fileID: 0}
     elements: []
     added: []
+  - screenName: Local Ghost Warning
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 3828582725448316266, guid: 666a3128e0ca0ed41addcb4dbe6cd9f1, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []
