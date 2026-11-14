@@ -14,6 +14,13 @@ using UnityEngine.UI;
 /// Only edits by a person are noted (Unity's Undo system reports them), never changes
 /// the game code makes by itself. Nothing is saved until Save is pressed. When Play
 /// stops with unsaved edits, a dialog asks Save / Discard (the objects still exist then).
+///
+/// WHERE A SAVED EDIT GOES (14 Nov):
+///   1. The screen has a UI Hub skin prefab -> written into the skin (as before).
+///   2. The edited object comes from a prefab (e.g. GAME HUD.prefab) -> written into
+///      THAT prefab, so the Canvas you edit in Prefab Mode and the game stay the same.
+///      Any older UI Layout entry for that part is removed so it can't override the prefab.
+///   3. Otherwise (UI built by code, plain scene objects) -> kept in the UI Layout asset.
 /// </summary>
 [InitializeOnLoad]
 public static class UiChangeRecorder
@@ -147,26 +154,88 @@ public static class UiChangeRecorder
         if (pending.Count == 0) return 0;
         UiLayoutData data = EnsureData();
         Undo.RecordObject(data, "Save UI changes");
-        int saved = 0, lost = 0;
-        foreach (Pending p in pending)
+        int saved = 0, lost = 0, toPrefab = 0;
+        var openPrefabs = new Dictionary<string, GameObject>(); // asset path -> loaded contents (saved once at the end)
+        try
         {
-            Transform t = p.target != null ? p.target : FindLive(p.screen, p.path);
-            if (t == null) { lost++; continue; }
-            // The screen has an editable prefab: write the edit into it (the prefab stays the one place to edit).
-            if (UiSkinTools.WriteToSkin(p.screen, p.path, p.group, t)) { saved++; continue; }
-            UiScreenLook screen = data.GetOrAddScreen(p.screen);
-            UiElementLook e = screen.GetOrAddElement(p.path);
-            if (!UiLayoutRuntime.Capture(t, e, p.group)) { lost++; continue; }
-            if (p.group == UiLookGroup.Hide && !e.hide) e.SetUses(UiLookGroup.Hide, false); // shown again = no hide change
-            if (e.Empty) screen.elements.Remove(e);
-            saved++;
+            foreach (Pending p in pending)
+            {
+                Transform t = p.target != null ? p.target : FindLive(p.screen, p.path);
+                if (t == null) { lost++; continue; }
+                // The screen has an editable skin prefab: write the edit into it (the prefab stays the one place to edit).
+                if (UiSkinTools.WriteToSkin(p.screen, p.path, p.group, t)) { saved++; continue; }
+                // The object comes from a prefab (e.g. GAME HUD.prefab): write the edit into that prefab.
+                if (WriteToSourcePrefab(t, p.group, openPrefabs))
+                {
+                    ForgetLayout(data, p.screen, p.path, p.group);
+                    saved++; toPrefab++;
+                    continue;
+                }
+                UiScreenLook screen = data.GetOrAddScreen(p.screen);
+                UiElementLook e = screen.GetOrAddElement(p.path);
+                if (!UiLayoutRuntime.Capture(t, e, p.group)) { lost++; continue; }
+                if (p.group == UiLookGroup.Hide && !e.hide) e.SetUses(UiLookGroup.Hide, false); // shown again = no hide change
+                if (e.Empty) screen.elements.Remove(e);
+                saved++;
+            }
+        }
+        finally
+        {
+            foreach (KeyValuePair<string, GameObject> kv in openPrefabs)
+            {
+                try { PrefabUtility.SaveAsPrefabAsset(kv.Value, kv.Key); }
+                catch (Exception ex) { Debug.LogError($"[UI Hub] Could not save {kv.Key}: {ex.Message}"); }
+                finally { PrefabUtility.UnloadPrefabContents(kv.Value); }
+            }
         }
         ClearPending();
         EditorUtility.SetDirty(data);
         AssetDatabase.SaveAssets();
         data.MarkChanged();
-        Debug.Log($"[UI Hub] Saved {saved} UI change(s)" + (lost > 0 ? $"; {lost} could not be saved (the object was gone)." : "."));
+        Debug.Log($"[UI Hub] Saved {saved} UI change(s)" +
+                  (toPrefab > 0 ? $" ({toPrefab} written into: {string.Join(", ", openPrefabs.Keys)})" : "") +
+                  (lost > 0 ? $"; {lost} could not be saved (the object was gone)." : "."));
         return saved;
+    }
+
+    /// <summary>
+    /// Writes one edit into the prefab asset the live object comes from. False when the object
+    /// is not part of a prefab (built by code / plain scene object) or the part can't be found.
+    /// </summary>
+    private static bool WriteToSourcePrefab(Transform live, UiLookGroup group, Dictionary<string, GameObject> open)
+    {
+        GameObject source = PrefabUtility.GetCorrespondingObjectFromOriginalSource(live.gameObject);
+        if (source == null) return false;
+        string assetPath = AssetDatabase.GetAssetPath(source);
+        if (string.IsNullOrEmpty(assetPath) || !assetPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)) return false;
+
+        if (!open.TryGetValue(assetPath, out GameObject root))
+        {
+            root = PrefabUtility.LoadPrefabContents(assetPath);
+            open[assetPath] = root;
+        }
+        string relative = AnimationUtility.CalculateTransformPath(source.transform, source.transform.root);
+        Transform node = string.IsNullOrEmpty(relative) ? root.transform : root.transform.Find(relative);
+        if (node == null || !UiLayoutRuntime.Supports(node, group)) return false;
+
+        if (group == UiLookGroup.Hide) node.gameObject.SetActive(live.gameObject.activeSelf);
+        else
+        {
+            var values = new UiElementLook();
+            if (!UiLayoutRuntime.Capture(live, values, group)) return false;
+            UiLayoutRuntime.Apply(node, values, group);
+        }
+        return true;
+    }
+
+    /// <summary>Removes a saved UI Layout value that would otherwise override the prefab at runtime.</summary>
+    private static void ForgetLayout(UiLayoutData data, string screenName, string path, UiLookGroup group)
+    {
+        UiScreenLook screen = data.FindScreen(screenName);
+        UiElementLook e = screen?.FindElement(path);
+        if (e == null) return;
+        e.SetUses(group, false);
+        if (e.Empty) screen.elements.Remove(e);
     }
 
     public static void Discard()
@@ -199,7 +268,8 @@ public static class UiChangeRecorder
         if (change == PlayModeStateChange.ExitingPlayMode && pending.Count > 0)
         {
             bool save = EditorUtility.DisplayDialog("UI Hub",
-                $"You changed {pending.Count} UI part(s) in Play mode.\n\nSave them? They will come back every time the screen appears.",
+                $"You changed {pending.Count} UI part(s) in Play mode.\n\nSave them?\n\nParts that come from a prefab (e.g. GAME HUD) are written into that prefab, " +
+                "so Prefab Mode shows the same. Parts built by code are kept in the UI Layout asset.",
                 "Save", "Discard");
             if (save) Save(); else ClearPending();
         }

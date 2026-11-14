@@ -183,12 +183,54 @@ MonoBehaviour:
     skin: {fileID: 0}
     design: {fileID: 0}
     elements:
+    - path: Sanity Bar/Fill Area/Fill
+      fromSkin: 0
+      hide: 0
+      layout: 1
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 1, y: 1}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 8, y: 0}
+      rotation: {x: -0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
     - path: Stamina Bar/Fill Area/Fill
       fromSkin: 0
       hide: 0
       layout: 1
       anchorMin: {x: 0, y: 0}
-      anchorMax: {x: 0.91931325, y: 1}
+      anchorMax: {x: 1, y: 1}
       pivot: {x: 0.5, y: 0.5}
       position: {x: 0, y: 0}
       size: {x: 8, y: 0}
@@ -234,6 +276,48 @@ MonoBehaviour:
       pivot: {x: 0.5, y: 0.5}
       position: {x: 5.3, y: 0}
       size: {x: 10, y: 0}
+      rotation: {x: -0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Slider
+      fromSkin: 0
+      hide: 0
+      layout: 1
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 125.9, y: 119.4}
+      size: {x: 220, y: 20}
       rotation: {x: -0, y: 0, z: 0}
       scale: {x: 1, y: 1, z: 1}
       color: 0
