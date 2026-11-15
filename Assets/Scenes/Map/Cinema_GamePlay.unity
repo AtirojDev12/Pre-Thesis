@@ -58948,6 +58948,51 @@ MonoBehaviour:
   m_SelectedFaces: 
   m_SelectedEdges: []
   m_SelectedVertices: 
+--- !u!1 &546313421
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 546313422}
+  - component: {fileID: 546313423}
+  m_Layer: 0
+  m_Name: Task Board Copy - TICKETS
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &546313422
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 546313421}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: -1, z: 0, w: 0}
+  m_LocalPosition: {x: 36.265537, y: 2.2312646, z: 91.001}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1463302738}
+  m_LocalEulerAnglesHint: {x: 0, y: -180, z: 0}
+--- !u!114 &546313423
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 546313421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 19efa85f857fabc4abd575ae5ccd2c92, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ZoneTaskBoardMirror
+  source: {fileID: 1816630815}
 --- !u!4 &547245354 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1762180844963921222, guid: ddc672da3300c47408a563e2d0981a6e, type: 3}
@@ -87763,6 +87808,51 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 760510162}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &765276446
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 765276447}
+  - component: {fileID: 765276448}
+  m_Layer: 0
+  m_Name: Task Board Copy - SCREEN ROOMS
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &765276447
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 765276446}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: -1, z: 0, w: 0}
+  m_LocalPosition: {x: 38.16377, y: 2.2312646, z: 91.023}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1463302738}
+  m_LocalEulerAnglesHint: {x: 0, y: -180, z: 0}
+--- !u!114 &765276448
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 765276446}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 19efa85f857fabc4abd575ae5ccd2c92, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ZoneTaskBoardMirror
+  source: {fileID: 781601532}
 --- !u!43 &765873331
 Mesh:
   m_ObjectHideFlags: 0
@@ -110833,6 +110923,51 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1 &996244558
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 996244559}
+  - component: {fileID: 996244560}
+  m_Layer: 0
+  m_Name: Task Board Copy - FOOD & DRINKS
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &996244559
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 996244558}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: -1, z: 0, w: 0}
+  m_LocalPosition: {x: 40.062, y: 2.2312646, z: 91.037}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1463302738}
+  m_LocalEulerAnglesHint: {x: 0, y: -180, z: 0}
+--- !u!114 &996244560
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 996244558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 19efa85f857fabc4abd575ae5ccd2c92, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ZoneTaskBoardMirror
+  source: {fileID: 1690577418}
 --- !u!1001 &997690434
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -168472,6 +168607,41 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1762180844963921222, guid: ddc672da3300c47408a563e2d0981a6e, type: 3}
   m_PrefabInstance: {fileID: 2111386390}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1463302737
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1463302738}
+  m_Layer: 0
+  m_Name: Task Board Copies (Staff Room)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1463302738
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1463302737}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 996244559}
+  - {fileID: 765276447}
+  - {fileID: 546313422}
+  - {fileID: 1847999377}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1464162611
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -190568,6 +190738,117 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.6001577, y: 2.71086, z: 1.9078677}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!1 &1690577417
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1690577420}
+  - component: {fileID: 1690577419}
+  - component: {fileID: 1690577418}
+  m_Layer: 0
+  m_Name: Task Board - Food
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1690577418
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1690577417}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2e2e41d9063c2a246861a6c08213b228, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ZoneTaskList
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  zoneID: zone_popcorn
+  title: FOOD & DRINKS
+  tasks:
+  - label: Sell BBQ popcorn
+    kind: 0
+    flavor: 2
+    movie: 0
+    customer: 0
+    target: 1
+  - label: Sell Cheese popcorn
+    kind: 0
+    flavor: 1
+    movie: 0
+    customer: 0
+    target: 1
+  - label: Sell Paprika popcorn
+    kind: 0
+    flavor: 4
+    movie: 0
+    customer: 0
+    target: 1
+  - label: Sell Water
+    kind: 1
+    flavor: 5
+    movie: 0
+    customer: 0
+    target: 1
+  - label: SellPepsi
+    kind: 1
+    flavor: 6
+    movie: 0
+    customer: 0
+    target: 1
+  - label: Sell Ornge juice
+    kind: 1
+    flavor: 8
+    movie: 0
+    customer: 0
+    target: 1
+  - label: 'Sell Fanta '
+    kind: 1
+    flavor: 7
+    movie: 0
+    customer: 0
+    target: 1
+  boardWidth: 1.6
+--- !u!114 &1690577419
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1690577417}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mirror::Mirror.NetworkIdentity
+  sceneId: 3596369311
+  _assetId: 0
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0
+--- !u!4 &1690577420
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1690577417}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0.99992025, z: -0, w: -0.012629164}
+  m_LocalPosition: {x: -19.392, y: 2.445, z: 13.819}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1694322599
 GameObject:
   m_ObjectHideFlags: 0
@@ -207067,7 +207348,7 @@ GameObject:
   - component: {fileID: 1816630816}
   - component: {fileID: 1816630815}
   m_Layer: 0
-  m_Name: Task Board - Ticket Zone
+  m_Name: Task Board - Tickets
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -207089,7 +207370,7 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0
   zoneID: zone_ticket
-  title: TICKET ZONE
+  title: TICKETS
   tasks:
   - label: Sell Ticket 1 to Humans
     kind: 2
@@ -207126,48 +207407,6 @@ MonoBehaviour:
     flavor: 0
     movie: 3
     customer: 2
-    target: 1
-  - label: Sell BBQ popcorn
-    kind: 0
-    flavor: 2
-    movie: 0
-    customer: 0
-    target: 1
-  - label: Sell Cheese popcorn
-    kind: 0
-    flavor: 1
-    movie: 0
-    customer: 0
-    target: 1
-  - label: Sell Paprika popcorn
-    kind: 0
-    flavor: 4
-    movie: 0
-    customer: 0
-    target: 1
-  - label: Sell Water
-    kind: 1
-    flavor: 5
-    movie: 0
-    customer: 0
-    target: 1
-  - label: SellPepsi
-    kind: 1
-    flavor: 6
-    movie: 0
-    customer: 0
-    target: 1
-  - label: Sell Ornge juice
-    kind: 1
-    flavor: 8
-    movie: 0
-    customer: 0
-    target: 1
-  - label: 'Sell Fanta '
-    kind: 1
-    flavor: 7
-    movie: 0
-    customer: 0
     target: 1
   boardWidth: 1.6
 --- !u!114 &1816630816
@@ -211005,6 +211244,51 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1 &1847999376
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1847999377}
+  - component: {fileID: 1847999378}
+  m_Layer: 0
+  m_Name: Task Board Copy - TOILETS
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1847999377
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1847999376}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: -1, z: 0, w: 0}
+  m_LocalPosition: {x: 34.367306, y: 2.2312646, z: 91.005}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1463302738}
+  m_LocalEulerAnglesHint: {x: 0, y: -180, z: 0}
+--- !u!114 &1847999378
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1847999376}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 19efa85f857fabc4abd575ae5ccd2c92, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ZoneTaskBoardMirror
+  source: {fileID: 434198959}
 --- !u!1 &1848384008
 GameObject:
   m_ObjectHideFlags: 0
@@ -247349,3 +247633,5 @@ SceneRoots:
   - {fileID: 2115066464}
   - {fileID: 1576415178}
   - {fileID: 1870564462}
+  - {fileID: 1690577420}
+  - {fileID: 1463302738}

@@ -1,12 +1,20 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Create Room panel: difficulty, player limit (1-6), public/private and a
+/// Create Room panel: map, difficulty, player limit (1-6), public/private and a
 /// password. Builds a RoomConfig and hands it to the main menu, which passes it
 /// to LobbyController.CreateRoom. RoomConfig.Validate is the final judge; the
 /// checks here only give a quicker, friendlier message.
+///
+/// 15 Nov 2026 (Mr.k):
+///   - Hard and 13 Rules are LOCKED (RoomLocks): shown greyed with "(Locked)", cannot be picked.
+///   - Map selection (MapCatalog): Cinema + "The Forest". Every map except Cinema is locked.
+///   - The map list is the "Map Dropdown" object. A menu made before 15 Nov has none: a copy of
+///     the difficulty dropdown is made at runtime, so nothing has to be rebuilt. To get a real
+///     object you can restyle: Tools > Pre-Thesis > Scenes > Menu: Add Map Dropdown (keeps edits).
 /// </summary>
 [DisallowMultipleComponent]
 public class CreateRoomPanel : MonoBehaviour
@@ -14,8 +22,9 @@ public class CreateRoomPanel : MonoBehaviour
     public const int PasswordMaxLength = 24;
 
     [SerializeField] private MainMenuController menu;
-
     [SerializeField] private TMP_Text mapText;
+    [Tooltip("15 Nov. List of maps (locked ones are greyed). Empty = made at runtime as a copy of the difficulty dropdown.")]
+    [SerializeField] private TMP_Dropdown mapDropdown;
     [Tooltip("Optional (added 1 Oct). Room name shown and searchable in the Room Browser.")]
     [SerializeField] private TMP_InputField roomNameField;
     [SerializeField] private TMP_Dropdown difficultyDropdown;
@@ -27,11 +36,39 @@ public class CreateRoomPanel : MonoBehaviour
     [SerializeField] private Button createButton;
     [SerializeField] private Button backButton;
 
+    private int difficultyChoice = (int)DifficultyLevel.Normal; // last allowed pick
+    private int mapChoice;                                      // last allowed pick
+    private Transform lockedDifficultyList, lockedMapList;      // open lists already greyed
+
     private void Awake()
     {
+        EnsureMapDropdown(); // before any listener is added: the copy must start clean
+
+        var difficulties = new List<string>(RoomDisplay.DifficultyOptions.Length);
+        for (int i = 0; i < RoomDisplay.DifficultyOptions.Length; i++)
+            difficulties.Add(RoomDisplay.DifficultyOptions[i] + (DifficultyLocked(i) ? RoomLocks.LockedSuffix : ""));
         difficultyDropdown.ClearOptions();
-        difficultyDropdown.AddOptions(new System.Collections.Generic.List<string>(RoomDisplay.DifficultyOptions));
-        difficultyDropdown.SetValueWithoutNotify((int)DifficultyLevel.Normal);
+        difficultyDropdown.AddOptions(difficulties);
+        difficultyDropdown.SetValueWithoutNotify(difficultyChoice);
+        difficultyDropdown.onValueChanged.AddListener(OnDifficultyPicked);
+
+        if (mapDropdown != null)
+        {
+            var maps = new List<string>(MapCatalog.All.Count);
+            mapChoice = 0;
+            for (int i = 0; i < MapCatalog.All.Count; i++)
+            {
+                MapCatalog.MapInfo info = MapCatalog.All[i];
+                maps.Add(info.displayName + (info.locked ? RoomLocks.LockedSuffix : ""));
+                if (info.id == RoomConfig.DemoMapID) mapChoice = i;
+            }
+            mapDropdown.ClearOptions();
+            mapDropdown.AddOptions(maps);
+            mapDropdown.SetValueWithoutNotify(mapChoice);
+            mapDropdown.onValueChanged.AddListener(OnMapPicked);
+            mapText.text = "Map";
+        }
+        else mapText.text = "Map: " + RoomDisplay.MapName(RoomConfig.DemoMapID);
 
         playerLimitSlider.minValue = RoomConfig.MinPlayers;
         playerLimitSlider.maxValue = RoomConfig.MaxPlayers;
@@ -49,8 +86,77 @@ public class CreateRoomPanel : MonoBehaviour
         createButton.onClick.AddListener(Create);
         backButton.onClick.AddListener(() => menu.ShowMain());
 
-        mapText.text = "Map: " + RoomDisplay.MapName(RoomConfig.DemoMapID);
         if (roomNameField != null) roomNameField.characterLimit = RoomConfig.MaxRoomNameLength;
+    }
+
+    /// <summary>
+    /// A menu built before 15 Nov has no map list: copy the difficulty dropdown (same look)
+    /// right under the "Map" label and make the card taller by one row.
+    /// </summary>
+    private void EnsureMapDropdown()
+    {
+        if (mapDropdown != null || difficultyDropdown == null || mapText == null) return;
+        Transform parent = difficultyDropdown.transform.parent;
+        if (parent == null || mapText.transform.parent != parent) return; // unknown layout: keep the plain "Map: Cinema" text
+
+        mapDropdown = Instantiate(difficultyDropdown, parent);
+        mapDropdown.name = "Map Dropdown";
+        mapDropdown.transform.SetSiblingIndex(mapText.transform.GetSiblingIndex() + 1);
+
+        var row = (RectTransform)difficultyDropdown.transform;
+        LayoutElement element = difficultyDropdown.GetComponent<LayoutElement>();
+        float rowHeight = element != null && element.preferredHeight > 0f ? element.preferredHeight
+                        : row.rect.height > 1f ? row.rect.height : row.sizeDelta.y > 1f ? row.sizeDelta.y : 56f;
+        VerticalLayoutGroup group = parent.GetComponent<VerticalLayoutGroup>();
+        if (parent is RectTransform card && group != null)
+            card.sizeDelta += new Vector2(0f, rowHeight + group.spacing);
+    }
+
+    private static bool DifficultyLocked(int index) => RoomLocks.IsLocked((DifficultyLevel)index);
+    private static bool MapLocked(int index) => index < 0 || index >= MapCatalog.All.Count || MapCatalog.All[index].locked;
+
+    private void OnDifficultyPicked(int index)
+    {
+        if (!DifficultyLocked(index)) { difficultyChoice = index; errorText.text = string.Empty; return; }
+        difficultyDropdown.SetValueWithoutNotify(difficultyChoice);
+        errorText.text = RoomDisplay.DifficultyOptions[Mathf.Clamp(index, 0, RoomDisplay.DifficultyOptions.Length - 1)] + " is locked for now.";
+    }
+
+    private void OnMapPicked(int index)
+    {
+        if (!MapLocked(index)) { mapChoice = index; errorText.text = string.Empty; return; }
+        mapDropdown.SetValueWithoutNotify(mapChoice);
+        errorText.text = (index >= 0 && index < MapCatalog.All.Count ? MapCatalog.All[index].displayName : "This map") + " is locked for now.";
+    }
+
+    // While a list is open, its locked rows are greyed and cannot be clicked.
+    private void LateUpdate()
+    {
+        GreyLockedRows(difficultyDropdown, ref lockedDifficultyList, true);
+        GreyLockedRows(mapDropdown, ref lockedMapList, false);
+    }
+
+    private static void GreyLockedRows(TMP_Dropdown dropdown, ref Transform done, bool difficulty)
+    {
+        if (dropdown == null) return;
+        Transform list = dropdown.transform.Find("Dropdown List"); // made by TMP_Dropdown while the list is open
+        if (list == null) { done = null; return; }
+        if (list == done) return;
+        done = list;
+
+        Toggle[] rows = list.GetComponentsInChildren<Toggle>(false); // the hidden template row is skipped
+        for (int i = 0; i < rows.Length; i++)
+        {
+            bool locked = difficulty ? DifficultyLocked(i) : MapLocked(i);
+            if (!locked) continue;
+            rows[i].interactable = false;
+            foreach (TMP_Text label in rows[i].GetComponentsInChildren<TMP_Text>(true))
+            {
+                Color c = label.color;
+                c.a *= 0.4f;
+                label.color = c;
+            }
+        }
     }
 
     private void OnEnable()
@@ -76,11 +182,14 @@ public class CreateRoomPanel : MonoBehaviour
 
     private void Create()
     {
+        string mapID = mapDropdown != null && mapDropdown.value >= 0 && mapDropdown.value < MapCatalog.All.Count
+            ? MapCatalog.All[mapDropdown.value].id : RoomConfig.DemoMapID;
+
         var config = new RoomConfig
         {
             roomName = roomNameField != null && !string.IsNullOrWhiteSpace(roomNameField.text)
                 ? roomNameField.text : DefaultRoomName(),
-            mapID = RoomConfig.DemoMapID,
+            mapID = mapID,
             difficulty = (DifficultyLevel)Mathf.Clamp(difficultyDropdown.value, 0, RoomDisplay.DifficultyOptions.Length - 1),
             playerLimit = Mathf.RoundToInt(playerLimitSlider.value),
             isPrivate = privateToggle.isOn,
@@ -89,7 +198,7 @@ public class CreateRoomPanel : MonoBehaviour
 
         if (!config.Validate(out string error))
         {
-            errorText.text = config.isPrivate ? "Private rooms need a password." : error;
+            errorText.text = error; // 15 Nov: also "X is locked for now."
             return;
         }
 

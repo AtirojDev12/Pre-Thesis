@@ -361,14 +361,15 @@ public static class MainMenuBuilder
 
     private static CreateRoomPanel BuildCreatePanel(RectTransform canvas, MainMenuController menu)
     {
-        RectTransform card = Card(canvas, "Create Room Panel", new Vector2(760, 880));
+        RectTransform card = Card(canvas, "Create Room Panel", new Vector2(760, 952)); // 15 Nov: +1 row (map list)
         Label(card, "Title", "Create Room", 44, AccentColor, TextAlignmentOptions.Center, 60);
 
         // 1 Oct: the room's name, shown and searchable in the Room Browser.
         Label(card, "Room Name Label", "Room name", 24, TextColor, TextAlignmentOptions.MidlineLeft, 30);
         TMP_InputField roomName = MakeInput(card, "Room Name Field", "e.g. Kong's room");
 
-        TMP_Text map = Label(card, "Map", "Map: Cinema", 26, MutedColor, TextAlignmentOptions.MidlineLeft, 36);
+        TMP_Text map = Label(card, "Map", "Map", 26, MutedColor, TextAlignmentOptions.MidlineLeft, 36);
+        TMP_Dropdown mapDropdown = MakeDropdown(card, "Map Dropdown"); // 15 Nov: map list (locked maps are greyed)
 
         Label(card, "Difficulty Label", "Difficulty", 24, TextColor, TextAlignmentOptions.MidlineLeft, 30);
         TMP_Dropdown difficulty = MakeDropdown(card, "Difficulty Dropdown");
@@ -387,7 +388,7 @@ public static class MainMenuBuilder
 
         CreateRoomPanel panel = card.gameObject.AddComponent<CreateRoomPanel>();
         Wire(panel,
-            ("menu", menu), ("roomNameField", roomName), ("mapText", map), ("difficultyDropdown", difficulty),
+            ("menu", menu), ("roomNameField", roomName), ("mapText", map), ("mapDropdown", mapDropdown), ("difficultyDropdown", difficulty),
             ("playerLimitSlider", limit), ("playerLimitText", limitText),
             ("privateToggle", privateToggle), ("passwordField", password),
             ("errorText", error), ("createButton", create), ("backButton", back));
@@ -711,6 +712,66 @@ public static class MainMenuBuilder
         const string done = "Create Room (room name) and Room Browser (name column + search) rebuilt in MainMenu.unity. Nothing else touched.";
         Debug.Log("[MainMenuBuilder] " + done);
         EditorUtility.DisplayDialog("Rebuild Create Room + Room Browser", done, "OK");
+    }
+
+    /// <summary>
+    /// 15 Nov 2026 (Mr.k): adds the "Map Dropdown" to an existing Create Room panel WITHOUT rebuilding it
+    /// (your edits to the menu stay). It is a copy of the Difficulty dropdown, so it has the same look.
+    /// </summary>
+    [MenuItem("Tools/Pre-Thesis/Scenes/Menu: Add Map Dropdown (keeps edits)", false, 33)]
+    private static void AddMapDropdown()
+    {
+        if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog("Map Dropdown", "Stop Play mode first.", "OK"); return; }
+
+        CreateRoomPanel panel = null;
+        foreach (CreateRoomPanel p in Object.FindObjectsByType<CreateRoomPanel>(FindObjectsInactive.Include))
+            if (p.gameObject.scene.IsValid()) { panel = p; break; }
+        if (panel == null)
+        {
+            EditorUtility.DisplayDialog("Map Dropdown", "No Create Room panel in the open scene. Open Assets/Scenes/MainMenu first.", "OK");
+            return;
+        }
+
+        var so = new SerializedObject(panel);
+        if (so.FindProperty("mapDropdown").objectReferenceValue != null)
+        {
+            EditorUtility.DisplayDialog("Map Dropdown", "This Create Room panel already has a Map Dropdown. Nothing changed.", "OK");
+            return;
+        }
+        var difficulty = so.FindProperty("difficultyDropdown").objectReferenceValue as TMP_Dropdown;
+        var mapLabel = so.FindProperty("mapText").objectReferenceValue as TMP_Text;
+        if (difficulty == null || mapLabel == null || mapLabel.transform.parent != difficulty.transform.parent)
+        {
+            EditorUtility.DisplayDialog("Map Dropdown", "The panel's Map text or Difficulty dropdown is missing or was moved. Nothing changed.", "OK");
+            return;
+        }
+
+        Transform parent = difficulty.transform.parent;
+        GameObject copy = Object.Instantiate(difficulty.gameObject, parent);
+        Undo.RegisterCreatedObjectUndo(copy, "Add Map Dropdown");
+        copy.name = "Map Dropdown";
+        copy.transform.SetSiblingIndex(mapLabel.transform.GetSiblingIndex() + 1);
+
+        var row = (RectTransform)difficulty.transform;
+        LayoutElement element = difficulty.GetComponent<LayoutElement>();
+        float rowHeight = element != null && element.preferredHeight > 0f ? element.preferredHeight
+                        : row.rect.height > 1f ? row.rect.height : 56f;
+        VerticalLayoutGroup group = parent.GetComponent<VerticalLayoutGroup>();
+        if (parent is RectTransform card && group != null)
+        {
+            Undo.RecordObject(card, "Add Map Dropdown");
+            card.sizeDelta += new Vector2(0f, rowHeight + group.spacing);
+        }
+
+        Undo.RecordObject(mapLabel, "Add Map Dropdown");
+        mapLabel.text = "Map";
+        Undo.RecordObject(panel, "Add Map Dropdown");
+        so.FindProperty("mapDropdown").objectReferenceValue = copy.GetComponent<TMP_Dropdown>();
+        so.ApplyModifiedProperties();
+
+        EditorSceneManager.MarkSceneDirty(panel.gameObject.scene);
+        Selection.activeGameObject = copy;
+        Debug.Log("[MainMenuBuilder] Added 'Map Dropdown' under the Map label of the Create Room panel. Save the scene (Ctrl+S).", copy);
     }
 
     private static T ReplacePanel<T>(RectTransform canvas, string name, System.Func<T> build) where T : Component

@@ -6,11 +6,10 @@ public static class RoomDisplay
 {
     public static string MapName(string mapID)
     {
-        switch (mapID)
-        {
-            case RoomConfig.DemoMapID: return "Cinema";
-            default: return string.IsNullOrEmpty(mapID) ? "Unknown map" : mapID;
-        }
+        // 15 Nov: names come from the map list (MapCatalog).
+        MapCatalog.MapInfo info = MapCatalog.Find(mapID);
+        if (info != null) return info.displayName;
+        return string.IsNullOrEmpty(mapID) ? "Unknown map" : mapID;
     }
 
     public static string Difficulty(DifficultyLevel level)

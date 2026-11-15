@@ -33,6 +33,7 @@ public class RoomConfig
 
     /// <summary>
     /// Clamps values into range and enforces "private rooms need a password".
+    /// 15 Nov: also refuses a locked difficulty or a locked / unknown map (RoomLocks, MapCatalog).
     /// Call this on the HOST/server side immediately before CreateLobby — treat
     /// any RoomConfig built from UI input as untrusted until it passes this.
     /// </summary>
@@ -40,6 +41,18 @@ public class RoomConfig
     {
         playerLimit = Math.Clamp(playerLimit, MinPlayers, MaxPlayers);
         roomName = SanitizeRoomName(roomName);
+
+        // 15 Nov (Mr.k): Hard and 13 Rules are locked for now; only the Cinema map is open.
+        if (RoomLocks.IsLocked(difficulty))
+        {
+            error = RoomDisplay.Difficulty(difficulty) + " is locked for now.";
+            return false;
+        }
+        if (MapCatalog.IsLocked(mapID))
+        {
+            error = RoomDisplay.MapName(mapID) + " is locked for now.";
+            return false;
+        }
 
         if (isPrivate && string.IsNullOrWhiteSpace(password))
         {
