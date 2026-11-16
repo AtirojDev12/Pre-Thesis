@@ -88,6 +88,12 @@ public class PersistentHUD : MonoBehaviour
         _instance = this;
         ApplyVisibility();
 
+        // 16 Nov (Mr.k): the status bars and the hotbar are now parts of this prefab. The game
+        // switches them on when needed, so start with all of them off (whatever state the
+        // designer saved them in while editing the prefab).
+        foreach (HudBar bar in GetComponentsInChildren<HudBar>(true)) bar.Show(false);
+        foreach (HotbarView hotbar in GetComponentsInChildren<HotbarView>(true)) hotbar.Show(false);
+
         if (!surviveSceneLoads) return;
 
         // DontDestroyOnLoad only works on root objects; if someone nests this

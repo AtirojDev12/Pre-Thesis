@@ -140,8 +140,10 @@ public class SettingsPanel : MonoBehaviour
         if (noiseReductionToggle != null) noiseReductionToggle.onValueChanged.AddListener(_ => RefreshApplyButton());
         if (noiseGateToggle != null) noiseGateToggle.onValueChanged.AddListener(_ => { RefreshLabels(); RefreshApplyButton(); });
         if (meterDirectionButton != null) meterDirectionButton.onClick.AddListener(ToggleMeterDirection);
-        if (meterMoveButton != null) meterMoveButton.onClick.AddListener(() => NoiseMeterHUD.BeginEdit(pendingMeterVertical));
-        if (meterResetButton != null) meterResetButton.onClick.AddListener(NoiseMeterHUD.ResetPosition);
+        // 16 Nov (Mr.k): players no longer move the noise meter. The designer places the MIC and GAME
+        // bars in the GAME HUD prefab; players only pick the direction. The two old buttons are hidden.
+        if (meterMoveButton != null) meterMoveButton.gameObject.SetActive(false);
+        if (meterResetButton != null) meterResetButton.gameObject.SetActive(false);
 
         fullscreenToggle.onValueChanged.AddListener(_ => RefreshApplyButton());
         resolutionDropdown.onValueChanged.AddListener(_ => RefreshApplyButton());

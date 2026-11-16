@@ -22,6 +22,7 @@ public sealed class UiHubEditor : Editor
     private static readonly HashSet<string> showAllParts = new HashSet<string>();
     private static readonly HashSet<string> advancedOpen = new HashSet<string>();
     private static readonly HashSet<string> editOpen = new HashSet<string>();
+    private static readonly HashSet<string> closedCategories = new HashSet<string>(); // 16 Nov: headings are open by default
     private static string search = "";
     private static int filter; // 0 all, 1 on screen now, 2 changed
     private static List<GameObject> uiPrefabs;
@@ -91,7 +92,8 @@ public sealed class UiHubEditor : Editor
         EditorGUILayout.HelpBox(
             "Click a screen to open it. Change its pictures, texts, fonts and 3D models right there.\n" +
             "Press Edit to open the screen as a prefab: move things, add new pictures or 3D models, delete parts. Save the prefab. Done.\n" +
-            "Screens made by code get their prefab the first time they appear in Play mode.", MessageType.Info);
+            "Screens made by code get their prefab the first time they appear in Play mode.\n" +
+            "16 Nov: the hotbar and the status bars are real parts of the GAME HUD prefab (HUD > Status bars / Hotbar).", MessageType.Info);
 
         UiLayoutData data = UiLayoutData.Load();
         if (data == null)
@@ -156,19 +158,35 @@ public sealed class UiHubEditor : Editor
         foreach (UiScreenLook s in data.screens) if (s != null && !names.Contains(s.screenName)) names.Add(s.screenName);
         foreach (UiLayoutRuntime.LiveScreen s in UiLayoutRuntime.Live) if (s.root != null && !names.Contains(s.name)) names.Add(s.name);
 
+        // 16 Nov: one heading per category. Screens the catalog does not know go under "Other".
         int shown = 0;
-        foreach (string name in names)
+        foreach (string category in UiScreenCatalog.Categories)
         {
-            UiScreenCatalog.Entry entry = UiScreenCatalog.Find(name);
-            UiScreenLook look = data.FindScreen(name);
-            bool live = LiveRoot(name) != null;
-            if (filter == 1 && !live) continue;
-            if (filter == 2 && (look == null || look.ChangeCount == 0) && PendingCount(name) == 0) continue;
-            string label = entry != null ? entry.label : name;
-            if (!string.IsNullOrEmpty(search) && label.IndexOf(search, System.StringComparison.OrdinalIgnoreCase) < 0
-                && name.IndexOf(search, System.StringComparison.OrdinalIgnoreCase) < 0) continue;
-            DrawScreen(data, name, entry, look, live);
-            shown++;
+            var inCategory = new List<string>();
+            foreach (string name in names)
+            {
+                if (UiScreenCatalog.WasMovedIntoGameHud(name) && LiveRoot(name) == null) continue; // old code-made screen, now a GAME HUD part
+                UiScreenCatalog.Entry entry = UiScreenCatalog.Find(name);
+                if ((entry != null ? entry.category : UiScreenCatalog.Other) != category) continue;
+                UiScreenLook look = data.FindScreen(name);
+                bool live = LiveRoot(name) != null;
+                if (filter == 1 && !live) continue;
+                if (filter == 2 && (look == null || look.ChangeCount == 0) && PendingCount(name) == 0) continue;
+                string label = entry != null ? entry.label : name;
+                if (!string.IsNullOrEmpty(search) && label.IndexOf(search, System.StringComparison.OrdinalIgnoreCase) < 0
+                    && name.IndexOf(search, System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+                inCategory.Add(name);
+            }
+            if (inCategory.Count == 0) continue;
+
+            bool isOpen = !closedCategories.Contains(category);
+            bool nowOpen = EditorGUILayout.Foldout(isOpen, $"{category}  ({inCategory.Count})", true, EditorStyles.foldoutHeader);
+            if (nowOpen != isOpen) { if (nowOpen) closedCategories.Remove(category); else closedCategories.Add(category); }
+            shown += inCategory.Count;
+            if (!nowOpen) continue;
+            foreach (string name in inCategory)
+                DrawScreen(data, name, UiScreenCatalog.Find(name), data.FindScreen(name), LiveRoot(name) != null);
+            EditorGUILayout.Space(4);
         }
         if (shown == 0) EditorGUILayout.LabelField(filter == 1 ? "No screen is on screen now." : "Nothing found.", smallStyle);
     }
@@ -176,6 +194,13 @@ public sealed class UiHubEditor : Editor
     /// <summary>What the designer edits for this screen: a real prefab, a scene object, or the screen's skin prefab.</summary>
     private static GameObject EditTarget(string name, UiScreenCatalog.Entry entry, out string kind)
     {
+        if (entry != null && entry.IsPart) // 16 Nov: a child of a prefab (hotbar, status bars inside the GAME HUD)
+        {
+            var whole = AssetDatabase.LoadAssetAtPath<GameObject>(entry.prefab);
+            Transform part = whole != null ? whole.transform.Find(entry.part) : null;
+            kind = part != null ? "prefab" : "missingPart";
+            return part != null ? part.gameObject : null;
+        }
         if (entry != null && !string.IsNullOrEmpty(entry.prefab))
         {
             kind = "prefab";
@@ -220,6 +245,14 @@ public sealed class UiHubEditor : Editor
 
             if (entry != null && !string.IsNullOrEmpty(entry.how)) EditorGUILayout.LabelField("How to see it in the game: " + entry.how, smallStyle);
 
+            if (kind == "missingPart")
+            {
+                EditorGUILayout.HelpBox("This part is not in the GAME HUD prefab yet. The game uses its old code-made version until it is added.", MessageType.Warning);
+                if (GUILayout.Button("Add the missing parts to the GAME HUD", GUILayout.Height(24))) { GameHudSetup.Run(); GUIUtility.ExitGUI(); }
+            }
+            else if (name == UiScreenCatalog.BarsScreen) DrawBars();
+            else if (name == UiScreenCatalog.HotbarScreen) DrawHotbar(target);
+
             if (target != null) DrawParts(name, target, kind);
             else if (kind == "skin")
                 EditorGUILayout.HelpBox(liveRoot != null
@@ -240,7 +273,8 @@ public sealed class UiHubEditor : Editor
     {
         string tip;
         bool can;
-        if (kind == "prefab") { can = target != null; tip = "Open the prefab."; }
+        if (kind == "missingPart") { can = false; tip = "Add the missing parts first."; }
+        else if (kind == "prefab") { can = target != null; tip = "Open the prefab."; }
         else if (kind == "scene") { can = true; tip = "Open the scene and select the screen."; }
         else if (kind == "design") { can = target != null; tip = "Open your design prefab."; }
         else if (target != null) { can = true; tip = "Open the screen's prefab."; }
@@ -249,7 +283,8 @@ public sealed class UiHubEditor : Editor
         using (new EditorGUI.DisabledScope(!can))
         {
             if (!GUILayout.Button(new GUIContent("Edit", tip), editButton, GUILayout.Width(52))) return;
-            if (kind == "prefab") OpenPrefab(target);
+            if (kind == "prefab" && entry != null && entry.IsPart) ShowPart(target.transform); // open the prefab, select the part
+            else if (kind == "prefab") OpenPrefab(target);
             else if (kind == "scene") OpenScene(name, entry);
             else if (kind == "design") OpenPrefab(target);
             else
@@ -293,6 +328,91 @@ public sealed class UiHubEditor : Editor
         menu.ShowAsContext();
     }
 
+    // ---- Status bars: frame + fill (16 Nov) ---------------------------------------------------------
+
+    /// <summary>
+    /// Every status bar of the GAME HUD with its two pictures side by side: HP / Stamina / Sanity
+    /// (Slider bars) and the HudBar bars (noise, flashlight, throw, task, walkie).
+    /// </summary>
+    private void DrawBars()
+    {
+        var hud = AssetDatabase.LoadAssetAtPath<GameObject>(UiScreenCatalog.GameHudPrefab);
+        if (hud == null) return;
+        EditorGUILayout.LabelField("Frame picture and Fill picture of every bar", EditorStyles.boldLabel);
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            GUILayout.Label("Bar", EditorStyles.miniBoldLabel, GUILayout.Width(150));
+            GUILayout.Label("Frame (picture, colour)", EditorStyles.miniBoldLabel);
+            GUILayout.Label("Fill (picture, colour)", EditorStyles.miniBoldLabel);
+            GUILayout.Space(26);
+        }
+
+        bool changed = false;
+        foreach (Slider slider in hud.GetComponentsInChildren<Slider>(true))
+        {
+            Transform background = slider.transform.Find("Background");
+            Image frame = background != null ? background.GetComponent<Image>() : null;
+            Image fill = slider.fillRect != null ? slider.fillRect.GetComponent<Image>() : null;
+            changed |= DrawBarRow(slider.name, frame, fill, slider);
+        }
+        foreach (HudBar bar in hud.GetComponentsInChildren<HudBar>(true))
+            changed |= DrawBarRow(bar.name, bar.Frame, bar.Fill, bar);
+
+        if (changed) PrefabUtility.SavePrefabAsset(hud);
+        EditorGUILayout.LabelField("Fill picture with Image Type \"Filled\" is cut as the bar goes down; other types are squeezed. " +
+            "Press → to open a bar and move or resize it.", smallStyle);
+        EditorGUILayout.Space(4);
+    }
+
+    private bool DrawBarRow(string label, Image frame, Image fill, Component bar)
+    {
+        bool changed = false;
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            GUILayout.Label(label, EditorStyles.miniLabel, GUILayout.Width(150));
+            changed |= PictureField(frame);
+            changed |= PictureField(fill);
+            if (GUILayout.Button(new GUIContent("→", "Show this bar"), EditorStyles.miniButton, GUILayout.Width(22))) { ShowPart(bar); GUIUtility.ExitGUI(); }
+        }
+        return changed;
+    }
+
+    /// <summary>Picture + colour of one Image (or a dash when the bar has no such part). True when changed.</summary>
+    private static bool PictureField(Image image)
+    {
+        if (image == null) { GUILayout.Label("—", EditorStyles.centeredGreyMiniLabel); return false; }
+        var sprite = (Sprite)EditorGUILayout.ObjectField(image.sprite, typeof(Sprite), false);
+        Color colour = EditorGUILayout.ColorField(GUIContent.none, image.color, true, true, false, GUILayout.Width(46));
+        if (sprite == image.sprite && colour == image.color) return false;
+        Undo.RecordObject(image, "UI bar picture");
+        image.sprite = sprite;
+        image.color = colour;
+        EditorUtility.SetDirty(image);
+        return true;
+    }
+
+    // ---- Hotbar: selected colours + item icons (16 Nov) ------------------------------------------------
+
+    private void DrawHotbar(GameObject hotbar)
+    {
+        HotbarView view = hotbar != null ? hotbar.GetComponent<HotbarView>() : null;
+        if (view == null) return;
+        EditorGUILayout.LabelField("Selected slot and item icons", EditorStyles.boldLabel);
+        var so = new SerializedObject(view);
+        EditorGUI.BeginChangeCheck();
+        foreach (string field in new[] { "tintFrames", "normalColour", "selectedColour", "selectedPicture", "textColour", "selectedTextColour", "hideNameWhenIconShown" })
+            EditorGUILayout.PropertyField(so.FindProperty(field));
+        EditorGUILayout.PropertyField(so.FindProperty("itemIcons"), new GUIContent("Item Icons (one picture per item)"), true);
+        if (EditorGUI.EndChangeCheck())
+        {
+            so.ApplyModifiedProperties();
+            EditorUtility.SetDirty(view);
+            PrefabUtility.SavePrefabAsset(view.transform.root.gameObject);
+        }
+        EditorGUILayout.LabelField("An item with no picture shows its name. New items: run Tools > Pre-Thesis > UI > GAME HUD: Add Missing Parts.", smallStyle);
+        EditorGUILayout.Space(4);
+    }
+
     // ---- Parts: pictures, texts, models -----------------------------------------------------------
 
     private void DrawParts(string name, GameObject root, string kind)
@@ -326,7 +446,7 @@ public sealed class UiHubEditor : Editor
 
         if (changedAsset)
         {
-            PrefabUtility.SavePrefabAsset(root); // saved at once; a code screen's prefab goes to the game by itself
+            PrefabUtility.SavePrefabAsset(root.transform.root.gameObject); // saved at once (root: a part's prefab is its top object)
             if (kind == "design") UiLayoutData.Load()?.MarkChanged(); // show the new look in Play mode
         }
         EditorGUILayout.LabelField(kind == "scene"

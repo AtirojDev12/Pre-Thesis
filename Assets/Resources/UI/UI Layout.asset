@@ -54,16 +54,6 @@ MonoBehaviour:
     design: {fileID: 0}
     elements: []
     added: []
-  - screenName: Hotbar HUD
-    note: 
-    hide: 0
-    overrideSortOrder: 0
-    sortOrder: 0
-    font: {fileID: 0}
-    skin: {fileID: 4575892378148100493, guid: 177adc72ebbf5f049b2b15c51411c7b9, type: 3}
-    design: {fileID: 0}
-    elements: []
-    added: []
   - screenName: Order Screen (World Space)
     note: 
     hide: 0
@@ -81,16 +71,6 @@ MonoBehaviour:
     sortOrder: 0
     font: {fileID: 0}
     skin: {fileID: 970893348380291528, guid: 06998b220132f284a9875305d1efbc55, type: 3}
-    design: {fileID: 0}
-    elements: []
-    added: []
-  - screenName: Noise Meter HUD
-    note: 
-    hide: 0
-    overrideSortOrder: 0
-    sortOrder: 0
-    font: {fileID: 0}
-    skin: {fileID: 729974411408478691, guid: b580fb2e4a3f6a241974cb7e0a0779de, type: 3}
     design: {fileID: 0}
     elements: []
     added: []
@@ -352,16 +332,6 @@ MonoBehaviour:
       preferredWidth: -1
       preferredHeight: -1
     added: []
-  - screenName: Chore Progress HUD
-    note: 
-    hide: 0
-    overrideSortOrder: 0
-    sortOrder: 0
-    font: {fileID: 0}
-    skin: {fileID: 1890972286739575569, guid: af490305ad40eb7428f3a4d113b89b1d, type: 3}
-    design: {fileID: 0}
-    elements: []
-    added: []
   - screenName: Rule Toast
     note: 
     hide: 0
@@ -389,16 +359,6 @@ MonoBehaviour:
     sortOrder: 0
     font: {fileID: 0}
     skin: {fileID: 7684886611788542165, guid: 7570d2df5ecdd094eac70d2aab4d3fb8, type: 3}
-    design: {fileID: 0}
-    elements: []
-    added: []
-  - screenName: Flashlight HUD
-    note: 
-    hide: 0
-    overrideSortOrder: 0
-    sortOrder: 0
-    font: {fileID: 0}
-    skin: {fileID: 7884999123393737043, guid: 1d9c1f5f765bced4688cda6273b356fa, type: 3}
     design: {fileID: 0}
     elements: []
     added: []
