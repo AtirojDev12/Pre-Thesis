@@ -98,6 +98,10 @@ public static class UiSkinTools
             UiScreenCatalog.Entry entry = UiScreenCatalog.Find(s.name);
             if (entry == null || !entry.CodeBuilt) continue; // only screens built by code
             if (SkinOf(s.name) != null) { tried.Add(s.name); continue; }
+            // 16 Nov: screens that live in the GAME HUD prefab (UiHubScreen) need no prefab here.
+            // Only the few screens that cannot be shown through links still get one.
+            if (s.design != null || GameHudScreens.TemplateInPrefab(s.name) != null || GameHudScreens.HasPending(s.name)) { tried.Add(s.name); continue; }
+            if (GameHudScreens.AutoCapture && !GameHudScreens.Blocked.ContainsKey(s.name)) continue; // wait: it is being copied for the GAME HUD
             if (!firstSeen.TryGetValue(s.name, out double since)) { firstSeen[s.name] = EditorApplication.timeSinceStartup; continue; }
             if (EditorApplication.timeSinceStartup - since < 1.5) continue; // let the screen finish building
             tried.Add(s.name);

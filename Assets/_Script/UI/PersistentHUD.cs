@@ -73,8 +73,9 @@ public class PersistentHUD : MonoBehaviour
     {
         // Health, stamina, prompts and the crosshair only display information.
         // Their overlay graphics must not eat clicks intended for world-space controls.
+        // 16 Nov: not the screens kept here for the UI Hub (UiHubScreen): their copies have real buttons.
         foreach (Graphic graphic in GetComponentsInChildren<Graphic>(true))
-            graphic.raycastTarget = false;
+            if (graphic.GetComponentInParent<UiHubScreen>(true) == null) graphic.raycastTarget = false;
 
         if (_instance != null && _instance != this)
         {
@@ -93,6 +94,9 @@ public class PersistentHUD : MonoBehaviour
         // designer saved them in while editing the prefab).
         foreach (HudBar bar in GetComponentsInChildren<HudBar>(true)) bar.Show(false);
         foreach (HotbarView hotbar in GetComponentsInChildren<HotbarView>(true)) hotbar.Show(false);
+        // Editable versions of code-built screens: only copies of them are shown (UiLayoutRuntime).
+        foreach (UiHubScreen screen in GetComponentsInChildren<UiHubScreen>(true))
+            if (screen.gameObject.activeSelf) screen.gameObject.SetActive(false);
 
         if (!surviveSceneLoads) return;
 

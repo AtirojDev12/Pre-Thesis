@@ -39,9 +39,9 @@ public static class UiScreenCatalog
     public static readonly Entry[] All =
     {
         // ---- HUD
-        new Entry { category = Hud, screen = "GAME HUD", label = "Game HUD (health, stamina, sanity, crosshair, [E] prompt, down screen)", how = "Lobby and match.", prefab = GameHudPrefab, script = "Assets/_Script/UI/PersistentHUD.cs" },
-        new Entry { category = Hud, screen = BarsScreen, label = "Status bars: frame + fill (noise, flashlight, throw, task, walkie)", how = "Match.", prefab = GameHudPrefab, part = "HUD Bars", script = "Assets/_Script/UI/Hub/HudBar.cs" },
-        new Entry { category = Hud, screen = HotbarScreen, label = "Hotbar (4 slots, item icons, hint, mic line)", how = "Lobby and match.", prefab = GameHudPrefab, part = "Hotbar", script = "Assets/_Script/UI/Hub/HotbarView.cs", related = new[] { "Assets/Resources/Items" } },
+        new Entry { category = Hud, screen = "GAME HUD", label = "Game HUD (health, stamina, sanity, crosshair)", how = "Lobby and match.", prefab = GameHudPrefab, script = "Assets/_Script/UI/PersistentHUD.cs" },
+        new Entry { category = Hud, screen = BarsScreen, label = "Status bars (frame + fill)", how = "Match: noise, flashlight, throw, task progress, walkie battery.", prefab = GameHudPrefab, part = "HUD Bars", script = "Assets/_Script/UI/Hub/HudBar.cs" },
+        new Entry { category = Hud, screen = HotbarScreen, label = "Hotbar (slots + item icons)", how = "Lobby and match.", prefab = GameHudPrefab, part = "Hotbar", script = "Assets/_Script/UI/Hub/HotbarView.cs", related = new[] { "Assets/Resources/Items" } },
         E(Hud, "Match HUD (clock)", "Match clock", "Match, top of the screen.", "Assets/_Script/UI/MatchHUD.cs"),
 
         // ---- Menus

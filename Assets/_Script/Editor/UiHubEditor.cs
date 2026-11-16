@@ -29,7 +29,7 @@ public sealed class UiHubEditor : Editor
     private double nextRepaint;
 
     // NonSerialized: Unity keeps private fields over a script reload, which left a new style null (8 Nov NRE).
-    [System.NonSerialized] private GUIStyle headerStyle, smallStyle, okStyle, warnStyle, editButton;
+    [System.NonSerialized] private GUIStyle headerStyle, smallStyle, okStyle, warnStyle, editButton, rowTitle;
 
     // ---- Menu --------------------------------------------------------------------------------
 
@@ -77,12 +77,14 @@ public sealed class UiHubEditor : Editor
 
     private void Styles()
     {
-        if (headerStyle != null && smallStyle != null && okStyle != null && warnStyle != null && editButton != null) return;
+        if (headerStyle != null && smallStyle != null && okStyle != null && warnStyle != null && editButton != null && rowTitle != null) return;
         headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14 };
         smallStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = true };
         okStyle = new GUIStyle(EditorStyles.miniBoldLabel) { normal = { textColor = new Color(0.35f, 0.85f, 0.4f) } };
         warnStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = true, normal = { textColor = new Color(1f, 0.7f, 0.25f) } };
         editButton = new GUIStyle(EditorStyles.miniButton) { fontStyle = FontStyle.Bold };
+        // 16 Nov: a long screen name goes onto a new line (never cut off, never drawn over the buttons).
+        rowTitle = new GUIStyle(EditorStyles.boldLabel) { wordWrap = true };
     }
 
     public override void OnInspectorGUI()
@@ -92,7 +94,7 @@ public sealed class UiHubEditor : Editor
         EditorGUILayout.HelpBox(
             "Click a screen to open it. Change its pictures, texts, fonts and 3D models right there.\n" +
             "Press Edit to open the screen as a prefab: move things, add new pictures or 3D models, delete parts. Save the prefab. Done.\n" +
-            "Screens made by code get their prefab the first time they appear in Play mode.\n" +
+            "Screens made by code: tick \"Move code screens into GAME HUD\", press Play, make the screen appear once, stop Play. It becomes a real child of the GAME HUD prefab.\n" +
             "16 Nov: the hotbar and the status bars are real parts of the GAME HUD prefab (HUD > Status bars / Hotbar).", MessageType.Info);
 
         UiLayoutData data = UiLayoutData.Load();
@@ -139,7 +141,10 @@ public sealed class UiHubEditor : Editor
             data.fontForAllUi = font;
             Changed(data);
         }
-        UiSkinTools.AutoMake = EditorGUILayout.Toggle(new GUIContent("Auto-make prefabs", "Make an editable prefab for each code-built screen the first time it appears in Play mode."), UiSkinTools.AutoMake);
+        UiSkinTools.AutoMake = EditorGUILayout.ToggleLeft(new GUIContent("Auto-make prefabs", "Make an editable prefab for each code-built screen the first time it appears in Play mode."), UiSkinTools.AutoMake);
+        GameHudScreens.AutoCapture = EditorGUILayout.ToggleLeft(new GUIContent("Move code screens into GAME HUD",
+            "Play mode: the first time a code-built screen appears, a copy of it is taken. When Play stops it is added to the GAME HUD prefab, and the game shows that version from then on."),
+            GameHudScreens.AutoCapture);
     }
 
     // ---- Screen list ----------------------------------------------------------------------------
@@ -218,6 +223,12 @@ public sealed class UiHubEditor : Editor
             kind = "design"; // the designer's own prefab is shown instead of the game's screen
             return look.design;
         }
+        GameObject inHud = GameHudScreens.TemplateInPrefab(name);
+        if (inHud != null)
+        {
+            kind = "hudScreen"; // 16 Nov: the screen's editable version is a child of the GAME HUD prefab
+            return inHud;
+        }
         kind = "skin";
         return UiSkinTools.SkinOf(name);
     }
@@ -232,11 +243,22 @@ public sealed class UiHubEditor : Editor
             using (new EditorGUILayout.HorizontalScope())
             {
                 open.TryGetValue(name, out bool isOpen);
-                isOpen = EditorGUILayout.Foldout(isOpen, entry != null ? entry.label : name, true, EditorStyles.foldoutHeader);
+                // A long name wraps onto new lines. Its width = what the labels and buttons on the right leave free.
+                string title = entry != null ? entry.label : name;
+                int waiting = PendingCount(name);
+                float taken = 14f + 52f + 22f + (live ? 74f : 0f) + (waiting > 0 ? 64f : 0f) + 62f; // arrow, Edit, menu, labels, margins
+                float titleWidth = Mathf.Max(90f, EditorGUIUtility.currentViewWidth - taken);
+                var titleContent = new GUIContent(title);
+                float titleHeight = Mathf.Max(EditorGUIUtility.singleLineHeight, rowTitle.CalcHeight(titleContent, titleWidth));
+
+                Rect arrowRect = GUILayoutUtility.GetRect(14f, titleHeight, GUILayout.Width(14f));
+                arrowRect.height = EditorGUIUtility.singleLineHeight;
+                isOpen = EditorGUI.Foldout(arrowRect, isOpen, GUIContent.none, false);
+                Rect titleRect = GUILayoutUtility.GetRect(titleWidth, titleHeight, rowTitle, GUILayout.Width(titleWidth));
+                if (GUI.Button(titleRect, titleContent, rowTitle)) isOpen = !isOpen; // the name opens / closes the row too
                 open[name] = isOpen;
                 GUILayout.FlexibleSpace();
                 if (live) GUILayout.Label("● on screen", okStyle, GUILayout.Width(70));
-                int waiting = PendingCount(name);
                 if (waiting > 0) GUILayout.Label($"{waiting} unsaved", EditorStyles.miniBoldLabel, GUILayout.Width(60));
                 DrawEditButton(name, entry, kind, target, liveRoot);
                 if (GUILayout.Button("⋮", EditorStyles.miniButton, GUILayout.Width(22))) ShowMoreMenu(data, name, entry, kind, liveRoot, look);
@@ -253,11 +275,18 @@ public sealed class UiHubEditor : Editor
             else if (name == UiScreenCatalog.BarsScreen) DrawBars();
             else if (name == UiScreenCatalog.HotbarScreen) DrawHotbar(target);
 
+            if (kind == "hudScreen")
+                EditorGUILayout.LabelField("In the GAME HUD prefab. The game shows this version. Parts keep working through their UI Link.", smallStyle);
+            else if (kind == "skin" && target != null && GameHudScreens.AutoCapture && !GameHudScreens.Blocked.ContainsKey(name))
+                EditorGUILayout.LabelField("Old prefab. Press Play, make this screen appear once, then stop Play: it moves into the GAME HUD prefab.", warnStyle);
+            else if (kind == "skin" && !GameHudScreens.AutoCapture && !GameHudScreens.Blocked.ContainsKey(name))
+                EditorGUILayout.LabelField("To move this screen into the GAME HUD prefab: tick \"Move code screens into GAME HUD\" (top of this hub), press Play, make it appear once, stop Play.", smallStyle);
+
             if (target != null) DrawParts(name, target, kind);
             else if (kind == "skin")
-                EditorGUILayout.HelpBox(liveRoot != null
-                    ? "This screen has no prefab yet. Press Edit to make it now."
-                    : "This screen is made by code. Press Play and make it appear once: its prefab is made for you.", MessageType.None);
+                EditorGUILayout.HelpBox(GameHudScreens.Blocked.TryGetValue(name, out string blockedWhy)
+                    ? "This screen stays code-made: " + blockedWhy + ". Press Edit while it is on screen to get a prefab for restyling."
+                    : "This screen is made by code. With \"Move code screens into GAME HUD\" ticked: press Play, make it appear once, then stop Play. It moves into the GAME HUD prefab.", MessageType.None);
             else if (kind == "scene")
                 EditorGUILayout.HelpBox(Application.isPlaying
                     ? "Stop Play to edit this screen in its scene (or edit it now and press Save changes)."
@@ -277,13 +306,15 @@ public sealed class UiHubEditor : Editor
         else if (kind == "prefab") { can = target != null; tip = "Open the prefab."; }
         else if (kind == "scene") { can = true; tip = "Open the scene and select the screen."; }
         else if (kind == "design") { can = target != null; tip = "Open your design prefab."; }
+        else if (kind == "hudScreen") { can = target != null; tip = "Open the GAME HUD prefab showing only this screen."; }
         else if (target != null) { can = true; tip = "Open the screen's prefab."; }
         else { can = liveRoot != null; tip = can ? "Make the screen's prefab now and open it." : "Press Play and make this screen appear first."; }
 
         using (new EditorGUI.DisabledScope(!can))
         {
             if (!GUILayout.Button(new GUIContent("Edit", tip), editButton, GUILayout.Width(52))) return;
-            if (kind == "prefab" && entry != null && entry.IsPart) ShowPart(target.transform); // open the prefab, select the part
+            if (kind == "hudScreen") GameHudScreens.OpenTemplate(target);
+            else if (kind == "prefab" && entry != null && entry.IsPart) ShowPart(target.transform); // open the prefab, select the part
             else if (kind == "prefab") OpenPrefab(target);
             else if (kind == "scene") OpenScene(name, entry);
             else if (kind == "design") OpenPrefab(target);
@@ -321,6 +352,17 @@ public sealed class UiHubEditor : Editor
                 data.screens.Remove(look);
                 Changed(data);
             });
+
+        if (kind == "hudScreen")
+        {
+            if (Application.isPlaying) menu.AddDisabledItem(new GUIContent("Take it out of the GAME HUD (stop Play first)"));
+            else menu.AddItem(new GUIContent("Take it out of the GAME HUD (the game's own screen again)"), false, () =>
+            {
+                if (EditorUtility.DisplayDialog("UI Hub", $"Remove \"{name}\" from the GAME HUD prefab?\nYour edits on it are lost. The game shows its own code-made screen again, " +
+                    "and copies it into the GAME HUD again the next time it appears in Play mode.", "Remove", "Cancel"))
+                    GameHudScreens.RemoveTemplate(name);
+            });
+        }
 
         menu.AddSeparator("");
         if (entry != null && !string.IsNullOrEmpty(entry.script))

@@ -37,6 +37,7 @@ public sealed partial class UiLayoutRuntime : MonoBehaviour
         public int originalSortOrder;
         public bool sortOrderKnown;
         public DesignState design; // the designer's own prefab shown instead (UiLayoutRuntime.Design.cs)
+        public bool bound;         // 16 Nov: bound once; again only when the saved data changes
     }
 
     /// <summary>One saved element bound to a live object.</summary>
@@ -87,10 +88,8 @@ public sealed partial class UiLayoutRuntime : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Boot()
     {
-#if !UNITY_EDITOR
-        UiLayoutData d = UiLayoutData.Load();
-        if (d == null || (d.screens.Count == 0 && d.fontForAllUi == null)) return; // nothing to apply in this build
-#endif
+        // 16 Nov: always on. Screens that live in the GAME HUD prefab (UiHubScreen) need it too,
+        // also when UI Layout holds no saved change.
         if (instance != null) return;
         var go = new GameObject("[UI Layout]") { hideFlags = HideFlags.HideInHierarchy };
         DontDestroyOnLoad(go);
@@ -150,15 +149,17 @@ public sealed partial class UiLayoutRuntime : MonoBehaviour
 #endif
             known.Add(c);
             live.Add(new LiveScreen { canvas = c, root = c.transform, name = ScreenName(c.transform) });
-            rebind = true;
         }
 
         for (int i = 0; i < live.Count; i++)
         {
             LiveScreen s = live[i];
-            if (rebind) Bind(s);
+            // 16 Nov: a new screen binds only itself. Before, every new canvas (a speech bubble, a board)
+            // rebuilt the shown version of EVERY screen: flicker, lost scroll places and typing.
+            bool bindNow = rebind || !s.bound;
+            if (bindNow) { Bind(s); s.bound = true; }
             SpawnAdded(s); // before resolving: saved changes may point into added objects
-            if (!rebind)
+            if (!bindNow)
                 for (int b = 0; b < s.bindings.Count; b++)
                     if (s.bindings[b].target == null) s.bindings[b].target = Resolve(s.root, s.bindings[b].look.path);
             ApplyFonts(s);
@@ -172,7 +173,9 @@ public sealed partial class UiLayoutRuntime : MonoBehaviour
         if (s.look != null && look == null) RestoreScreen(s);
         s.look = look;
         DestroyDesign(s);
-        if (look != null && look.design != null) CreateDesign(s, look.design);
+        // The designer's own prefab wins; else the screen's editable version inside the GAME HUD (16 Nov).
+        GameObject design = look != null && look.design != null ? look.design : UiHubScreen.TemplateFor(s.name);
+        if (design != null) CreateDesign(s, design);
         s.bindings.Clear();
         for (int i = 0; i < s.spawned.Count; i++) if (s.spawned[i] != null) Destroy(s.spawned[i]);
         s.spawned.Clear();
