@@ -44,12 +44,7 @@ public class CreateRoomPanel : MonoBehaviour
     {
         EnsureMapDropdown(); // before any listener is added: the copy must start clean
 
-        var difficulties = new List<string>(RoomDisplay.DifficultyOptions.Length);
-        for (int i = 0; i < RoomDisplay.DifficultyOptions.Length; i++)
-            difficulties.Add(RoomDisplay.DifficultyOptions[i] + (DifficultyLocked(i) ? RoomLocks.LockedSuffix : ""));
-        difficultyDropdown.ClearOptions();
-        difficultyDropdown.AddOptions(difficulties);
-        difficultyDropdown.SetValueWithoutNotify(difficultyChoice);
+        BuildDifficultyOptions();
         difficultyDropdown.onValueChanged.AddListener(OnDifficultyPicked);
 
         if (mapDropdown != null)
@@ -112,6 +107,23 @@ public class CreateRoomPanel : MonoBehaviour
             card.sizeDelta += new Vector2(0f, rowHeight + group.spacing);
     }
 
+    /// <summary>Fills the difficulty list. Run again when the dev unlock is switched (16 Nov).</summary>
+    private void BuildDifficultyOptions()
+    {
+        devUnlocked = RoomLocks.DevUnlocked;
+        var difficulties = new List<string>(RoomDisplay.DifficultyOptions.Length);
+        for (int i = 0; i < RoomDisplay.DifficultyOptions.Length; i++)
+            difficulties.Add(RoomDisplay.DifficultyOptions[i] + (DifficultyLocked(i) ? RoomLocks.LockedSuffix : ""));
+        if (DifficultyLocked(difficultyChoice)) difficultyChoice = (int)DifficultyLevel.Normal; // was picked while unlocked
+        difficultyDropdown.Hide();
+        difficultyDropdown.ClearOptions();
+        difficultyDropdown.AddOptions(difficulties);
+        difficultyDropdown.SetValueWithoutNotify(difficultyChoice);
+        lockedDifficultyList = null;
+    }
+
+    private bool devUnlocked; // the dev unlock state the list was built with
+
     private static bool DifficultyLocked(int index) => RoomLocks.IsLocked((DifficultyLevel)index);
     private static bool MapLocked(int index) => index < 0 || index >= MapCatalog.All.Count || MapCatalog.All[index].locked;
 
@@ -132,6 +144,7 @@ public class CreateRoomPanel : MonoBehaviour
     // While a list is open, its locked rows are greyed and cannot be clicked.
     private void LateUpdate()
     {
+        if (devUnlocked != RoomLocks.DevUnlocked) BuildDifficultyOptions(); // F1 panel switched it
         GreyLockedRows(difficultyDropdown, ref lockedDifficultyList, true);
         GreyLockedRows(mapDropdown, ref lockedMapList, false);
     }

@@ -6,7 +6,10 @@ using UnityEngine;
 /// 16 Oct 2026 (Mr.k): base class for every ZONE RULE (Screen Room, Toilet, ...).
 ///
 /// WHAT A ZONE RULE IS
-///   - It works only inside its own <see cref="RuleZone"/>.
+///   - It STARTS only on players inside its own <see cref="RuleZone"/>.
+///   - 16 Nov 2026 (Mr.k): once its event has started, leaving the box does NOT cancel it and
+///     does NOT free a player. The players who were inside when it started (and anyone who
+///     walks in while it runs) stay in the event until it ends: <see cref="ServerInvolved"/>.
 ///   - It is NOT a Map Rule. Map Rules (Hard / 13 Rules) are a separate system
 ///     that runs across the whole map on top of the zone rules.
 ///   - For now EVERY zone rule is on at every difficulty (testing). Change that
@@ -180,12 +183,56 @@ public abstract class ZoneRuleBase : NetworkBehaviour
 
     protected static double Now => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
 
-    /// <summary>SERVER. Fills and returns <see cref="inside"/>.</summary>
+    /// <summary>SERVER. Fills and returns <see cref="inside"/>. Use it to decide if an event may START.</summary>
     protected List<PlayerHealth> ServerPlayersInside() => zone != null ? zone.PlayersInside(inside) : inside;
+
+    // ---- Who a running event is about (16 Nov, Mr.k) --------------------------------------
+    //
+    // The zone box only decides who an event STARTS on. After that the event follows the same
+    // players wherever they go. Running out of the box does not cancel it or free them.
+
+    private readonly List<PlayerHealth> involved = new List<PlayerHealth>();
+
+    /// <summary>SERVER. Call when the event starts: the players inside now are in it until it ends.</summary>
+    protected void ServerLockIn()
+    {
+        involved.Clear();
+        ServerInvolved();
+    }
+
+    /// <summary>
+    /// SERVER. Use while an event runs. The living, in-round players who were inside when it
+    /// started, plus anyone who walked in since. Leaving the box does not remove a player.
+    /// </summary>
+    protected List<PlayerHealth> ServerInvolved()
+    {
+        List<PlayerHealth> now = ServerPlayersInside();
+        for (int i = 0; i < now.Count; i++)
+            if (!involved.Contains(now[i])) involved.Add(now[i]);
+        for (int i = involved.Count - 1; i >= 0; i--)
+        {
+            PlayerHealth p = involved[i];
+            if (p == null || p.IsDead || !PlayerRegistry.IsInRound(p)) involved.RemoveAt(i);
+        }
+        return involved;
+    }
+
+    /// <summary>SERVER. Call when the event ends: nobody is held any more.</summary>
+    protected void ServerRelease() => involved.Clear();
 
     // ---- Local player helpers --------------------------------------------------------------
 
     protected static PlayerHealth LocalBody => PlayerHealth.LocalInstance;
+
+    /// <summary>LOCAL. Is my own body alive and standing (anywhere)?</summary>
+    protected static bool LocalAlive
+    {
+        get
+        {
+            PlayerHealth me = LocalBody;
+            return me != null && !me.IsDead && !me.IsDowned;
+        }
+    }
 
     /// <summary>LOCAL. Is my own living body inside this rule's zone?</summary>
     protected bool LocalInside
@@ -312,7 +359,11 @@ public abstract class ZoneRuleBase : NetworkBehaviour
             positions.Clear();
         }
 
-        /// <summary>The first watched player (still inside <paramref name="zone"/>) who moved more than <paramref name="tolerance"/> metres; else null.</summary>
+        /// <summary>
+        /// The first watched player who moved more than <paramref name="tolerance"/> metres; else null.
+        /// <paramref name="zone"/> = only count players still inside it. Pass null (16 Nov) so a
+        /// player who runs out of the box still counts as having moved.
+        /// </summary>
         public PlayerHealth FirstMover(RuleZone zone, float tolerance)
         {
             float t2 = tolerance * tolerance;

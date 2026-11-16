@@ -97,7 +97,11 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     [SerializeField] private CounterRoute ticketRoute = new CounterRoute();
     [SerializeField] private CounterRoute popcornRoute = new CounterRoute();
 
-    [Header("Zone boxes (world axes; yellow = ticket, orange = popcorn)")]
+    [Header("Ticket Zone box (15 Nov)")]
+    [Tooltip("The Ticket Zone's zone box (RuleZone). When set, it replaces the two old boxes below: players inside it are attacked when time runs out, and parts never spawn inside it.")]
+    [SerializeField] private RuleZone ticketZoneBox;
+
+    [Header("Old zone boxes (used only when Ticket Zone Box is empty)")]
     [Tooltip("Players inside when time runs out are attacked. Parts never spawn inside.")]
     [SerializeField] private Bounds ticketZone = new Bounds(Vector3.zero, new Vector3(14f, 5f, 14f));
     [Tooltip("Parts never spawn inside.")]
@@ -116,6 +120,19 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     [Header("Sounds (optional)")]
     [SerializeField] private AudioClip attackClip;
     [SerializeField] private AudioClip partReturnedClip;
+
+    [Header("Crying (15 Nov) - starts after the first E on the ghost")]
+    [Tooltip("Looping cry. Empty = a generated placeholder cry.")]
+    [SerializeField] private AudioClip cryClip;
+    // 16 Nov: new field names on purpose, so the quiet values saved in the scene are dropped.
+    [Tooltip("The cry can be heard from this far away (metres). Beyond it: silence.")]
+    [SerializeField, Min(5f)] private float cryRange = 50f;
+    [Tooltip("At this distance (metres) or closer the cry is at its loudest.")]
+    [SerializeField, Min(0f)] private float cryNearDistance = 3f;
+    [Tooltip("Loudness at the edge of the range (0..1). Must be easy to hear.")]
+    [SerializeField, Range(0f, 1f)] private float cryEdgeVolume = 0.3f;
+    [Tooltip("Loudness at the near distance (0..1).")]
+    [SerializeField, Range(0f, 1f)] private float cryNearVolume = 1f;
 
     [Header("Custom Model (optional; empty = placeholder shapes)")]
     [Tooltip("The designer's body. Its centre should be about 1 m above the floor (like the customers).")]
@@ -172,6 +189,14 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     private bool stopSent;
     private GameObject handVisual;
     private GhostBodyPart handPart;
+    private AudioSource crySource;        // 15 Nov
+    private SoundCategoryVolume cryVolume;
+    private float cryLoudness;
+    private float nextCryScan;
+    private bool cryPartFound;
+    private Vector3 cryPartPosition;
+    private Transform cryListener;        // 16 Nov: the local ears (camera / AudioListener)
+    private static AudioClip loudPlaceholderCry;
 
     private static double Now => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
     private bool HasAuthority => NetworkMode.HasServerAuthority(this);
@@ -225,6 +250,9 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
         ChoreProgressHUD.Hide(this);
         ClearHand();
         if (HasAuthority) ReleaseGate();
+        if (crySource != null) Destroy(crySource.gameObject); // 15 Nov: made again when it cries next
+        crySource = null;
+        cryLoudness = 0f;
     }
 
     // ======================================================================
@@ -452,16 +480,16 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     private void HoldGate()
     {
         gateHeld = true;
-        if (counterKind == CounterKind.Ticket) GhostCounterGate.TicketHeld = true;
-        else GhostCounterGate.PopcornHeld = true;
+        if (counterKind == CounterKind.Ticket) GhostCounterGate.TicketHeldByGhost = true;
+        else GhostCounterGate.PopcornHeldByGhost = true;
     }
 
     private void ReleaseGate()
     {
         if (!gateHeld) return;
         gateHeld = false;
-        if (counterKind == CounterKind.Ticket) GhostCounterGate.TicketHeld = false;
-        else GhostCounterGate.PopcornHeld = false;
+        if (counterKind == CounterKind.Ticket) GhostCounterGate.TicketHeldByGhost = false;
+        else GhostCounterGate.PopcornHeldByGhost = false;
     }
 
     // ---- Following -------------------------------------------------------------
@@ -580,7 +608,7 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
             if (!IsValidPlayer(p)) continue;
             bool near = (p.transform.position - at).sqrMagnitude <= attackRadius * attackRadius;
             bool touched = interacted.Contains(IdOf(p.gameObject));
-            bool inTicketZone = InBox(ticketZone, p.transform.position);
+            bool inTicketZone = ticketZoneBox != null ? ticketZoneBox.Contains(p.transform.position) : InBox(ticketZone, p.transform.position);
             if (near || touched || inTicketZone) hit.Add(p);
         }
         foreach (PlayerHealth p in hit)
@@ -740,7 +768,8 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
         return !any;
     }
 
-    private bool InExcludedBox(Vector3 p) => InBox(ticketZone, p) || InBox(popcornZone, p);
+    private bool InExcludedBox(Vector3 p) =>
+        ticketZoneBox != null ? ticketZoneBox.Contains(p) : InBox(ticketZone, p) || InBox(popcornZone, p);
 
     private static bool InBox(Bounds box, Vector3 p)
     {
@@ -900,6 +929,147 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
         UpdateBubble();
         UpdateTimer();
         UpdateHand();
+        UpdateCry();
+    }
+
+    // ---- Crying (15 Nov, Mr.k; loudness redone 16 Nov) --------------------------------------
+    //
+    // Starts after the first E on the ghost (helped). LOCAL on every machine: it only reads
+    // values that are already synced (missing, helped, item and player positions). No network traffic.
+    //
+    //   Head missing  : the HEAD (or the upper body, which has the head) cries from where it lies,
+    //                   or from the player who carries it. Loudness = how close YOU are to it:
+    //                   easy to hear at cryRange (50 m), loudest at cryNearDistance.
+    //   Head attached : the GHOST cries. Loudness = how close its body is to the nearest missing
+    //                   part (same 50 m scale). Everyone within the range of the ghost hears it.
+    //
+    // 16 Nov: Unity's own 3D falloff is switched OFF (flat curve). It made the cry silent until
+    // you stood on the source. The sound is still 3D for DIRECTION; the loudness is set here.
+
+    private void UpdateCry()
+    {
+        bool cry = Active && helped && missing != GhostBodyPart.None && stage != Stage.Leaving;
+        if (!cry)
+        {
+            if (crySource != null && crySource.isPlaying) { crySource.Stop(); cryLoudness = 0f; }
+            return;
+        }
+
+        GhostBodyPart headParts = missing & (GhostBodyPart.Head | GhostBodyPart.UpperBody);
+        bool headless = headParts != GhostBodyPart.None;
+        if (Time.time >= nextCryScan)
+        {
+            nextCryScan = Time.time + 0.25f;
+            cryPartFound = FindNearestPart(headless ? headParts : missing, out cryPartPosition);
+            cryListener = FindEars(); // again each scan: the ears change when you spectate
+        }
+
+        Vector3 source = headless && cryPartFound ? cryPartPosition + Vector3.up * 0.2f : transform.position + Vector3.up * 0.6f;
+        float toEars = cryListener != null ? Vector3.Distance(cryListener.position, source) : 0f;
+
+        float target = 0f;
+        if (cryPartFound)
+        {
+            if (headless) target = CryVolumeAt(toEars);
+            else
+            {
+                // Hot / cold: louder as the body and the part get closer. Fades out at the edge of the range.
+                float edgeFade = Mathf.Clamp01((cryRange - toEars) / Mathf.Max(0.01f, cryRange * 0.2f));
+                target = CryVolumeAt(Vector3.Distance(transform.position, cryPartPosition)) * edgeFade;
+            }
+        }
+        cryLoudness = Mathf.MoveTowards(cryLoudness, target, Time.deltaTime * 1.5f);
+
+        EnsureCrySource();
+        crySource.transform.position = source;
+        crySource.maxDistance = Mathf.Max(cryRange, 5f);
+        cryVolume.SetBaseVolume(cryLoudness);
+        if (cryLoudness > 0.001f) { if (!crySource.isPlaying) crySource.Play(); }
+        else if (crySource.isPlaying) crySource.Stop();
+    }
+
+    /// <summary>0 beyond the range, cryEdgeVolume at the edge, rising evenly to cryNearVolume at the near distance.</summary>
+    private float CryVolumeAt(float distance)
+    {
+        if (distance > cryRange) return 0f;
+        float near = Mathf.Min(cryNearDistance, cryRange - 0.01f);
+        return Mathf.Lerp(cryEdgeVolume, cryNearVolume, Mathf.InverseLerp(cryRange, near, distance));
+    }
+
+    /// <summary>The local player's ears: the own camera, else the scene's AudioListener (spectator / dev camera).</summary>
+    private static Transform FindEars()
+    {
+        Camera cam = RuleFx.LocalCamera();
+        if (cam != null && cam.isActiveAndEnabled) return cam.transform;
+        AudioListener ears = FindAnyObjectByType<AudioListener>();
+        return ears != null ? ears.transform : null;
+    }
+
+    /// <summary>Nearest still-missing part to the ghost's body: lying in the map, or in a player's hotbar.</summary>
+    private bool FindNearestPart(GhostBodyPart wanted, out Vector3 position)
+    {
+        position = default;
+        float best = float.MaxValue;
+        Vector3 body = transform.position;
+        foreach (WorldInventoryItem item in FindObjectsByType<WorldInventoryItem>())
+        {
+            if (item == null || (GhostBodyParts.FromItem(item.ItemId) & wanted) == 0) continue;
+            float d = (item.transform.position - body).sqrMagnitude;
+            if (d < best) { best = d; position = item.transform.position; }
+        }
+        IReadOnlyList<PlayerHealth> players = PlayerRegistry.All;
+        for (int i = 0; i < players.Count; i++)
+        {
+            PlayerHealth p = players[i];
+            if (p == null || !p.TryGetComponent(out PlayerInventory inventory)) continue;
+            for (int s = 0; s < PlayerInventory.SlotCount; s++)
+            {
+                if ((GhostBodyParts.FromItem(inventory.GetSlot(s).itemId) & wanted) == 0) continue;
+                float d = (p.transform.position - body).sqrMagnitude;
+                if (d < best) { best = d; position = p.transform.position + Vector3.up; }
+                break;
+            }
+        }
+        return best < float.MaxValue;
+    }
+
+    private void EnsureCrySource()
+    {
+        if (crySource != null) return;
+        var go = new GameObject("Missing Parts Ghost Cry");
+        crySource = go.AddComponent<AudioSource>();
+        crySource.playOnAwake = false;
+        crySource.loop = true;
+        crySource.clip = cryClip != null ? cryClip : LoudPlaceholderCry();
+        crySource.spatialBlend = 1f;   // 3D: you hear WHERE it comes from
+        crySource.dopplerLevel = 0f;
+        crySource.priority = 32;       // never dropped when many sounds play
+        crySource.reverbZoneMix = 0f;
+        // Flat falloff: distance does not change the loudness here. UpdateCry sets it (16 Nov).
+        crySource.rolloffMode = AudioRolloffMode.Custom;
+        crySource.SetCustomCurve(AudioSourceCurveType.CustomRolloff, AnimationCurve.Constant(0f, 1f, 1f));
+        crySource.minDistance = 1f;
+        crySource.maxDistance = Mathf.Max(cryRange, 5f);
+        cryVolume = go.AddComponent<SoundCategoryVolume>();
+        cryVolume.Category = SoundCategory.Sfx;
+        cryVolume.SetBaseVolume(0f);
+    }
+
+    /// <summary>The generated placeholder cry is very soft (peak 0.28). This copy is raised to full level.</summary>
+    private static AudioClip LoudPlaceholderCry()
+    {
+        if (loudPlaceholderCry != null) return loudPlaceholderCry;
+        AudioClip soft = RuleFx.PlaceholderClip(RuleFx.PlaceholderSound.Crying);
+        var data = new float[soft.samples * soft.channels];
+        if (!soft.GetData(data, 0)) return soft;
+        float peak = 0f;
+        for (int i = 0; i < data.Length; i++) peak = Mathf.Max(peak, Mathf.Abs(data[i]));
+        if (peak < 0.0001f) return soft;
+        float gain = 0.95f / peak;
+        for (int i = 0; i < data.Length; i++) data[i] *= gain;
+        loudPlaceholderCry = AudioClip.Create("Placeholder Crying (loud)", soft.samples, soft.channels, soft.frequency, false);
+        loudPlaceholderCry.SetData(data, 0);
+        return loudPlaceholderCry;
     }
 
     private void ApplyLook(bool force)

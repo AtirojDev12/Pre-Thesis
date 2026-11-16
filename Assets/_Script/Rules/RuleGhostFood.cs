@@ -11,6 +11,11 @@ using UnityEngine;
 /// Punishment (not done in time, or still inside after throwing): the ghosts in
 /// there swarm you (damage + sanity on touch).
 ///
+/// 16 Nov 2026 (Mr.k): the players inside when the toilet became clean (and anyone who walks
+/// in after) are IN the rule. Walking away does not cancel it: if the box is not thrown in
+/// time, the ghosts hunt those players outside the toilet too. Step 3 (get out) still needs
+/// you to really leave.
+///
 /// FINAL GAME: the black box comes from the Staff Room. FOR NOW: a box place in
 /// each toilet (Mr.k, 16 Oct).
 /// </summary>
@@ -73,6 +78,7 @@ public sealed class RuleGhostFood : ZoneRuleBase
         phase = Phase.Feed;
         phaseEnd = Now + windowSeconds;
         boxIn = false;
+        ServerLockIn();
         if (dropSpot != null) dropSpot.ServerSetUsable(true);
         Log("Toilet is clean. Light off + throw the black box in, then leave.");
     }
@@ -91,7 +97,8 @@ public sealed class RuleGhostFood : ZoneRuleBase
         if (!IsServerSide || phase == Phase.WaitClean || phase == Phase.Done) return;
         if (!ServerRuleLive) { Finish(); return; }
 
-        List<PlayerHealth> players = ServerPlayersInside();
+        List<PlayerHealth> held = ServerInvolved();       // who it started on, wherever they are now
+        List<PlayerHealth> players = ServerPlayersInside(); // who stands in the toilet right now
         if (phase == Phase.Feed)
         {
             if (boxIn && toiletLight != null && toiletLight.IsDark)
@@ -101,21 +108,23 @@ public sealed class RuleGhostFood : ZoneRuleBase
                 Log("Fed in the dark. Get out!");
                 return;
             }
-            if (Now >= phaseEnd) Swarm(players, "They are hungry!");
+            if (Now >= phaseEnd) Swarm(held, "They are hungry!", true);
             return;
         }
 
         // Leave
         if (players.Count == 0) { Log("Everyone got out. The ghosts eat quietly."); Finish(); return; }
-        if (Now >= phaseEnd) Swarm(players, "Too slow! They swarm you!");
+        if (Now >= phaseEnd) Swarm(players, "Too slow! They swarm you!", false);
     }
 
-    private void Swarm(List<PlayerHealth> players, string message)
+    /// <summary><paramref name="followOut"/> = the ghosts also hunt these players outside the toilet.</summary>
+    private void Swarm(List<PlayerHealth> players, string message, bool followOut)
     {
         Log(message);
         if (swarm != null)
             for (int i = 0; i < swarm.Length; i++)
-                if (swarm[i] != null) swarm[i].ServerHunt(zone.RandomPointInside(zone.Box.min.y + 0.05f), zone, swarmSeconds, null);
+                if (swarm[i] != null)
+                    swarm[i].ServerHunt(zone.RandomPointInside(zone.Box.min.y + 0.05f), zone, swarmSeconds, null, followOut ? players : null);
         for (int i = 0; i < players.Count; i++) ServerShow(players[i], true, message);
         Finish();
     }
@@ -123,6 +132,7 @@ public sealed class RuleGhostFood : ZoneRuleBase
     private void Finish()
     {
         phase = Phase.Done;
+        ServerRelease();
         if (dropSpot != null) dropSpot.ServerSetUsable(false);
         if (blackBox != null) blackBox.ServerReturnHome();
     }

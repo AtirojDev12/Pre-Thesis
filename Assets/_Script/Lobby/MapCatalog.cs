@@ -52,7 +52,26 @@ public static class MapCatalog
 public static class RoomLocks
 {
     public static bool IsLocked(DifficultyLevel level) =>
-        level == DifficultyLevel.Hard || level == DifficultyLevel.ThirteenRules;
+        !DevUnlocked && (level == DifficultyLevel.Hard || level == DifficultyLevel.ThirteenRules);
+
+    /// <summary>
+    /// 16 Nov 2026 (Mr.k): DEV ONLY. Lets this PC host Hard / 13 Rules for testing.
+    /// Unity Editor and Development Builds only: a normal build always returns false.
+    /// Kept on this PC (PlayerPrefs). Switch it in the F1 cheat panel, "Match" section.
+    /// Maps stay locked.
+    /// </summary>
+    public static bool DevUnlocked
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        get => UnityEngine.PlayerPrefs.GetInt(DevUnlockKey, 0) == 1;
+        set { UnityEngine.PlayerPrefs.SetInt(DevUnlockKey, value ? 1 : 0); UnityEngine.PlayerPrefs.Save(); }
+#else
+        get => false;
+        set { }
+#endif
+    }
+
+    private const string DevUnlockKey = "dev_unlock_difficulty";
 
     /// <summary>Label ending for a locked choice in a list.</summary>
     public const string LockedSuffix = "  (Locked)";

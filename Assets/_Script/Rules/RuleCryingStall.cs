@@ -9,6 +9,9 @@ using UnityEngine;
 ///   2. Stay still for a while.
 /// Punishment (too slow, light back on, or someone moves): a ghost comes out of
 /// the stall and chases you (damage + sanity on touch).
+///
+/// 16 Nov 2026 (Mr.k): the box only decides who the crying STARTS on. After that, running
+/// out of the toilet does not cancel it: running = moving, and the ghost follows you out.
 /// </summary>
 public sealed class RuleCryingStall : ZoneRuleBase
 {
@@ -52,7 +55,8 @@ public sealed class RuleCryingStall : ZoneRuleBase
         if (!IsServerSide) return;
         if (!ServerRuleLive || toiletLight == null) { if (phase != Phase.Idle) End(); return; }
 
-        List<PlayerHealth> players = ServerPlayersInside();
+        // Idle: who is inside (may it start?). Running: who it started on, wherever they are now.
+        List<PlayerHealth> players = phase == Phase.Idle ? ServerPlayersInside() : ServerInvolved();
         switch (phase)
         {
             case Phase.Idle:
@@ -74,7 +78,7 @@ public sealed class RuleCryingStall : ZoneRuleBase
 
             case Phase.Still:
                 watch.AddLateComers(players);
-                PlayerHealth mover = watch.FirstMover(zone, moveTolerance);
+                PlayerHealth mover = watch.FirstMover(null, moveTolerance); // running out of the box = moved
                 if (!toiletLight.IsDark) { Log("The light came back on."); Fail(players, null); }
                 else if (mover != null) { Log($"{mover.name} moved."); Fail(players, mover); }
                 else if (Now >= phaseEnd) { Log("The crying stops."); End(); }
@@ -86,6 +90,7 @@ public sealed class RuleCryingStall : ZoneRuleBase
     {
         isCrying = true;
         Apply(true);
+        ServerLockIn();
         phase = Phase.WaitDark;
         phaseEnd = Now + darkWithinSeconds;
         Log("The last stall is closed. Someone is crying inside.");
@@ -110,6 +115,7 @@ public sealed class RuleCryingStall : ZoneRuleBase
         Apply(false);
         phase = Phase.Idle;
         watch.Clear();
+        ServerRelease();
         nextRoll = Now + cooldownSeconds;
     }
 

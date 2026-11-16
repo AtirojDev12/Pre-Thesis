@@ -9,20 +9,31 @@ using UnityEngine;
 /// A customer already at the counter is not touched: it finishes as normal.
 ///
 /// Used by MissingPartsGhost (it stands at the counter until a player helps it).
+///
+/// 15 Nov 2026 (Mr.k): a RESTROOM BREAK sign standing on its blue spot also closes its
+/// counter (RestBreakSign). The minigames still read TicketHeld / PopcornHeld only.
 /// </summary>
 public static class GhostCounterGate
 {
     /// <summary>True = the ticket counter must not start a new customer.</summary>
-    public static bool TicketHeld;
+    public static bool TicketHeld => TicketHeldByGhost || TicketClosedBySign;
 
     /// <summary>True = the popcorn counter must not seat a new customer.</summary>
-    public static bool PopcornHeld;
+    public static bool PopcornHeld => PopcornHeldByGhost || PopcornClosedBySign;
+
+    /// <summary>The Missing Parts ghost stands at the counter.</summary>
+    public static bool TicketHeldByGhost, PopcornHeldByGhost;
+
+    /// <summary>The RESTROOM BREAK sign stands on the counter's blue spot (counter closed).</summary>
+    public static bool TicketClosedBySign, PopcornClosedBySign;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
-        TicketHeld = false;
-        PopcornHeld = false;
+        TicketHeldByGhost = false;
+        PopcornHeldByGhost = false;
+        TicketClosedBySign = false;
+        PopcornClosedBySign = false;
     }
 }
 

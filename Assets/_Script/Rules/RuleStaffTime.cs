@@ -171,6 +171,7 @@ public sealed class RuleStaffTime : ZoneRuleBase
         {
             nextSweep = Time.time + 0.5f;
             ServerClearGhosts();
+            ServerInvolved(); // 16 Nov: players who walk in while the static runs are in it too
         }
         ServerSitCheck();
     }
@@ -208,6 +209,7 @@ public sealed class RuleStaffTime : ZoneRuleBase
         ApplySpot(spot);
         movieOn = true;
         ApplyMovie(true);
+        ServerLockIn(); // 16 Nov: leaving the room does not cancel the static or free these players
         removedGhosts.Clear();
         ServerClearGhosts();
         nextSweep = Time.time + 0.5f;
@@ -222,6 +224,7 @@ public sealed class RuleStaffTime : ZoneRuleBase
         sitterId = 0;
         offlineSitter = null;
         if (audience != null) audience.ServerSetVisible(true);
+        ServerRelease();
         nextAllowed = Now + cooldownSeconds;
         nextRoll = Now + randomRollEvery;
     }
@@ -267,11 +270,12 @@ public sealed class RuleStaffTime : ZoneRuleBase
     private void ServerPunish()
     {
         Vector3 from = ghostMovie != null ? ghostMovie.transform.position : zone.Box.center;
-        List<PlayerHealth> players = ServerPlayersInside();
-        StopMovie();
+        // 16 Nov: everyone the static started on gets the scare, even if they left the room.
+        List<PlayerHealth> players = ServerInvolved();
+        for (int i = 0; i < players.Count; i++) ServerShow(players[i], true, "Something came out of the screen...");
+        StopMovie(); // releases the players: keep it after the loop
         if (roamer != null) roamer.ServerRoam(from, roamUntilHour, "It came out of the screen...");
         else Log("No roaming rule ghost assigned: nothing comes out.");
-        for (int i = 0; i < players.Count; i++) ServerShow(players[i], true, "Something came out of the screen...");
         Log($"Nobody stood on the shadow in {sitDeadlineSeconds:0} s: a ghost roams the map until {roamUntilHour}:00.");
     }
 

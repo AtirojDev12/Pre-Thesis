@@ -10,6 +10,9 @@ using UnityEngine;
 /// Punishment (not done in time): everyone in this toilet slowly loses health
 /// until the smoke goes away (no sanity loss), and this toilet's chores are
 /// locked meanwhile ("you cannot open that toilet").
+///
+/// 16 Nov 2026 (Mr.k): the box only decides who the smoke STARTS on. Those players (and anyone
+/// who walks in while it runs) keep losing health until the smoke goes, even outside the toilet.
 /// </summary>
 public sealed class RuleSmokingStall : ZoneRuleBase
 {
@@ -64,7 +67,8 @@ public sealed class RuleSmokingStall : ZoneRuleBase
         if (!IsServerSide) return;
         if (!ServerRuleLive || toiletLight == null) { if (stall >= 0) End(); return; }
 
-        List<PlayerHealth> players = ServerPlayersInside();
+        // No smoke: who is inside (may it start?). Smoke: who it started on, wherever they are now.
+        List<PlayerHealth> players = stall < 0 ? ServerPlayersInside() : ServerInvolved();
         if (punishing)
         {
             if (Time.time >= nextDrain)
@@ -106,6 +110,7 @@ public sealed class RuleSmokingStall : ZoneRuleBase
         stall = Random.Range(0, stalls.Length);
         knocked = false;
         deadline = Now + windowSeconds;
+        ServerLockIn();
         Apply(stall);
         if (knock != null) knock.ServerSetUsable(true);
         Log($"Smoke comes out of stall {stall + 1}.");
@@ -124,6 +129,7 @@ public sealed class RuleSmokingStall : ZoneRuleBase
         stall = -1;
         punishing = false;
         knocked = false;
+        ServerRelease();
         Apply(-1);
         if (knock != null) knock.ServerSetUsable(false);
         nextRoll = Now + cooldownSeconds;

@@ -363,6 +363,14 @@ public sealed class DevCheatPanel : MonoBehaviour
                 ("Clock +1 hour", () => Do(Cheat.ClockPlusHour, "Clock +1 hour")));
             Row(("Open the exit now", () => Do(Cheat.OpenExit, "Zones done + 06:00")),
                 ("Lights on / off", () => Do(Cheat.LightsToggle, "Lights toggled")));
+            // 16 Nov: Hard / 13 Rules are locked for players. This PC can still host them for testing.
+            bool unlocked = RoomLocks.DevUnlocked;
+            Row((unlocked ? "Hard + 13 Rules: UNLOCKED" : "Hard + 13 Rules: locked", () =>
+                {
+                    RoomLocks.DevUnlocked = !unlocked;
+                    Done(unlocked ? "Hard / 13 Rules locked again" : "Hard / 13 Rules unlocked on this PC (Create Room)");
+                }),
+                ("", null));
         }
 
         if (Section("Tasks  (finish lines / zones)", ref showTasks)) TaskBoards();

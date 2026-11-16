@@ -4,14 +4,20 @@ using UnityEngine;
 /// <summary>
 /// 7 Nov 2026 (Mr.k): a RESTROOM BREAK sign for the Ticket Zone rule "The one who returns".
 ///
-/// There are two (Popcorn seller, Ticket seller). When the timed ghost's warning flicker
-/// starts, both signs appear at their ORANGE spot (TicketGhostVisit). Players have 10 s:
-///   [E] on the sign = pick it up (it floats in front of you)
-///   [R] (discard key) = put it down. Near its BLUE spot it snaps onto the spot = PLACED.
-/// The ghost walks to each sign. Not placed + a player inside the GREEN seller area = it
-/// attacks that player. When the ghost leaves, the signs vanish (back next visit).
+/// There are two (Popcorn seller, Ticket seller).
 ///
-/// Editor colours (Scene view only): orange = where it appears, blue = where it must go,
+/// 15 Nov 2026 (Mr.k): the signs are ALWAYS in the map. Each one stands on its ORANGE spot
+/// (its home) from the start of the round and never vanishes.
+///   [E] on the sign = pick it up (it floats in front of you)
+///   [R] (discard key) = put it down. Within 2.5 m of its BLUE spot it snaps onto it = PLACED.
+///                       Within 2.5 m of its ORANGE spot it snaps back home. Else it stands on the floor.
+/// When the timed ghost's warning flicker starts, players have 10 s to put each sign on its
+/// blue spot. The ghost walks to each sign. Not placed + a player inside the GREEN seller area =
+/// it attacks that player.
+/// While a sign stands on its BLUE spot its counter is CLOSED: no new customer comes to that
+/// station (GhostCounterGate). So carry it back home after the ghost leaves.
+///
+/// Editor colours (Scene view only): orange = home, blue = where it must go for the ghost,
 /// green = the seller area the ghost checks. Move the child objects to change them.
 ///
 /// SERVER AUTHORITY: shown / carrier / placed / position are SyncVars. Scene object.
@@ -21,7 +27,7 @@ using UnityEngine;
 public sealed class RestBreakSign : InteractableBase
 {
     [Header("Spots (move these child objects)")]
-    [Tooltip("ORANGE: where the sign appears when the lights flicker.")]
+    [Tooltip("ORANGE: the sign's home. It stands here from the start of the round.")]
     [SerializeField] private Transform appearSpot;
     [Tooltip("BLUE: where the sign must be put.")]
     [SerializeField] private Transform placeSpot;
@@ -39,8 +45,12 @@ public sealed class RestBreakSign : InteractableBase
     [Header("Rules")]
     [Tooltip("Who this sign is for, shown in messages (\"Popcorn\" / \"Ticket\").")]
     [SerializeField] private string sellerName = "Popcorn";
-    [Tooltip("Put the sign down within this distance (metres) of the blue spot and it snaps onto it.")]
-    [SerializeField, Min(0.3f)] private float snapDistance = 1.6f;
+    // 15 Nov: new field name on purpose, so the scene's old saved 1.6 m is not used.
+    [Tooltip("Put the sign down within this distance (metres) of its blue spot (or its orange home spot) and it snaps onto it.")]
+    [SerializeField, Min(0.3f)] private float snapRadius = 2.5f;
+    public enum Station { Auto, Popcorn, Ticket }
+    [Tooltip("Which counter this sign closes while it stands on its blue spot. Auto = from the seller name.")]
+    [SerializeField] private Station station = Station.Auto;
 
     [Header("Carried (7 Nov: it covered the whole screen)")]
     [Tooltip("Size of the sign in YOUR hands (first person). 0.3 = 30% of its real size.")]
@@ -53,6 +63,8 @@ public sealed class RestBreakSign : InteractableBase
     [Header("Place hint (7 Nov)")]
     [Tooltip("While YOU carry this sign, a faint see-through copy shows its blue spot. Only the carrier sees it.")]
     [SerializeField] private Color placeHintColor = new Color(0.35f, 0.65f, 1f, 0.3f);
+    [Tooltip("15 Nov: the same faint copy on its orange home spot (where it goes back after the ghost leaves).")]
+    [SerializeField] private Color homeHintColor = new Color(1f, 0.6f, 0.15f, 0.25f);
 
     private const float ServerRange = 4.5f;
 
@@ -69,6 +81,9 @@ public sealed class RestBreakSign : InteractableBase
     private Vector3 baseScale = Vector3.one;
     private GameObject placeHint;
     private Material placeHintMaterial;
+    private GameObject homeHint;
+    private Material homeHintMaterial;
+    private bool closedCounter; // server: this sign currently closes its counter
     private static int localDiscardFrame = -1;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -111,25 +126,46 @@ public sealed class RestBreakSign : InteractableBase
         colliders = GetComponentsInChildren<Collider>(true);
         baseScale = transform.localScale;
         // Built now, while the sign stands at its real size (not while it is small in someone's hands).
-        if (BuildPlaceHint()) placeHint.SetActive(false);
+        placeHint = BuildHint(" (place hint)", placeHintColor, out placeHintMaterial);
+        homeHint = BuildHint(" (home hint)", homeHintColor, out homeHintMaterial);
     }
 
     public override void OnStartServer()
     {
         base.OnStartServer();
-        shown = false;
-        placed = false;
-        carrierId = 0;
-        ServerSetRest(AppearPosition, AppearRotation);
+        ServerGoHome();
     }
 
     private void Start()
     {
-        if (NetworkMode.IsOffline)
-        {
-            shown = false;
-            ServerSetRest(AppearPosition, AppearRotation);
-        }
+        if (NetworkMode.IsOffline) ServerGoHome();
+    }
+
+    /// <summary>SERVER. 15 Nov: the sign is always in the map; a round starts with it on its orange home spot.</summary>
+    private void ServerGoHome()
+    {
+        shown = true;
+        placed = false;
+        carrierId = 0;
+        offlineCarrier = null;
+        ServerSetRest(AppearPosition, AppearRotation);
+    }
+
+    private bool IsTicketStation =>
+        station == Station.Ticket || (station == Station.Auto && sellerName.ToLowerInvariant().Contains("ticket"));
+
+    /// <summary>SERVER. A sign on its blue spot closes its counter (no new customer).</summary>
+    private void ServerSetCounterClosed(bool closed)
+    {
+        if (closedCounter == closed) return;
+        closedCounter = closed;
+        if (IsTicketStation) GhostCounterGate.TicketClosedBySign = closed;
+        else GhostCounterGate.PopcornClosedBySign = closed;
+    }
+
+    private void OnDisable()
+    {
+        if (NetworkMode.HasServerAuthority(this)) ServerSetCounterClosed(false);
     }
 
     // ---- Interaction ------------------------------------------------------------------------
@@ -149,17 +185,21 @@ public sealed class RestBreakSign : InteractableBase
         carrierId = IdOf(interactor);
         offlineCarrier = NetworkMode.IsOffline ? interactor : null;
         placed = false;
-        Say(interactor, "Put it on its blue spot at the " + sellerName.ToLowerInvariant() + " counter. [" +
-            Keybinds.KeyName(GameAction.ReloadOrDiscard) + "] = put it down.");
+        Say(interactor, "Blue spot = for the ghost (the " + sellerName.ToLowerInvariant() + " counter is closed while it stands there). " +
+            "Orange spot = its home. [" + Keybinds.KeyName(GameAction.ReloadOrDiscard) + "] = put it down.");
     }
 
     private void Update()
     {
-        if (NetworkMode.HasServerAuthority(this) && carrierId != 0)
+        if (NetworkMode.HasServerAuthority(this))
         {
-            PlayerHealth carrier = CarrierBody();
-            if (carrier == null || carrier.IsDead || carrier.IsDowned || !PlayerRegistry.IsInRound(carrier))
-                ServerPutDown(carrier != null ? carrier.transform : null);
+            if (carrierId != 0)
+            {
+                PlayerHealth carrier = CarrierBody();
+                if (carrier == null || carrier.IsDead || carrier.IsDowned || !PlayerRegistry.IsInRound(carrier))
+                    ServerPutDown(carrier != null ? carrier.transform : null);
+            }
+            ServerSetCounterClosed(IsPlaced); // 15 Nov: on the blue spot = this counter takes no new customer
         }
 
         if (IsLocalCarrier && !GameplayInput.Blocked && Cursor.lockState == CursorLockMode.Locked &&
@@ -183,21 +223,32 @@ public sealed class RestBreakSign : InteractableBase
         ServerPutDown(who.transform);
     }
 
-    /// <summary>SERVER. Near the blue spot = placed on it; else it stands on the floor in front of the carrier.</summary>
+    /// <summary>
+    /// SERVER. Near the blue spot = placed on it. Near the orange spot = back home. Else it stands on the
+    /// floor in front of the carrier. Both spots in range: the nearer one wins.
+    /// </summary>
     private void ServerPutDown(Transform carrier)
     {
         GameObject who = carrier != null ? carrier.gameObject : null;
         carrierId = 0;
         offlineCarrier = null;
         Vector3 from = carrier != null ? carrier.position : transform.position;
-        if (placeSpot != null && Flat(from - placeSpot.position) <= snapDistance)
+        float toBlue = placeSpot != null ? Flat(from - placeSpot.position) : float.MaxValue;
+        float toHome = appearSpot != null ? Flat(from - appearSpot.position) : float.MaxValue;
+        if (toBlue <= snapRadius && toBlue <= toHome)
         {
             placed = true;
             ServerSetRest(placeSpot.position, PlaceRotation);
-            if (who != null) Say(who, "Sign placed. Now switch the lights OFF and stay quiet.");
+            if (who != null) Say(who, "Sign placed: the " + sellerName.ToLowerInvariant() + " counter is CLOSED (no customers). Lights OFF, stay quiet. Take it home after the ghost leaves.");
             return;
         }
         placed = false;
+        if (toHome <= snapRadius)
+        {
+            ServerSetRest(AppearPosition, AppearRotation);
+            if (who != null) Say(who, "The sign is back on its place. The " + sellerName.ToLowerInvariant() + " counter is open.");
+            return;
+        }
         Vector3 forward = carrier != null ? Vector3.ProjectOnPlane(carrier.forward, Vector3.up).normalized : Vector3.forward;
         if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
         Vector3 at = from + forward * 0.7f + Vector3.up * 1.5f;
@@ -205,30 +256,13 @@ public sealed class RestBreakSign : InteractableBase
             at = hit.point;
         else at.y = from.y;
         ServerSetRest(at, Quaternion.LookRotation(-forward, Vector3.up));
-        if (who != null) Say(who, "That is not its spot. Take it to the blue spot at the " + sellerName.ToLowerInvariant() + " counter.");
+        if (who != null) Say(who, "That is not one of its spots (blue = for the ghost, orange = home).");
     }
 
     // ---- Server API (TicketGhostVisit) ------------------------------------------------------
 
-    /// <summary>SERVER. The warning started: the sign appears at its orange spot.</summary>
-    public void ServerShow()
-    {
-        carrierId = 0;
-        offlineCarrier = null;
-        placed = false;
-        ServerSetRest(AppearPosition, AppearRotation);
-        shown = true;
-    }
-
-    /// <summary>SERVER. The ghost left: the sign vanishes.</summary>
-    public void ServerHide()
-    {
-        carrierId = 0;
-        offlineCarrier = null;
-        placed = false;
-        shown = false;
-        ServerSetRest(AppearPosition, AppearRotation);
-    }
+    // 15 Nov: ServerShow / ServerHide are gone. The sign no longer appears with the warning or
+    // vanishes when the ghost leaves: it stays where the players left it.
 
     /// <summary>SERVER. A living, in-round player standing inside the green seller area (nearest to the sign), or null.</summary>
     public PlayerHealth ServerPlayerInSellerArea()
@@ -270,7 +304,10 @@ public sealed class RestBreakSign : InteractableBase
         }
         bool carried = shown && carrierId != 0;
         foreach (Collider c in colliders) if (c != null) c.enabled = shown && !carried;
-        UpdatePlaceHint(IsLocalCarrier);
+        bool mine = IsLocalCarrier;
+        UpdateHint(placeHint, placeHintMaterial, placeHintColor, mine && placeSpot != null,
+            placeSpot != null ? placeSpot.position : Vector3.zero, PlaceRotation);
+        UpdateHint(homeHint, homeHintMaterial, homeHintColor, mine && appearSpot != null, AppearPosition, AppearRotation);
         if (!shown) return;
 
         if (!carried)
@@ -306,30 +343,32 @@ public sealed class RestBreakSign : InteractableBase
 
     // ---- Place hint (local only) ------------------------------------------------------------
 
-    /// <summary>Faint see-through copy of the sign on its blue spot, only for the player carrying it.</summary>
-    private void UpdatePlaceHint(bool show)
+    /// <summary>Faint see-through copy of the sign on a spot (blue = place, orange = home), only for the player carrying it.</summary>
+    private void UpdateHint(GameObject hint, Material material, Color color, bool show, Vector3 position, Quaternion rotation)
     {
-        if (!show || placeSpot == null)
+        if (hint == null) return;
+        if (!show)
         {
-            if (placeHint != null && placeHint.activeSelf) placeHint.SetActive(false);
+            if (hint.activeSelf) hint.SetActive(false);
             return;
         }
-        if (placeHint == null) return;
-        if (!placeHint.activeSelf) placeHint.SetActive(true);
-        placeHint.transform.SetPositionAndRotation(placeSpot.position, PlaceRotation);
-        placeHint.transform.localScale = baseScale;
-        Color c = placeHintColor;
-        c.a *= 0.7f + 0.3f * Mathf.Sin(Time.time * 3f); // slow pulse so it is easy to spot
-        placeHintMaterial.color = c;
+        if (!hint.activeSelf) hint.SetActive(true);
+        hint.transform.SetPositionAndRotation(position, rotation);
+        hint.transform.localScale = baseScale;
+        color.a *= 0.7f + 0.3f * Mathf.Sin(Time.time * 3f); // slow pulse so it is easy to spot
+        material.color = color;
     }
 
-    private bool BuildPlaceHint()
+    /// <summary>Builds one hidden hint copy of the sign's meshes. Null when no suitable shader exists.</summary>
+    private GameObject BuildHint(string suffix, Color color, out Material material)
     {
+        material = null;
         Shader shader = Shader.Find("Sprites/Default");
         if (shader == null) shader = Shader.Find("UI/Default");
-        if (shader == null) return false;
-        placeHintMaterial = new Material(shader) { color = placeHintColor, renderQueue = 3100 };
-        placeHint = new GameObject(name + " (place hint)");
+        if (shader == null) return null;
+        material = new Material(shader) { color = color, renderQueue = 3100 };
+        Material placeHintMaterial = material; // the parts below share this material
+        var placeHint = new GameObject(name + suffix);
         // Copy every mesh of the sign (not the text), in the sign's own space, without its root scale.
         Matrix4x4 toRoot = Matrix4x4.TRS(transform.position, transform.rotation, Vector3.one).inverse;
         foreach (MeshFilter filter in GetComponentsInChildren<MeshFilter>(true))
@@ -348,13 +387,16 @@ public sealed class RestBreakSign : InteractableBase
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             r.receiveShadows = false;
         }
-        return true;
+        placeHint.SetActive(false);
+        return placeHint;
     }
 
     private void OnDestroy()
     {
         if (placeHint != null) Destroy(placeHint);
         if (placeHintMaterial != null) Destroy(placeHintMaterial);
+        if (homeHint != null) Destroy(homeHint);
+        if (homeHintMaterial != null) Destroy(homeHintMaterial);
     }
 
     // ---- Helpers ----------------------------------------------------------------------------
@@ -427,7 +469,7 @@ public sealed class RestBreakSign : InteractableBase
             Color blue = new Color(0.15f, 0.45f, 1f, 0.9f);
             DrawSpot(placeSpot.position, PlaceRotation, blue);
             Gizmos.color = blue;
-            Gizmos.DrawWireSphere(placeSpot.position, snapDistance);
+            Gizmos.DrawWireSphere(placeSpot.position, snapRadius);
         }
         if (placeSpot != null || ghostStopSpot != null)
         {
@@ -447,7 +489,7 @@ public sealed class RestBreakSign : InteractableBase
             Gizmos.matrix = Matrix4x4.identity;
         }
 #if UNITY_EDITOR
-        if (appearSpot != null) UnityEditor.Handles.Label(appearSpot.position + Vector3.up * 1.3f, sellerName + " sign: APPEARS here (orange)");
+        if (appearSpot != null) UnityEditor.Handles.Label(appearSpot.position + Vector3.up * 1.3f, sellerName + " sign: HOME (orange)");
         if (placeSpot != null) UnityEditor.Handles.Label(placeSpot.position + Vector3.up * 1.3f, sellerName + " sign: PUT here (blue)");
         if (sellerArea != null) UnityEditor.Handles.Label(sellerArea.position + Vector3.up * (sellerArea.lossyScale.y * 0.5f + 0.2f), sellerName + " seller area (green)");
 #endif
