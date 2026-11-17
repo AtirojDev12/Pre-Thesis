@@ -171,7 +171,7 @@ public sealed class HotbarHUD : MonoBehaviour
                 : inventory.IsHoldingMap // 24 Oct
                 ? $"Hold [{Keybinds.KeyName(GameAction.ReadMap)}] read the map   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
                 : !inventory.HeldSlot.IsEmpty && !inventory.HeldSlot.spare && ItemCatalog.IsWorksheet(inventory.HeldSlot.itemId) // 5 Nov
-                ? $"[{Keybinds.KeyName(GameAction.ReadMap)}] open the work sheet   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it"
+                ? $"[{Keybinds.KeyName(GameAction.ReadMap)}] open the Memo Book   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it"
                 : inventory.HeldSlot.IsEmpty && CarryProp.LocalHandProp != null // 17 Nov: mop / normal film reel
                 ? HandPropHint(CarryProp.LocalHandProp)
                 : PlayerSanity.HotbarHint(inventory)); // 8 Oct: snack / holy items

@@ -111,6 +111,10 @@ public sealed class MatchHUD : MonoBehaviour
         Color color;
         switch (director.Phase)
         {
+            case MatchPhase.PreShift: // 17 Nov (Task 8)
+                status = "Before the shift - everything opens at 12:00 AM";
+                color = Normal;
+                break;
             case MatchPhase.Night:
                 if (director.MinimumMet) { status = "All zones done - the exit opens at 06:00 AM"; color = Good; }
                 else { status = $"Zones done: {director.ZonesCompleted}/{director.ZonesRequired}"; color = Normal; }

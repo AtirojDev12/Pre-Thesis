@@ -16,10 +16,13 @@ using UnityEngine;
 public static class GhostCounterGate
 {
     /// <summary>True = the ticket counter must not start a new customer.</summary>
-    public static bool TicketHeld => TicketHeldByGhost || TicketClosedBySign;
+    public static bool TicketHeld => TicketHeldByGhost || TicketClosedBySign || BeforeShift;
 
     /// <summary>True = the popcorn counter must not seat a new customer.</summary>
-    public static bool PopcornHeld => PopcornHeldByGhost || PopcornClosedBySign;
+    public static bool PopcornHeld => PopcornHeldByGhost || PopcornClosedBySign || BeforeShift;
+
+    /// <summary>17 Nov (Task 8): the pre-shift (before 00:00): no customers yet.</summary>
+    public static bool BeforeShift => MatchDirector.Instance != null && MatchDirector.Instance.Phase == MatchPhase.PreShift;
 
     /// <summary>The Missing Parts ghost stands at the counter.</summary>
     public static bool TicketHeldByGhost, PopcornHeldByGhost;

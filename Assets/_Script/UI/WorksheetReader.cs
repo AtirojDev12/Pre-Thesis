@@ -285,7 +285,7 @@ public sealed class WorksheetReader : MonoBehaviour
         pageNumber.text = topics.Count > 0 ? (index + 1) + " / " + topics.Count : "";
         if (guide == null || topics.Count == 0)
         {
-            Heading("Work sheet", Ink);
+            Heading("Memo Book", Ink);
             Body(pageContent, "There is no guide for the map \"" + mapId + "\" yet.", 28f, Muted);
         }
         else
@@ -598,7 +598,7 @@ public sealed class WorksheetReader : MonoBehaviour
         lp.anchoredPosition = new Vector2(edge, -edge);
         lp.sizeDelta = new Vector2(leftWidth, pageHeight);
 
-        TextMeshProUGUI title = NewText("Title", lp, "<b>WORK SHEET</b>", 46f, Ink, TextAlignmentOptions.TopLeft);
+        TextMeshProUGUI title = NewText("Title", lp, "<b>MEMO BOOK</b>", 46f, Ink, TextAlignmentOptions.TopLeft);
         Place(title.rectTransform, 36f, 26f, -36f, 60f);
         title.characterSpacing = 3f;
         subText = NewText("Sub", lp, "", 23f, Muted, TextAlignmentOptions.TopLeft);

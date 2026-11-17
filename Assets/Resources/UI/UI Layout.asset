@@ -34,16 +34,6 @@ MonoBehaviour:
     design: {fileID: 0}
     elements: []
     added: []
-  - screenName: Paper Reader
-    note: 
-    hide: 0
-    overrideSortOrder: 0
-    sortOrder: 0
-    font: {fileID: 0}
-    skin: {fileID: 6130005890616574492, guid: f53d589950660504d97a25bfdbbd72f2, type: 3}
-    design: {fileID: 0}
-    elements: []
-    added: []
   - screenName: GAME HUD
     note: 
     hide: 0

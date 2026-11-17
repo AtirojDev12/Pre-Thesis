@@ -52,13 +52,30 @@ public static class ItemCatalog
     public const string GhostUpperBody = "ghost_upper_body";
 
     /// <summary>
-    /// 5 Nov (Mr.k): the WORK SHEET from the lobby Staff NPC. Takes a hotbar slot.
-    /// Match only: carried from the lobby hotbar into ONE match, then gone. Never saved.
-    /// Press the read key to open it (WorksheetReader). 5 Nov: a real object: Q drops it,
+    /// 5 Nov (Mr.k): the WORK SHEET from the lobby Staff NPC (was match only, never saved).
+    /// Press the read key to open it (WorksheetReader). A real object: Q drops it,
     /// anyone can pick it up. Model: Assets/Prefab/WorkSheet.prefab inside WorldWorksheet.
+    ///
+    /// 17 Nov (Mr.k, Task 8): the work sheet became the MEMO BOOK (same item, renamed).
+    /// A PERMANENT item per map (saved, max 1): the Staff gives it free ONCE per save file
+    /// (SaveData.memoBookClaimedMaps), the shop sells more (999). In the lobby and before 00:00
+    /// it is a normal book; from 00:00 in its own map it becomes the live guide (owner only).
+    /// The owner's copy is tagged with the owner (InventorySlot.charge, see MemoBook).
+    /// Dying / leaving the match destroys it. Dropped and picked up by someone else = a normal book for them.
     /// </summary>
-    public const string Worksheet = "worksheet";
+    public const string Worksheet = "memo_book";
+    /// <summary>17 Nov: the Cinema map's Memo Book (= Worksheet).</summary>
+    public const string MemoBook = Worksheet;
     public const string WorldWorksheetPath = "Items/WorldWorksheet";
+
+    /// <summary>17 Nov: the Memo Book item for a map. The Cinema (demo) map = "memo_book".</summary>
+    public static string MemoBookId(string mapId) =>
+        string.IsNullOrEmpty(mapId) || mapId == RoomConfig.DemoMapID ? MemoBook : MemoBook + "_" + mapId;
+
+    /// <summary>17 Nov: the map a Memo Book item belongs to.</summary>
+    public static string MemoBookMap(string itemId) =>
+        itemId == MemoBook ? RoomConfig.DemoMapID : itemId != null && itemId.StartsWith(MemoBook + "_") ? itemId.Substring(MemoBook.Length + 1) : "";
+
 
     // ---- 17 Nov 2026 (Mr.k): Phase 4 (Task 6 + 7) ----------------------------------------
     /// <summary>Free walkie (price 0, one copy, lost on death). Runs on a battery (GearTuning).</summary>
@@ -220,10 +237,11 @@ public static class ItemCatalog
         // 5 Nov (Mr.k): the work sheet from the lobby Staff NPC (free, match only, carried in once).
         new ItemInfo
         {
-            id = Worksheet, displayName = "Work Sheet", matchOnly = true, carryFromLobby = true,
-            permanent = false, inShop = false, throwable = true,
+            // 17 Nov (Task 8): the Memo Book (Cinema). Permanent, 999 in the shop (the Staff gives the first one free).
+            id = Worksheet, displayName = "Memo Book", price = 999,
+            permanent = true, inShop = true, throwable = true,
             worldPrefabPath = WorldWorksheetPath,
-            description = "Your job list from the Staff. Press the read key to open it. Q = drop it. Carried into ONE match, then gone.",
+            description = "Cinema map. A guide book: in the lobby and before 12:00 AM it explains the job. From 12:00 AM in the Cinema it shows what to do next, one step at a time (reading a new step costs a little sanity). Lost if you die or leave the match.",
         },
         // 17 Nov (Mr.k): syringes. Name, price, carry and heal in GearTuning.
         new ItemInfo
@@ -424,7 +442,9 @@ public static class ItemCatalog
     public static bool IsMap(string id) => id == Map;
 
     /// <summary>5 Nov: the work sheet (lobby Staff NPC).</summary>
-    public static bool IsWorksheet(string id) => id == Worksheet;
+    public static bool IsWorksheet(string id) => IsMemoBook(id);
+    /// <summary>17 Nov: any map's Memo Book.</summary>
+    public static bool IsMemoBook(string id) => id != null && (id == MemoBook || id.StartsWith(MemoBook + "_"));
 
     public static bool IsFlashlight(string id)
     {

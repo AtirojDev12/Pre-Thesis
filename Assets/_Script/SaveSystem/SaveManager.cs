@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -33,6 +34,51 @@ public static class SaveManager
     {
         Current = Load();
         Debug.Log("Save loaded. Currency = " + Current.currency);
+        ApplyMemoBookQuitRule(); // 17 Nov
+    }
+
+    // ---- Memo Book (17 Nov 2026, Mr.k, Task 8) ------------------------------------
+
+    /// <summary>Has the Staff already given this save file its free Memo Book for this map?</summary>
+    public static bool HasClaimedMemoBook(string mapId)
+    {
+        if (Current == null) return false;
+        if (Current.memoBookClaimedMaps == null) Current.memoBookClaimedMaps = new List<string>();
+        return Current.memoBookClaimedMaps.Contains(mapId);
+    }
+
+    /// <summary>The Staff gave the free Memo Book: own it and remember the claim. Saves.</summary>
+    public static void ClaimMemoBook(string mapId, string itemId)
+    {
+        if (Current == null) return;
+        if (Current.memoBookClaimedMaps == null) Current.memoBookClaimedMaps = new List<string>();
+        if (!Current.memoBookClaimedMaps.Contains(mapId)) Current.memoBookClaimedMaps.Add(mapId);
+        AddPermanentItem(itemId);
+        SaveToDisk();
+    }
+
+    /// <summary>A match with your Memo Book starts (empty = it ended normally: results applied).</summary>
+    public static void SetMemoBookInMatch(string mapId)
+    {
+        if (Current == null) return;
+        mapId = mapId ?? "";
+        if ((Current.memoBookInMatchMap ?? "") == mapId) return;
+        Current.memoBookInMatchMap = mapId;
+        SaveToDisk();
+    }
+
+    /// <summary>
+    /// The marker is still set = the game was closed / the match was left before its results:
+    /// the Memo Book you took in is destroyed. Run at start and when you are back in a lobby.
+    /// </summary>
+    public static void ApplyMemoBookQuitRule()
+    {
+        if (Current == null || string.IsNullOrEmpty(Current.memoBookInMatchMap)) return;
+        string item = ItemCatalog.MemoBookId(Current.memoBookInMatchMap);
+        RemovePermanentItem(item);
+        Debug.Log("[SaveManager] You left a match with your Memo Book before it ended: the book is gone.");
+        Current.memoBookInMatchMap = "";
+        SaveToDisk();
     }
 
     public static void SaveToDisk()

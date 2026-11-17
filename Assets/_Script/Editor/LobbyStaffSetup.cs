@@ -12,6 +12,7 @@ using UnityEngine;
 ///   Tools > Pre-Thesis > Scenes > Lobby: Add Staff NPC (where the Scene view looks)
 ///   Tools > Pre-Thesis > Scenes > Lobby: Add Shop Counter (where the Scene view looks)
 ///   Tools > Pre-Thesis > Scenes > Lobby: Add Storage Locker (where the Scene view looks)
+///   Tools > Pre-Thesis > Scenes > Lobby: Bake NavMesh (Staff walking)   (17 Nov: the Staff walks to players)
 ///   Tools > Pre-Thesis > Designer Settings > Map Guide (Cinema)   (work sheet text, pictures + zone goal)
 ///   Tools > Pre-Thesis > One Step > Items: Work Sheet   (the dropped / held model; also run by Add Staff NPC)
 /// Greybox looks: swap the "Look" child for real models later (keep the collider).
@@ -44,9 +45,106 @@ public static class LobbyStaffSetup
         body.center = new Vector3(0f, 0.95f, 0f);
         body.height = 1.95f;
         body.radius = 0.35f;
-        Sign(root.transform, "Sign", new Vector3(0f, 2.45f, 0f), "STAFF\n<size=60%>Take your work sheet</size>", 2.4f);
+        Sign(root.transform, "Sign", new Vector3(0f, 2.45f, 0f), "STAFF\n<size=60%>Take your Memo Book</size>", 2.4f);
         root.AddComponent<StaffNpc>(); // adds the NetworkIdentity too (scene object, id set on save)
-        Finish(root, "Staff NPC placed. Press E on it in the lobby to get a work sheet.");
+        Finish(root, "Staff NPC placed. It walks to players without a Memo Book (bake the Lobby NavMesh too).");
+    }
+
+    private const string NavMeshObjectName = "Lobby NavMesh (Staff walking)";
+
+    private const string NavMeshAssetPath = "Assets/Scenes/Lobby/NavMesh-Lobby.asset";
+
+    /// <summary>
+    /// 17 Nov (Task 8): the Staff walks up to players, so the Lobby needs a NavMesh.
+    /// Adds a NavMeshSurface (AI Navigation package) and bakes it from the colliders, saves the
+    /// data next to the scene. Run again after the lobby changes. Also renames the Staff's sign
+    /// ("work sheet" -> "Memo Book"). Then save the scene.
+    /// </summary>
+    [MenuItem("Tools/Pre-Thesis/Scenes/Lobby: Bake NavMesh (Staff walking)", false, 50)]
+    private static void BakeNavMesh()
+    {
+        if (!CheckLobby()) return;
+        System.Type surfaceType = System.Type.GetType("Unity.AI.Navigation.NavMeshSurface, Unity.AI.Navigation");
+        if (surfaceType == null)
+        {
+            EditorUtility.DisplayDialog("Lobby NavMesh", "The AI Navigation package was not found (NavMeshSurface). Nothing was changed.", "OK");
+            return;
+        }
+        GameObject holder = GameObject.Find(NavMeshObjectName);
+        if (holder == null)
+        {
+            holder = new GameObject(NavMeshObjectName);
+            Undo.RegisterCreatedObjectUndo(holder, "Lobby NavMesh");
+        }
+        Component surface = holder.GetComponent(surfaceType);
+        if (surface == null) surface = Undo.AddComponent(holder, surfaceType);
+        surfaceType.GetProperty("useGeometry")?.SetValue(surface, UnityEngine.AI.NavMeshCollectGeometry.PhysicsColliders);
+        surfaceType.GetProperty("agentTypeID")?.SetValue(surface, 0);
+
+        // 17 Nov fix: built HERE with a thin radius (0.2 m instead of Humanoid's 0.5 m), so the NavMesh
+        // goes through the lobby's doorways. Same Humanoid walker (the ghosts' settings are not changed).
+        // Do not press "Bake" on the NavMeshSurface component: that bakes the wide one again.
+        var bounds = new Bounds(Vector3.zero, Vector3.zero);
+        bool any = false;
+        foreach (Collider c in Object.FindObjectsByType<Collider>(FindObjectsSortMode.None))
+        {
+            if (c == null || !c.enabled || c.isTrigger || !c.gameObject.scene.IsValid()) continue;
+            if (!any) { bounds = c.bounds; any = true; }
+            else bounds.Encapsulate(c.bounds);
+        }
+        if (!any)
+        {
+            EditorUtility.DisplayDialog("Lobby NavMesh", "No colliders in the scene. Nothing was baked.", "OK");
+            return;
+        }
+        bounds.Expand(2f);
+        var sources = new System.Collections.Generic.List<UnityEngine.AI.NavMeshBuildSource>();
+        UnityEngine.AI.NavMeshBuilder.CollectSources(bounds, ~0, UnityEngine.AI.NavMeshCollectGeometry.PhysicsColliders, 0,
+            new System.Collections.Generic.List<UnityEngine.AI.NavMeshBuildMarkup>(), sources);
+        // Triggers are not walls.
+        sources.RemoveAll(src => src.component is Collider col && col.isTrigger);
+        UnityEngine.AI.NavMeshBuildSettings settings = UnityEngine.AI.NavMesh.GetSettingsByID(0);
+        settings.agentRadius = 0.2f;
+        settings.agentHeight = 1.8f;
+        settings.agentClimb = 0.4f;
+        settings.minRegionArea = 0.5f;
+        UnityEngine.AI.NavMeshData data = UnityEngine.AI.NavMeshBuilder.BuildNavMeshData(settings, sources, bounds, Vector3.zero, Quaternion.identity);
+        if (data == null)
+        {
+            EditorUtility.DisplayDialog("Lobby NavMesh", "Baking made no NavMesh (no floor colliders?).", "OK");
+            return;
+        }
+        data.name = "NavMesh-Lobby";
+        if (!AssetDatabase.IsValidFolder("Assets/Scenes/Lobby")) AssetDatabase.CreateFolder("Assets/Scenes", "Lobby");
+        if (AssetDatabase.LoadAssetAtPath<UnityEngine.AI.NavMeshData>(NavMeshAssetPath) != null) AssetDatabase.DeleteAsset(NavMeshAssetPath);
+        AssetDatabase.CreateAsset(data, NavMeshAssetPath);
+        AssetDatabase.SaveAssets();
+        // The surface loads this data when the scene starts (and shows it in the Scene view now).
+        Undo.RecordObject(surface, "Lobby NavMesh");
+        Behaviour surfaceBehaviour = surface as Behaviour;
+        if (surfaceBehaviour != null) surfaceBehaviour.enabled = false;
+        surfaceType.GetProperty("navMeshData")?.SetValue(surface, AssetDatabase.LoadAssetAtPath<UnityEngine.AI.NavMeshData>(NavMeshAssetPath));
+        if (surfaceBehaviour != null) surfaceBehaviour.enabled = true;
+        EditorUtility.SetDirty(surface);
+
+        // The Staff's old sign text.
+        int signs = 0;
+        foreach (StaffNpc staff in Object.FindObjectsByType<StaffNpc>(FindObjectsInactive.Include))
+            foreach (TMP_Text text in staff.GetComponentsInChildren<TMP_Text>(true))
+                if (text.text.Contains("work sheet"))
+                {
+                    Undo.RecordObject(text, "Staff sign");
+                    text.text = text.text.Replace("work sheet", "Memo Book");
+                    EditorUtility.SetDirty(text);
+                    signs++;
+                }
+
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        Selection.activeGameObject = holder;
+        EditorUtility.DisplayDialog("Lobby NavMesh", "NavMesh baked and saved (" + NavMeshAssetPath + ")." +
+            (signs > 0 ? "\nStaff sign renamed to \"Memo Book\"." : "") +
+            "\nBaked thin (radius 0.2 m) so it fits through doorways. Do NOT press Bake on the component (that makes the wide one again): run this menu instead." +
+            "\n\nThe blue area in the Scene view is where the Staff can walk (check that it goes through the doors). SAVE the scene (Ctrl+S).", "OK");
     }
 
     [MenuItem("Tools/Pre-Thesis/Scenes/Lobby: Add Shop Counter (where the Scene view looks)", false, 48)]

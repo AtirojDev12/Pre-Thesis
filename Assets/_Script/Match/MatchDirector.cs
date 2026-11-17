@@ -162,6 +162,9 @@ public class MatchDirector : NetworkBehaviour
     /// <summary>Real seconds in the night specifically. Kept separate from phaseLengthSeconds so the in-game clock stays correct after 06:00.</summary>
     [SyncVar] private float nightLengthSeconds;
 
+    /// <summary>17 Nov (Task 8): in-game minutes of the pre-shift (0 = the team enters at 00:00).</summary>
+    [SyncVar] private int preShiftMinutes;
+
     /// <summary>Resolved on the server from the profile, replicated so sanity sources on any machine agree on the rate.</summary>
     [SyncVar] private float sanityDrainMultiplier = 1f;
 
@@ -381,7 +384,20 @@ public class MatchDirector : NetworkBehaviour
     public int EscapedCount => escapedCount;
 
     public MatchPhase Phase => phase;
-    public bool RoundRunning => phase != MatchPhase.Ended;
+    /// <summary>
+    /// The SHIFT is running: tasks, customers, ghosts, rules and sanity work.
+    /// 17 Nov (Task 8): false during the pre-shift (before 00:00) and after the round.
+    /// </summary>
+    public bool RoundRunning => phase != MatchPhase.Ended && phase != MatchPhase.PreShift;
+
+    /// <summary>17 Nov: the players are in the map (pre-shift included) and the round is not over. Use this for "leaving now loses your items".</summary>
+    public bool InMatch => phase != MatchPhase.Ended;
+
+    /// <summary>17 Nov: before 00:00 (only walking and voice).</summary>
+    public bool InPreShift => phase == MatchPhase.PreShift;
+
+    /// <summary>17 Nov: in-game minutes of tonight's pre-shift (0 = entered at 00:00).</summary>
+    public int PreShiftMinutes => preShiftMinutes;
     public bool GhostBanished => ghostBanished;
 
     /// <summary>How a player finished. Unresolved until the round resolves them.</summary>
@@ -496,6 +512,11 @@ public class MatchDirector : NetworkBehaviour
 
         switch (phase)
         {
+            case MatchPhase.PreShift:
+                // 17 Nov (Task 8): counts up to 00:00 from the entry time (negative = before midnight).
+                absolute = StartHour - preShiftMinutes / 60f * (1f - PhaseProgress01);
+                break;
+
             case MatchPhase.Night:
                 absolute = StartHour + PhaseProgress01 * NightLengthInGameHours;
                 break;
@@ -519,7 +540,7 @@ public class MatchDirector : NetworkBehaviour
                 break;
         }
 
-        hour = Mathf.FloorToInt(absolute) % 24;
+        hour = ((Mathf.FloorToInt(absolute) % 24) + 24) % 24; // 17 Nov: -0.5 -> 23 (23:30)
         minute = Mathf.FloorToInt((absolute - Mathf.Floor(absolute)) * 60f);
     }
 
@@ -680,7 +701,10 @@ public class MatchDirector : NetworkBehaviour
         hasSeenAnyPlayer = false;
         rosterTickAccumulator = 0f;
 
-        EnterPhase(MatchPhase.Night, nightLengthSeconds);
+        // 17 Nov (Task 8): the host's entry time. 23:30 = 30 in-game minutes of pre-shift first.
+        preShiftMinutes = RoomConfig.CleanEntry(config.entryMinutesBefore);
+        if (preShiftMinutes > 0) EnterPhase(MatchPhase.PreShift, preShiftMinutes / 60f * SecondsPerInGameHour);
+        else EnterPhase(MatchPhase.Night, nightLengthSeconds);
 
         // 6 Oct: the task boards take tonight's targets from the difficulty.
         roundConfigured = true;
@@ -987,6 +1011,12 @@ public class MatchDirector : NetworkBehaviour
     {
         switch (phase)
         {
+            case MatchPhase.PreShift:
+                // 17 Nov (Task 8): 00:00. The shift starts: customers, tasks, ghosts, rules, sanity.
+                EnterPhase(MatchPhase.Night, nightLengthSeconds);
+                if (logRoundSetup) Debug.Log("[MatchDirector] 00:00 - the pre-shift is over, the night starts.", this);
+                break;
+
             case MatchPhase.Night:
                 // Prototype loop: 06:00 always gives ONE extra hour. The ghosts
                 // haunt (ExtraHour), the exit opens as soon as every zone is
@@ -1556,6 +1586,8 @@ public class MatchDirector : NetworkBehaviour
         {
             InventorySlot slot = inventory.GetSlot(i);
             ItemCatalog.ItemInfo info = slot.IsEmpty ? null : ItemCatalog.Find(slot.itemId);
+            // 17 Nov (Task 8): a Memo Book counts only for its owner (someone else's copy is not "found").
+            if (info != null && ItemCatalog.IsMemoBook(info.id) && !MemoBook.OwnedBy(slot, health.gameObject)) continue;
             if (info != null && info.permanent && !carried.Contains(info.id)) carried.Add(info.id);
         }
         return carried.ToArray();

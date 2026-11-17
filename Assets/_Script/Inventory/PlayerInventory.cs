@@ -106,6 +106,34 @@ public class PlayerInventory : NetworkBehaviour
     /// <summary>17 Nov: both hands carry a large object (a sign). The hotbar cannot be used.</summary>
     public bool HandsBlocked => handsBlocked;
 
+    // ---- Memo Book (17 Nov, Task 8) ----
+    /// <summary>The owner's save says the Staff already gave this player the free Memo Book (this map). Reported by the owner.</summary>
+    [SyncVar] private bool memoClaimed;
+    public bool MemoClaimed => memoClaimed;
+    /// <summary>SERVER. Carries a Memo Book for this map (hotbar or storage).</summary>
+    public bool ServerHasMemoBook(string itemId) => CountOf(itemId) > 0 || IsStored(itemId);
+    /// <summary>SERVER. The Staff just gave the free book.</summary>
+    public void ServerSetMemoClaimed(bool claimed) => memoClaimed = claimed;
+
+    [Command]
+    private void CmdReportMemoClaim(bool claimed) => memoClaimed = claimed;
+
+    /// <summary>
+    /// SERVER, match: the Memo Books that came from this player's own save are tagged with
+    /// this player (InventorySlot.charge = MemoBook.OwnerTag). Copies picked up later keep the
+    /// first owner's tag, so they stay a normal book for anyone else.
+    /// </summary>
+    private void ServerTagOwnMemoBooks()
+    {
+        for (int i = 0; i < slots.Count; i++)
+        {
+            InventorySlot s = slots[i];
+            if (s.IsEmpty || s.spare || !ItemCatalog.IsMemoBook(s.itemId)) continue;
+            s.charge = MemoBook.OwnerTag(gameObject);
+            slots[i] = s;
+        }
+    }
+
     /// <summary>SERVER. A large two-handed object was picked up (true) or put down (false).</summary>
     public void ServerSetHandsBlocked(bool blocked)
     {
@@ -259,6 +287,15 @@ public class PlayerInventory : NetworkBehaviour
         if (!NetworkMode.IsLocalController(this) || SaveManager.Current == null || SaveManager.Current.permanentItems == null) return;
 
         bool lobby = InLobby;
+        // 17 Nov (Task 8): left a match with the Memo Book before its end = the book is gone.
+        // The lobby also tells the server whether the Staff already gave this save its free book.
+        if (lobby)
+        {
+            SaveManager.ApplyMemoBookQuitRule();
+            bool claimed = SaveManager.HasClaimedMemoBook(RoomConfig.DemoMapID);
+            if (NetworkMode.IsOffline) memoClaimed = claimed;
+            else CmdReportMemoClaim(claimed);
+        }
         loadoutSeenOnOwner = true; // from now on the lobby hotbar is the player's choice
         var owned = new List<string>();
         foreach (PermanentItemData item in SaveManager.Current.permanentItems)
@@ -303,6 +340,10 @@ public class PlayerInventory : NetworkBehaviour
             }
             else send.Add(id);
         }
+        // 17 Nov (Task 8): a match with your Memo Book: mark it in the save (quitting before the end destroys it).
+        if (!lobby)
+            foreach (string id in LastLoadout)
+                if (ItemCatalog.IsMemoBook(id)) { SaveManager.SetMemoBookInMatch(ItemCatalog.MemoBookMap(id)); break; }
         if (NetworkMode.IsOffline) ApplyLoadout(send.ToArray());
         else CmdLoadout(send.ToArray());
     }
@@ -414,6 +455,7 @@ public class PlayerInventory : NetworkBehaviour
             }
         }
         if (added > 0 && voice != null) voice.ServerRefreshRadio();
+        if (!lobby) ServerTagOwnMemoBooks(); // 17 Nov
     }
 
     private void OnDestroy()

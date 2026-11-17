@@ -94,6 +94,7 @@ public sealed class FilmMopTuning : ScriptableObject
     {
         if (match == null) return 0f;
         if (match.Phase == MatchPhase.Night) return match.PhaseProgress01 * match.NightLengthInGameHours * 60f;
+        if (match.Phase == MatchPhase.PreShift) return -match.PreShiftMinutes * (1f - match.PhaseProgress01); // before 00:00
         match.GetInGameTime(out int hour, out int minute);
         return hour * 60 + minute;
     }
