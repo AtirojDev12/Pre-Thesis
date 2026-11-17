@@ -560,4 +560,14 @@ public sealed class RuleStaffTime : ZoneRuleBase
         base.OnDisable();
         ChoreProgressHUD.Hide(this);
     }
+
+    /// <summary>17 Nov (Task 8): Memo Book steps.</summary>
+    public override bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (!movieOn || !ServerIsInvolved(player)) return false;
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        entry = sitterId == 0 ? GuideStep(GuideSeverity.GhostRoam, 0, t.staffFindShadow) : GuideStep(GuideSeverity.GhostRoam, 1, t.staffStay);
+        return true;
+    }
 }

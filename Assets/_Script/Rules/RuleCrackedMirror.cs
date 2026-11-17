@@ -162,4 +162,13 @@ public sealed class RuleCrackedMirror : ZoneRuleBase
             if (shatteredLook.gameObject.activeSelf != show) shatteredLook.gameObject.SetActive(show);
         }
     }
+
+    /// <summary>17 Nov (Task 8): Memo Book steps.</summary>
+    public override bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (mirror < 0 || shattered || !ServerIsInvolved(player)) return false;
+        entry = GuideStep(GuideSeverity.ChaseOrHp, 0, MemoGuideTexts.Current.mirrorLook);
+        return true;
+    }
 }

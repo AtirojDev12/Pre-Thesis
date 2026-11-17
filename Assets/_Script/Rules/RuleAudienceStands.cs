@@ -142,4 +142,14 @@ public sealed class RuleAudienceStands : ZoneRuleBase
         List<PlayerHealth> players = ServerPlayersInside();
         if (players.Count > 0) StartEvent(players);
     }
+
+    /// <summary>17 Nov (Task 8): Memo Book steps.</summary>
+    public override bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (phase == Phase.Idle || !ServerIsInvolved(player)) return false;
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        entry = phase == Phase.Stare ? GuideStep(GuideSeverity.ChaseOrHp, 0, t.audienceStill) : GuideStep(GuideSeverity.ChaseOrHp, 1, t.audienceLeave);
+        return true;
+    }
 }

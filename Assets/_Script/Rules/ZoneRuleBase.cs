@@ -197,8 +197,36 @@ public abstract class ZoneRuleBase : NetworkBehaviour
     protected void ServerLockIn()
     {
         involved.Clear();
+        guideEvent++; // 17 Nov: a new event = new Memo Book steps
         ServerInvolved();
     }
+
+    // ---- Memo Book live guide (17 Nov, Task 8) ---------------------------------------------
+
+    private int guideEvent;
+
+    /// <summary>
+    /// SERVER. The survival step this rule wants the Memo Book to show to this player right now.
+    /// Default: none. Event rules override it (one step at a time, by their own state).
+    /// </summary>
+    public virtual bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        return false;
+    }
+
+    /// <summary>SERVER. Is this player held by the running event?</summary>
+    protected bool ServerIsInvolved(PlayerHealth player) => player != null && involved.Contains(player);
+
+    /// <summary>A guide step of this rule's current event (the key changes with the event and the step).</summary>
+    protected GuideEntry GuideStep(GuideSeverity severity, int step, string text) =>
+        GuideEntry.Make(severity, GetType().Name + ":" + GuideUid + ":" + guideEvent + ":" + step, text);
+
+    // 17 Nov: a small id for Memo Book step keys (GetInstanceID is obsolete in Unity 6.5).
+    private int guideUid;
+    private static int nextGuideUid;
+    private int GuideUid => guideUid != 0 ? guideUid : (guideUid = ++nextGuideUid);
+
 
     /// <summary>
     /// SERVER. Use while an event runs. The living, in-round players who were inside when it

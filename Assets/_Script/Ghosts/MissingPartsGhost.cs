@@ -202,6 +202,37 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     private bool HasAuthority => NetworkMode.HasServerAuthority(this);
     private bool Active => stage >= Stage.WalkingIn && stage <= Stage.Leaving;
     private bool Helpable => stage >= Stage.WalkingIn && stage <= Stage.Lost;
+
+    // 17 Nov: a small id for Memo Book step keys (GetInstanceID is obsolete in Unity 6.5).
+    private int guideUid;
+    private static int nextGuideUid;
+    private int GuideUid => guideUid != 0 ? guideUid : (guideUid = ++nextGuideUid);
+
+    /// <summary>
+    /// SERVER. 17 Nov (Task 8): Memo Book step for a player in the Ticket Zone (or the one it follows).
+    /// Before anyone helped: "press E on it". Then: "find its part". With the timer running it is a
+    /// chase-level danger (the ghost attacks on timeout), else it only blocks work.
+    /// </summary>
+    public bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (player == null || !Helpable || missing == GhostBodyPart.None) return false;
+        bool follows = followId != 0 && player.netId == followId;
+        if (!follows && !MemoGuide.InZoneOrNoBox(ZoneTaskList.TicketZoneID, player.transform.position)) return false;
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        GuideSeverity severity = deadline > 0d ? GuideSeverity.ChaseOrHp : GuideSeverity.TaskBlock;
+        string key = "parts:" + GuideUid + ":" + (int)missing + ":" + (helped ? 1 : 0);
+        if (!helped)
+        {
+            entry = GuideEntry.Make(severity, key, t.partsHelp);
+            return true;
+        }
+        string part = "missing part";
+        foreach (GhostBodyPart p in GhostBodyParts.All)
+            if ((missing & p) != 0) { part = GhostBodyParts.Name(p); break; }
+        entry = GuideEntry.Make(severity, key, t.partsFind.Replace("{part}", part.ToLowerInvariant()));
+        return true;
+    }
     private CounterRoute Route => counterKind == CounterKind.Ticket ? ticketRoute : popcornRoute;
     private bool HasMouth => (originalMissing & (GhostBodyPart.Head | GhostBodyPart.UpperBody)) == 0;
 

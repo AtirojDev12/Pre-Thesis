@@ -138,4 +138,14 @@ public sealed class RuleCryingStall : ZoneRuleBase
         }
         else if (crying.isPlaying) crying.Stop();
     }
+
+    /// <summary>17 Nov (Task 8): Memo Book steps.</summary>
+    public override bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (phase == Phase.Idle || !ServerIsInvolved(player)) return false;
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        entry = phase == Phase.WaitDark ? GuideStep(GuideSeverity.ChaseOrHp, 0, t.cryingLightOff) : GuideStep(GuideSeverity.ChaseOrHp, 1, t.cryingStill);
+        return true;
+    }
 }

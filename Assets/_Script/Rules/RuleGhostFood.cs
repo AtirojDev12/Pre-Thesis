@@ -141,4 +141,16 @@ public sealed class RuleGhostFood : ZoneRuleBase
     {
         if (IsServerSide && (phase == Phase.WaitClean || phase == Phase.Done)) BeginFeed();
     }
+
+    /// <summary>17 Nov (Task 8): Memo Book steps.</summary>
+    public override bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if ((phase != Phase.Feed && phase != Phase.Leave) || !ServerIsInvolved(player)) return false;
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        if (phase == Phase.Leave) entry = GuideStep(GuideSeverity.ChaseOrHp, 2, t.foodLeave);
+        else if (toiletLight != null && !toiletLight.IsDark) entry = GuideStep(GuideSeverity.ChaseOrHp, 0, t.foodLightOff);
+        else entry = GuideStep(GuideSeverity.ChaseOrHp, 1, t.foodThrowBox);
+        return true;
+    }
 }

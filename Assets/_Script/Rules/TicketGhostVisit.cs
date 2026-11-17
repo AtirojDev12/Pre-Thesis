@@ -68,6 +68,8 @@ public sealed class TicketGhostVisit : MonoBehaviour
     {
         SetZoneLights(true);
         routeGhost = null;
+        visitRunning = true; // 17 Nov: Memo Book
+        visits++;
     }
 
     /// <summary>SERVER. The ghost is gone (time up or after an attack): lights back on. (15 Nov: the signs stay.)</summary>
@@ -75,6 +77,26 @@ public sealed class TicketGhostVisit : MonoBehaviour
     {
         SetZoneLights(true);
         routeGhost = null;
+        visitRunning = false;
+    }
+
+    // ---- Memo Book live guide (17 Nov, Task 8) ------------------------------------------------
+
+    private bool visitRunning;
+    private int visits;
+
+    /// <summary>SERVER. Survival step for a player in the Ticket Zone while the ghost visit runs.</summary>
+    public bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (!visitRunning || player == null || !MemoGuide.InZoneOrNoBox(ZoneTaskList.TicketZoneID, player.transform.position)) return false;
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        bool allPlaced = true;
+        foreach (RestBreakSign sign in signs) if (sign != null && !sign.IsPlaced) { allPlaced = false; break; }
+        entry = allPlaced
+            ? GuideEntry.Make(GuideSeverity.ChaseOrHp, "ticket-ghost:" + visits + ":1", t.ticketGhostQuiet)
+            : GuideEntry.Make(GuideSeverity.ChaseOrHp, "ticket-ghost:" + visits + ":0", t.ticketGhostSigns);
+        return true;
     }
 
     private void SetZoneLights(bool on)

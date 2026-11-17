@@ -160,4 +160,16 @@ public sealed class RuleSmokingStall : ZoneRuleBase
             knock.MarkMoved();
         }
     }
+
+    /// <summary>17 Nov (Task 8): Memo Book steps.</summary>
+    public override bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (stall < 0 || !ServerIsInvolved(player)) return false;
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        if (punishing) entry = GuideStep(GuideSeverity.ChaseOrHp, 2, t.smokeLeave);
+        else if (!knocked) entry = GuideStep(GuideSeverity.ChaseOrHp, 0, t.smokeKnock);
+        else entry = GuideStep(GuideSeverity.ChaseOrHp, 1, t.smokeLightOff);
+        return true;
+    }
 }

@@ -46,6 +46,32 @@ public sealed class FilmDeadline : NetworkBehaviour
     private static double Now => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
     private static FilmMopTuning Tuning => FilmMopTuning.Current;
 
+    // 17 Nov: a small id for Memo Book step keys (GetInstanceID is obsolete in Unity 6.5).
+    private int guideUid;
+    private static int nextGuideUid;
+    private int GuideUid => guideUid != 0 ? guideUid : (guideUid = ++nextGuideUid);
+
+    /// <summary>17 Nov (Task 8): every film timer (Memo Book).</summary>
+    public static readonly System.Collections.Generic.List<FilmDeadline> All = new System.Collections.Generic.List<FilmDeadline>();
+    private void OnEnable() { if (!All.Contains(this)) All.Add(this); }
+    private void OnDisable() => All.Remove(this);
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => All.Clear();
+
+    /// <summary>
+    /// SERVER. 17 Nov (Task 8, #70): after the 1st miss (red glow) every player's Memo Book says the film is
+    /// late (Sanity tier). The 2nd penalty happens at once, so it needs no step.
+    /// </summary>
+    public bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (!missedPenalties || stage != 1 || chore == null || player == null) return false;
+        entry = GuideEntry.Make(GuideSeverity.SanityDrain, "film-late:" + GuideUid + ":" + stageSlot,
+            MemoGuideTexts.Current.filmLate.Replace("{film}", chore.DueLabel));
+        return true;
+    }
+
     private void Awake() => chore = GetComponent<ZoneChoreSpot>();
 
     private void Update()

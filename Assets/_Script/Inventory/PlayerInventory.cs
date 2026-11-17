@@ -118,6 +118,61 @@ public class PlayerInventory : NetworkBehaviour
     [Command]
     private void CmdReportMemoClaim(bool claimed) => memoClaimed = claimed;
 
+    // ---- Memo Book live guide (17 Nov, Task 8) ----
+    private float nextMemoTick;
+    private string sentMemoKey = "";
+    private string chargedMemoKey = "";
+
+    /// <summary>
+    /// SERVER, twice a second: the rule step for this player (only while they carry a Memo Book).
+    /// Sent to the owner's PC only when it changes.
+    /// </summary>
+    private void ServerTickMemoGuide()
+    {
+        if (Time.time < nextMemoTick) return;
+        nextMemoTick = Time.time + 0.5f;
+        MatchDirector match = MatchDirector.Instance;
+        if (match == null || !match.RoundRunning || InLobby) return;
+        bool carries = false;
+        for (int i = 0; i < slots.Count; i++) if (!slots[i].IsEmpty && ItemCatalog.IsMemoBook(slots[i].itemId)) { carries = true; break; }
+        if (!carries && sentMemoKey.Length == 0) return;
+
+        GuideEntry entry = default;
+        if (carries && TryGetComponent(out PlayerHealth health)) MemoGuide.ServerBestRule(health, out entry);
+        string key = entry.IsSet ? entry.key : "";
+        if (key == sentMemoKey) return;
+        sentMemoKey = key;
+        if (NetworkMode.IsOffline || (isLocalPlayer && isClient)) MemoGuide.LocalSetRule(key, entry.text, entry.severity);
+        else if (connectionToClient != null) TargetMemoRule(connectionToClient, key, entry.text ?? "", (byte)entry.severity);
+    }
+
+    [TargetRpc]
+    private void TargetMemoRule(NetworkConnectionToClient target, string key, string text, byte severity) =>
+        MemoGuide.LocalSetRule(key, text, (GuideSeverity)severity);
+
+    /// <summary>OWNER. A new Memo Book step was shown with the book open: pay its sanity cost.</summary>
+    public void RequestMemoStepRead(string key)
+    {
+        if (!NetworkMode.IsLocalController(this) || string.IsNullOrEmpty(key)) return;
+        if (NetworkMode.IsOffline) ServerMemoStepRead(key);
+        else CmdMemoStepRead(key);
+    }
+
+    [Command]
+    private void CmdMemoStepRead(string key) => ServerMemoStepRead(key);
+
+    /// <summary>SERVER. 2 sanity above 50, else 1. Once per step, only with your own live book in the hand.</summary>
+    private void ServerMemoStepRead(string key)
+    {
+        if (string.IsNullOrEmpty(key) || key.Length > 120 || key == chargedMemoKey) return;
+        MatchDirector match = MatchDirector.Instance;
+        if (match == null || !match.RoundRunning || InLobby) return;
+        if (!MemoBook.OwnedBy(HeldSlot, gameObject)) return;
+        chargedMemoKey = key;
+        if (TryGetComponent(out PlayerSanity sanity))
+            sanity.ServerDrain(sanity.Value > 50f ? 2f : 1f, "read the Memo Book", false);
+    }
+
     /// <summary>
     /// SERVER, match: the Memo Books that came from this player's own save are tagged with
     /// this player (InventorySlot.charge = MemoBook.OwnerTag). Copies picked up later keep the
@@ -477,7 +532,7 @@ public class PlayerInventory : NetworkBehaviour
 
     private void Update()
     {
-        if (NetworkMode.HasServerAuthority(this)) ServerTickWalkieBattery();
+        if (NetworkMode.HasServerAuthority(this)) { ServerTickWalkieBattery(); ServerTickMemoGuide(); }
         if (!NetworkMode.IsLocalController(this) || GameplayInput.Blocked) return;
 
         // 20 Oct: hotbar keys are rebindable (Keybinds, default 1-4).
