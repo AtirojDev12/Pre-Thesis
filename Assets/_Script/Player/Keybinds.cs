@@ -14,6 +14,7 @@ public enum GameAction
     WalkieTalk, WalkiePower,
     ReadMap, // 24 Oct
     Shout,   // 31 Oct: downed players only
+    UseSyringe, // 17 Nov: hold to heal yourself, or a downed friend you look at
 }
 
 /// <summary>
@@ -83,6 +84,7 @@ public static class Keybinds
         new Def(GameAction.WalkieTalk, "walkieTalk", "Walkie talk (hold)", "Items in hand", "walkie", GameSettings.DefaultWalkieTalkBinding),
         new Def(GameAction.WalkiePower, "walkiePower", "Walkie on / off", "Items in hand", "walkie", GameSettings.DefaultWalkiePowerBinding),
         new Def(GameAction.ReadMap, "readMap", "Read map (hold) / open work sheet", "Items in hand", "map", "<Mouse>/leftButton"), // 24 Oct
+        new Def(GameAction.UseSyringe, "useSyringe", "Use syringe (hold; look at a downed friend to get them up)", "Items in hand", "syringe", "<Mouse>/leftButton"), // 17 Nov
         // 5 Nov (Mr.k): the downed Shout key is removed from Settings (downed players use the walkie).
     };
 

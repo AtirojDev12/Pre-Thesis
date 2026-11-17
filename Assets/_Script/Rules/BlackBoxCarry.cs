@@ -12,6 +12,12 @@ using UnityEngine;
 ///
 /// Lives on the box place (with a <see cref="RuleInteractable"/>: [E] Pick up black box).
 /// SERVER AUTHORITY: who carries it is a SyncVar.
+///
+/// 17 Nov 2026 (Mr.k, Task 6): the black box is a HOTBAR item now. Picking it up needs a free
+/// hotbar slot and puts the "Black Box" token there (ItemCatalog.BlackBox). The box shows in
+/// front of you only while that slot is in your hand; in another slot it is put away.
+/// R puts it back only while it is in your hand. The token goes when the box goes back
+/// (thrown in, put back, carrier died / went down / left).
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(RuleInteractable))]
@@ -36,6 +42,12 @@ public sealed class BlackBoxCarry : NetworkBehaviour
     private bool IsLocalCarrier => !gone && PlayerHealth.LocalInstance != null &&
         ServerIsCarrier(PlayerHealth.LocalInstance.gameObject);
 
+    /// <summary>17 Nov: the local player carries this box AND has its hotbar slot in the hand.</summary>
+    private bool IsLocalHolding => IsLocalCarrier && PlayerInventory.Local != null && PlayerInventory.Local.IsHolding(ItemCatalog.BlackBox);
+
+    private Renderer[] boxRenderers;
+    private bool shownInHand = true;
+
     // Reserve this press even if another component updates after the box was returned.
     public static bool UsesLocalDiscardInput
     {
@@ -44,7 +56,7 @@ public sealed class BlackBoxCarry : NetworkBehaviour
             if (localReturnFrame == Time.frameCount) return true;
             if (RestBreakSign.LocalUsesDiscardInput) return true; // 7 Nov: carrying a restroom break sign
             foreach (var carry in FindObjectsByType<BlackBoxCarry>(FindObjectsSortMode.None))
-                if (carry.IsLocalCarrier) return true;
+                if (carry.IsLocalHolding) return true; // 17 Nov: only while the box is in the hand
             return false;
         }
     }
@@ -60,6 +72,7 @@ public sealed class BlackBoxCarry : NetworkBehaviour
             homePosition = box.position;
             homeRotation = box.rotation;
             boxColliders = box.GetComponentsInChildren<Collider>(true);
+            boxRenderers = box.GetComponentsInChildren<Renderer>(true);
         }
     }
 
@@ -68,7 +81,9 @@ public sealed class BlackBoxCarry : NetworkBehaviour
         if (NetworkMode.HasServerAuthority(this))
         {
             pickup.ServerUsed += OnPickedUp;
-            pickup.ServerCanUse = who => carrierId == 0 && !gone;
+            // 17 Nov: the box takes a hotbar slot, so it needs a free one.
+            pickup.ServerCanUse = who => carrierId == 0 && !gone && who != null &&
+                who.TryGetComponent(out PlayerInventory inv) && inv.HasEmptySlot;
         }
     }
 
@@ -81,6 +96,8 @@ public sealed class BlackBoxCarry : NetworkBehaviour
 
     private void OnPickedUp(GameObject who)
     {
+        PlayerInventory inventory = who != null ? who.GetComponent<PlayerInventory>() : null;
+        if (inventory == null || !inventory.ServerAddToken(ItemCatalog.BlackBox)) return; // 17 Nov: hotbar full
         carrierId = IdOf(who);
         offlineCarrier = NetworkMode.IsOffline ? who : null;
         pickup.ServerSetUsable(false);
@@ -93,6 +110,7 @@ public sealed class BlackBoxCarry : NetworkBehaviour
     /// <summary>SERVER. The box was thrown in: it disappears until <see cref="ServerReturnHome"/>.</summary>
     public void ServerConsume()
     {
+        ServerTakeToken();
         carrierId = 0;
         offlineCarrier = null;
         gone = true;
@@ -102,6 +120,7 @@ public sealed class BlackBoxCarry : NetworkBehaviour
     /// <summary>SERVER. Put a new box on the place (next night event).</summary>
     public void ServerReturnHome()
     {
+        ServerTakeToken();
         carrierId = 0;
         offlineCarrier = null;
         gone = false;
@@ -110,9 +129,27 @@ public sealed class BlackBoxCarry : NetworkBehaviour
         pickup.ServerSetUsable(true);
     }
 
+    /// <summary>SERVER. The carrier's hotbar token goes (unless they carry another black box too).</summary>
+    private void ServerTakeToken()
+    {
+        PlayerHealth carrier = CarrierBody();
+        PlayerInventory inventory = carrier != null ? carrier.GetComponent<PlayerInventory>() : null;
+        if (inventory == null) return;
+        int carried = 0;
+        foreach (BlackBoxCarry other in FindObjectsByType<BlackBoxCarry>(FindObjectsSortMode.None))
+            if (other.carrierId != 0 && other.CarrierBody() == carrier) carried++;
+        if (carried > 1)
+        {
+            // Two boxes, two tokens: take one.
+            for (int i = 0; i < PlayerInventory.SlotCount; i++)
+                if (inventory.GetSlot(i).itemId == ItemCatalog.BlackBox) { inventory.ServerRemoveAt(i); return; }
+        }
+        else inventory.ServerRemoveAll(ItemCatalog.BlackBox);
+    }
+
     private void RequestReturnHome()
     {
-        if (!IsLocalCarrier) return;
+        if (!IsLocalHolding) return; // 17 Nov: only while it is in your hand
         localReturnFrame = Time.frameCount;
         if (NetworkMode.IsOffline) TryReturnHome(PlayerHealth.LocalInstance.gameObject);
         else if (isClient) CmdReturnHome();
@@ -140,8 +177,10 @@ public sealed class BlackBoxCarry : NetworkBehaviour
             // The carrier died, went down, left the game or escaped: the box goes back.
             PlayerHealth carrier = CarrierBody();
             if (carrier == null || carrier.IsDead || carrier.IsDowned || !PlayerRegistry.IsInRound(carrier)) ServerReturnHome();
+            // 17 Nov: the token left the hotbar some other way: the box goes back.
+            else if (carrier.TryGetComponent(out PlayerInventory inv) && !inv.Has(ItemCatalog.BlackBox)) ServerReturnHome();
         }
-        if (IsLocalCarrier && !GameplayInput.Blocked && Cursor.lockState == CursorLockMode.Locked &&
+        if (IsLocalHolding && !GameplayInput.Blocked && Cursor.lockState == CursorLockMode.Locked &&
             Keybinds.WasPressed(GameAction.ReloadOrDiscard)) RequestReturnHome();
     }
 
@@ -154,12 +193,17 @@ public sealed class BlackBoxCarry : NetworkBehaviour
 
         if (!carried)
         {
+            ShowInHand(true);
             box.SetPositionAndRotation(homePosition, homeRotation);
             return;
         }
-
         PlayerHealth body = CarrierBody();
         if (body == null) return;
+        // 17 Nov: in the hotbar but not in the hand = put away (not drawn).
+        PlayerInventory carrierInventory = body.GetComponent<PlayerInventory>();
+        bool inHand = carrierInventory == null || carrierInventory.IsHolding(ItemCatalog.BlackBox);
+        ShowInHand(inHand);
+        if (!inHand) return;
         Transform hold = body.transform;
         Vector3 forward = hold.forward;
         Vector3 at = hold.position + Vector3.up * 1.05f + forward * 0.45f;
@@ -173,6 +217,13 @@ public sealed class BlackBoxCarry : NetworkBehaviour
             }
         }
         box.SetPositionAndRotation(at, Quaternion.LookRotation(Vector3.ProjectOnPlane(forward, Vector3.up).normalized + Vector3.forward * 0.0001f));
+    }
+
+    private void ShowInHand(bool show)
+    {
+        if (show == shownInHand || boxRenderers == null) return;
+        shownInHand = show;
+        foreach (Renderer r in boxRenderers) if (r != null) r.enabled = show;
     }
 
     private PlayerHealth CarrierBody()

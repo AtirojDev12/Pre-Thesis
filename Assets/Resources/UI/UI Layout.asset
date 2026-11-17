@@ -222,33 +222,3 @@ MonoBehaviour:
       preferredWidth: -1
       preferredHeight: -1
     added: []
-  - screenName: Rule Toast
-    note: 
-    hide: 0
-    overrideSortOrder: 0
-    sortOrder: 0
-    font: {fileID: 0}
-    skin: {fileID: 8191998339398908459, guid: 23189626ec63e6e4f9dd5ae779495bbc, type: 3}
-    design: {fileID: 0}
-    elements: []
-    added: []
-  - screenName: Local Ghost Warning
-    note: 
-    hide: 0
-    overrideSortOrder: 0
-    sortOrder: 0
-    font: {fileID: 0}
-    skin: {fileID: 3828582725448316266, guid: 666a3128e0ca0ed41addcb4dbe6cd9f1, type: 3}
-    design: {fileID: 0}
-    elements: []
-    added: []
-  - screenName: Lobby Shop
-    note: 
-    hide: 0
-    overrideSortOrder: 0
-    sortOrder: 0
-    font: {fileID: 0}
-    skin: {fileID: 7684886611788542165, guid: 7570d2df5ecdd094eac70d2aab4d3fb8, type: 3}
-    design: {fileID: 0}
-    elements: []
-    added: []

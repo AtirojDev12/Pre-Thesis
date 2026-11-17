@@ -20,6 +20,12 @@ using UnityEngine;
 /// Editor colours (Scene view only): orange = home, blue = where it must go for the ghost,
 /// green = the seller area the ghost checks. Move the child objects to change them.
 ///
+/// 17 Nov 2026 (Mr.k, Task 6): a sign is a LARGE TWO-HANDED object (in the hand, not the hotbar).
+///   - Carrying one puts the hotbar item in your hand away until the sign is put down
+///     (PlayerInventory.HandsBlocked): no item can be used meanwhile.
+///   - Carrying one blocks picking up popcorn hand items, and a popcorn hand item blocks
+///     picking up a sign.
+///
 /// SERVER AUTHORITY: shown / carrier / placed / position are SyncVars. Scene object.
 /// Made by Tools > Pre-Thesis > Scenes > Map: Ticket Ghost Restroom Break Signs.
 /// </summary>
@@ -144,11 +150,19 @@ public sealed class RestBreakSign : InteractableBase
     /// <summary>SERVER. 15 Nov: the sign is always in the map; a round starts with it on its orange home spot.</summary>
     private void ServerGoHome()
     {
+        ServerFreeHands(); // 17 Nov
         shown = true;
         placed = false;
         carrierId = 0;
         offlineCarrier = null;
         ServerSetRest(AppearPosition, AppearRotation);
+    }
+
+    /// <summary>SERVER. 17 Nov: the carrier's hands are free again (the hotbar item comes back).</summary>
+    private void ServerFreeHands()
+    {
+        PlayerHealth body = CarrierBody();
+        if (body != null && body.TryGetComponent(out PlayerInventory hands)) hands.ServerSetHandsBlocked(false);
     }
 
     private bool IsTicketStation =>
@@ -165,7 +179,9 @@ public sealed class RestBreakSign : InteractableBase
 
     private void OnDisable()
     {
-        if (NetworkMode.HasServerAuthority(this)) ServerSetCounterClosed(false);
+        if (!NetworkMode.HasServerAuthority(this)) return;
+        ServerSetCounterClosed(false);
+        if (carrierId != 0) ServerFreeHands(); // 17 Nov
     }
 
     // ---- Interaction ------------------------------------------------------------------------
@@ -182,7 +198,14 @@ public sealed class RestBreakSign : InteractableBase
         PlayerHealth health = interactor.GetComponent<PlayerHealth>();
         if (health == null || health.IsDead || health.IsDowned || !PlayerRegistry.IsInRound(health)) return;
         if (ServerCarriesAnySign(interactor)) return; // one sign at a time
+        // 17 Nov: a popcorn bucket / cup in the hand = no free hands for a sign.
+        if (interactor.TryGetComponent(out PlayerHeldItems held) && held.TaskItem.IsInHand)
+        {
+            Say(interactor, "Hands full: put the popcorn item down first.");
+            return;
+        }
         carrierId = IdOf(interactor);
+        if (interactor.TryGetComponent(out PlayerInventory hands)) hands.ServerSetHandsBlocked(true); // 17 Nov: two-handed
         offlineCarrier = NetworkMode.IsOffline ? interactor : null;
         placed = false;
         Say(interactor, "Blue spot = for the ghost (the " + sellerName.ToLowerInvariant() + " counter is closed while it stands there). " +
@@ -230,6 +253,7 @@ public sealed class RestBreakSign : InteractableBase
     private void ServerPutDown(Transform carrier)
     {
         GameObject who = carrier != null ? carrier.gameObject : null;
+        ServerFreeHands(); // 17 Nov
         carrierId = 0;
         offlineCarrier = null;
         Vector3 from = carrier != null ? carrier.position : transform.position;

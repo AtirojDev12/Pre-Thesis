@@ -106,7 +106,14 @@ public sealed partial class PopcornPreparation : MonoBehaviour
     public void Interact(PopcornStation station)
     {
         if (Holder == null || Holder.SubmissionPending || IsPreparing || BottleTransferPending || GameplayInput.Blocked) return;
-        if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier) return;
+        // 17 Nov (Mr.k): the Ghost Flavor is a hotbar item now; it blocks the station only while it is in the hand.
+        if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalHolding) return;
+        // 17 Nov (Mr.k): both hands carry a sign: no popcorn hand items.
+        if (PlayerInventory.Local != null && PlayerInventory.Local.HandsBlocked)
+        {
+            ShowStatus("Hands full · Put the sign down first ([R])");
+            return;
+        }
         PlayerHealth player = PlayerHealth.LocalInstance;
         if (player == null || player.IsDead || player.IsDowned) return;        if (station.Kind == PopcornStationKind.Water && !Holder.HasItem && TryGetBottle(station, out var readyBottle) && readyBottle.IsReady)        { RequestBottlePickup(station); return; }
         if (station.Kind == PopcornStationKind.Water && Holder.IsInHand && Holder.IsCup && !Holder.IsReady)
@@ -194,7 +201,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
     private void Update()
     {
         if (Holder == null) return;
-        if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier)
+        if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalHolding) // 17 Nov: only while in the hand
         {
             if (!awaitingResult) Cancel(false);
             ShowStatus(GhostFavorRecovery.Instance.Prompt);
@@ -290,7 +297,8 @@ public sealed partial class PopcornPreparation : MonoBehaviour
         if (Holder == null || player == null || player.IsDead || player.IsDowned || GameplayInput.Blocked ||
             BottleTransferPending || IsPreparing || Holder.HasItem || Holder.SubmissionPending ||
             !TryGetBottle(station, out var bottle) || bottle.fillingActor != 0) return;
-        if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalCarrier) return;
+        if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalHolding) return; // 17 Nov
+        if (PlayerInventory.Local != null && PlayerInventory.Local.HandsBlocked) return; // 17 Nov: carrying a sign
         if (NetworkMode.IsOffline)
         {
             if (Holder.ReceiveMachineBottle(bottle.flavor)) { offlineBottles.Remove(SpotId(station)); RenderPlacedBottles(); }

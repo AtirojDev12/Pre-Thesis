@@ -123,7 +123,10 @@ public sealed class HotbarHUD : MonoBehaviour
                 if (slot.IsEmpty) { }
                 else if (slot.spare) state = Colour("SPARE", OffColor);
                 else if (ItemCatalog.IsRadio(slot.itemId))
-                    state = slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor);
+                    state = ItemCatalog.UsesWalkieBattery(slot.itemId) // 17 Nov: the free walkie's battery
+                        ? (slot.charge <= 0f ? Colour("EMPTY", OffColor)
+                            : (slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor)) + " " + Mathf.CeilToInt(slot.charge * 100f) + "%")
+                        : slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor);
                 else if (ItemCatalog.IsFlashlight(slot.itemId)) // 5 Oct
                     state = slot.charge <= 0f ? Colour("EMPTY", OffColor)
                         : (slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor)) + " " + Mathf.CeilToInt(slot.charge * 100f) + "%";
@@ -145,7 +148,15 @@ public sealed class HotbarHUD : MonoBehaviour
             }
 
             // 20 Oct: key names come from Settings > Controls (Keybinds).
-            SetHint(inventory.IsHoldingSpare
+            SetHint(inventory.HandsBlocked // 17 Nov: a large two-handed object (sign)
+                ? $"Hands full: put the sign down first [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}]"
+                : inventory.IsHoldingSyringe
+                ? $"Hold [{Keybinds.KeyName(GameAction.UseSyringe)}] heal yourself   ·   look at a downed friend: get them up"
+                : inventory.IsHolding(ItemCatalog.BlackBox)
+                ? $"[E] on the drop spot: throw it in   ·   [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] put it back"
+                : inventory.IsHolding(ItemCatalog.GhostFlavor)
+                ? $"Bring it back to the popcorn station   ·   [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] drop it"
+                : inventory.IsHoldingSpare
                 ? $"Spare copy: you cannot use it.   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
                 : inventory.IsHoldingRadio
                 ? $"Hold [{Keybinds.KeyName(GameAction.WalkieTalk)}] talk on radio   ·   " +

@@ -138,7 +138,7 @@ public sealed class FlashlightController : MonoBehaviour
     private static bool CarryingGhostFavor()
     {
         GhostFavorRecovery favor = FindAnyObjectByType<GhostFavorRecovery>();
-        return favor != null && favor.IsLocalCarrier;
+        return favor != null && favor.IsLocalHolding; // 17 Nov: hotbar item; only blocks R while in the hand
     }
 
     // ---- Every machine: the beam --------------------------------------------
@@ -220,9 +220,13 @@ public sealed class FlashlightController : MonoBehaviour
 
     // ---- Owner: model in hand + HUD ------------------------------------------
 
+    private string heldModelFor; // 17 Nov
+
     private void UpdateHeldModel()
     {
         bool show = inventory.IsHoldingFlashlight && (health == null || !health.IsDead);
+        // 17 Nov: free and paid flashlights have their own model.
+        if (show && heldModel != null && heldModelFor != inventory.HeldSlot.itemId) { Destroy(heldModel); heldModel = null; }
         if (show && heldModel == null) BuildHeldModel();
         if (heldModel == null) return;
         if (heldModel.activeSelf != show) heldModel.SetActive(show);
@@ -232,8 +236,10 @@ public sealed class FlashlightController : MonoBehaviour
     private void BuildHeldModel()
     {
         Camera cam = GetComponentInChildren<Camera>();
-        GameObject prefab = Resources.Load<GameObject>("Items/Flashlight");
+        ItemCatalog.ItemInfo info = ItemCatalog.Find(inventory.HeldSlot.itemId);
+        GameObject prefab = ItemCatalog.LoadPrefab(info != null ? info.heldPrefabPath : null, "Items/Flashlight"); // 17 Nov
         if (cam == null || prefab == null) return; // no model yet: the beam still works
+        heldModelFor = inventory.HeldSlot.itemId;
         heldModel = Instantiate(prefab, cam.transform, false);
         heldModel.name = "Held Flashlight";
         heldModel.transform.localPosition = HeldModelPosition;

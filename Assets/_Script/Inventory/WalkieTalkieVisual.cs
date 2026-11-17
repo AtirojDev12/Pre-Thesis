@@ -4,6 +4,8 @@ using UnityEngine;
 public sealed class WalkieTalkieVisual : MonoBehaviour
 {
     [SerializeField] private Renderer ledRenderer;
+    [Tooltip("17 Nov: colour of the body (free and paid walkies look different).")]
+    [SerializeField] private Color bodyColor = new Color(0.12f, 0.12f, 0.13f);
     private MaterialPropertyBlock properties;
 
     private void Awake()
@@ -12,11 +14,15 @@ public sealed class WalkieTalkieVisual : MonoBehaviour
         foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
         {
             if (renderer == ledRenderer) continue;
-            properties.SetColor("_BaseColor", new Color(0.12f, 0.12f, 0.13f));
-            properties.SetColor("_Color", new Color(0.12f, 0.12f, 0.13f));
+            properties.SetColor("_BaseColor", bodyColor);
+            properties.SetColor("_Color", bodyColor);
             renderer.SetPropertyBlock(properties);
         }
     }
+
+#if UNITY_EDITOR
+    public void EditorSetBodyColor(Color color) => bodyColor = color;
+#endif
 
     public void SetPower(bool powered, bool transmitting = false)
     {

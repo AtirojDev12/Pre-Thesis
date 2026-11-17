@@ -46,6 +46,14 @@ public class PlayerInventory : NetworkBehaviour
     [SyncVar(hook = nameof(OnSelectedSlotChanged))]
     private int selectedSlot;
 
+    /// <summary>
+    /// 17 Nov (Mr.k, Task 6): BOTH hands are busy with a large two-handed object (a restroom break sign).
+    /// The hotbar item in the hand is put away until the object is put down: <see cref="HeldSlot"/>
+    /// reads as empty, so no item can be used, thrown or shown. Server writes.
+    /// </summary>
+    [SyncVar(hook = nameof(OnHandsBlockedChanged))]
+    private bool handsBlocked;
+
     private PlayerVoice voice;
     private HotbarHUD hud;
     private bool loadoutApplied;
@@ -92,8 +100,25 @@ public class PlayerInventory : NetworkBehaviour
         }
     }
 
-    /// <summary>The item in your hand.</summary>
-    public InventorySlot HeldSlot => GetSlot(selectedSlot);
+    /// <summary>The item in your hand. Empty while both hands carry a large object (17 Nov).</summary>
+    public InventorySlot HeldSlot => handsBlocked ? InventorySlot.Empty : GetSlot(selectedSlot);
+
+    /// <summary>17 Nov: both hands carry a large object (a sign). The hotbar cannot be used.</summary>
+    public bool HandsBlocked => handsBlocked;
+
+    /// <summary>SERVER. A large two-handed object was picked up (true) or put down (false).</summary>
+    public void ServerSetHandsBlocked(bool blocked)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || handsBlocked == blocked) return;
+        handsBlocked = blocked;
+        Changed?.Invoke();
+        if (voice != null) voice.ServerRefreshRadio();
+    }
+
+    private void OnHandsBlockedChanged(bool oldValue, bool newValue) => Changed?.Invoke();
+
+    /// <summary>17 Nov: a usable syringe is in your hand.</summary>
+    public bool IsHoldingSyringe => !HeldSlot.IsEmpty && !HeldSlot.spare && ItemCatalog.IsSyringe(HeldSlot.itemId);
 
     public bool IsHoldingRadio => !HeldSlot.IsEmpty && ItemCatalog.IsRadio(HeldSlot.itemId);
     public bool IsHoldingPoweredRadio => IsHoldingRadio && !HeldSlot.spare && HeldSlot.poweredOn;
@@ -130,6 +155,8 @@ public class PlayerInventory : NetworkBehaviour
         if (GetComponent<FlashlightController>() == null) gameObject.AddComponent<FlashlightController>();
         // 24 Oct: the map in your hand (read it while holding the read key).
         if (GetComponent<MapController>() == null) gameObject.AddComponent<MapController>();
+        // 17 Nov: syringes (hold to heal / get a downed friend up).
+        if (GetComponent<SyringeController>() == null) gameObject.AddComponent<SyringeController>();
         // Mirror's default SyncList guard throws when neither server nor client is running.
         // Permit the project's offline test mode, preserving Mirror's guard in real sessions.
         System.Func<bool> mirrorCanWrite = slots.IsWritable;
@@ -143,6 +170,7 @@ public class PlayerInventory : NetworkBehaviour
     public override void OnStartServer()
     {
         loadoutApplied = false;
+        handsBlocked = false;
         slots.Clear();
         for (int i = 0; i < SlotCount; i++) slots.Add(InventorySlot.Empty);
         storage.Clear();
@@ -326,7 +354,7 @@ public class PlayerInventory : NetworkBehaviour
         if (info == null) return;
         // 5 Oct: a bought Battery joins its stack (max 3). 8 Oct: a stack never splits
         // between hotbar and storage; no room in the hotbar = storage.
-        if (info.Stackable)
+        if (info.Consumable) // 17 Nov: was Stackable; a consumable you may carry only 1 of was ignored
         {
             if (IsStored(itemId) || UnitsOf(itemId) == 0 && !HasEmptySlot) ServerStore(InventorySlot.Of(itemId));
             else ServerAddStack(InventorySlot.Of(itemId));
@@ -377,7 +405,7 @@ public class PlayerInventory : NetworkBehaviour
                 // 5 Nov: the work sheet. Match only, one copy, never into storage.
                 if (!lobby && ServerCountOf(id) == 0 && ServerAddItem(id)) added++;
             }
-            else if (info.Stackable)
+            else if (info.Consumable) // 17 Nov: also consumables you may carry only 1 of (free syringe)
             {
                 InventorySlot stack = InventorySlot.Of(id);
                 stack.count = Mathf.Min(units[id], Mathf.Max(1, info.maxStack));
@@ -407,6 +435,7 @@ public class PlayerInventory : NetworkBehaviour
 
     private void Update()
     {
+        if (NetworkMode.HasServerAuthority(this)) ServerTickWalkieBattery();
         if (!NetworkMode.IsLocalController(this) || GameplayInput.Blocked) return;
 
         // 20 Oct: hotbar keys are rebindable (Keybinds, default 1-4).
@@ -467,6 +496,8 @@ public class PlayerInventory : NetworkBehaviour
         InventorySlot slot = slots[index];
         // 5 Oct: flashlights have the same on/off switch as radios.
         if (slot.IsEmpty || slot.spare || !ItemCatalog.HasPowerSwitch(slot.itemId)) return;
+        // 17 Nov: a free walkie with an empty battery cannot be switched on.
+        if (!slot.poweredOn && ItemCatalog.UsesWalkieBattery(slot.itemId) && slot.charge <= 0f) return;
 
         slot.poweredOn = !slot.poweredOn;
         slots[index] = slot;
@@ -549,12 +580,145 @@ public class PlayerInventory : NetworkBehaviour
     {
         if (!NetworkMode.HasServerAuthority(this) || index < 0 || index >= slots.Count) return;
         InventorySlot slot = slots[index];
-        if (slot.IsEmpty || !ItemCatalog.IsFlashlight(slot.itemId)) return;
+        if (slot.IsEmpty || !ItemCatalog.UsesCharge(slot.itemId)) return; // 17 Nov: also the free walkie
         charge = Mathf.Clamp01(charge);
         if (Mathf.Approximately(slot.charge, charge)) return;
         slot.charge = charge;
         slots[index] = slot;
     }
+
+    // ---- Free walkie battery (17 Nov, Task 7) --------------------------------------
+    //
+    // SERVER-AUTHORITATIVE, kept in InventorySlot.charge like the flashlight battery, so it
+    // travels with the walkie when it is dropped. Drains while the walkie is ON:
+    //   1x while nobody talks (GearTuning: 1200 s from full), 3x while YOU talk or you HEAR
+    //   someone on the radio (both at once = still 3x, not 6x). Empty = switches off and cannot
+    //   be switched on. In the lobby it does not drain and is always full.
+
+    private float batteryWriteTimer;
+    private static int transmitFrame = -1;
+    private static bool anyTransmitting;
+    private static readonly List<PlayerVoice> transmitters = new List<PlayerVoice>();
+
+    private void ServerTickWalkieBattery()
+    {
+        bool lobby = InLobby;
+        int found = -1;
+        for (int i = 0; i < slots.Count; i++)
+            if (!slots[i].IsEmpty && ItemCatalog.UsesWalkieBattery(slots[i].itemId)) { found = i; break; }
+        if (found < 0) return;
+
+        if (lobby)
+        {
+            for (int i = 0; i < slots.Count; i++)
+                if (!slots[i].IsEmpty && ItemCatalog.UsesWalkieBattery(slots[i].itemId) && slots[i].charge < 1f) ServerSetCharge(i, 1f);
+            return;
+        }
+
+        // Write the SyncList at most 4 times a second (the battery is slow).
+        batteryWriteTimer += Time.deltaTime;
+        if (batteryWriteTimer < 0.25f) return;
+        float dt = batteryWriteTimer;
+        batteryWriteTimer = 0f;
+
+        GearTuning.WalkieBattery tuning = GearTuning.Current.freeWalkieBattery;
+        bool talking = voice != null && voice.RadioTransmitting;
+        bool hearing = SomeoneElseTransmitting(voice);
+        float rate = (talking || hearing ? Mathf.Max(1f, tuning.talkOrHearMultiplier) : 1f) / Mathf.Max(1f, tuning.secondsWhenIdle);
+
+        for (int i = 0; i < slots.Count; i++)
+        {
+            InventorySlot slot = slots[i];
+            if (slot.IsEmpty || slot.spare || !slot.poweredOn || !ItemCatalog.UsesWalkieBattery(slot.itemId)) continue;
+            float charge = Mathf.Max(0f, slot.charge - rate * dt);
+            slot.charge = charge;
+            if (charge <= 0f) slot.poweredOn = false; // empty: switches off
+            slots[i] = slot;
+            if (charge <= 0f && voice != null) voice.ServerRefreshRadio();
+        }
+    }
+
+    /// <summary>SERVER. Is any OTHER player talking on the radio right now? (computed once per frame)</summary>
+    private static bool SomeoneElseTransmitting(PlayerVoice self)
+    {
+        if (transmitFrame != Time.frameCount)
+        {
+            transmitFrame = Time.frameCount;
+            transmitters.Clear();
+            IReadOnlyList<PlayerHealth> players = PlayerRegistry.All;
+            for (int i = 0; i < players.Count; i++)
+            {
+                if (players[i] == null) continue;
+                PlayerVoice v = players[i].GetComponent<PlayerVoice>();
+                if (v != null && v.RadioTransmitting) transmitters.Add(v);
+            }
+            anyTransmitting = transmitters.Count > 0;
+        }
+        if (!anyTransmitting) return false;
+        for (int i = 0; i < transmitters.Count; i++) if (transmitters[i] != self) return true;
+        return false;
+    }
+
+    // ---- Syringe (17 Nov, Task 7): the Commands live here (SyringeController is added at runtime) ----
+
+    /// <summary>Owner: started holding the use key with a syringe (target = downed friend, null = self).</summary>
+    public void RequestSyringeStart(PlayerHealth target)
+    {
+        if (!NetworkMode.IsLocalController(this)) return;
+        SyringeController syringe = GetComponent<SyringeController>();
+        if (NetworkMode.IsOffline) { if (syringe != null) syringe.ServerStart(target != null ? target.gameObject : null); }
+        else CmdSyringeStart(target != null ? target.netIdentity : null);
+    }
+
+    /// <summary>Owner: held long enough.</summary>
+    public void RequestSyringeFinish(PlayerHealth target)
+    {
+        if (!NetworkMode.IsLocalController(this)) return;
+        SyringeController syringe = GetComponent<SyringeController>();
+        if (NetworkMode.IsOffline) { if (syringe != null) syringe.ServerFinish(target != null ? target.gameObject : null); }
+        else CmdSyringeFinish(target != null ? target.netIdentity : null);
+    }
+
+    [Command]
+    private void CmdSyringeStart(NetworkIdentity target)
+    {
+        SyringeController syringe = GetComponent<SyringeController>();
+        if (syringe != null) syringe.ServerStart(target != null ? target.gameObject : null);
+    }
+
+    [Command]
+    private void CmdSyringeFinish(NetworkIdentity target)
+    {
+        SyringeController syringe = GetComponent<SyringeController>();
+        if (syringe != null) syringe.ServerFinish(target != null ? target.gameObject : null);
+    }
+
+    // ---- Carry tokens (17 Nov, Task 6) -------------------------------------------
+    //
+    // The black box and the displaced Ghost Flavor are scene objects. While a player carries one,
+    // it takes a hotbar slot through a token item (ItemCatalog.carryToken). The object's own script
+    // decides when the token comes and goes.
+
+    /// <summary>Any machine: is this item in the hotbar?</summary>
+    public bool Has(string itemId) => CountOf(itemId) > 0;
+
+    /// <summary>SERVER. Adds a carry token. False when the hotbar is full.</summary>
+    public bool ServerAddToken(string itemId)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || !ItemCatalog.IsCarryToken(itemId)) return false;
+        return ServerAddItem(InventorySlot.Of(itemId));
+    }
+
+    /// <summary>SERVER. Removes every copy of an item (a carried object went back).</summary>
+    public void ServerRemoveAll(string itemId)
+    {
+        if (!NetworkMode.HasServerAuthority(this)) return;
+        for (int i = 0; i < slots.Count; i++)
+            if (slots[i].itemId == itemId) ServerRemoveAt(i);
+    }
+
+    /// <summary>Any machine: the item in the hand is this one (not a spare).</summary>
+    public bool IsHolding(string itemId) => !HeldSlot.IsEmpty && !HeldSlot.spare && HeldSlot.itemId == itemId;
 
     // ---- Server API (shop, pickups, death) ---------------------------------
 

@@ -60,6 +60,18 @@ public static class ItemCatalog
     public const string Worksheet = "worksheet";
     public const string WorldWorksheetPath = "Items/WorldWorksheet";
 
+    // ---- 17 Nov 2026 (Mr.k): Phase 4 (Task 6 + 7) ----------------------------------------
+    /// <summary>Free walkie (price 0, one copy, lost on death). Runs on a battery (GearTuning).</summary>
+    public const string WalkieFree = "walkie_talkie_free";
+    /// <summary>Paid syringe: heals part of the missing health, or gets a downed friend up.</summary>
+    public const string Syringe = "syringe";
+    /// <summary>Free syringe: carry 1, flat heal.</summary>
+    public const string SyringeFree = "syringe_free";
+    /// <summary>The toilet rule's black box. A HOTBAR token: the box itself is a scene object (BlackBoxCarry).</summary>
+    public const string BlackBox = "black_box";
+    /// <summary>The displaced Ghost Flavor. A HOTBAR token: the bottle itself is a scene object (GhostFavorRecovery).</summary>
+    public const string GhostFlavor = "ghost_flavor";
+
     public sealed class ItemInfo
     {
         public string id;
@@ -107,6 +119,22 @@ public static class ItemCatalog
         public bool Stackable => maxStack > 1;
         /// <summary>Not permanent = a consumable: the save keeps a quantity (ConsumableItemData). Match-only items are neither.</summary>
         public bool Consumable => !permanent && !matchOnly;
+        // ---- 17 Nov (Phase 4) ----
+        /// <summary>The model in your hand (first person) and in other players' views. Empty = the item's default.</summary>
+        public string heldPrefabPath;
+        /// <summary>A radio that runs on a battery (InventorySlot.charge). The free walkie.</summary>
+        public bool usesWalkieBattery;
+        /// <summary>A syringe: hold the use key to heal, or use it on a downed friend.</summary>
+        public bool isSyringe;
+        /// <summary>Heals this part of the MISSING health (0.75 = 75%).</summary>
+        public float healPartOfMissing;
+        /// <summary>Heals this much on top (flat).</summary>
+        public float healFlat;
+        /// <summary>
+        /// Only a hotbar place-holder for a scene object that is carried (black box, ghost flavor).
+        /// Cannot be thrown or dropped with Q; it leaves the hotbar when the object goes back.
+        /// </summary>
+        public bool carryToken;
     }
 
     // A List, not a Dictionary: a handful of entries, and it matches the
@@ -120,7 +148,17 @@ public static class ItemCatalog
             price = 100, permanent = true, inShop = true,
             throwable = true,
             worldPrefabPath = PlayerItemThrow.WorldPrefabPath,
+            heldPrefabPath = "Items/WalkieTalkie",
             description = "Talk to every teammate who carries a switched-on walkie, at any distance. Lost if you die.",
+        },
+        // 17 Nov (Mr.k): the free walkie. Name, price, text and battery in GearTuning.
+        new ItemInfo
+        {
+            id = WalkieFree, displayName = "Free Walkie-Talkie", isRadio = true, usesWalkieBattery = true,
+            price = 0, permanent = true, inShop = true,
+            throwable = true,
+            worldPrefabPath = "Items/WorldWalkieTalkieFree",
+            heldPrefabPath = "Items/WalkieTalkieFree",
         },
         // 5 Oct (Mr.k): flashlights + battery. Name, price, text and all numbers
         // are in the designer asset FlashlightTuning (Tools > Pre-Thesis > Flashlight Settings).
@@ -128,13 +166,15 @@ public static class ItemCatalog
         {
             id = FlashlightBasic, isFlashlight = true,
             permanent = true, inShop = true, throwable = true,
-            worldPrefabPath = WorldFlashlightPath,
+            worldPrefabPath = "Items/WorldFlashlightFree", // 17 Nov: its own model (falls back to the paid one if missing)
+            heldPrefabPath = "Items/FlashlightFree",
         },
         new ItemInfo
         {
             id = Flashlight, isFlashlight = true,
             permanent = true, inShop = true, throwable = true,
             worldPrefabPath = WorldFlashlightPath,
+            heldPrefabPath = "Items/Flashlight",
         },
         new ItemInfo
         {
@@ -183,6 +223,34 @@ public static class ItemCatalog
             worldPrefabPath = WorldWorksheetPath,
             description = "Your job list from the Staff. Press the read key to open it. Q = drop it. Carried into ONE match, then gone.",
         },
+        // 17 Nov (Mr.k): syringes. Name, price, carry and heal in GearTuning.
+        new ItemInfo
+        {
+            id = Syringe, isSyringe = true,
+            permanent = false, inShop = true, throwable = true, maxStack = 3,
+            worldPrefabPath = "Items/WorldSyringe",
+            heldPrefabPath = "Items/Syringe",
+        },
+        new ItemInfo
+        {
+            id = SyringeFree, isSyringe = true,
+            permanent = false, inShop = true, throwable = true, maxStack = 1,
+            worldPrefabPath = "Items/WorldSyringeFree",
+            heldPrefabPath = "Items/SyringeFree",
+        },
+        // 17 Nov (Mr.k): hotbar tokens for carried scene objects (Task 6: black box + ghost flavor = hotbar).
+        new ItemInfo
+        {
+            id = BlackBox, displayName = "Black Box", matchOnly = true, carryToken = true,
+            permanent = false, inShop = false, throwable = false,
+            description = "Ghost food for the toilet. Hold it and press E on the drop spot. R (in hand) = put it back.",
+        },
+        new ItemInfo
+        {
+            id = GhostFlavor, displayName = "Ghost Flavor", matchOnly = true, carryToken = true,
+            permanent = false, inShop = false, throwable = false,
+            description = "The special ingredient. Bring it back to the popcorn station. R (in hand) = drop it.",
+        },
         // 31 Oct (Mr.k): the Missing Parts ghost's parts. World prefabs made by the setup tool.
         GhostPartItem(GhostLeftArm, "Left Arm", "Items/WorldGhostPart_LeftArm"),
         GhostPartItem(GhostRightArm, "Right Arm", "Items/WorldGhostPart_RightArm"),
@@ -208,9 +276,12 @@ public static class ItemCatalog
     private static int syncedSanityChanges = int.MinValue;
 
     /// <summary>Copies the designer asset into the items. Cheap when nothing changed.</summary>
+    private static int syncedGearChanges = int.MinValue;
+
     private static void SyncTuning()
     {
         SyncSanityItems();
+        SyncGear();
         if (syncedChanges == FlashlightTuning.Changes) return;
         FlashlightTuning t = FlashlightTuning.Current; // may bump Changes once while loading
         syncedChanges = FlashlightTuning.Changes;
@@ -224,6 +295,37 @@ public static class ItemCatalog
             battery.price = Mathf.Max(0, t.battery.price);
             battery.maxStack = Mathf.Max(1, t.battery.maxCarry);
         }
+    }
+
+    /// <summary>17 Nov: walkies and syringes come from GearTuning.</summary>
+    private static void SyncGear()
+    {
+        if (syncedGearChanges == GearTuning.Changes) return;
+        GearTuning g = GearTuning.Current; // may bump Changes once while loading
+        syncedGearChanges = GearTuning.Changes;
+        CopyWalkie(FindRaw(WalkieTalkie), g.paidWalkie);
+        CopyWalkie(FindRaw(WalkieFree), g.freeWalkie);
+        CopySyringe(FindRaw(Syringe), g.paidSyringe);
+        CopySyringe(FindRaw(SyringeFree), g.freeSyringe);
+    }
+
+    private static void CopyWalkie(ItemInfo item, GearTuning.Walkie walkie)
+    {
+        if (item == null || walkie == null) return;
+        item.displayName = walkie.displayName;
+        item.description = walkie.description;
+        item.price = Mathf.Max(0, walkie.price);
+    }
+
+    private static void CopySyringe(ItemInfo item, GearTuning.Syringe syringe)
+    {
+        if (item == null || syringe == null) return;
+        item.displayName = syringe.displayName;
+        item.description = syringe.description;
+        item.price = Mathf.Max(0, syringe.price);
+        item.maxStack = Mathf.Max(1, syringe.maxCarry);
+        item.healPartOfMissing = Mathf.Clamp01(syringe.healPartOfMissing);
+        item.healFlat = Mathf.Max(0f, syringe.healFlat);
     }
 
     /// <summary>8 Oct: names, prices and text of the sanity items come from SanitySettings.</summary>
@@ -320,6 +422,53 @@ public static class ItemCatalog
     {
         ItemInfo info = Find(id);
         return info != null && info.isFlashlight;
+    }
+
+    /// <summary>17 Nov: the free walkie (radio with a battery in InventorySlot.charge).</summary>
+    public static bool UsesWalkieBattery(string id)
+    {
+        ItemInfo info = Find(id);
+        return info != null && info.usesWalkieBattery;
+    }
+
+    /// <summary>17 Nov: the item keeps a battery in InventorySlot.charge (flashlights, the free walkie).</summary>
+    public static bool UsesCharge(string id)
+    {
+        ItemInfo info = Find(id);
+        return info != null && (info.isFlashlight || info.usesWalkieBattery);
+    }
+
+    public static bool IsSyringe(string id)
+    {
+        ItemInfo info = Find(id);
+        return info != null && info.isSyringe;
+    }
+
+    /// <summary>17 Nov: a hotbar place-holder for a carried scene object (black box, ghost flavor).</summary>
+    public static bool IsCarryToken(string id)
+    {
+        ItemInfo info = Find(id);
+        return info != null && info.carryToken;
+    }
+
+    /// <summary>
+    /// 17 Nov: loads the item's model (held, else world). A missing new prefab falls back to
+    /// <paramref name="fallbackPath"/>, so the game still works before the setup tool has run.
+    /// </summary>
+    public static GameObject LoadPrefab(string path, string fallbackPath)
+    {
+        GameObject prefab = string.IsNullOrEmpty(path) ? null : Resources.Load<GameObject>(path);
+        if (prefab == null && !string.IsNullOrEmpty(fallbackPath)) prefab = Resources.Load<GameObject>(fallbackPath);
+        return prefab;
+    }
+
+    /// <summary>17 Nov: the world (floor) prefab of an item, with the paid model as fallback for the new free models.</summary>
+    public static GameObject LoadWorldPrefab(string id)
+    {
+        ItemInfo info = Find(id);
+        if (info == null || string.IsNullOrEmpty(info.worldPrefabPath)) return null;
+        string fallback = id == WalkieFree ? PlayerItemThrow.WorldPrefabPath : id == FlashlightBasic ? WorldFlashlightPath : null;
+        return LoadPrefab(info.worldPrefabPath, fallback);
     }
 
     /// <summary>Has an on/off switch (InventorySlot.poweredOn): radios and flashlights.</summary>

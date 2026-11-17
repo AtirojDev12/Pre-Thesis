@@ -28,7 +28,10 @@ public class WalkieTalkieController : MonoBehaviour
     private PlayerHealth health;
 
     private GameObject heldModel;
+    private string heldModelFor; // 17 Nov: free and paid walkies have their own model
     private WalkieTalkieVisual visual;
+    private HudBar batteryBar;    // 17 Nov: the free walkie's battery (GAME HUD bar "walkie_battery")
+    private bool batteryShown;
 
     private void Awake()
     {
@@ -59,6 +62,25 @@ public class WalkieTalkieController : MonoBehaviour
         voice.RequestRadioTransmit(wantTalk);
 
         UpdateHeldModel();
+        UpdateBatteryBar();
+    }
+
+    /// <summary>17 Nov: while the free walkie is in your hand, its battery shows in the GAME HUD.</summary>
+    private void UpdateBatteryBar()
+    {
+        bool show = inventory.IsHoldingRadio && ItemCatalog.UsesWalkieBattery(inventory.HeldSlot.itemId)
+            && (health == null || !health.IsDead);
+        if (batteryBar == null) batteryBar = HudBar.Find(HudBar.WalkieBattery);
+        if (batteryBar == null) return; // no bar in the GAME HUD: the hotbar still shows the %
+        if (show != batteryShown) { batteryShown = show; batteryBar.Show(show); }
+        if (!show) return;
+        InventorySlot slot = inventory.HeldSlot;
+        batteryBar.Set(slot.charge);
+        bool low = slot.charge < 0.2f;
+        batteryBar.SetFillColour(low ? new Color(1f, 0.35f, 0.3f) : new Color(0.45f, 0.85f, 0.45f));
+        batteryBar.SetLabel(slot.charge <= 0f
+            ? ItemCatalog.DisplayName(slot.itemId) + "  EMPTY"
+            : ItemCatalog.DisplayName(slot.itemId) + "  " + Mathf.CeilToInt(slot.charge * 100f) + "%" + (slot.poweredOn ? "" : "  (off)"));
     }
 
     // ---- Held prefab -------------------------------------------------------
@@ -66,6 +88,7 @@ public class WalkieTalkieController : MonoBehaviour
     private void UpdateHeldModel()
     {
         bool show = inventory.IsHoldingRadio;
+        if (show && heldModel != null && heldModelFor != inventory.HeldSlot.itemId) { Destroy(heldModel); heldModel = null; }
         if (show && heldModel == null) BuildHeldModel();
         if (heldModel == null) return;
 
@@ -80,9 +103,14 @@ public class WalkieTalkieController : MonoBehaviour
         Camera cam = GetComponentInChildren<Camera>();
         if (cam == null) return;
 
-        if (heldPrefab == null) heldPrefab = Resources.Load<GameObject>("Items/WalkieTalkie");
-        if (heldPrefab == null) { Debug.LogError("Missing held walkie-talkie prefab.", this); return; }
-        heldModel = Instantiate(heldPrefab, cam.transform, false);
+        // 17 Nov: each walkie has its own model (ItemCatalog.heldPrefabPath). The Inspector slot is the paid one.
+        string id = inventory.HeldSlot.itemId;
+        ItemCatalog.ItemInfo info = ItemCatalog.Find(id);
+        GameObject prefab = id == ItemCatalog.WalkieTalkie && heldPrefab != null ? heldPrefab
+            : ItemCatalog.LoadPrefab(info != null ? info.heldPrefabPath : null, "Items/WalkieTalkie");
+        if (prefab == null) { Debug.LogError("Missing held walkie-talkie prefab.", this); return; }
+        heldModelFor = id;
+        heldModel = Instantiate(prefab, cam.transform, false);
         heldModel.name = "Held Walkie-Talkie";
         heldModel.transform.localPosition = heldPosition;
         heldModel.transform.localRotation = Quaternion.Euler(heldRotation);
@@ -99,5 +127,6 @@ public class WalkieTalkieController : MonoBehaviour
     private void OnDestroy()
     {
         if (heldModel != null) Destroy(heldModel);
+        if (batteryBar != null && batteryShown) batteryBar.Show(false);
     }
 }
