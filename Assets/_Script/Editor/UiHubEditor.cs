@@ -28,8 +28,12 @@ public sealed class UiHubEditor : Editor
     private static List<GameObject> uiPrefabs;
     private double nextRepaint;
 
-    // NonSerialized: Unity keeps private fields over a script reload, which left a new style null (8 Nov NRE).
-    [System.NonSerialized] private GUIStyle headerStyle, smallStyle, okStyle, warnStyle, editButton, rowTitle;
+    // Static: never serialized, so a script reload cannot leave one of them null (8 Nov NRE), and static helpers can use them.
+    private static GUIStyle headerStyle, introStyle, smallStyle, okStyle, warnStyle, editButton, rowTitle, partLabel;
+
+    private static bool howToOpen, settingsOpen, otherOpen, modelsOpen;
+    private static readonly HashSet<string> moreOpen = new HashSet<string>();   // "More tools" per screen
+    private static readonly HashSet<string> openGroups = new HashSet<string>(); // part groups per screen
 
     // ---- Menu --------------------------------------------------------------------------------
 
@@ -77,25 +81,34 @@ public sealed class UiHubEditor : Editor
 
     private void Styles()
     {
-        if (headerStyle != null && smallStyle != null && okStyle != null && warnStyle != null && editButton != null && rowTitle != null) return;
-        headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14 };
-        smallStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = true };
-        okStyle = new GUIStyle(EditorStyles.miniBoldLabel) { normal = { textColor = new Color(0.35f, 0.85f, 0.4f) } };
+        if (headerStyle != null && introStyle != null && smallStyle != null && okStyle != null && warnStyle != null
+            && editButton != null && rowTitle != null && partLabel != null) return;
+        // 17 Nov: every label style wraps. Long words go onto a new line; nothing is cut or drawn over a button.
+        headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14, wordWrap = true };
+        introStyle = new GUIStyle(EditorStyles.label) { wordWrap = true };
+        smallStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = true, richText = true };
+        okStyle = new GUIStyle(EditorStyles.miniBoldLabel) { wordWrap = true, normal = { textColor = new Color(0.35f, 0.85f, 0.4f) } };
         warnStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = true, normal = { textColor = new Color(1f, 0.7f, 0.25f) } };
         editButton = new GUIStyle(EditorStyles.miniButton) { fontStyle = FontStyle.Bold };
-        // 16 Nov: a long screen name goes onto a new line (never cut off, never drawn over the buttons).
         rowTitle = new GUIStyle(EditorStyles.boldLabel) { wordWrap = true };
+        partLabel = new GUIStyle(EditorStyles.miniBoldLabel) { wordWrap = true };
     }
 
     public override void OnInspectorGUI()
     {
         Styles();
-        EditorGUILayout.LabelField("UI Hub — every game screen", headerStyle);
-        EditorGUILayout.HelpBox(
-            "Click a screen to open it. Change its pictures, texts, fonts and 3D models right there.\n" +
-            "Press Edit to open the screen as a prefab: move things, add new pictures or 3D models, delete parts. Save the prefab. Done.\n" +
-            "Screens made by code: tick \"Move code screens into GAME HUD\", press Play, make the screen appear once, stop Play. It becomes a real child of the GAME HUD prefab.\n" +
-            "16 Nov: the hotbar and the status bars are real parts of the GAME HUD prefab (HUD > Status bars / Hotbar).", MessageType.Info);
+        GUILayout.Label("UI Hub", headerStyle);
+        GUILayout.Label("Change how every game screen looks. No code needed.", introStyle);
+
+        howToOpen = EditorGUILayout.Foldout(howToOpen, "How to use", true);
+        if (howToOpen)
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                GUILayout.Label("1. Find the screen in the list below. Use the search box or open a heading.", introStyle);
+                GUILayout.Label("2. Click the screen's name. Change pictures, colours, words and fonts right there. It is saved at once.", introStyle);
+                GUILayout.Label("3. Press Edit to open the screen itself. Move, resize, add or delete parts, then save (Ctrl+S).", introStyle);
+                GUILayout.Label("4. A screen the game builds by code: open Settings, tick \"Move code screens into GAME HUD\", press Play, show that screen once, stop Play.", introStyle);
+            }
 
         UiLayoutData data = UiLayoutData.Load();
         if (data == null)
@@ -104,59 +117,140 @@ public sealed class UiHubEditor : Editor
             if (data == null) return;
         }
 
+        DrawSettings(data);
         DrawSaveBar();
-        DrawGlobal(data);
         EditorGUILayout.Space(6);
         DrawScreens(data);
         EditorGUILayout.Space(10);
-        DrawOtherUi();
+        otherOpen = EditorGUILayout.Foldout(otherOpen, "More: other UI in the project", true);
+        if (otherOpen) DrawOtherUi();
     }
 
+    /// <summary>Play mode only: edits made on live screens wait here until they are saved.</summary>
     private void DrawSaveBar()
     {
         if (!Application.isPlaying) return;
         int n = UiChangeRecorder.PendingList.Count;
-        using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            GUILayout.Label(n == 0 ? "Play mode: edits you make on screens are kept when you press Save." : $"{n} Play-mode change(s) waiting to be saved.",
-                n == 0 ? smallStyle : EditorStyles.boldLabel);
-            using (new EditorGUI.DisabledScope(n == 0))
+            GUILayout.Label(n == 0
+                ? "Play mode: change a screen, then press Save changes to keep it."
+                : $"{n} change(s) made in Play mode are waiting. Save them, or they are lost when Play stops.", n == 0 ? smallStyle : warnStyle);
+            using (new EditorGUILayout.HorizontalScope())
             {
-                Color old = GUI.backgroundColor;
-                GUI.backgroundColor = n > 0 ? new Color(0.5f, 1f, 0.55f) : old;
-                if (GUILayout.Button("Save changes", GUILayout.Width(110), GUILayout.Height(22))) UiChangeRecorder.Save();
-                GUI.backgroundColor = old;
-                if (GUILayout.Button("Discard", GUILayout.Width(70), GUILayout.Height(22))) UiChangeRecorder.Discard();
+                GUILayout.FlexibleSpace();
+                using (new EditorGUI.DisabledScope(n == 0))
+                {
+                    Color old = GUI.backgroundColor;
+                    GUI.backgroundColor = n > 0 ? new Color(0.5f, 1f, 0.55f) : old;
+                    if (GUILayout.Button("Save changes", GUILayout.Width(110), GUILayout.Height(22))) UiChangeRecorder.Save();
+                    GUI.backgroundColor = old;
+                    if (GUILayout.Button("Discard", GUILayout.Width(70), GUILayout.Height(22))) UiChangeRecorder.Discard();
+                }
             }
         }
     }
 
-    private void DrawGlobal(UiLayoutData data)
+    private void DrawSettings(UiLayoutData data)
     {
-        EditorGUI.BeginChangeCheck();
-        var font = (TMP_FontAsset)EditorGUILayout.ObjectField(new GUIContent("Font for all UI", "Every text in every screen uses this font. Empty = keep each screen's fonts."), data.fontForAllUi, typeof(TMP_FontAsset), false);
-        if (EditorGUI.EndChangeCheck())
+        settingsOpen = EditorGUILayout.Foldout(settingsOpen, "Settings", true);
+        if (!settingsOpen) return;
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            Undo.RecordObject(data, "UI font");
-            data.fontForAllUi = font;
-            Changed(data);
+            GUILayout.Label("Font for all UI", partLabel);
+            EditorGUI.BeginChangeCheck();
+            var font = (TMP_FontAsset)EditorGUILayout.ObjectField(data.fontForAllUi, typeof(TMP_FontAsset), false);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(data, "UI font");
+                data.fontForAllUi = font;
+                Changed(data);
+            }
+            GUILayout.Label("Every text in every screen uses this font. Empty = each screen keeps its own fonts.", smallStyle);
+
+            EditorGUILayout.Space(4);
+            GameHudScreens.AutoCapture = WrapToggle("Move code screens into GAME HUD", GameHudScreens.AutoCapture);
+            GUILayout.Label("While ticked: press Play, show a code-built screen once, stop Play. That screen becomes a child of the GAME HUD prefab. " +
+                            "This tick is kept on this PC only.", smallStyle);
+
+            EditorGUILayout.Space(4);
+            UiSkinTools.AutoMake = WrapToggle("Auto-make prefabs (old way)", UiSkinTools.AutoMake);
+            GUILayout.Label("Only for the few screens that cannot move into the GAME HUD.", smallStyle);
         }
-        UiSkinTools.AutoMake = EditorGUILayout.ToggleLeft(new GUIContent("Auto-make prefabs", "Make an editable prefab for each code-built screen the first time it appears in Play mode."), UiSkinTools.AutoMake);
-        GameHudScreens.AutoCapture = EditorGUILayout.ToggleLeft(new GUIContent("Move code screens into GAME HUD",
-            "Play mode: the first time a code-built screen appears, a copy of it is taken. When Play stops it is added to the GAME HUD prefab, and the game shows that version from then on."),
-            GameHudScreens.AutoCapture);
     }
+
+    // ---- Layout helpers: nothing is ever cut off (17 Nov) -----------------------------------------
+
+    /// <summary>A tick box whose words wrap onto new lines. Clicking the words ticks it too.</summary>
+    private static bool WrapToggle(string label, bool value)
+    {
+        var content = new GUIContent(label);
+        float width = Mathf.Max(100f, EditorGUIUtility.currentViewWidth - 84f);
+        float height = Mathf.Max(EditorGUIUtility.singleLineHeight, introStyle.CalcHeight(content, width));
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            Rect box = GUILayoutUtility.GetRect(16f, height, GUILayout.Width(16f));
+            box.height = EditorGUIUtility.singleLineHeight;
+            int indent = EditorGUI.indentLevel;
+            EditorGUI.indentLevel = 0;
+            value = EditorGUI.Toggle(box, value);
+            EditorGUI.indentLevel = indent;
+            Rect text = GUILayoutUtility.GetRect(width, height, introStyle, GUILayout.Width(width));
+            if (GUI.Button(text, content, introStyle)) value = !value;
+            GUILayout.FlexibleSpace();
+        }
+        return value;
+    }
+
+    /// <summary>
+    /// Puts controls side by side and starts a NEW LINE when the next one does not fit.
+    /// Call <see cref="Next"/> with the control's width just before drawing it.
+    /// </summary>
+    private sealed class Flow : System.IDisposable
+    {
+        private readonly float full, indent;
+        private float left;
+        private bool any;
+
+        public Flow(float indent = 0f)
+        {
+            this.indent = indent;
+            full = Mathf.Max(120f, EditorGUIUtility.currentViewWidth - 64f - indent);
+            left = full;
+            EditorGUILayout.BeginHorizontal();
+            if (indent > 0f) GUILayout.Space(indent);
+        }
+
+        public void Next(float width)
+        {
+            if (any && width > left)
+            {
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.BeginHorizontal();
+                if (indent > 0f) GUILayout.Space(indent);
+                left = full;
+            }
+            any = true;
+            left -= width + 4f;
+        }
+
+        public void Dispose()
+        {
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+        }
+    }
+
+    private static float ButtonWidth(string label) => EditorStyles.miniButton.CalcSize(new GUIContent(label)).x + 2f;
 
     // ---- Screen list ----------------------------------------------------------------------------
 
     private void DrawScreens(UiLayoutData data)
     {
-        EditorGUILayout.LabelField("Screens", headerStyle);
-        using (new EditorGUILayout.HorizontalScope())
-        {
-            search = EditorGUILayout.TextField(search, EditorStyles.toolbarSearchField);
-            filter = GUILayout.Toolbar(filter, new[] { "All", "On screen", "Changed" }, GUILayout.Width(210));
-        }
+        GUILayout.Label("Screens", headerStyle);
+        search = EditorGUILayout.TextField(search, EditorStyles.toolbarSearchField); // own line: full width
+        filter = GUILayout.Toolbar(filter, new[] { "All", "On screen now", "Changed" });
 
         var names = new List<string>();
         foreach (UiScreenCatalog.Entry e in UiScreenCatalog.All) names.Add(e.screen);
@@ -167,6 +261,7 @@ public sealed class UiHubEditor : Editor
         int shown = 0;
         foreach (string category in UiScreenCatalog.Categories)
         {
+            if (category == UiScreenCatalog.Models) { shown += DrawModels(); continue; } // 17 Nov: listed from the GAME HUD's Model Slots
             var inCategory = new List<string>();
             foreach (string name in names)
             {
@@ -193,7 +288,7 @@ public sealed class UiHubEditor : Editor
                 DrawScreen(data, name, UiScreenCatalog.Find(name), data.FindScreen(name), LiveRoot(name) != null);
             EditorGUILayout.Space(4);
         }
-        if (shown == 0) EditorGUILayout.LabelField(filter == 1 ? "No screen is on screen now." : "Nothing found.", smallStyle);
+        if (shown == 0) GUILayout.Label(filter == 1 ? "No screen is on screen now." : "Nothing found.", smallStyle);
     }
 
     /// <summary>What the designer edits for this screen: a real prefab, a scene object, or the screen's skin prefab.</summary>
@@ -237,18 +332,16 @@ public sealed class UiHubEditor : Editor
     {
         GameObject target = EditTarget(name, entry, out string kind);
         Transform liveRoot = LiveRoot(name);
+        int waiting = PendingCount(name);
 
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
+            // Line 1: arrow + name (wraps onto new lines) ... Edit + menu.
+            open.TryGetValue(name, out bool isOpen);
             using (new EditorGUILayout.HorizontalScope())
             {
-                open.TryGetValue(name, out bool isOpen);
-                // A long name wraps onto new lines. Its width = what the labels and buttons on the right leave free.
-                string title = entry != null ? entry.label : name;
-                int waiting = PendingCount(name);
-                float taken = 14f + 52f + 22f + (live ? 74f : 0f) + (waiting > 0 ? 64f : 0f) + 62f; // arrow, Edit, menu, labels, margins
-                float titleWidth = Mathf.Max(90f, EditorGUIUtility.currentViewWidth - taken);
-                var titleContent = new GUIContent(title);
+                var titleContent = new GUIContent(entry != null ? entry.label : name);
+                float titleWidth = Mathf.Max(90f, EditorGUIUtility.currentViewWidth - 150f); // arrow, Edit, menu, margins
                 float titleHeight = Mathf.Max(EditorGUIUtility.singleLineHeight, rowTitle.CalcHeight(titleContent, titleWidth));
 
                 Rect arrowRect = GUILayoutUtility.GetRect(14f, titleHeight, GUILayout.Width(14f));
@@ -258,14 +351,28 @@ public sealed class UiHubEditor : Editor
                 if (GUI.Button(titleRect, titleContent, rowTitle)) isOpen = !isOpen; // the name opens / closes the row too
                 open[name] = isOpen;
                 GUILayout.FlexibleSpace();
-                if (live) GUILayout.Label("● on screen", okStyle, GUILayout.Width(70));
-                if (waiting > 0) GUILayout.Label($"{waiting} unsaved", EditorStyles.miniBoldLabel, GUILayout.Width(60));
                 DrawEditButton(name, entry, kind, target, liveRoot);
-                if (GUILayout.Button("⋮", EditorStyles.miniButton, GUILayout.Width(22))) ShowMoreMenu(data, name, entry, kind, liveRoot, look);
+                if (GUILayout.Button(new GUIContent("⋮", "More actions"), EditorStyles.miniButton, GUILayout.Width(22))) ShowMoreMenu(data, name, entry, kind, liveRoot, look);
             }
-            if (!open[name]) return;
 
-            if (entry != null && !string.IsNullOrEmpty(entry.how)) EditorGUILayout.LabelField("How to see it in the game: " + entry.how, smallStyle);
+            // Line 2: where it lives + what is going on (wraps).
+            string where =
+                kind == "missingPart" ? "Not in the GAME HUD yet"
+                : kind == "hudScreen" ? "In the GAME HUD prefab"
+                : kind == "prefab" ? (entry != null && entry.IsPart ? "Part of the GAME HUD prefab" : "Its own prefab")
+                : kind == "scene" ? "In the " + System.IO.Path.GetFileNameWithoutExtension(entry.scene) + " scene"
+                : kind == "design" ? "Shows your own design"
+                : target != null ? "Made by code (old prefab)" : "Made by code";
+            string status = (live ? "<color=#59D966>● On screen now</color>   ·   " : "") + where + (waiting > 0 ? $"   ·   {waiting} unsaved" : "");
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(16f);
+                GUILayout.Label(status, smallStyle);
+            }
+            if (!isOpen) return;
+
+            EditorGUILayout.Space(2);
+            if (entry != null && !string.IsNullOrEmpty(entry.how)) GUILayout.Label("Where to see it in the game: " + entry.how, smallStyle);
 
             if (kind == "missingPart")
             {
@@ -276,24 +383,31 @@ public sealed class UiHubEditor : Editor
             else if (name == UiScreenCatalog.HotbarScreen) DrawHotbar(target);
 
             if (kind == "hudScreen")
-                EditorGUILayout.LabelField("In the GAME HUD prefab. The game shows this version. Parts keep working through their UI Link.", smallStyle);
-            else if (kind == "skin" && target != null && GameHudScreens.AutoCapture && !GameHudScreens.Blocked.ContainsKey(name))
-                EditorGUILayout.LabelField("Old prefab. Press Play, make this screen appear once, then stop Play: it moves into the GAME HUD prefab.", warnStyle);
-            else if (kind == "skin" && !GameHudScreens.AutoCapture && !GameHudScreens.Blocked.ContainsKey(name))
-                EditorGUILayout.LabelField("To move this screen into the GAME HUD prefab: tick \"Move code screens into GAME HUD\" (top of this hub), press Play, make it appear once, stop Play.", smallStyle);
+                GUILayout.Label("The game shows this version. Its parts stay connected to the game (UI Link).", smallStyle);
+            else if (kind == "skin" && !GameHudScreens.Blocked.ContainsKey(name))
+                GUILayout.Label(GameHudScreens.AutoCapture
+                    ? "To move this screen into the GAME HUD prefab: press Play, show it once, stop Play."
+                    : "To move this screen into the GAME HUD prefab: tick \"Move code screens into GAME HUD\" in Settings, press Play, show it once, stop Play.", smallStyle);
 
             if (target != null) DrawParts(name, target, kind);
             else if (kind == "skin")
                 EditorGUILayout.HelpBox(GameHudScreens.Blocked.TryGetValue(name, out string blockedWhy)
                     ? "This screen stays code-made: " + blockedWhy + ". Press Edit while it is on screen to get a prefab for restyling."
-                    : "This screen is made by code. With \"Move code screens into GAME HUD\" ticked: press Play, make it appear once, then stop Play. It moves into the GAME HUD prefab.", MessageType.None);
+                    : "Nothing to edit yet. This screen is made by code and has not been shown in Play mode.", MessageType.None);
             else if (kind == "scene")
                 EditorGUILayout.HelpBox(Application.isPlaying
                     ? "Stop Play to edit this screen in its scene (or edit it now and press Save changes)."
                     : $"This screen is in the {System.IO.Path.GetFileNameWithoutExtension(entry.scene)} scene. Press Edit to open it.", MessageType.None);
 
-            if (kind == "skin" || kind == "design") DrawDesign(data, name, data.FindScreen(name), UiSkinTools.SkinOf(name));
             DrawRelated(entry);
+
+            // Everything a designer rarely needs sits behind one closed heading.
+            EditorGUILayout.Space(2);
+            bool more = moreOpen.Contains(name);
+            bool moreNow = EditorGUILayout.Foldout(more, "More tools (advanced)", true);
+            if (moreNow != more) { if (moreNow) moreOpen.Add(name); else moreOpen.Remove(name); }
+            if (!moreNow) return;
+            if (kind == "skin" || kind == "design") DrawDesign(data, name, data.FindScreen(name), UiSkinTools.SkinOf(name));
             DrawAdvanced(data, name, data.FindScreen(name));
         }
     }
@@ -370,24 +484,95 @@ public sealed class UiHubEditor : Editor
         menu.ShowAsContext();
     }
 
-    // ---- Status bars: frame + fill (16 Nov) ---------------------------------------------------------
+    // ---- 3D models (17 Nov): the GAME HUD prefab lists them (Model Slots) ----------------------------
+
+    /// <summary>The "3D models" heading. Returns how many models are shown.</summary>
+    private int DrawModels()
+    {
+        if (filter != 0) return 0; // "On screen now" / "Changed" are about screens
+        var hud = AssetDatabase.LoadAssetAtPath<GameObject>(UiScreenCatalog.GameHudPrefab);
+        if (hud == null) return 0;
+        var slots = new List<ModelSlot>();
+        foreach (ModelSlot slot in hud.GetComponentsInChildren<ModelSlot>(true))
+            if (string.IsNullOrEmpty(search) || slot.Label.IndexOf(search, System.StringComparison.OrdinalIgnoreCase) >= 0) slots.Add(slot);
+
+        bool isOpen = modelsOpen || (!string.IsNullOrEmpty(search) && slots.Count > 0);
+        bool now = EditorGUILayout.Foldout(isOpen, $"{UiScreenCatalog.Models}  ({slots.Count})", true, EditorStyles.foldoutHeader);
+        if (string.IsNullOrEmpty(search)) modelsOpen = now;
+        if (!now) return slots.Count;
+
+        GUILayout.Label("Every 3D model the players see (items, rule props). Open one to change its mesh and material, or press Edit to open its prefab.", smallStyle);
+        foreach (ModelSlot slot in slots) DrawModelSlot(slot);
+
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+        {
+            GUILayout.Label("Add a model: drag its prefab here", partLabel);
+            var add = (GameObject)EditorGUILayout.ObjectField(null, typeof(GameObject), false);
+            if (add != null)
+            {
+                if (PrefabUtility.IsPartOfPrefabAsset(add)) GameHudSetup.AddModelSlotToPrefab(add.transform.root.gameObject);
+                else EditorUtility.DisplayDialog("UI Hub", "Drag a prefab from the Project window.", "OK");
+                GUIUtility.ExitGUI();
+            }
+            if (GUILayout.Button("Find new item and rule prop prefabs", EditorStyles.miniButton)) { GameHudSetup.Run(); GUIUtility.ExitGUI(); }
+        }
+        EditorGUILayout.Space(4);
+        return slots.Count;
+    }
+
+    private void DrawModelSlot(ModelSlot slot)
+    {
+        GameObject prefab = slot.ModelPrefab;
+        string key = "model|" + slot.name;
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+        {
+            open.TryGetValue(key, out bool isOpen);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var titleContent = new GUIContent(slot.Label);
+                float titleWidth = Mathf.Max(90f, EditorGUIUtility.currentViewWidth - 150f);
+                float titleHeight = Mathf.Max(EditorGUIUtility.singleLineHeight, rowTitle.CalcHeight(titleContent, titleWidth));
+                Rect arrowRect = GUILayoutUtility.GetRect(14f, titleHeight, GUILayout.Width(14f));
+                arrowRect.height = EditorGUIUtility.singleLineHeight;
+                isOpen = EditorGUI.Foldout(arrowRect, isOpen, GUIContent.none, false);
+                Rect titleRect = GUILayoutUtility.GetRect(titleWidth, titleHeight, rowTitle, GUILayout.Width(titleWidth));
+                if (GUI.Button(titleRect, titleContent, rowTitle)) isOpen = !isOpen;
+                open[key] = isOpen;
+                GUILayout.FlexibleSpace();
+                using (new EditorGUI.DisabledScope(prefab == null))
+                    if (GUILayout.Button(new GUIContent("Edit", "Open the model's prefab."), editButton, GUILayout.Width(52))) { OpenPrefab(prefab); GUIUtility.ExitGUI(); }
+                if (GUILayout.Button(new GUIContent("⋮", "More actions"), EditorStyles.miniButton, GUILayout.Width(22)))
+                {
+                    var menu = new GenericMenu();
+                    if (prefab != null) menu.AddItem(new GUIContent("Show the prefab in the Project window"), false, () => EditorGUIUtility.PingObject(prefab));
+                    if (Application.isPlaying || prefab == null) menu.AddDisabledItem(new GUIContent("Take it off this list"));
+                    else menu.AddItem(new GUIContent("Take it off this list (the prefab is kept)"), false, () => GameHudSetup.RemoveModelSlotFromPrefab(prefab));
+                    menu.ShowAsContext();
+                }
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(16f);
+                GUILayout.Label(prefab != null ? AssetDatabase.GetAssetPath(prefab) : "The prefab is missing. Take this row off the list.", prefab != null ? smallStyle : warnStyle);
+            }
+            if (!isOpen || prefab == null) return;
+            if (!string.IsNullOrEmpty(slot.Note)) GUILayout.Label(slot.Note, smallStyle);
+            DrawParts(key, prefab, "prefab");
+        }
+    }
+
+    // ---- Status bars: frame + fill (16 Nov; stacked rows 17 Nov) ------------------------------------
 
     /// <summary>
-    /// Every status bar of the GAME HUD with its two pictures side by side: HP / Stamina / Sanity
-    /// (Slider bars) and the HudBar bars (noise, flashlight, throw, task, walkie).
+    /// Every status bar of the GAME HUD as a small card with its two pictures: HP / Stamina /
+    /// Sanity (Slider bars) and the HudBar bars (noise, flashlight, throw, task, walkie).
     /// </summary>
     private void DrawBars()
     {
         var hud = AssetDatabase.LoadAssetAtPath<GameObject>(UiScreenCatalog.GameHudPrefab);
         if (hud == null) return;
-        EditorGUILayout.LabelField("Frame picture and Fill picture of every bar", EditorStyles.boldLabel);
-        using (new EditorGUILayout.HorizontalScope())
-        {
-            GUILayout.Label("Bar", EditorStyles.miniBoldLabel, GUILayout.Width(150));
-            GUILayout.Label("Frame (picture, colour)", EditorStyles.miniBoldLabel);
-            GUILayout.Label("Fill (picture, colour)", EditorStyles.miniBoldLabel);
-            GUILayout.Space(26);
-        }
+        GUILayout.Label("Bars", rowTitle);
+        GUILayout.Label("Each bar has two pictures. Frame = the box around it. Fill = the part that grows. Change each one on its own.", smallStyle);
 
         bool changed = false;
         foreach (Slider slider in hud.GetComponentsInChildren<Slider>(true))
@@ -395,95 +580,178 @@ public sealed class UiHubEditor : Editor
             Transform background = slider.transform.Find("Background");
             Image frame = background != null ? background.GetComponent<Image>() : null;
             Image fill = slider.fillRect != null ? slider.fillRect.GetComponent<Image>() : null;
-            changed |= DrawBarRow(slider.name, frame, fill, slider);
+            changed |= DrawBarCard(slider.name, frame, fill, slider);
         }
         foreach (HudBar bar in hud.GetComponentsInChildren<HudBar>(true))
-            changed |= DrawBarRow(bar.name, bar.Frame, bar.Fill, bar);
+            changed |= DrawBarCard(bar.name, bar.Frame, bar.Fill, bar);
 
         if (changed) PrefabUtility.SavePrefabAsset(hud);
-        EditorGUILayout.LabelField("Fill picture with Image Type \"Filled\" is cut as the bar goes down; other types are squeezed. " +
-            "Press → to open a bar and move or resize it.", smallStyle);
+        GUILayout.Label("A Fill picture with Image Type \"Filled\" is cut as the bar goes down. Other types are squeezed. Press → to open a bar and move or resize it.", smallStyle);
         EditorGUILayout.Space(4);
     }
 
-    private bool DrawBarRow(string label, Image frame, Image fill, Component bar)
+    private bool DrawBarCard(string label, Image frame, Image fill, Component bar)
     {
         bool changed = false;
-        using (new EditorGUILayout.HorizontalScope())
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            GUILayout.Label(label, EditorStyles.miniLabel, GUILayout.Width(150));
-            changed |= PictureField(frame);
-            changed |= PictureField(fill);
-            if (GUILayout.Button(new GUIContent("→", "Show this bar"), EditorStyles.miniButton, GUILayout.Width(22))) { ShowPart(bar); GUIUtility.ExitGUI(); }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label(label, partLabel);
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button(new GUIContent("→", "Show this bar"), EditorStyles.miniButton, GUILayout.Width(22))) { ShowPart(bar); GUIUtility.ExitGUI(); }
+            }
+            changed |= PictureLine("Frame", frame);
+            changed |= PictureLine("Fill", fill);
         }
         return changed;
     }
 
-    /// <summary>Picture + colour of one Image (or a dash when the bar has no such part). True when changed.</summary>
-    private static bool PictureField(Image image)
+    /// <summary>One line: a short word, then picture + colour of an Image. True when changed.</summary>
+    private static bool PictureLine(string what, Image image)
     {
-        if (image == null) { GUILayout.Label("—", EditorStyles.centeredGreyMiniLabel); return false; }
-        var sprite = (Sprite)EditorGUILayout.ObjectField(image.sprite, typeof(Sprite), false);
-        Color colour = EditorGUILayout.ColorField(GUIContent.none, image.color, true, true, false, GUILayout.Width(46));
-        if (sprite == image.sprite && colour == image.color) return false;
-        Undo.RecordObject(image, "UI bar picture");
-        image.sprite = sprite;
-        image.color = colour;
-        EditorUtility.SetDirty(image);
-        return true;
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            GUILayout.Label(what, EditorStyles.miniLabel, GUILayout.Width(38f));
+            if (image == null) { GUILayout.Label("(this bar has none)", smallStyle); return false; }
+            var sprite = (Sprite)EditorGUILayout.ObjectField(image.sprite, typeof(Sprite), false, GUILayout.MinWidth(50f));
+            Color colour = EditorGUILayout.ColorField(GUIContent.none, image.color, true, true, false, GUILayout.Width(50f));
+            if (sprite == image.sprite && colour == image.color) return false;
+            Undo.RecordObject(image, "UI bar picture");
+            image.sprite = sprite;
+            image.color = colour;
+            EditorUtility.SetDirty(image);
+            return true;
+        }
     }
 
-    // ---- Hotbar: selected colours + item icons (16 Nov) ------------------------------------------------
+    // ---- Hotbar: selected colours + item icons (16 Nov; stacked rows 17 Nov) ----------------------------
 
     private void DrawHotbar(GameObject hotbar)
     {
         HotbarView view = hotbar != null ? hotbar.GetComponent<HotbarView>() : null;
         if (view == null) return;
-        EditorGUILayout.LabelField("Selected slot and item icons", EditorStyles.boldLabel);
         var so = new SerializedObject(view);
         EditorGUI.BeginChangeCheck();
-        foreach (string field in new[] { "tintFrames", "normalColour", "selectedColour", "selectedPicture", "textColour", "selectedTextColour", "hideNameWhenIconShown" })
-            EditorGUILayout.PropertyField(so.FindProperty(field));
-        EditorGUILayout.PropertyField(so.FindProperty("itemIcons"), new GUIContent("Item Icons (one picture per item)"), true);
+
+        GUILayout.Label("Selected slot", rowTitle);
+        SerializedProperty tint = so.FindProperty("tintFrames");
+        tint.boolValue = WrapToggle("The game colours the slot frames (off = they keep their own colour)", tint.boolValue);
+        StackedField(so, "normalColour", "Frame colour");
+        StackedField(so, "selectedColour", "Frame colour of the selected slot");
+        StackedField(so, "selectedPicture", "Frame picture of the selected slot (optional)");
+        StackedField(so, "textColour", "Text colour");
+        StackedField(so, "selectedTextColour", "Text colour of the selected slot");
+
+        EditorGUILayout.Space(4);
+        GUILayout.Label("Item icons", rowTitle);
+        GUILayout.Label("One picture per item. An item with no picture shows its name.", smallStyle);
+        SerializedProperty hideName = so.FindProperty("hideNameWhenIconShown");
+        hideName.boolValue = WrapToggle("Hide the item's name when it has an icon", hideName.boolValue);
+
+        SerializedProperty icons = so.FindProperty("itemIcons");
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            GUILayout.Label("Item ID", EditorStyles.miniLabel, GUILayout.MinWidth(50f));
+            GUILayout.Label("Picture", EditorStyles.miniLabel, GUILayout.MinWidth(50f));
+            GUILayout.Space(26f);
+        }
+        for (int i = 0; i < icons.arraySize; i++)
+        {
+            SerializedProperty row = icons.GetArrayElementAtIndex(i);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.PropertyField(row.FindPropertyRelative("itemId"), GUIContent.none, GUILayout.MinWidth(50f));
+                EditorGUILayout.PropertyField(row.FindPropertyRelative("picture"), GUIContent.none, GUILayout.MinWidth(50f));
+                if (GUILayout.Button(new GUIContent("x", "Remove this row"), EditorStyles.miniButton, GUILayout.Width(22f)))
+                {
+                    icons.DeleteArrayElementAtIndex(i);
+                    break;
+                }
+            }
+        }
+        if (GUILayout.Button("+ Add an item", EditorStyles.miniButton))
+        {
+            icons.InsertArrayElementAtIndex(icons.arraySize);
+            SerializedProperty added = icons.GetArrayElementAtIndex(icons.arraySize - 1);
+            added.FindPropertyRelative("itemId").stringValue = "";
+            added.FindPropertyRelative("picture").objectReferenceValue = null;
+        }
+
         if (EditorGUI.EndChangeCheck())
         {
             so.ApplyModifiedProperties();
             EditorUtility.SetDirty(view);
             PrefabUtility.SavePrefabAsset(view.transform.root.gameObject);
         }
-        EditorGUILayout.LabelField("An item with no picture shows its name. New items: run Tools > Pre-Thesis > UI > GAME HUD: Add Missing Parts.", smallStyle);
+        GUILayout.Label("New items in the game: run Tools > Pre-Thesis > UI > GAME HUD: Add Missing Parts. It adds their rows here.", smallStyle);
         EditorGUILayout.Space(4);
     }
 
-    // ---- Parts: pictures, texts, models -----------------------------------------------------------
+    /// <summary>A field with its name on the line above it, so a long name is never cut.</summary>
+    private static void StackedField(SerializedObject so, string field, string label)
+    {
+        GUILayout.Label(label, EditorStyles.miniLabel);
+        EditorGUILayout.PropertyField(so.FindProperty(field), GUIContent.none);
+    }
+
+    // ---- Parts: pictures, texts, models (grouped + stacked rows 17 Nov) -------------------------------
+
+    /// <summary>Children of the GAME HUD that have their own row in the hub (not repeated under "Game HUD").</summary>
+    private static bool HasOwnHubRow(string childName) =>
+        childName == GameHudSetup.BarsGroup || childName == GameHudSetup.HotbarName || childName == GameHudScreens.ScreensGroup
+        || childName == GameHudSetup.ModelsGroup;
 
     private void DrawParts(string name, GameObject root, string kind)
     {
-        EditorGUILayout.LabelField("Pictures, texts and 3D models", EditorStyles.boldLabel);
+        GUILayout.Label("Pictures and texts", rowTitle);
         bool isAsset = EditorUtility.IsPersistent(root);
 
         partSearch.TryGetValue(name, out string find);
         find = EditorGUILayout.TextField(find ?? "", EditorStyles.toolbarSearchField);
         partSearch[name] = find;
+        bool searching = !string.IsNullOrEmpty(find);
 
-        var rows = new List<Component>();
+        // One group per direct child of the screen ("HP", "Stamina Bar", "Slot 1" ...).
+        var groupOrder = new List<Transform>();
+        var byGroup = new Dictionary<Transform, List<Component>>();
         foreach (Component c in root.GetComponentsInChildren<Component>(true))
         {
-            if (!(c is Image || c is RawImage || c is TMP_Text || c is Text || c is MeshFilter || c is MeshRenderer)) continue;
-            if (!string.IsNullOrEmpty(find) && c.name.IndexOf(find, System.StringComparison.OrdinalIgnoreCase) < 0) continue;
-            rows.Add(c);
+            if (!(c is Image || c is RawImage || c is TMP_Text || c is Text || c is MeshFilter || c is MeshRenderer || c is SkinnedMeshRenderer)) continue;
+            Transform group = c.transform;
+            while (group != root.transform && group.parent != root.transform) group = group.parent;
+            if (name == "GAME HUD" && group != root.transform && HasOwnHubRow(group.name)) continue;
+            if (searching && UiLayoutRuntime.PathOf(root.transform, c.transform).IndexOf(find, System.StringComparison.OrdinalIgnoreCase) < 0
+                && c.name.IndexOf(find, System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+            if (!byGroup.TryGetValue(group, out List<Component> list)) { byGroup[group] = list = new List<Component>(); groupOrder.Add(group); }
+            list.Add(c);
         }
-        if (rows.Count == 0) { EditorGUILayout.LabelField("No pictures, texts or models found.", smallStyle); return; }
+        if (groupOrder.Count == 0) { GUILayout.Label(searching ? "Nothing found." : "No pictures, texts or models here.", smallStyle); return; }
 
-        bool all = showAllParts.Contains(name);
-        int count = all ? rows.Count : Mathf.Min(rows.Count, RowsPerPage);
         bool changedAsset = false;
-        for (int i = 0; i < count; i++)
-            if (DrawPart(rows[i], root.transform)) changedAsset |= isAsset;
-
-        if (rows.Count > RowsPerPage && GUILayout.Button(all ? "Show fewer" : $"Show all {rows.Count}", EditorStyles.miniButton))
+        bool single = groupOrder.Count == 1;
+        foreach (Transform group in groupOrder)
         {
-            if (all) showAllParts.Remove(name); else showAllParts.Add(name);
+            List<Component> rows = byGroup[group];
+            string key = name + "|" + group.name;
+            bool isOpen = single || searching || openGroups.Contains(key);
+            if (!single)
+            {
+                bool now = EditorGUILayout.Foldout(isOpen, $"{(group == root.transform ? "(the screen itself)" : group.name)}  ({rows.Count})", true);
+                if (!searching && now != isOpen) { if (now) openGroups.Add(key); else openGroups.Remove(key); }
+                if (!searching) isOpen = now;
+            }
+            if (!isOpen) continue;
+
+            bool all = showAllParts.Contains(key);
+            int count = all ? rows.Count : Mathf.Min(rows.Count, RowsPerPage);
+            for (int i = 0; i < count; i++)
+                if (DrawPart(rows[i], root.transform, group)) changedAsset |= isAsset;
+            if (rows.Count > RowsPerPage && GUILayout.Button(all ? "Show fewer" : $"Show all {rows.Count}", EditorStyles.miniButton))
+            {
+                if (all) showAllParts.Remove(key); else showAllParts.Add(key);
+            }
+            EditorGUILayout.Space(2);
         }
 
         if (changedAsset)
@@ -491,74 +759,138 @@ public sealed class UiHubEditor : Editor
             PrefabUtility.SavePrefabAsset(root.transform.root.gameObject); // saved at once (root: a part's prefab is its top object)
             if (kind == "design") UiLayoutData.Load()?.MarkChanged(); // show the new look in Play mode
         }
-        EditorGUILayout.LabelField(kind == "scene"
+        GUILayout.Label(kind == "scene"
             ? "To add new pictures or 3D models: press Edit, then drag them under the screen."
-            : "To add new pictures or 3D models, or move things: press Edit, drag them into the prefab, save.", smallStyle);
+            : "To add new pictures or 3D models, or to move things: press Edit, drag them into the prefab, save.", smallStyle);
     }
 
-    /// <summary>One part row. True when something changed.</summary>
-    private bool DrawPart(Component c, Transform root)
+    /// <summary>
+    /// One part. Line 1 = what it is + its name (wraps). The lines under it = its fields, as wide as
+    /// the Inspector, so nothing runs past the edge. True when something changed.
+    /// </summary>
+    private bool DrawPart(Component c, Transform root, Transform group)
     {
         string path = c.transform == root ? c.name : UiLayoutRuntime.PathOf(root, c.transform);
+        string shown = c.transform == group ? c.name : UiLayoutRuntime.PathOf(group, c.transform).Replace("/", " › ");
+        string what = c is Image || c is RawImage ? "Picture" : c is MeshFilter ? "3D model" : c is MeshRenderer ? "Material"
+            : c is SkinnedMeshRenderer ? "3D model + material" : "Text";
         bool changed = false;
+
         using (new EditorGUILayout.HorizontalScope())
         {
-            string what = c is Image || c is RawImage ? "Picture" : c is MeshFilter ? "3D model" : c is MeshRenderer ? "Material" : "Text";
-            GUILayout.Label(new GUIContent($"{what}: {ShortPath(path)}", path), EditorStyles.miniLabel, GUILayout.Width(170));
-
-            if (c is Image img)
-            {
-                var sprite = (Sprite)EditorGUILayout.ObjectField(img.sprite, typeof(Sprite), false);
-                Color col = EditorGUILayout.ColorField(GUIContent.none, img.color, true, true, false, GUILayout.Width(50));
-                if (sprite != img.sprite || col != img.color) { Undo.RecordObject(img, "UI picture"); img.sprite = sprite; img.color = col; changed = true; }
-            }
-            else if (c is RawImage raw)
-            {
-                var tex = (Texture)EditorGUILayout.ObjectField(raw.texture, typeof(Texture), false);
-                Color col = EditorGUILayout.ColorField(GUIContent.none, raw.color, true, true, false, GUILayout.Width(50));
-                if (tex != raw.texture || col != raw.color) { Undo.RecordObject(raw, "UI picture"); raw.texture = tex; raw.color = col; changed = true; }
-            }
-            else if (c is TMP_Text tmp)
-            {
-                string words = EditorGUILayout.TextField(tmp.text);
-                var font = (TMP_FontAsset)EditorGUILayout.ObjectField(tmp.font, typeof(TMP_FontAsset), false, GUILayout.Width(90));
-                float size = EditorGUILayout.FloatField(tmp.fontSize, GUILayout.Width(36));
-                Color col = EditorGUILayout.ColorField(GUIContent.none, tmp.color, true, true, false, GUILayout.Width(40));
-                if (words != tmp.text || font != tmp.font || !Mathf.Approximately(size, tmp.fontSize) || col != tmp.color)
-                {
-                    Undo.RecordObject(tmp, "UI text");
-                    tmp.text = words;
-                    if (font != null) tmp.font = font;
-                    tmp.fontSize = size;
-                    tmp.color = col;
-                    changed = true;
-                }
-            }
-            else if (c is Text legacy)
-            {
-                string words = EditorGUILayout.TextField(legacy.text);
-                var font = (Font)EditorGUILayout.ObjectField(legacy.font, typeof(Font), false, GUILayout.Width(90));
-                int size = EditorGUILayout.IntField(legacy.fontSize, GUILayout.Width(36));
-                Color col = EditorGUILayout.ColorField(GUIContent.none, legacy.color, true, true, false, GUILayout.Width(40));
-                if (words != legacy.text || font != legacy.font || size != legacy.fontSize || col != legacy.color)
-                {
-                    Undo.RecordObject(legacy, "UI text");
-                    legacy.text = words; legacy.font = font; legacy.fontSize = size; legacy.color = col;
-                    changed = true;
-                }
-            }
-            else if (c is MeshFilter mf)
-            {
-                var mesh = (Mesh)EditorGUILayout.ObjectField(mf.sharedMesh, typeof(Mesh), false);
-                if (mesh != mf.sharedMesh) { Undo.RecordObject(mf, "UI model"); mf.sharedMesh = mesh; changed = true; }
-            }
-            else if (c is MeshRenderer mr)
-            {
-                var mat = (Material)EditorGUILayout.ObjectField(mr.sharedMaterial, typeof(Material), false);
-                if (mat != mr.sharedMaterial) { Undo.RecordObject(mr, "UI material"); mr.sharedMaterial = mat; changed = true; }
-            }
+            GUILayout.Label(new GUIContent($"{what}  ·  {shown}", path), partLabel);
+            GUILayout.FlexibleSpace();
             if (GUILayout.Button(new GUIContent("→", "Show this part"), EditorStyles.miniButton, GUILayout.Width(22))) ShowPart(c);
         }
+
+        if (c is Image img)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(12f);
+                var sprite = (Sprite)EditorGUILayout.ObjectField(img.sprite, typeof(Sprite), false, GUILayout.MinWidth(50f));
+                Color col = EditorGUILayout.ColorField(GUIContent.none, img.color, true, true, false, GUILayout.Width(50f));
+                if (sprite != img.sprite || col != img.color) { Undo.RecordObject(img, "UI picture"); img.sprite = sprite; img.color = col; changed = true; }
+            }
+        }
+        else if (c is RawImage raw)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(12f);
+                var tex = (Texture)EditorGUILayout.ObjectField(raw.texture, typeof(Texture), false, GUILayout.MinWidth(50f));
+                Color col = EditorGUILayout.ColorField(GUIContent.none, raw.color, true, true, false, GUILayout.Width(50f));
+                if (tex != raw.texture || col != raw.color) { Undo.RecordObject(raw, "UI picture"); raw.texture = tex; raw.color = col; changed = true; }
+            }
+        }
+        else if (c is TMP_Text tmp)
+        {
+            string words;
+            TMP_FontAsset font;
+            float size;
+            Color col;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(12f);
+                words = EditorGUILayout.TextField(tmp.text, GUILayout.MinWidth(50f));
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(12f);
+                font = (TMP_FontAsset)EditorGUILayout.ObjectField(tmp.font, typeof(TMP_FontAsset), false, GUILayout.MinWidth(50f));
+                size = EditorGUILayout.FloatField(tmp.fontSize, GUILayout.Width(40f));
+                col = EditorGUILayout.ColorField(GUIContent.none, tmp.color, true, true, false, GUILayout.Width(50f));
+            }
+            if (words != tmp.text || font != tmp.font || !Mathf.Approximately(size, tmp.fontSize) || col != tmp.color)
+            {
+                Undo.RecordObject(tmp, "UI text");
+                tmp.text = words;
+                if (font != null) tmp.font = font;
+                tmp.fontSize = size;
+                tmp.color = col;
+                changed = true;
+            }
+        }
+        else if (c is Text legacy)
+        {
+            string words;
+            Font font;
+            int size;
+            Color col;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(12f);
+                words = EditorGUILayout.TextField(legacy.text, GUILayout.MinWidth(50f));
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(12f);
+                font = (Font)EditorGUILayout.ObjectField(legacy.font, typeof(Font), false, GUILayout.MinWidth(50f));
+                size = EditorGUILayout.IntField(legacy.fontSize, GUILayout.Width(40f));
+                col = EditorGUILayout.ColorField(GUIContent.none, legacy.color, true, true, false, GUILayout.Width(50f));
+            }
+            if (words != legacy.text || font != legacy.font || size != legacy.fontSize || col != legacy.color)
+            {
+                Undo.RecordObject(legacy, "UI text");
+                legacy.text = words; legacy.font = font; legacy.fontSize = size; legacy.color = col;
+                changed = true;
+            }
+        }
+        else if (c is MeshFilter mf)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(12f);
+                var mesh = (Mesh)EditorGUILayout.ObjectField(mf.sharedMesh, typeof(Mesh), false, GUILayout.MinWidth(50f));
+                if (mesh != mf.sharedMesh) { Undo.RecordObject(mf, "UI model"); mf.sharedMesh = mesh; changed = true; }
+            }
+        }
+        else if (c is MeshRenderer mr)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(12f);
+                var mat = (Material)EditorGUILayout.ObjectField(mr.sharedMaterial, typeof(Material), false, GUILayout.MinWidth(50f));
+                if (mat != mr.sharedMaterial) { Undo.RecordObject(mr, "UI material"); mr.sharedMaterial = mat; changed = true; }
+            }
+        }
+        else if (c is SkinnedMeshRenderer skinned) // a model with bones: mesh and material on one part
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(12f);
+                var mesh = (Mesh)EditorGUILayout.ObjectField(skinned.sharedMesh, typeof(Mesh), false, GUILayout.MinWidth(50f));
+                var mat = (Material)EditorGUILayout.ObjectField(skinned.sharedMaterial, typeof(Material), false, GUILayout.MinWidth(50f));
+                if (mesh != skinned.sharedMesh || mat != skinned.sharedMaterial)
+                {
+                    Undo.RecordObject(skinned, "UI model");
+                    skinned.sharedMesh = mesh;
+                    skinned.sharedMaterial = mat;
+                    changed = true;
+                }
+            }
+        }
+
         if (!changed) return false;
         EditorUtility.SetDirty(c);
         if (PrefabUtility.IsPartOfPrefabInstance(c)) PrefabUtility.RecordPrefabInstancePropertyModifications(c);
@@ -597,12 +929,12 @@ public sealed class UiHubEditor : Editor
     private void DrawDesign(UiLayoutData data, string name, UiScreenLook look, GameObject skin)
     {
         EditorGUILayout.Space(4);
-        EditorGUILayout.LabelField("Use your own design (any prefab)", EditorStyles.boldLabel);
+        GUILayout.Label("Use your own design (any prefab)", rowTitle);
         GameObject design = look != null ? look.design : null;
 
         EditorGUI.BeginChangeCheck();
-        var picked = (GameObject)EditorGUILayout.ObjectField(new GUIContent("My design",
-            "Drag any UI prefab here (from any folder, Resources too). The game hides its own screen and shows this one."), design, typeof(GameObject), false);
+        GUILayout.Label("My design: drag any UI prefab here. The game hides its own screen and shows this one.", smallStyle);
+        var picked = (GameObject)EditorGUILayout.ObjectField(design, typeof(GameObject), false);
         if (EditorGUI.EndChangeCheck())
         {
             UiDesignTools.UseDesign(name, picked);
@@ -614,7 +946,7 @@ public sealed class UiHubEditor : Editor
             GUIUtility.ExitGUI();
         }
 
-        using (new EditorGUILayout.HorizontalScope())
+        using (var flow = new Flow()) // buttons go onto a new line when they do not fit
         {
             if (design == null)
             {
@@ -630,16 +962,19 @@ public sealed class UiHubEditor : Editor
             }
             else
             {
-                if (GUILayout.Button("Open my design", EditorStyles.miniButtonLeft)) { OpenPrefab(design); GUIUtility.ExitGUI(); }
+                flow.Next(ButtonWidth("Open my design"));
+                if (GUILayout.Button("Open my design", EditorStyles.miniButton, GUILayout.Width(ButtonWidth("Open my design")))) { OpenPrefab(design); GUIUtility.ExitGUI(); }
+                flow.Next(ButtonWidth("Auto-connect by name"));
                 using (new EditorGUI.DisabledScope(skin == null))
-                    if (GUILayout.Button(new GUIContent("Auto-connect by name", "Parts with the same name as a game part get connected."), EditorStyles.miniButtonMid))
+                    if (GUILayout.Button(new GUIContent("Auto-connect by name", "Parts with the same name as a game part get connected."), EditorStyles.miniButton, GUILayout.Width(ButtonWidth("Auto-connect by name"))))
                     {
                         int n = UiDesignTools.AutoConnect(design, skin.transform);
                         data.MarkChanged();
                         Debug.Log($"[UI Hub] \"{name}\": connected {n} more part(s) by name.");
                         GUIUtility.ExitGUI();
                     }
-                if (GUILayout.Button(new GUIContent("Stop using it", "Show the game's own screen again (your prefab is kept)."), EditorStyles.miniButtonRight))
+                flow.Next(ButtonWidth("Stop using it"));
+                if (GUILayout.Button(new GUIContent("Stop using it", "Show the game's own screen again (your prefab is kept)."), EditorStyles.miniButton, GUILayout.Width(ButtonWidth("Stop using it"))))
                 {
                     UiDesignTools.UseDesign(name, null);
                     GUIUtility.ExitGUI();
@@ -649,7 +984,7 @@ public sealed class UiHubEditor : Editor
 
         if (design == null)
         {
-            EditorGUILayout.LabelField("Your design can look like anything. Connected parts get the game's words, bars, pictures and clicks.", smallStyle);
+            GUILayout.Label("Your design can look like anything. Connected parts get the game's words, bars, pictures and clicks.", smallStyle);
             return;
         }
         if (skin == null)
@@ -662,7 +997,7 @@ public sealed class UiHubEditor : Editor
 
     private void DrawLinks(UiLayoutData data, string name, GameObject design, GameObject skin)
     {
-        EditorGUILayout.LabelField("Connect: drag a part of your design next to each game part", EditorStyles.miniBoldLabel);
+        GUILayout.Label("Connect: drag a part of your design next to each game part", partLabel);
         bool all = linksAll.Contains(name);
         bool allNow = EditorGUILayout.ToggleLeft("Show every game part (lists, panels, backgrounds)", all);
         if (allNow != all) { if (allNow) linksAll.Add(name); else linksAll.Remove(name); }
@@ -684,9 +1019,9 @@ public sealed class UiHubEditor : Editor
             if (!allNow && !important) continue;
 
             string what = isButton ? "Button" : isText ? "Words" : isBar ? "Bar" : isIcon ? "Icon" : g.childCount > 0 ? "List / panel" : "Part";
-            using (new EditorGUILayout.HorizontalScope())
+            using (new EditorGUILayout.VerticalScope()) // name on its own line (wraps), the slot under it
             {
-                GUILayout.Label(new GUIContent($"{what}: {ShortPath(path)}", path), EditorStyles.miniLabel, GUILayout.Width(170));
+                GUILayout.Label(new GUIContent($"{what}  ·  {path.Replace("/", " › ")}", path), partLabel);
                 EditorGUI.BeginChangeCheck();
                 var part = (GameObject)EditorGUILayout.ObjectField(link != null ? link.gameObject : null, typeof(GameObject), false);
                 if (EditorGUI.EndChangeCheck())
@@ -702,22 +1037,24 @@ public sealed class UiHubEditor : Editor
             if (link != null) DrawLinkOptions(data, design, link, g);
         }
         if (missing > 0)
-            EditorGUILayout.LabelField($"⚠ {missing} game word / button / bar / icon part(s) are not connected: your design will not show them.", warnStyle);
+            GUILayout.Label($"⚠ {missing} game word / button / bar / icon part(s) are not connected: your design will not show them.", warnStyle);
     }
 
     private void DrawLinkOptions(UiLayoutData data, GameObject design, UiLink link, Transform gamePart)
     {
         var so = new SerializedObject(link);
-        using (new EditorGUILayout.HorizontalScope())
+        using (var flow = new Flow(12f)) // the buttons go onto a new line when they do not fit
         {
-            GUILayout.Space(176);
-            Mini(so, "showHide", "Show/hide");
-            Mini(so, "text", "Words");
-            Mini(so, "color", "Colour");
-            Mini(so, "picture", "Picture");
-            Mini(so, "fill", "Bar");
-            Mini(so, "click", "Click");
-            Mini(so, "repeat", "Repeat rows");
+            Mini(flow, so, "showHide", "Show/hide");
+            Mini(flow, so, "text", "Words");
+            Mini(flow, so, "color", "Colour");
+            Mini(flow, so, "picture", "Picture");
+            Mini(flow, so, "fill", "Bar");
+            Mini(flow, so, "click", "Click");
+            Mini(flow, so, "control", "Slider / tick / list / typing");
+            Mini(flow, so, "followLayout", "Follow place");
+            Mini(flow, so, "onlyGameChanges", "Keep my look");
+            Mini(flow, so, "repeat", "Repeat rows");
         }
         if (so.ApplyModifiedProperties())
         {
@@ -727,7 +1064,7 @@ public sealed class UiHubEditor : Editor
         if (link.repeat && gamePart.childCount > 0)
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUILayout.Space(176);
+                GUILayout.Space(12);
                 if (GUILayout.Button(new GUIContent("Connect row parts by name", "Parts inside your row template get connected to the parts of one game row with the same name."), EditorStyles.miniButton))
                 {
                     int n = UiDesignTools.AutoConnect(design, gamePart.GetChild(0), UiLayoutRuntime.PathOf(design.transform, link.transform));
@@ -738,10 +1075,13 @@ public sealed class UiHubEditor : Editor
             }
     }
 
-    private static void Mini(SerializedObject so, string field, string label)
+    private static void Mini(Flow flow, SerializedObject so, string field, string label)
     {
         SerializedProperty p = so.FindProperty(field);
-        p.boolValue = GUILayout.Toggle(p.boolValue, label, EditorStyles.miniButton);
+        if (p == null) return;
+        float width = ButtonWidth(label);
+        flow.Next(width);
+        p.boolValue = GUILayout.Toggle(p.boolValue, label, EditorStyles.miniButton, GUILayout.Width(width));
     }
 
     // ---- Related models / settings ----------------------------------------------------------------
@@ -749,7 +1089,7 @@ public sealed class UiHubEditor : Editor
     private void DrawRelated(UiScreenCatalog.Entry entry)
     {
         if (entry == null || entry.related == null || entry.related.Length == 0) return;
-        EditorGUILayout.LabelField("Models and settings this screen uses", EditorStyles.boldLabel);
+        GUILayout.Label("Models and settings this screen uses", rowTitle);
         foreach (string path in entry.related)
         {
             Object asset = AssetDatabase.LoadAssetAtPath<Object>(path);
@@ -771,7 +1111,7 @@ public sealed class UiHubEditor : Editor
     private void DrawAdvanced(UiLayoutData data, string name, UiScreenLook look)
     {
         bool adv = advancedOpen.Contains(name);
-        bool now = EditorGUILayout.Foldout(adv, "More: hide screen, draw order, font, saved changes", true);
+        bool now = EditorGUILayout.Foldout(adv, "Screen settings and saved changes", true);
         if (now != adv) { if (now) advancedOpen.Add(name); else advancedOpen.Remove(name); }
         if (!now) return;
 
@@ -791,11 +1131,15 @@ public sealed class UiHubEditor : Editor
         TMP_FontAsset font = look != null ? look.font : null;
 
         EditorGUI.BeginChangeCheck();
-        hide = EditorGUILayout.Toggle(new GUIContent("Hide this screen", "The whole screen is not drawn."), hide);
-        sort = EditorGUILayout.Toggle(new GUIContent("Change draw order", "Which screen is drawn on top."), sort);
+        hide = WrapToggle("Hide this screen (it is not drawn at all)", hide);
+        sort = WrapToggle("Change which screen is drawn on top", sort);
         using (new EditorGUI.DisabledScope(!sort))
-            order = EditorGUILayout.IntField(new GUIContent("Order (higher = on top)"), order);
-        font = (TMP_FontAsset)EditorGUILayout.ObjectField(new GUIContent("Font for this screen", "Every text in this screen uses this font."), font, typeof(TMP_FontAsset), false);
+        {
+            GUILayout.Label("Draw order (higher = on top)", EditorStyles.miniLabel);
+            order = EditorGUILayout.IntField(order);
+        }
+        GUILayout.Label("Font for this screen (every text in it)", EditorStyles.miniLabel);
+        font = (TMP_FontAsset)EditorGUILayout.ObjectField(font, typeof(TMP_FontAsset), false);
         if (!EditorGUI.EndChangeCheck()) return;
 
         Undo.RecordObject(data, "UI screen settings");
@@ -812,21 +1156,20 @@ public sealed class UiHubEditor : Editor
     {
         if (look == null || (look.elements.Count == 0 && look.added.Count == 0))
         {
-            EditorGUILayout.LabelField("No saved changes yet.", smallStyle);
+            GUILayout.Label("No saved changes yet.", smallStyle);
             return;
         }
-        EditorGUILayout.LabelField($"Saved changes ({look.elements.Count} changed, {look.added.Count} added)", EditorStyles.miniBoldLabel);
+        GUILayout.Label($"Saved changes ({look.elements.Count} changed, {look.added.Count} added)", partLabel);
         int screenIndex = data.screens.IndexOf(look);
         for (int i = 0; i < look.elements.Count; i++)
         {
             UiElementLook e = look.elements[i];
             if (e == null) continue;
             string key = name + "|" + e.path;
+            GUILayout.Label(new GUIContent((e.fromSkin ? "[prefab] " : "") + e.path.Replace("/", " › ") + "   —   " + Groups(e), e.path), smallStyle);
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUILayout.Label(new GUIContent((e.fromSkin ? "[prefab] " : "") + e.path, e.path), EditorStyles.miniLabel, GUILayout.MinWidth(80));
                 GUILayout.FlexibleSpace();
-                GUILayout.Label(Groups(e), EditorStyles.miniLabel);
                 Transform t = UiChangeRecorder.FindLive(name, e.path);
                 using (new EditorGUI.DisabledScope(t == null))
                     if (GUILayout.Button("Select", EditorStyles.miniButtonLeft, GUILayout.Width(46))) SelectObject(t.gameObject);
@@ -851,13 +1194,13 @@ public sealed class UiHubEditor : Editor
             {
                 var group = (UiLookGroup)g;
                 if (e.Uses(group) && Application.isPlaying && UiLayoutRuntime.IsCodeControlled(name, e.path, group))
-                    EditorGUILayout.LabelField($"   ⚠ {group}: the game code (or a layout group) keeps changing this, so your change cannot stay. Ask a programmer.", warnStyle);
+                    GUILayout.Label($"   ⚠ {group}: the game code (or a layout group) keeps changing this, so your change cannot stay. Ask a programmer.", warnStyle);
             }
 
             if (!e.fromSkin && editOpen.Contains(key)) DrawElementFields(data, screenIndex, i, e);
         }
         foreach (UiAddedObject a in look.added)
-            if (a != null) EditorGUILayout.LabelField($"[prefab] added: {(string.IsNullOrEmpty(a.parentPath) ? "" : a.parentPath + "/")}{(a.source != null ? a.source.name : "?")}", EditorStyles.miniLabel);
+            if (a != null) GUILayout.Label($"[prefab] added: {(string.IsNullOrEmpty(a.parentPath) ? "" : a.parentPath + "/")}{(a.source != null ? a.source.name : "?")}", smallStyle);
     }
 
     private void DrawElementFields(UiLayoutData data, int screenIndex, int elementIndex, UiElementLook e)
@@ -886,7 +1229,7 @@ public sealed class UiHubEditor : Editor
         if (!used) return;
         using (new EditorGUILayout.HorizontalScope())
         {
-            EditorGUILayout.LabelField(title, EditorStyles.miniBoldLabel);
+            GUILayout.Label(title, partLabel);
             if (GUILayout.Button(new GUIContent("remove", "Stop changing this part"), EditorStyles.miniButton, GUILayout.Width(56)))
                 el.FindPropertyRelative(flag).boolValue = false;
         }
@@ -913,8 +1256,8 @@ public sealed class UiHubEditor : Editor
         foreach (UiChangeRecorder.Pending p in UiChangeRecorder.PendingList)
         {
             if (p.screen != name) continue;
-            if (!any) { EditorGUILayout.LabelField("Waiting to be saved", EditorStyles.miniBoldLabel); any = true; }
-            EditorGUILayout.LabelField($"   {p.path}  ({p.group})", EditorStyles.miniLabel);
+            if (!any) { GUILayout.Label("Waiting to be saved", partLabel); any = true; }
+            GUILayout.Label($"   {p.path}  ({p.group})", smallStyle);
         }
     }
 
@@ -922,19 +1265,18 @@ public sealed class UiHubEditor : Editor
 
     private void DrawOtherUi()
     {
-        EditorGUILayout.LabelField("Other UI", headerStyle);
-        EditorGUILayout.LabelField(
-            "Main Menu / Settings / Esc menu are rebuilt by the Tools > Pre-Thesis > Rebuild ... tools, which removes direct edits. " +
-            "Edit them in Play mode with Save changes instead: those edits are kept.", smallStyle);
+        GUILayout.Label(
+            "The Tools > Pre-Thesis > Scenes > Menu tools only add what is missing. They never delete a menu that is already there, so your edits stay.", smallStyle);
 
         var hub = (UiHub)target;
         bool isAsset = EditorUtility.IsPersistent(hub);
-        EditorGUILayout.LabelField("GAME HUD parts", EditorStyles.miniBoldLabel);
+        GUILayout.Label("GAME HUD parts", partLabel);
         foreach (Transform child in hub.transform)
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("   " + child.name, EditorStyles.miniLabel);
+                GUILayout.Label(child.name, smallStyle);
+                GUILayout.FlexibleSpace();
                 if (GUILayout.Button(isAsset ? "Open prefab" : "Select", EditorStyles.miniButton, GUILayout.Width(80)))
                 {
                     if (isAsset) ShowPart(child);
@@ -943,7 +1285,7 @@ public sealed class UiHubEditor : Editor
             }
         }
 
-        EditorGUILayout.LabelField("UI prefabs in the project", EditorStyles.miniBoldLabel);
+        GUILayout.Label("UI prefabs in the project", partLabel);
         if (uiPrefabs == null)
         {
             if (GUILayout.Button("Find UI prefabs", EditorStyles.miniButton)) uiPrefabs = FindUiPrefabs();
@@ -954,7 +1296,8 @@ public sealed class UiHubEditor : Editor
             if (p == null) continue;
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("   " + p.name, EditorStyles.miniLabel);
+                GUILayout.Label(p.name, smallStyle);
+                GUILayout.FlexibleSpace();
                 if (GUILayout.Button("Open prefab", EditorStyles.miniButton, GUILayout.Width(80))) OpenPrefab(p);
             }
         }

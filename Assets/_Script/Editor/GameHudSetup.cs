@@ -4,6 +4,7 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
@@ -17,6 +18,15 @@ using UnityEngine.UI;
 ///                Each bar = HudBar with a separate Frame picture and Fill picture.
 ///   "Hotbar"   : 4 slots (Frame, Key, Item, Icon) + Hint + Voice Status, and the Item Icons list.
 ///
+///   "Model Slots": one entry per 3D model prefab the players see (items, rule props). The UI Hub
+///                lists them under "3D models" (17 Nov).
+///
+///   Tools > Pre-Thesis > UI > GAME HUD: Keep One Copy (Lobby Only)   (17 Nov)
+///   There is ONE GAME HUD in the project: in the Lobby scene. It stays alive and follows the
+///   players into the map (PersistentHUD). The tool puts a clean copy in the Lobby (if missing)
+///   and deletes the copies from the other game scenes (MainMenu, Cinema_GamePlay). Pressing
+///   Play straight in a map scene still has a HUD: the Editor adds one for that run (PersistentHUD).
+///
 /// SAFE: it only ADDS what is missing. It never deletes, moves or restyles a part that is
 /// already in the prefab, so run it again any time (e.g. after a new item or bar was added).
 /// The parts start with the same look and place as the old code-made ones.
@@ -26,6 +36,9 @@ public static class GameHudSetup
     public const string PrefabPath = "Assets/Prefab/GAME HUD.prefab";
     public const string BarsGroup = "HUD Bars";
     public const string HotbarName = "Hotbar";
+    public const string ModelsGroup = "Model Slots";
+    /// <summary>Folders whose prefabs are 3D models the players see.</summary>
+    private static readonly string[] ModelFolders = { "Assets/Resources/Items", "Assets/Prefab/RuleMockups" };
     private const string Title = "GAME HUD parts";
 
     private static readonly Color Panel = new Color(0.08f, 0.07f, 0.07f, 0.8f);
@@ -73,6 +86,7 @@ public static class GameHudSetup
             Transform root = scope.prefabContentsRoot.transform;
             AddBars(root, log);
             AddHotbar(root, log);
+            AddModelSlots(root, log);
         }
         RemoveOldSkins(log);
         AssetDatabase.SaveAssets();
@@ -121,6 +135,96 @@ public static class GameHudSetup
         EditorUtility.SetDirty(data);
         data.MarkChanged();
         log.AppendLine($"- Removed {entries} empty old entr{(entries == 1 ? "y" : "ies")} from UI Layout.");
+    }
+
+    // ---- One look in every scene (16 Nov) ------------------------------------------------------
+
+    /// <summary>The GAME HUD prefab copies in the open scene(s).</summary>
+    private static List<GameObject> SceneCopies()
+    {
+        var list = new List<GameObject>();
+        foreach (PersistentHUD hud in Object.FindObjectsByType<PersistentHUD>(FindObjectsInactive.Include))
+        {
+            GameObject go = hud.gameObject;
+            if (!go.scene.IsValid() || !PrefabUtility.IsOutermostPrefabInstanceRoot(go)) continue;
+            if (PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go) == PrefabPath) list.Add(go);
+        }
+        return list;
+    }
+
+    private const string MainMenuScene = "Assets/Scenes/MainMenu.unity";
+    private const string LobbyScene = "Assets/Scenes/Lobby.unity";
+
+    [MenuItem("Tools/Pre-Thesis/UI/GAME HUD: Keep One Copy (Lobby Only)", priority = 3)]
+    private static void KeepOnlyLobbyCopy()
+    {
+        const string title = "GAME HUD: one copy";
+        if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog(title, "Stop Play mode first.", "OK"); return; }
+        if (PrefabStageUtility.GetCurrentPrefabStage() != null)
+        {
+            EditorUtility.DisplayDialog(title, "A prefab is open. Save it, go back to the scene (the < arrow), then run this again.", "OK");
+            return;
+        }
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+        if (prefab == null || AssetDatabase.LoadAssetAtPath<SceneAsset>(LobbyScene) == null)
+        {
+            EditorUtility.DisplayDialog(title, $"Cannot find {PrefabPath} or {LobbyScene}.", "OK");
+            return;
+        }
+
+        // The game's scenes (Build Settings), without the Lobby.
+        var others = new List<string>();
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(MainMenuScene) != null) others.Add(MainMenuScene);
+        foreach (EditorBuildSettingsScene s in EditorBuildSettings.scenes)
+            if (!string.IsNullOrEmpty(s.path) && s.path != LobbyScene && !others.Contains(s.path) && AssetDatabase.LoadAssetAtPath<SceneAsset>(s.path) != null)
+                others.Add(s.path);
+
+        if (!EditorUtility.DisplayDialog(title,
+                "This will:\n" +
+                "1. Put a clean GAME HUD in the Lobby scene, if it has none.\n" +
+                "2. Delete the GAME HUD from these scenes:\n   " + string.Join("\n   ", others) + "\n" +
+                "3. Save those scenes and come back to this scene.\n\n" +
+                "After this the Lobby holds the only GAME HUD. It follows the players into the map.", "Do it", "Cancel")) return;
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+        string back = SceneManager.GetActiveScene().path;
+        var report = new StringBuilder();
+
+        // The Lobby first: the one copy must exist before the others go.
+        Scene lobby = EditorSceneManager.OpenScene(LobbyScene, OpenSceneMode.Single);
+        if (Object.FindObjectsByType<PersistentHUD>(FindObjectsInactive.Include).Length == 0)
+        {
+            var copy = (GameObject)PrefabUtility.InstantiatePrefab(prefab, lobby);
+            copy.name = prefab.name;
+            EditorSceneManager.MarkSceneDirty(lobby);
+            EditorSceneManager.SaveScene(lobby);
+            report.AppendLine("Lobby: a clean GAME HUD was added.");
+        }
+        else report.AppendLine("Lobby: already has a GAME HUD. Not changed.");
+
+        foreach (string path in others)
+        {
+            Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+            int removed = 0;
+            foreach (GameObject copy in SceneCopies())
+            {
+                Object.DestroyImmediate(copy);
+                removed++;
+            }
+            if (removed > 0)
+            {
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+                report.AppendLine($"{scene.name}: GAME HUD removed.");
+            }
+            else report.AppendLine($"{scene.name}: had none.");
+        }
+
+        if (!string.IsNullOrEmpty(back) && AssetDatabase.LoadAssetAtPath<SceneAsset>(back) != null) EditorSceneManager.OpenScene(back, OpenSceneMode.Single);
+        Debug.Log("[GameHudSetup] " + report);
+        EditorUtility.DisplayDialog(title, report +
+            "\nTest 1: start from MainMenu, go to the lobby, then into a match.\n" +
+            "Test 2: press Play in Cinema_GamePlay. The Console says a GAME HUD was added for this run.", "OK");
     }
 
     // ---- Bars -------------------------------------------------------------------------------
@@ -300,6 +404,78 @@ public static class GameHudSetup
         AddSortedCanvas(bar.gameObject, 50);
         bar.gameObject.AddComponent<HotbarView>().EditorSetup(slots, hint, voice, ids);
         log.AppendLine($"+ Hotbar ({count} slots, hint, voice status, Item Icons list with {ids.Count} item(s))");
+    }
+
+    // ---- 3D models (17 Nov) --------------------------------------------------------------------
+
+    /// <summary>One slot per model prefab that has none yet. Existing slots are never changed.</summary>
+    private static void AddModelSlots(Transform root, StringBuilder log)
+    {
+        var have = new HashSet<GameObject>();
+        foreach (ModelSlot slot in root.GetComponentsInChildren<ModelSlot>(true))
+            if (slot.ModelPrefab != null) have.Add(slot.ModelPrefab);
+
+        var folders = new List<string>();
+        foreach (string folder in ModelFolders) if (AssetDatabase.IsValidFolder(folder)) folders.Add(folder);
+        if (folders.Count == 0) return;
+
+        Transform group = null;
+        int added = 0;
+        foreach (string guid in AssetDatabase.FindAssets("t:Prefab", folders.ToArray()))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null || have.Contains(prefab)) continue;
+            if (prefab.GetComponentInChildren<Renderer>(true) == null) continue; // sound-only props have nothing to look at
+            if (group == null)
+            {
+                group = FindOrMakeGroup(root, ModelsGroup);
+                group.gameObject.SetActive(false); // a list only: never drawn
+            }
+            AddModelSlot(group, prefab, path.StartsWith("Assets/Resources/Items") ? "Item" : "Rule prop");
+            have.Add(prefab);
+            added++;
+        }
+        if (added > 0) log.AppendLine($"+ Model Slots: {added} model prefab(s) listed (UI Hub > 3D models)");
+    }
+
+    public static ModelSlot AddModelSlot(Transform group, GameObject prefab, string kind)
+    {
+        RectTransform rt = Rect(group, prefab.name);
+        ModelSlot slot = rt.gameObject.AddComponent<ModelSlot>();
+        slot.EditorSetup(kind + ": " + ObjectNames.NicifyVariableName(prefab.name.Replace("RM_", "").Replace("World", "World ")).Trim(), prefab, "");
+        return slot;
+    }
+
+    /// <summary>The hub's "Add a model": lists one more prefab in the GAME HUD.</summary>
+    public static void AddModelSlotToPrefab(GameObject prefab)
+    {
+        if (prefab == null || EditorApplication.isPlaying) return;
+        PrefabStage stage = PrefabStageUtility.GetCurrentPrefabStage();
+        if (stage != null && stage.assetPath == PrefabPath)
+        {
+            EditorUtility.DisplayDialog(Title, "The GAME HUD prefab is open. Save it, go back to the scene, then try again.", "OK");
+            return;
+        }
+        using (var scope = new PrefabUtility.EditPrefabContentsScope(PrefabPath))
+        {
+            Transform root = scope.prefabContentsRoot.transform;
+            foreach (ModelSlot slot in root.GetComponentsInChildren<ModelSlot>(true))
+                if (slot.ModelPrefab == prefab) return; // already listed
+            Transform group = FindOrMakeGroup(root, ModelsGroup);
+            group.gameObject.SetActive(false);
+            AddModelSlot(group, prefab, "Model");
+        }
+        AssetDatabase.SaveAssets();
+    }
+
+    public static void RemoveModelSlotFromPrefab(GameObject prefab)
+    {
+        if (prefab == null || EditorApplication.isPlaying) return;
+        using (var scope = new PrefabUtility.EditPrefabContentsScope(PrefabPath))
+            foreach (ModelSlot slot in scope.prefabContentsRoot.GetComponentsInChildren<ModelSlot>(true))
+                if (slot.ModelPrefab == prefab) Object.DestroyImmediate(slot.gameObject);
+        AssetDatabase.SaveAssets();
     }
 
     // ---- Small builders ---------------------------------------------------------------------

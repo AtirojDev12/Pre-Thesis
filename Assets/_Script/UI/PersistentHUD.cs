@@ -127,4 +127,24 @@ public class PersistentHUD : MonoBehaviour
     {
         if (_instance == this) _instance = null;
     }
+
+#if UNITY_EDITOR
+    // 17 Nov 2026 (Mr.k): there is ONE GAME HUD in the project, in the Lobby scene. It follows the
+    // players into the map by itself. Pressing Play straight in a map scene (testing) would have no
+    // HUD, so in the Unity Editor only the prefab is added for that run. Builds always start from
+    // the menu, so they never need this.
+    private const string EditorPrefabPath = "Assets/Prefab/GAME HUD.prefab";
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)] // after the scene's Awake, before any Start
+    private static void EditorAddForDirectPlay()
+    {
+        if (_instance != null || FindAnyObjectByType<PersistentHUD>(FindObjectsInactive.Include) != null) return;
+        string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (scene == "MainMenu" || scene == "Lobby") return; // the normal way in: the Lobby brings the HUD
+        var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefabPath);
+        if (prefab == null) return;
+        Instantiate(prefab).name = prefab.name;
+        Debug.Log($"[GAME HUD] \"{scene}\" has no GAME HUD (the only copy is in the Lobby scene). One was added for this test run. Editor only.");
+    }
+#endif
 }

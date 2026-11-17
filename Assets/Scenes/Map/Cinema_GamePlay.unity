@@ -64039,135 +64039,6 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
---- !u!1001 &587253840
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_Pivot.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_Pivot.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchorMin.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_SizeDelta.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalScale.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalScale.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalScale.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 378670297071613487, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 600000000000000032, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 600000000000000032, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 610000000000000032, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 610000000000000032, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1044282649544488050, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7933708090886523710, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
-      propertyPath: m_Name
-      value: GAME HUD
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
 --- !u!1001 &589241784
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -162630,12 +162501,10 @@ MonoBehaviour:
   attackClip: {fileID: 0}
   partReturnedClip: {fileID: 0}
   cryClip: {fileID: 0}
-  cryStartDistance: 50
-  cryFullDistance: 2
-  cryQuietVolume: 0.05
-  cryLoudVolume: 1
-  cryCurve: 2
-  cryHearingRange: 40
+  cryRange: 50
+  cryNearDistance: 3
+  cryEdgeVolume: 0.3
+  cryNearVolume: 1
   customModel: {fileID: 0}
   customHead: {fileID: 0}
   customLeftArm: {fileID: 0}
@@ -247704,7 +247573,6 @@ SceneRoots:
   - {fileID: 647803632}
   - {fileID: 653739886}
   - {fileID: 912802608}
-  - {fileID: 587253840}
   - {fileID: 85072076}
   - {fileID: 277291531}
   - {fileID: 2035827791}
