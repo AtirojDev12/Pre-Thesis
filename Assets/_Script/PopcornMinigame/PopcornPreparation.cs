@@ -114,6 +114,13 @@ public sealed partial class PopcornPreparation : MonoBehaviour
             ShowStatus("Hands full · Put the sign down first ([R])");
             return;
         }
+        // 17 Nov (Task 5): a mop / film reel in the hand = no free hand for popcorn items.
+        CarryProp handProp = CarryProp.LocalHandProp;
+        if (handProp != null && !Holder.HasItem)
+        {
+            ShowStatus("Hands full · Put the " + handProp.DisplayName.ToLowerInvariant() + " down first ([R])");
+            return;
+        }
         PlayerHealth player = PlayerHealth.LocalInstance;
         if (player == null || player.IsDead || player.IsDowned) return;        if (station.Kind == PopcornStationKind.Water && !Holder.HasItem && TryGetBottle(station, out var readyBottle) && readyBottle.IsReady)        { RequestBottlePickup(station); return; }
         if (station.Kind == PopcornStationKind.Water && Holder.IsInHand && Holder.IsCup && !Holder.IsReady)
@@ -299,6 +306,7 @@ public sealed partial class PopcornPreparation : MonoBehaviour
             !TryGetBottle(station, out var bottle) || bottle.fillingActor != 0) return;
         if (GhostFavorRecovery.Instance != null && GhostFavorRecovery.Instance.IsLocalHolding) return; // 17 Nov
         if (PlayerInventory.Local != null && PlayerInventory.Local.HandsBlocked) return; // 17 Nov: carrying a sign
+        if (CarryProp.LocalHandProp != null) return; // 17 Nov: a mop / film reel in the hand
         if (NetworkMode.IsOffline)
         {
             if (Holder.ReceiveMachineBottle(bottle.flavor)) { offlineBottles.Remove(SpotId(station)); RenderPlacedBottles(); }

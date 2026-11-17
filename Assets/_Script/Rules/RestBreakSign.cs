@@ -204,6 +204,12 @@ public sealed class RestBreakSign : InteractableBase
             Say(interactor, "Hands full: put the popcorn item down first.");
             return;
         }
+        // 17 Nov (Task 5): a mop / film reel in the hand too.
+        if (CarryProp.ServerHandBusy(interactor, out string busy))
+        {
+            Say(interactor, "Hands full: put the " + busy + " down first.");
+            return;
+        }
         carrierId = IdOf(interactor);
         if (interactor.TryGetComponent(out PlayerInventory hands)) hands.ServerSetHandsBlocked(true); // 17 Nov: two-handed
         offlineCarrier = NetworkMode.IsOffline ? interactor : null;

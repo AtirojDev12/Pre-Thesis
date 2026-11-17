@@ -156,6 +156,8 @@ public sealed class HotbarHUD : MonoBehaviour
                 ? $"[E] on the drop spot: throw it in   ·   [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] put it back"
                 : inventory.IsHolding(ItemCatalog.GhostFlavor)
                 ? $"Bring it back to the popcorn station   ·   [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] drop it"
+                : inventory.IsHolding(ItemCatalog.FilmReelGhost) // 17 Nov (Task 5)
+                ? GhostReelHint()
                 : inventory.IsHoldingSpare
                 ? $"Spare copy: you cannot use it.   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
                 : inventory.IsHoldingRadio
@@ -170,6 +172,8 @@ public sealed class HotbarHUD : MonoBehaviour
                 ? $"Hold [{Keybinds.KeyName(GameAction.ReadMap)}] read the map   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
                 : !inventory.HeldSlot.IsEmpty && !inventory.HeldSlot.spare && ItemCatalog.IsWorksheet(inventory.HeldSlot.itemId) // 5 Nov
                 ? $"[{Keybinds.KeyName(GameAction.ReadMap)}] open the work sheet   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it"
+                : inventory.HeldSlot.IsEmpty && CarryProp.LocalHandProp != null // 17 Nov: mop / normal film reel
+                ? HandPropHint(CarryProp.LocalHandProp)
                 : PlayerSanity.HotbarHint(inventory)); // 8 Oct: snack / holy items
         }
 
@@ -244,5 +248,22 @@ public sealed class HotbarHUD : MonoBehaviour
         rt.pivot = new Vector2(anchor.x, 0f);
         rt.sizeDelta = size;
         rt.anchoredPosition = position;
+    }
+
+    /// <summary>17 Nov (Task 5): hint for the ghost film reel in the hotbar (shows its show time).</summary>
+    private static string GhostReelHint()
+    {
+        CarryProp reel = CarryProp.LocalCarriedByToken(ItemCatalog.FilmReelGhost);
+        string name = reel != null ? reel.FullName : "Ghost Film Reel";
+        return name + ": hold [E] at the ghost room projector   ·   [" + Keybinds.KeyName(GameAction.ReloadOrDiscard) + "] put it back";
+    }
+
+    /// <summary>17 Nov (Task 5): hint for the mop / normal film reel in your hand.</summary>
+    private static string HandPropHint(CarryProp prop)
+    {
+        string drop = $"[{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] put it down";
+        return prop.CarryId == CarryProp.Mop
+            ? "Mop in hand: arrows show stains near you. Hold [E] on a stain   ·   " + drop
+            : prop.FullName + " in hand: hold [E] at its projector   ·   " + drop.Replace("put it down", "put it back");
     }
 }

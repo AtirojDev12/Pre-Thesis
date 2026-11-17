@@ -71,6 +71,8 @@ public static class ItemCatalog
     public const string BlackBox = "black_box";
     /// <summary>The displaced Ghost Flavor. A HOTBAR token: the bottle itself is a scene object (GhostFavorRecovery).</summary>
     public const string GhostFlavor = "ghost_flavor";
+    /// <summary>17 Nov (Task 5): the ghost-room film reel. A HOTBAR token: the reel itself is a scene object (CarryProp).</summary>
+    public const string FilmReelGhost = "film_reel_ghost";
 
     public sealed class ItemInfo
     {
@@ -250,6 +252,12 @@ public static class ItemCatalog
             id = GhostFlavor, displayName = "Ghost Flavor", matchOnly = true, carryToken = true,
             permanent = false, inShop = false, throwable = false,
             description = "The special ingredient. Bring it back to the popcorn station. R (in hand) = drop it.",
+        },
+        new ItemInfo
+        {
+            id = FilmReelGhost, displayName = "Ghost Film Reel", matchOnly = true, carryToken = true,
+            permanent = false, inShop = false, throwable = false,
+            description = "For the ghost room projector. Hold it and hold E at the projector. R (in hand) = put it back on its shelf.",
         },
         // 31 Oct (Mr.k): the Missing Parts ghost's parts. World prefabs made by the setup tool.
         GhostPartItem(GhostLeftArm, "Left Arm", "Items/WorldGhostPart_LeftArm"),

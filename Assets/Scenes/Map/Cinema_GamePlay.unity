@@ -5883,6 +5883,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 1428052735}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &53235467
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9762,6 +9765,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 648824837}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &106220746
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -35647,6 +35653,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 1561279526}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &362530615
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -38153,6 +38162,68 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 1076216369}
   m_SourcePrefab: {fileID: 100100000, guid: d922ec1a7bccf6e4491a8340755f0bb7, type: 3}
+--- !u!1001 &389967700
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1873360800}
+    m_Modifications:
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6794164022587769389, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_Name
+      value: RM_Mop
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+--- !u!4 &389967701 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+  m_PrefabInstance: {fileID: 389967700}
+  m_PrefabAsset: {fileID: 0}
 --- !u!43 &390429809
 Mesh:
   m_ObjectHideFlags: 0
@@ -40095,6 +40166,39 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1 &410262481
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 410262482}
+  m_Layer: 0
+  m_Name: Mops (Staff Room)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &410262482
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 410262481}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 6.9384365e-16, z: 1.1999989}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1873360800}
+  - {fileID: 2094302021}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &411332685
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -46221,6 +46325,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 111462427}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &452559794
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -47765,6 +47872,68 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
+--- !u!1001 &470492228
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2094302021}
+    m_Modifications:
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6794164022587769389, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+      propertyPath: m_Name
+      value: RM_Mop
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+--- !u!4 &470492229 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 6378957807228664019, guid: 547b0b6e27757b84f8afbd21c927003d, type: 3}
+  m_PrefabInstance: {fileID: 470492228}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &471248174 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 3118e9fb9e86d8c46a99d072885fe367, type: 3}
@@ -65624,6 +65793,68 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
+--- !u!1001 &608630036
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1933866598}
+    m_Modifications:
+    - target: {fileID: 4011975687975984722, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_Name
+      value: RM_FilmReelGhost
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+--- !u!4 &608630037 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 8664534792934824992, guid: 1489be5a6693f6e438b7b2f7cfa49edd, type: 3}
+  m_PrefabInstance: {fileID: 608630036}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &609025346 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3907310650337800038, guid: eeb467bcc15f71c42b5c3e6b9dd3b655, type: 3}
@@ -66383,6 +66614,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 78085124}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &615889574
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -114290,6 +114524,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 2118309021}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &1022160635
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -124581,6 +124818,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 557496144}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &1083172979
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -146203,6 +146443,39 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
+--- !u!1 &1272332623
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1272332624}
+  m_Layer: 0
+  m_Name: Film Reel Shelf (Ghost Room)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1272332624
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1272332623}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: 0.70710486, z: -0, w: 0.7071088}
+  m_LocalPosition: {x: -4.843048, y: 0.8892827, z: -0.04660034}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1570258211}
+  - {fileID: 1933866598}
+  m_Father: {fileID: 1400358393}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!43 &1275516791
 Mesh:
   m_ObjectHideFlags: 0
@@ -159952,6 +160225,7 @@ Transform:
   - {fileID: 1495493093}
   - {fileID: 1873983315}
   - {fileID: 781601531}
+  - {fileID: 1272332624}
   m_Father: {fileID: 62895707}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1400358394
@@ -167652,6 +167926,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 1042194774}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &1460633869
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -170805,6 +171082,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 1355457020}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &1495493095
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -178130,6 +178410,68 @@ Transform:
   - {fileID: 1540319173}
   m_Father: {fileID: 922571985}
   m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
+--- !u!1001 &1570258210
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1272332624}
+    m_Modifications:
+    - target: {fileID: 1095443843234000443, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_Name
+      value: RM_ReelShelf
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+--- !u!4 &1570258211 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 9027647728060065623, guid: ca393a5bccdd3244ba1ce8143eff1581, type: 3}
+  m_PrefabInstance: {fileID: 1570258210}
+  m_PrefabAsset: {fileID: 0}
 --- !u!43 &1570285932
 Mesh:
   m_ObjectHideFlags: 0
@@ -190605,6 +190947,7 @@ GameObject:
   - component: {fileID: 1690432384}
   - component: {fileID: 1690432383}
   - component: {fileID: 1690432382}
+  - component: {fileID: 1690432385}
   m_Layer: 0
   m_Name: Chore - Change Film (Ghost Room)
   m_TagString: Untagged
@@ -190658,6 +191001,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 1057050954}
+  needsItem: film_reel_ghost
+  needsItemHint: Needs a film reel (take one from the shelf next to the projector)
+  usesUpItem: 1
 --- !u!114 &1690432383
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -190696,6 +191042,24 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.6001577, y: 2.71086, z: 1.9078677}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &1690432385
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1690432380}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 24189cec905cf5c4899132ec3c669fd9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FilmDeadline
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  missedPenalties: 1
+  glowParts:
+  - {fileID: 1292368357}
 --- !u!1 &1690577417
 GameObject:
   m_ObjectHideFlags: 0
@@ -213726,6 +214090,89 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1612591131}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1873360799
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1873360800}
+  - component: {fileID: 1873360802}
+  - component: {fileID: 1873360801}
+  m_Layer: 0
+  m_Name: Mop 1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1873360800
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1873360799}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.08715574, y: -0, z: -0, w: 0.9961947}
+  m_LocalPosition: {x: -0.25, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 389967701}
+  m_Father: {fileID: 410262482}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1873360801
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1873360799}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61f5433bf5cdde145b8bc3e06583720d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CarryProp
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  interactionPrompt: '[E] Pick up Mop'
+  oneTimeUse: 0
+  highlightRenderer: {fileID: 0}
+  highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  carryId: mop
+  displayName: Mop
+  hotbarToken: 
+  goHomeWhenDropped: 0
+  firstPersonOffset: {x: 0.3, y: -1, z: 1.1}
+  firstPersonEuler: {x: -40, y: 0, z: 0}
+  firstPersonScale: 0.8
+  carriedOffset: {x: 0.3, y: 0.1, z: 0.9}
+  carriedEuler: {x: -40, y: 0, z: 0}
+--- !u!65 &1873360802
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1873360799}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.35, y: 1.35, z: 0.2}
+  m_Center: {x: 0, y: 0.65, z: 0}
 --- !u!4 &1873944523 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 14496193518359606, guid: 1d666d9ccbf280e45b8af16537afa466, type: 3}
@@ -213797,6 +214244,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 1354828114}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &1873983317
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -219872,6 +220322,89 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
+--- !u!1 &1933866597
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1933866598}
+  - component: {fileID: 1933866600}
+  - component: {fileID: 1933866599}
+  m_Layer: 0
+  m_Name: Film Reel (Ghost Room, hotbar)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1933866598
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1933866597}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.92, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 608630037}
+  m_Father: {fileID: 1272332624}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1933866599
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1933866597}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61f5433bf5cdde145b8bc3e06583720d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CarryProp
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  interactionPrompt: '[E] Pick up Ghost Film Reel'
+  oneTimeUse: 0
+  highlightRenderer: {fileID: 0}
+  highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  carryId: film_reel_ghost
+  displayName: Ghost Film Reel
+  hotbarToken: film_reel_ghost
+  goHomeWhenDropped: 1
+  firstPersonOffset: {x: 0.24, y: -0.28, z: 0.55}
+  firstPersonEuler: {x: -90, y: 0, z: 0}
+  firstPersonScale: 1
+  carriedOffset: {x: 0.25, y: 1, z: 0.35}
+  carriedEuler: {x: -90, y: 0, z: 0}
+--- !u!65 &1933866600
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1933866597}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.45, y: 0.14, z: 0.45}
+  m_Center: {x: 0, y: 0.05, z: 0}
 --- !u!43 &1934011674
 Mesh:
   m_ObjectHideFlags: 0
@@ -224779,6 +225312,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 1051943642}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &1968877666
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -238710,6 +239246,9 @@ MonoBehaviour:
   countsForZoneBoard: 1
   showWhenNeeded:
   - {fileID: 24141835}
+  needsItem: mop
+  needsItemHint: Needs a mop (Staff Room)
+  usesUpItem: 0
 --- !u!114 &2072137555
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -240140,6 +240679,89 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1 &2094302020
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2094302021}
+  - component: {fileID: 2094302023}
+  - component: {fileID: 2094302022}
+  m_Layer: 0
+  m_Name: Mop 2
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2094302021
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2094302020}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.08715574, y: -0, z: -0, w: 0.9961947}
+  m_LocalPosition: {x: 0.25, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 470492229}
+  m_Father: {fileID: 410262482}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2094302022
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2094302020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61f5433bf5cdde145b8bc3e06583720d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CarryProp
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  interactionPrompt: '[E] Pick up Mop'
+  oneTimeUse: 0
+  highlightRenderer: {fileID: 0}
+  highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  carryId: mop
+  displayName: Mop
+  hotbarToken: 
+  goHomeWhenDropped: 0
+  firstPersonOffset: {x: 0.3, y: -1, z: 1.1}
+  firstPersonEuler: {x: -40, y: 0, z: 0}
+  firstPersonScale: 0.8
+  carriedOffset: {x: 0.3, y: 0.1, z: 0.9}
+  carriedEuler: {x: -40, y: 0, z: 0}
+--- !u!65 &2094302023
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2094302020}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.35, y: 1.35, z: 0.2}
+  m_Center: {x: 0, y: 0.65, z: 0}
 --- !u!1 &2095006764
 GameObject:
   m_ObjectHideFlags: 0
@@ -247655,3 +248277,4 @@ SceneRoots:
   - {fileID: 1576415178}
   - {fileID: 1870564462}
   - {fileID: 1463302738}
+  - {fileID: 410262482}

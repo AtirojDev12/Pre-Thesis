@@ -49,6 +49,20 @@ public sealed class ZoneChoreSpot : InteractableBase
     [Tooltip("Shown only while the chore is needed (dirt mark, warning light).")]
     [SerializeField] private GameObject[] showWhenNeeded;
 
+    [Header("Needs an item (17 Nov, Task 5)")]
+    [Tooltip("Empty = bare hands. Else the CarryProp the worker must hold in the hand: \"mop\", \"film_reel_ghost\", \"film_reel_normal\".")]
+    [SerializeField] private string needsItem = "";
+    [Tooltip("Prompt while the player does not hold that item, e.g. \"Needs a mop (Staff Room)\".")]
+    [SerializeField] private string needsItemHint = "";
+    [Tooltip("On = the item is used up when the chore is done (a film reel goes back on its shelf).")]
+    [SerializeField] private bool usesUpItem;
+    [Tooltip("17 Nov: On = the item's label must match the time this chore is due (film reel \"02:00\" for the 02:00 change). A wrong film is refused.")]
+    [SerializeField] private bool needsMatchingLabel;
+    [Tooltip("17 Nov: the film needed at each time of the night, in order (1st change, 2nd change ...). Must match the reel labels. Empty = the time (\"02:00\").")]
+    [SerializeField] private string[] filmNames;
+    [Tooltip("17 Nov: the reel colour of each film above, in words for the prompt (\"red\").")]
+    [SerializeField] private string[] filmColors;
+
     private const float ServerRange = 4.5f; // interaction range 3 m + slack
     private const int NightEndHour = 6;
 
@@ -59,6 +73,12 @@ public sealed class ZoneChoreSpot : InteractableBase
 
     // Server only.
     private int pending;
+    private double neededSince; // 17 Nov: when the current "needed" started (film deadline)
+    private readonly System.Collections.Generic.List<int> dueSlots = new System.Collections.Generic.List<int>(); // 17 Nov: due times waiting (minutes)
+
+    // 17 Nov: the time label of the oldest due slot ("02:00"); the film reel must match it.
+    [SyncVar] private string dueLabel = "";
+    [SyncVar] private string dueColor = "";
     private int nextSlotMinute; // minutes after 00:00 on the match clock
     private int slotsMade;
     private GameObject offlineWorker;
@@ -73,6 +93,53 @@ public sealed class ZoneChoreSpot : InteractableBase
     private bool sweepPlaying;
 
     public ZoneTaskKind Kind => kind;
+    /// <summary>17 Nov: every chore spot in the scene (stain arrows, film deadline).</summary>
+    public static readonly System.Collections.Generic.List<ZoneChoreSpot> All = new System.Collections.Generic.List<ZoneChoreSpot>();
+    public string NeedsItem => needsItem;
+    /// <summary>SERVER. When the chore became needed (network time). Only valid while <see cref="Needed"/>.</summary>
+    public double NeededSince => neededSince;
+    public int Pending => pending;
+    /// <summary>17 Nov: "02:00" = the film this projector needs now. Empty when nothing is due.</summary>
+    public string DueLabel => dueLabel;
+    public bool NeedsMatchingLabel => needsMatchingLabel;
+
+    /// <summary>SERVER. 17 Nov: the time (minutes) of the film change that is due now, or -1.</summary>
+    public int ServerDueMinute => dueSlots.Count > 0 ? dueSlots[0] : -1;
+    /// <summary>Minutes between two film changes (0 = once).</summary>
+    public int RepeatMinutes => repeatEveryHours * 60;
+
+    /// <summary>17 Nov: the film name for the change at this time (or "02:00" when no names are set).</summary>
+    public string FilmLabelFor(int minute)
+    {
+        int index = ScheduleMinutes().IndexOf(minute);
+        if (index >= 0 && filmNames != null && index < filmNames.Length && !string.IsNullOrEmpty(filmNames[index])) return filmNames[index];
+        return TimeLabel(minute);
+    }
+
+    private string FilmColorFor(int minute)
+    {
+        int index = ScheduleMinutes().IndexOf(minute);
+        return index >= 0 && filmColors != null && index < filmColors.Length ? filmColors[index] ?? "" : "";
+    }
+
+    private string DueText => string.IsNullOrEmpty(dueColor) ? "\"" + dueLabel + "\"" : "\"" + dueLabel + "\" (" + dueColor + " reel)";
+
+    /// <summary>"HH:MM" for minutes after 00:00.</summary>
+    public static string TimeLabel(int minutes) => $"{minutes / 60:00}:{minutes % 60:00}";
+
+    /// <summary>17 Nov: every time this chore becomes needed tonight (minutes after 00:00). Works in the editor too.</summary>
+    public System.Collections.Generic.List<int> ScheduleMinutes()
+    {
+        var list = new System.Collections.Generic.List<int>();
+        int at = fromHour * 60 + fromMinute;
+        while (at < NightEndHour * 60 && (maxTimes == 0 || list.Count < maxTimes))
+        {
+            list.Add(at);
+            if (repeatEveryHours <= 0) break;
+            at += repeatEveryHours * 60;
+        }
+        return list;
+    }
     public bool CountsForZoneBoard => countsForZoneBoard;
     public bool Needed => needed;
     // Audio observes the existing authoritative work state; no extra sound RPCs.
@@ -90,7 +157,10 @@ public sealed class ZoneChoreSpot : InteractableBase
     {
         ServerCompleted = null;
         ServerBlocked = null;
+        All.Clear();
     }
+
+    private void OnEnable() { if (!All.Contains(this)) All.Add(this); }
 
     private bool IsBlocked => ServerBlocked != null && ServerBlocked(this);
 
@@ -113,7 +183,41 @@ public sealed class ZoneChoreSpot : InteractableBase
 
     // ---- Prompt / interaction ------------------------------------------------
 
-    public override string GetInteractionPrompt() => promptText;
+    public override string GetInteractionPrompt()
+    {
+        if (HasItemForWork(null)) return needsMatchingLabel && !string.IsNullOrEmpty(dueLabel) ? promptText + ": \"" + dueLabel + "\"" : promptText;
+        if (needsMatchingLabel && !string.IsNullOrEmpty(dueLabel))
+        {
+            string held = CarryProp.LocalHeldLabel(needsItem);
+            return held != null
+                ? "Wrong film: this is \"" + held + "\". This projector needs " + DueText + "."
+                : "Needs the film " + DueText + " from the film shelf in the booth";
+        }
+        return string.IsNullOrEmpty(needsItemHint) ? "Needs an item" : needsItemHint;
+    }
+
+    /// <summary>
+    /// 17 Nov: does this player hold the needed item in the hand? null = the local player (prompt).
+    /// Chores with no needed item always say yes.
+    /// </summary>
+    private bool HasItemForWork(GameObject player)
+    {
+        if (string.IsNullOrEmpty(needsItem)) return true;
+        if (!needsMatchingLabel) return player == null ? CarryProp.LocalHolds(needsItem) : CarryProp.ServerHeld(player, needsItem) != null;
+        // 17 Nov: the film reel's label must be the time that is due now.
+        string label = player == null ? CarryProp.LocalHeldLabel(needsItem) : CarryProp.ServerHeld(player, needsItem)?.Label;
+        return label != null && label == dueLabel;
+    }
+
+    [TargetRpc]
+    private void TargetSay(NetworkConnectionToClient target, string text) => RuleFx.Toast(text, 3.5f);
+
+    private void Say(GameObject player, string text)
+    {
+        if (NetworkMode.IsOffline) { RuleFx.Toast(text, 3.5f); return; }
+        NetworkIdentity identity = player != null ? player.GetComponent<NetworkIdentity>() : null;
+        if (identity != null && identity.connectionToClient != null) TargetSay(identity.connectionToClient, text);
+    }
 
     public override bool CanInteract() =>
         needed && RoundRunning && (workerId == 0 || IsLocalWorker);
@@ -122,6 +226,14 @@ public sealed class ZoneChoreSpot : InteractableBase
     protected override void OnInteracted(GameObject interactor)
     {
         if (!needed || interactor == null || !CanWork(interactor) || IsBlocked) return;
+        if (!HasItemForWork(interactor))
+        {
+            // 17 Nov: mop / the right film reel in the hand first. A wrong film is refused.
+            CarryProp held = CarryProp.ServerHeld(interactor, needsItem);
+            if (needsMatchingLabel && held != null)
+                Say(interactor, "The projector refused it: wrong film (\"" + held.Label + "\"). It needs " + DueText + ".");
+            return;
+        }
         uint id = WorkerIdOf(interactor);
         if (workerId != 0 && workerId != id) return; // someone else is already on it
         offlineWorker = NetworkMode.IsOffline ? interactor : null;
@@ -154,13 +266,15 @@ public sealed class ZoneChoreSpot : InteractableBase
         {
             pending++;
             slotsMade++;
+            dueSlots.Add(nextSlotMinute);
+            if (dueSlots.Count == 1) SetDue(dueSlots[0]);
             nextSlotMinute = repeatEveryHours > 0 ? nextSlotMinute + repeatEveryHours * 60 : NightEndHour * 60;
         }
         if (!needed && pending > 0) SetNeeded(true);
 
         if (workerId == 0) return;
         GameObject worker = WorkerObject();
-        if (worker == null || !needed || !CanWork(worker) || IsBlocked)
+        if (worker == null || !needed || !CanWork(worker) || IsBlocked || !HasItemForWork(worker))
         {
             StopWork();
             return;
@@ -171,8 +285,15 @@ public sealed class ZoneChoreSpot : InteractableBase
     private void ServerComplete(GameObject worker)
     {
         StopWork();
+        if (usesUpItem && !string.IsNullOrEmpty(needsItem))
+        {
+            CarryProp used = CarryProp.ServerHeld(worker, needsItem);
+            if (used != null) used.ServerConsume(); // 17 Nov: the reel went into the projector
+        }
         pending = Mathf.Max(0, pending - 1);
+        PopDueSlot();
         if (pending == 0) SetNeeded(false);
+        else neededSince = Now; // 17 Nov: the next one waits from now
 
         // Bonus chores (4 Nov) pay the player only; they never move the zone's board.
         if (countsForZoneBoard) ZoneTaskList.ServerReportSale(kind, PopcornFlavor.None, -1, false);
@@ -182,8 +303,45 @@ public sealed class ZoneChoreSpot : InteractableBase
         ServerCompleted?.Invoke(this, worker);
     }
 
+    /// <summary>SERVER. 17 Nov: the oldest due time is done; the next one (if any) is the film needed now.</summary>
+    private void PopDueSlot()
+    {
+        if (dueSlots.Count > 0) dueSlots.RemoveAt(0);
+        if (dueSlots.Count > 0) SetDue(dueSlots[0]);
+        else { dueLabel = ""; dueColor = ""; }
+    }
+
+    private void SetDue(int minute)
+    {
+        dueLabel = FilmLabelFor(minute);
+        dueColor = FilmColorFor(minute);
+    }
+
+    /// <summary>
+    /// SERVER. 17 Nov (Task 5): the film changed by itself after the second penalty. The zone's board
+    /// still moves (else the board could never be finished), but nobody gets a task / money for it.
+    /// </summary>
+    public void ServerAutoFinish()
+    {
+        if (!needed) return;
+        StopWork();
+        pending = Mathf.Max(0, pending - 1);
+        PopDueSlot();
+        if (pending == 0) SetNeeded(false);
+        else neededSince = Now;
+        if (countsForZoneBoard) ZoneTaskList.ServerReportSale(kind, PopcornFlavor.None, -1, false);
+        Debug.Log($"[ZoneChoreSpot] '{name}' finished by itself (missed twice).", this);
+    }
+
+    /// <summary>
+    /// SERVER. 17 Nov: minutes after 00:00 of the NEXT time this chore becomes needed, or -1 (no more tonight).
+    /// </summary>
+    public int ServerNextSlotMinute =>
+        nextSlotMinute < NightEndHour * 60 && (maxTimes == 0 || slotsMade < maxTimes) ? nextSlotMinute : -1;
+
     private void SetNeeded(bool value)
     {
+        if (value && !needed) neededSince = Now;
         needed = value;
         ApplyLook(value); // the project's rule: hooks do not run on the machine that set the value
     }
@@ -306,8 +464,25 @@ public sealed class ZoneChoreSpot : InteractableBase
 
     private void OnDisable()
     {
+        All.Remove(this);
         ChoreProgressHUD.Hide(this);
         StopSweepAudio();
+    }
+
+    /// <summary>Editor tool (17 Nov): the item this chore needs.</summary>
+    public void EditorSetNeedsItem(string itemId, string hint, bool usesUp, bool matchLabel = false)
+    {
+        needsItem = itemId ?? "";
+        needsItemHint = hint ?? "";
+        usesUpItem = usesUp;
+        needsMatchingLabel = matchLabel;
+    }
+
+    /// <summary>Editor tool (17 Nov): the film for each change of the night, and its reel colour in words.</summary>
+    public void EditorSetFilms(string[] names, string[] colors)
+    {
+        filmNames = names;
+        filmColors = colors;
     }
 
     /// <summary>
