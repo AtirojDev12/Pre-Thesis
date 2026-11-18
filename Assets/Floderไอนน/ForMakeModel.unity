@@ -21202,6 +21202,63 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 022f74d653d2a5f458ef7d9307bd47cf, type: 3}
+--- !u!1001 &2654388989192368689
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 8194472830050645563, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_Name
+      value: CinemaScreenRoomDoor
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -16.041977
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -0.0532343
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 23.892788
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8859509777541262465, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 14dab101fd48f9f4bbc048a61202848a, type: 3}
 --- !u!1001 &2836919149933761023
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -21373,6 +21430,63 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 4d9138d7e28902d4fb9809045275611b, type: 3}
+--- !u!1001 &4564315599350547333
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 3742339301838635716, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_Name
+      value: LobbyDoorCinema
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -19.462725
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -0.0610002
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 23.604126
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4081569032453691518, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 45fb2d8d3f0345a478f47611ee9c78a7, type: 3}
 --- !u!1001 &4805401228831288216
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -23510,3 +23624,5 @@ SceneRoots:
   - {fileID: 2431537785653505121}
   - {fileID: 1110660868}
   - {fileID: 6396582862146235915}
+  - {fileID: 4564315599350547333}
+  - {fileID: 2654388989192368689}
