@@ -7,6 +7,9 @@ public sealed class WorldInventoryItem : NetworkBehaviour, IInteractable
 {
     [SyncVar(hook = nameof(OnItemChanged))] private InventorySlot item;
     [SyncVar(hook = nameof(OnClaimedChanged))] private bool claimed;
+
+    /// <summary>17 Nov (Mr.k): the item lying here (read only; the Memo Book owner check uses it).</summary>
+    public InventorySlot Item => item;
     private Rigidbody body;
     private WalkieTalkieVisual visual;
     private FlashlightVisual flashlight; // 5 Oct: a dropped flashlight that is on keeps shining

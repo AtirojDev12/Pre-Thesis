@@ -220,7 +220,13 @@ public static class MainMenuBuilder
             ? EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single)
             : EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
 
-        DestroyRoot(scene, LobbyRootName);
+        // 17 Nov 2026 (Mr.k): these tools only CREATE what is missing. They never delete: an existing
+        // screen (with the team's edits) is kept as it is.
+        if (HasRoot(scene, LobbyRootName))
+        {
+            log.AppendLine("- Lobby: '" + LobbyRootName + "' is already there. Kept as it is (nothing rebuilt).");
+            return;
+        }
         EnsureCamera(scene);
         EnsureEventSystem(scene);
 
@@ -276,7 +282,11 @@ public static class MainMenuBuilder
     {
         Scene scene = EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
 
-        DestroyRoot(scene, MenuRootName);
+        if (HasRoot(scene, MenuRootName)) // 17 Nov: create if missing, never delete
+        {
+            log.AppendLine("- MainMenu: '" + MenuRootName + "' is already there. Kept as it is (nothing rebuilt).");
+            return;
+        }
         DisableOldTestButtons(scene, log);
         EnsureCamera(scene);
         EnsureEventSystem(scene);
@@ -361,14 +371,15 @@ public static class MainMenuBuilder
 
     private static CreateRoomPanel BuildCreatePanel(RectTransform canvas, MainMenuController menu)
     {
-        RectTransform card = Card(canvas, "Create Room Panel", new Vector2(760, 880));
+        RectTransform card = Card(canvas, "Create Room Panel", new Vector2(760, 952)); // 15 Nov: +1 row (map list)
         Label(card, "Title", "Create Room", 44, AccentColor, TextAlignmentOptions.Center, 60);
 
         // 1 Oct: the room's name, shown and searchable in the Room Browser.
         Label(card, "Room Name Label", "Room name", 24, TextColor, TextAlignmentOptions.MidlineLeft, 30);
         TMP_InputField roomName = MakeInput(card, "Room Name Field", "e.g. Kong's room");
 
-        TMP_Text map = Label(card, "Map", "Map: Cinema", 26, MutedColor, TextAlignmentOptions.MidlineLeft, 36);
+        TMP_Text map = Label(card, "Map", "Map", 26, MutedColor, TextAlignmentOptions.MidlineLeft, 36);
+        TMP_Dropdown mapDropdown = MakeDropdown(card, "Map Dropdown"); // 15 Nov: map list (locked maps are greyed)
 
         Label(card, "Difficulty Label", "Difficulty", 24, TextColor, TextAlignmentOptions.MidlineLeft, 30);
         TMP_Dropdown difficulty = MakeDropdown(card, "Difficulty Dropdown");
@@ -387,7 +398,7 @@ public static class MainMenuBuilder
 
         CreateRoomPanel panel = card.gameObject.AddComponent<CreateRoomPanel>();
         Wire(panel,
-            ("menu", menu), ("roomNameField", roomName), ("mapText", map), ("difficultyDropdown", difficulty),
+            ("menu", menu), ("roomNameField", roomName), ("mapText", map), ("mapDropdown", mapDropdown), ("difficultyDropdown", difficulty),
             ("playerLimitSlider", limit), ("playerLimitText", limitText),
             ("privateToggle", privateToggle), ("passwordField", password),
             ("errorText", error), ("createButton", create), ("backButton", back));
@@ -576,12 +587,7 @@ public static class MainMenuBuilder
         Label(micColumn, "Meter Header", "Noise meter", 28, AccentColor, TextAlignmentOptions.MidlineLeft, 40);
         Button meterDirection = MakeButton(micColumn, "Meter Direction Button", "Meter bars: standing (vertical)", false, 52f);
         ButtonText(meterDirection).fontSize = 22;
-        RectTransform meterRow = ButtonRow(micColumn, "Meter Buttons");
-        Layout(meterRow, 0, 52);
-        Button meterMove = MakeButton(meterRow, "Meter Move Button", "Move meter", false, 52f);
-        Button meterReset = MakeButton(meterRow, "Meter Reset Button", "Reset position", false, 52f);
-        ButtonText(meterMove).fontSize = 22;
-        ButtonText(meterReset).fontSize = 22;
+        // 16 Nov: no "Move meter" / "Reset position" buttons. The designer places the noise bars in the GAME HUD prefab.
 
         // ---- Controls -------------------------------------------------------------
         RectTransform controls = Column(pageRoots[3], "Walkie-Talkie");
@@ -614,7 +620,7 @@ public static class MainMenuBuilder
             ("micSensitivitySlider", micSensitivity), ("micSensitivityText", micSensitivityText),
             ("noiseReductionToggle", noiseReduction), ("noiseGateToggle", noiseGate),
             ("gateThresholdSlider", gateThreshold), ("gateThresholdText", gateText),
-            ("meterDirectionButton", meterDirection), ("meterMoveButton", meterMove), ("meterResetButton", meterReset),
+            ("meterDirectionButton", meterDirection),
             ("walkieTalkButton", walkieTalk), ("walkiePowerButton", walkiePower),
             ("applyButton", apply), ("backButton", back));
         WireArray(panel, "tabButtons", tabButtons);
@@ -634,7 +640,7 @@ public static class MainMenuBuilder
     // Settings + Esc pause menu (does NOT touch the rest of the main menu)
     // =========================================================================
 
-    private const string RebuildSettingsMenuPath = "Tools/Pre-Thesis/Scenes/Menu: Rebuild Settings + Pause Menu";
+    private const string RebuildSettingsMenuPath = "Tools/Pre-Thesis/Scenes/Menu: Add Settings + Pause Menu (only if missing)";
     private const string PauseMenuFolder = "Assets/Resources/UI";
     private const string PauseMenuPrefabPath = PauseMenuFolder + "/PauseMenu.prefab";
 
@@ -668,7 +674,7 @@ public static class MainMenuBuilder
         }
 
         Debug.Log("[MainMenuBuilder] Settings + Pause Menu done.\n" + log);
-        EditorUtility.DisplayDialog("Settings + Pause Menu built", log.ToString(), "OK");
+        EditorUtility.DisplayDialog("Settings + Pause Menu", log + "\nThis tool only adds what is missing. To build one again from scratch, delete it yourself first.", "OK");
     }
 
     // =========================================================================
@@ -676,7 +682,7 @@ public static class MainMenuBuilder
     // touch the rest of the main menu (background art, other panels).
     // =========================================================================
 
-    [MenuItem("Tools/Pre-Thesis/Scenes/Menu: Rebuild Create Room + Room Browser", false, 31)]
+    [MenuItem("Tools/Pre-Thesis/Scenes/Menu: Add Create Room + Room Browser (only if missing)", false, 31)]
     private static void RebuildRoomPanels()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -708,19 +714,78 @@ public static class MainMenuBuilder
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
-        const string done = "Create Room (room name) and Room Browser (name column + search) rebuilt in MainMenu.unity. Nothing else touched.";
+        const string done = "Create Room and Room Browser: made in MainMenu.unity if they were missing. Existing panels were kept as they are.";
         Debug.Log("[MainMenuBuilder] " + done);
         EditorUtility.DisplayDialog("Rebuild Create Room + Room Browser", done, "OK");
     }
 
+    /// <summary>
+    /// 15 Nov 2026 (Mr.k): adds the "Map Dropdown" to an existing Create Room panel WITHOUT rebuilding it
+    /// (your edits to the menu stay). It is a copy of the Difficulty dropdown, so it has the same look.
+    /// </summary>
+    [MenuItem("Tools/Pre-Thesis/Scenes/Menu: Add Map Dropdown (keeps edits)", false, 33)]
+    private static void AddMapDropdown()
+    {
+        if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog("Map Dropdown", "Stop Play mode first.", "OK"); return; }
+
+        CreateRoomPanel panel = null;
+        foreach (CreateRoomPanel p in Object.FindObjectsByType<CreateRoomPanel>(FindObjectsInactive.Include))
+            if (p.gameObject.scene.IsValid()) { panel = p; break; }
+        if (panel == null)
+        {
+            EditorUtility.DisplayDialog("Map Dropdown", "No Create Room panel in the open scene. Open Assets/Scenes/MainMenu first.", "OK");
+            return;
+        }
+
+        var so = new SerializedObject(panel);
+        if (so.FindProperty("mapDropdown").objectReferenceValue != null)
+        {
+            EditorUtility.DisplayDialog("Map Dropdown", "This Create Room panel already has a Map Dropdown. Nothing changed.", "OK");
+            return;
+        }
+        var difficulty = so.FindProperty("difficultyDropdown").objectReferenceValue as TMP_Dropdown;
+        var mapLabel = so.FindProperty("mapText").objectReferenceValue as TMP_Text;
+        if (difficulty == null || mapLabel == null || mapLabel.transform.parent != difficulty.transform.parent)
+        {
+            EditorUtility.DisplayDialog("Map Dropdown", "The panel's Map text or Difficulty dropdown is missing or was moved. Nothing changed.", "OK");
+            return;
+        }
+
+        Transform parent = difficulty.transform.parent;
+        GameObject copy = Object.Instantiate(difficulty.gameObject, parent);
+        Undo.RegisterCreatedObjectUndo(copy, "Add Map Dropdown");
+        copy.name = "Map Dropdown";
+        copy.transform.SetSiblingIndex(mapLabel.transform.GetSiblingIndex() + 1);
+
+        var row = (RectTransform)difficulty.transform;
+        LayoutElement element = difficulty.GetComponent<LayoutElement>();
+        float rowHeight = element != null && element.preferredHeight > 0f ? element.preferredHeight
+                        : row.rect.height > 1f ? row.rect.height : 56f;
+        VerticalLayoutGroup group = parent.GetComponent<VerticalLayoutGroup>();
+        if (parent is RectTransform card && group != null)
+        {
+            Undo.RecordObject(card, "Add Map Dropdown");
+            card.sizeDelta += new Vector2(0f, rowHeight + group.spacing);
+        }
+
+        Undo.RecordObject(mapLabel, "Add Map Dropdown");
+        mapLabel.text = "Map";
+        Undo.RecordObject(panel, "Add Map Dropdown");
+        so.FindProperty("mapDropdown").objectReferenceValue = copy.GetComponent<TMP_Dropdown>();
+        so.ApplyModifiedProperties();
+
+        EditorSceneManager.MarkSceneDirty(panel.gameObject.scene);
+        Selection.activeGameObject = copy;
+        Debug.Log("[MainMenuBuilder] Added 'Map Dropdown' under the Map label of the Create Room panel. Save the scene (Ctrl+S).", copy);
+    }
+
     private static T ReplacePanel<T>(RectTransform canvas, string name, System.Func<T> build) where T : Component
     {
+        // 17 Nov 2026 (Mr.k): create if missing, never delete. An existing panel keeps the team's edits.
         Transform old = canvas.Find(name);
-        int sibling = old != null ? old.GetSiblingIndex() : -1;
-        if (old != null) Object.DestroyImmediate(old.gameObject);
+        if (old != null && old.GetComponent<T>() != null) return old.GetComponent<T>();
 
         T panel = build();
-        if (sibling >= 0) panel.transform.SetSiblingIndex(sibling);
         panel.gameObject.SetActive(false);
         SetLayerRecursively(panel.gameObject, uiLayer);
         return panel;
@@ -744,12 +809,14 @@ public static class MainMenuBuilder
         }
 
         MainMenuController menu = root.GetComponent<MainMenuController>();
-        Transform old = root.transform.Find("Settings Panel");
-        int sibling = old != null ? old.GetSiblingIndex() : -1;
-        if (old != null) Object.DestroyImmediate(old.gameObject);
+        // 17 Nov 2026 (Mr.k): create if missing, never delete.
+        if (root.transform.Find("Settings Panel") != null)
+        {
+            log.AppendLine("- MainMenu: Settings panel is already there. Kept as it is (nothing rebuilt).");
+            return;
+        }
 
         SettingsPanel panel = BuildSettingsPanel((RectTransform)root.transform, menu);
-        if (sibling >= 0) panel.transform.SetSiblingIndex(sibling);
         panel.gameObject.SetActive(false);
         SetLayerRecursively(panel.gameObject, uiLayer);
 
@@ -757,7 +824,7 @@ public static class MainMenuBuilder
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
-        log.AppendLine("- MainMenu: Settings panel rebuilt (tabs: General / Display / Sound / Controls). Nothing else in the menu was touched.");
+        log.AppendLine("- MainMenu: Settings panel made (tabs: General / Display / Sound / Controls). Nothing else in the menu was touched.");
     }
 
     /// <summary>
@@ -798,6 +865,12 @@ public static class MainMenuBuilder
 
     private static void BuildPauseMenuPrefab(StringBuilder log)
     {
+        // 17 Nov 2026 (Mr.k): create if missing, never overwrite (the prefab may hold the team's edits).
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(PauseMenuPrefabPath) != null)
+        {
+            log.AppendLine("- " + PauseMenuPrefabPath + " is already there. Kept as it is (nothing rebuilt).");
+            return;
+        }
         EnsureFolder(PauseMenuFolder);
 
         // Build in a throw-away preview scene so the open scene is never dirtied.
@@ -967,6 +1040,13 @@ public static class MainMenuBuilder
     // =========================================================================
     // Scene helpers
     // =========================================================================
+
+    private static bool HasRoot(Scene scene, string name)
+    {
+        foreach (GameObject root in scene.GetRootGameObjects())
+            if (root.name == name) return true;
+        return false;
+    }
 
     private static void DestroyRoot(Scene scene, string name)
     {

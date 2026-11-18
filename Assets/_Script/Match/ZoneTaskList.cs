@@ -441,96 +441,165 @@ public class ZoneTaskList : NetworkBehaviour
     private static readonly Color DoneColor = new Color(0.55f, 0.55f, 0.55f);
     private static readonly Color StrikeColor = new Color(0.95f, 0.2f, 0.2f);
 
-    private TMP_Text[] lineTexts;
-    // 14 Oct: one strike per text row (long lines wrap onto 2+ rows).
-    private List<RectTransform>[] strikes;
-    private float[] strikeStart;
-    private bool[] strikeFinished;
-    private int[] shownProgress;
-    private int[] shownTarget;
+    // 15 Nov 2026 (Mr.k): the drawing moved into BoardView, so the same list can be drawn more than
+    // once (ZoneTaskBoardMirror: display-only copies of a board, e.g. in the Staff Room).
+    private BoardView ownBoard;
 
-    private void BuildBoard()
+    /// <summary>The heading drawn on this list's boards.</summary>
+    public string BoardTitle => DisplayTitle;
+
+    /// <summary>Board size in metres before Play (lines that wrap make it a bit taller in Play).</summary>
+    public Vector2 ApproxBoardSize => new Vector2(boardWidth, (150f + 80f * Mathf.Max(1, tasks.Count)) / PixelsPerMetre);
+
+    private void BuildBoard() => ownBoard = new BoardView(this, transform);
+
+    /// <summary>
+    /// Draws this list's board under another object and returns it. The caller calls
+    /// <see cref="BoardView.Tick"/> every frame. Display only: it never counts or changes anything.
+    /// </summary>
+    public BoardView BuildBoardOn(Transform parent) => new BoardView(this, parent);
+
+    private void LateUpdate()
     {
-        float width = boardWidth * PixelsPerMetre;
-
-        var canvasGo = new GameObject("Task Board Canvas", typeof(RectTransform), typeof(Canvas));
-        canvasGo.transform.SetParent(transform, false);
-        // A world canvas is read from its -Z side; turn it so it reads from the object's forward.
-        canvasGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-        canvasGo.transform.localScale = Vector3.one / PixelsPerMetre;
-        var canvas = canvasGo.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        var canvasRt = (RectTransform)canvasGo.transform;
-        canvasRt.sizeDelta = new Vector2(width, 150f + 80f * Mathf.Max(1, tasks.Count)); // final height set below
-
-        Image background = NewImage("Background", canvasRt, new Color(0.05f, 0.04f, 0.04f, 0.92f));
-        Stretch(background.rectTransform, 0f, 0f);
-
-        TMP_Text titleText = NewText("Title", canvasRt, DisplayTitle, 56, new Color(1f, 0.8f, 0.3f), FontStyles.Bold);
-        titleText.alignment = TextAlignmentOptions.Center;
-        titleText.enableAutoSizing = true; // 7 Nov: "TICKET ZONE - POPCORN & WATER" must fit the board
-        titleText.fontSizeMin = 28f;
-        titleText.fontSizeMax = 56f;
-        Anchor(titleText.rectTransform, 30f, 20f, 90f);
-
-        lineTexts = new TMP_Text[tasks.Count];
-        strikes = new List<RectTransform>[tasks.Count];
-        strikeStart = new float[tasks.Count];
-        strikeFinished = new bool[tasks.Count];
-        shownProgress = new int[tasks.Count];
-        shownTarget = new int[tasks.Count];
-
-        // 14 Oct: long lines WRAP to a new row instead of being cut with "...".
-        // Each line is as tall as its rows; the board grows to fit.
-        const float side = 40f;
-        float top = 130f;
-        for (int i = 0; i < tasks.Count; i++)
-        {
-            TMP_Text line = NewText("Task " + (i + 1), canvasRt, "", 42, Color.white, FontStyles.Normal);
-            line.alignment = TextAlignmentOptions.MidlineLeft;
-            line.textWrappingMode = TextWrappingModes.Normal;
-            line.overflowMode = TextOverflowModes.Overflow;
-            // Measure with the widest numbers the line will show ("00/00").
-            string sample = $"{i + 1}. {tasks[i].label}   00/00";
-            float lineHeight = Mathf.Max(70f, line.GetPreferredValues(sample, width - side * 2f, 0f).y + 8f);
-            Anchor(line.rectTransform, side, top, lineHeight);
-            top += lineHeight + 10f;
-            lineTexts[i] = line;
-
-            strikes[i] = new List<RectTransform>(2);
-            strikeStart[i] = -1f;
-            shownProgress[i] = -1;
-        }
-        canvasRt.sizeDelta = new Vector2(width, top + 10f);
+        if (ownBoard != null) ownBoard.Tick();
     }
 
     /// <summary>
-    /// Draws the strike lines of task i, 0..1 of the way across. One per text row,
-    /// read from TMP's row info, so a wrapped line is struck on every row.
+    /// One drawn board of a task list (world canvas "Task Board Canvas"). Reads the list's
+    /// synced progress and targets; holds no game state of its own. LOCAL on every machine.
     /// </summary>
-    private void SetStrikes(int i, float t)
+    public sealed class BoardView
     {
-        List<RectTransform> list = strikes[i];
-        int rows = 0;
-        TMP_TextInfo info = null;
-        if (t > 0f)
+        private readonly ZoneTaskList list;
+        private TMP_Text[] lineTexts;
+        // 14 Oct: one strike per text row (long lines wrap onto 2+ rows).
+        private List<RectTransform>[] strikes;
+        private float[] strikeStart;
+        private bool[] strikeFinished;
+        private int[] shownProgress;
+        private int[] shownTarget;
+
+        public BoardView(ZoneTaskList list, Transform parent)
         {
-            lineTexts[i].ForceMeshUpdate();
-            info = lineTexts[i].textInfo;
-            rows = info.lineCount;
+            this.list = list;
+            Build(parent);
         }
 
-        while (list.Count < rows) list.Add(NewStrike(lineTexts[i].rectTransform));
-        for (int r = 0; r < list.Count; r++)
+        private void Build(Transform parent)
         {
-            bool on = r < rows;
-            if (list[r].gameObject.activeSelf != on) list[r].gameObject.SetActive(on);
-            if (!on) continue;
-            TMP_LineInfo row = info.lineInfo[r];
-            float left = row.lineExtents.min.x;
-            float right = row.lineExtents.max.x;
-            list[r].anchoredPosition = new Vector2(left, (row.ascender + row.descender) * 0.5f);
-            list[r].sizeDelta = new Vector2(Mathf.Max(0f, right - left) * t, 7f);
+            List<ZoneTask> tasks = list.tasks;
+            float width = list.boardWidth * PixelsPerMetre;
+
+            var canvasGo = new GameObject("Task Board Canvas", typeof(RectTransform), typeof(Canvas));
+            canvasGo.transform.SetParent(parent, false);
+            // A world canvas is read from its -Z side; turn it so it reads from the object's forward.
+            canvasGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            canvasGo.transform.localScale = Vector3.one / PixelsPerMetre;
+            var canvas = canvasGo.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            var canvasRt = (RectTransform)canvasGo.transform;
+            canvasRt.sizeDelta = new Vector2(width, 150f + 80f * Mathf.Max(1, tasks.Count)); // final height set below
+
+            Image background = NewImage("Background", canvasRt, new Color(0.05f, 0.04f, 0.04f, 0.92f));
+            Stretch(background.rectTransform, 0f, 0f);
+
+            TMP_Text titleText = NewText("Title", canvasRt, list.DisplayTitle, 56, new Color(1f, 0.8f, 0.3f), FontStyles.Bold);
+            titleText.alignment = TextAlignmentOptions.Center;
+            titleText.enableAutoSizing = true; // 7 Nov: "TICKET ZONE - POPCORN & WATER" must fit the board
+            titleText.fontSizeMin = 28f;
+            titleText.fontSizeMax = 56f;
+            Anchor(titleText.rectTransform, 30f, 20f, 90f);
+
+            lineTexts = new TMP_Text[tasks.Count];
+            strikes = new List<RectTransform>[tasks.Count];
+            strikeStart = new float[tasks.Count];
+            strikeFinished = new bool[tasks.Count];
+            shownProgress = new int[tasks.Count];
+            shownTarget = new int[tasks.Count];
+
+            // 14 Oct: long lines WRAP to a new row instead of being cut with "...".
+            // Each line is as tall as its rows; the board grows to fit.
+            const float side = 40f;
+            float top = 130f;
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                TMP_Text line = NewText("Task " + (i + 1), canvasRt, "", 42, Color.white, FontStyles.Normal);
+                line.alignment = TextAlignmentOptions.MidlineLeft;
+                line.textWrappingMode = TextWrappingModes.Normal;
+                line.overflowMode = TextOverflowModes.Overflow;
+                // Measure with the widest numbers the line will show ("00/00").
+                string sample = $"{i + 1}. {tasks[i].label}   00/00";
+                float lineHeight = Mathf.Max(70f, line.GetPreferredValues(sample, width - side * 2f, 0f).y + 8f);
+                Anchor(line.rectTransform, side, top, lineHeight);
+                top += lineHeight + 10f;
+
+                lineTexts[i] = line;
+                strikes[i] = new List<RectTransform>(2);
+                strikeStart[i] = -1f;
+                shownProgress[i] = -1;
+            }
+            canvasRt.sizeDelta = new Vector2(width, top + 10f);
+        }
+
+        /// <summary>
+        /// Draws the strike lines of task i, 0..1 of the way across. One per text row,
+        /// read from TMP's row info, so a wrapped line is struck on every row.
+        /// </summary>
+        private void SetStrikes(int i, float t)
+        {
+            List<RectTransform> rowStrikes = strikes[i];
+            int rows = 0;
+            TMP_TextInfo info = null;
+            if (t > 0f)
+            {
+                lineTexts[i].ForceMeshUpdate();
+                info = lineTexts[i].textInfo;
+                rows = info.lineCount;
+            }
+            while (rowStrikes.Count < rows) rowStrikes.Add(NewStrike(lineTexts[i].rectTransform));
+            for (int r = 0; r < rowStrikes.Count; r++)
+            {
+                bool on = r < rows;
+                if (rowStrikes[r].gameObject.activeSelf != on) rowStrikes[r].gameObject.SetActive(on);
+                if (!on) continue;
+                TMP_LineInfo row = info.lineInfo[r];
+                float left = row.lineExtents.min.x;
+                float right = row.lineExtents.max.x;
+                rowStrikes[r].anchoredPosition = new Vector2(left, (row.ascender + row.descender) * 0.5f);
+                rowStrikes[r].sizeDelta = new Vector2(Mathf.Max(0f, right - left) * t, 7f);
+            }
+        }
+
+        /// <summary>Call every frame (LateUpdate): redraws lines whose numbers changed and runs the strike animation.</summary>
+        public void Tick()
+        {
+            if (lineTexts == null || list == null) return;
+            List<ZoneTask> tasks = list.tasks;
+            for (int i = 0; i < lineTexts.Length && i < tasks.Count; i++)
+            {
+                if (lineTexts[i] == null) continue; // the board object was destroyed
+                int target = list.TargetOf(i);
+                int value = Mathf.Min(list.ProgressOf(i), target);
+                bool done = value >= target;
+
+                if (value != shownProgress[i] || target != shownTarget[i])
+                {
+                    shownProgress[i] = value;
+                    shownTarget[i] = target;
+                    lineTexts[i].text = $"{i + 1}. {tasks[i].label}   {value}/{target}";
+                    lineTexts[i].color = done ? DoneColor : Color.white;
+                    if (done && strikeStart[i] < 0f) { strikeStart[i] = Time.time; strikeFinished[i] = false; }
+                    if (!done) { strikeStart[i] = -1f; strikeFinished[i] = false; SetStrikes(i, 0f); }
+                    else if (strikeFinished[i]) SetStrikes(i, 1f); // text changed after the strike: redo rows
+                }
+
+                if (strikeStart[i] >= 0f && !strikeFinished[i])
+                {
+                    float t = Mathf.Clamp01((Time.time - strikeStart[i]) / StrikeSeconds);
+                    SetStrikes(i, t);
+                    if (t >= 1f) strikeFinished[i] = true;
+                }
+            }
         }
     }
 
@@ -542,36 +611,6 @@ public class ZoneTaskList : NetworkBehaviour
         srt.pivot = new Vector2(0f, 0.5f);
         srt.sizeDelta = new Vector2(0f, 7f);
         return srt;
-    }
-
-    private void LateUpdate()
-    {
-        if (lineTexts == null) return;
-
-        for (int i = 0; i < lineTexts.Length; i++)
-        {
-            int target = TargetOf(i);
-            int value = Mathf.Min(ProgressOf(i), target);
-            bool done = value >= target;
-
-            if (value != shownProgress[i] || target != shownTarget[i])
-            {
-                shownProgress[i] = value;
-                shownTarget[i] = target;
-                lineTexts[i].text = $"{i + 1}. {tasks[i].label}   {value}/{target}";
-                lineTexts[i].color = done ? DoneColor : Color.white;
-                if (done && strikeStart[i] < 0f) { strikeStart[i] = Time.time; strikeFinished[i] = false; }
-                if (!done) { strikeStart[i] = -1f; strikeFinished[i] = false; SetStrikes(i, 0f); }
-                else if (strikeFinished[i]) SetStrikes(i, 1f); // text changed after the strike: redo rows
-            }
-
-            if (strikeStart[i] >= 0f && !strikeFinished[i])
-            {
-                float t = Mathf.Clamp01((Time.time - strikeStart[i]) / StrikeSeconds);
-                SetStrikes(i, t);
-                if (t >= 1f) strikeFinished[i] = true;
-            }
-        }
     }
 
     private static TMP_Text NewText(string name, RectTransform parent, string text, float size, Color color, FontStyles style)

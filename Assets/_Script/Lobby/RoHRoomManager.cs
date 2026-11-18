@@ -188,7 +188,7 @@ public class RoHRoomManager : NetworkRoomManager
     {
         if (serverStopping || conn == null || conn is LocalConnectionToClient || conn.identity == null) return;
         MatchDirector match = MatchDirector.Instance;
-        if (match == null || !match.RoundRunning || match.ServerIsFinished(conn.identity)) return;
+        if (match == null || !match.InMatch || match.ServerIsFinished(conn.identity)) return; // 17 Nov: the pre-shift counts too
         if (conn.identity.TryGetComponent(out PlayerItemThrow items)) items.ServerDropOnLeave();
     }
 
@@ -251,6 +251,11 @@ public class RoHRoomManager : NetworkRoomManager
         // Hide the room from the browser as "in progress". Mirror refuses late
         // joiners anyway (OnServerConnect), this just stops people trying.
         if (LobbyController.Instance != null) LobbyController.Instance.MarkRoomInProgress(true);
+
+        // 17 Nov (Task 8): the entry time picked on the Lobby Board goes into the match.
+        RoomConfig pending = MatchState.PendingConfig;
+        if (pending == null) { pending = new RoomConfig(); MatchState.SetPendingConfig(pending); }
+        pending.entryMinutesBefore = RoHRoomPlayer.HostEntryMinutes;
 
         FreezeProbe.Mark("host pressed Start");
         FreezeProbe.Watch(15);

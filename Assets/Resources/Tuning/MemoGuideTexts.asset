@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b44e6a13438fef4fa187710853af113, type: 3}
+  m_Name: MemoGuideTexts
+  m_EditorClassIdentifier: Assembly-CSharp::MemoGuideTexts
+  liveTitle: What to do now
+  dangerTitle: DANGER - do this now
+  noZone: Walk into a work zone. This page tells you what to do there.
+  nothingHere: Nothing to do in this zone right now. Try another zone.
+  costNote: Each new step you read costs a little sanity.
+  ticketSell: 'Stand behind the ticket counter. Sell each customer the right ticket:
+    a ghost ticket for a ghost, a human ticket for a human.'
+  foodPick: Pick up a popcorn bucket (or a cup for a drink) at the station.
+  popcornFill: Fill the bucket at the popcorn machine.
+  drinkFill: Fill the cup at the drink machine with the drink the customer asked
+    for.
+  popcornFlavor: Add the flavour the customer asked for. A ghost customer also needs
+    the Ghost Flavor.
+  foodServe: Give it to the customer at the counter.
+  filmWait: No film change yet. The projector glows yellow before the next one. Do
+    other work meanwhile.
+  filmTake: Take the film "{film}" from the film shelf next to the projector.
+  filmInsert: Hold E at the projector to put the film "{film}" in.
+  cleanWait: Nothing to clean here yet. The mops glow before cleaning time.
+  cleanGetMop: Get a mop from the Staff Room.
+  cleanStains: Follow the red arrows and hold E on each stain.
+  audienceStill: The audience is standing and staring. Do NOT move.
+  audienceLeave: Leave the Ghost Screen Room now.
+  staffFindShadow: The screen shows static. Find the black shadow on a seat and stand
+    on it.
+  staffStay: Stay on the shadow until the screen comes back.
+  mirrorLook: A mirror is cracked. Look at the crack until it stops.
+  cryingLightOff: Someone is crying in the last stall. Turn the toilet light OFF
+    (switch by the door).
+  cryingStill: Stay still in the dark until the crying stops.
+  smokeKnock: Smoke comes from a stall. Knock on that stall door (E).
+  smokeLightOff: Now turn the toilet light OFF.
+  smokeLeave: The smoke hurts. Get out of this toilet.
+  foodLightOff: 'Feed the ghost: turn the toilet light OFF first.'
+  foodThrowBox: Throw the black box in at the last stall (E on the drop spot).
+  foodLeave: Everyone out of the toilet now.
+  ticketGhostSigns: A ghost is coming back. Put each RESTROOM BREAK sign on its blue
+    spot.
+  ticketGhostQuiet: Turn the Ticket Zone lights OFF and stay quiet until the ghost
+    leaves.
+  partsHelp: A ghost at the counter lost a body part. Press E on it to help.
+  partsFind: Find its {part} (it cries louder when you are close) and bring it back
+    to the ghost.
+  flavorFind: The Ghost Flavor is gone. Lights off, find it (follow the trail) and
+    bring it back to the popcorn station.
+  filmLate: The ghost room film is LATE. Put the film "{film}" in the projector before
+    the next film, or everyone gets hurt.

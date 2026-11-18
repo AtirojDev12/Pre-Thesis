@@ -5,6 +5,10 @@ using UnityEngine.UI;
 /// <summary>
 /// 5 Oct (Mr.k). Battery bar for the flashlight in your hand (bottom right).
 /// Built in code like ThrowChargeHUD. Shown by FlashlightController.
+///
+/// 16 Nov 2026 (Mr.k): the bar is now a real part of the GAME HUD prefab (HudBar "flashlight":
+/// frame + fill + texts, all editable). This script is only the logic. If the GAME HUD has no
+/// such bar (run Tools > Pre-Thesis > UI > GAME HUD: Add Missing Parts), the old code-made bar is used.
 /// </summary>
 public sealed class FlashlightHUD : MonoBehaviour
 {
@@ -12,6 +16,7 @@ public sealed class FlashlightHUD : MonoBehaviour
     private Image fill;
     private TMP_Text label;
     private TMP_Text hint;
+    private HudBar bar; // 16 Nov: the bar inside the GAME HUD (null = code-made bar)
     private int shownPercent = -1, shownState = -1; // rebuild text only on change (no garbage per frame)
 
     private static readonly Color Full = new Color(0.95f, 0.85f, 0.45f);
@@ -19,6 +24,16 @@ public sealed class FlashlightHUD : MonoBehaviour
 
     public static FlashlightHUD Create()
     {
+        HudBar hudBar = HudBar.Find(HudBar.Flashlight);
+        if (hudBar != null)
+        {
+            // Logic only: the pictures and texts live in the GAME HUD prefab.
+            FlashlightHUD logic = new GameObject("Flashlight HUD (logic)").AddComponent<FlashlightHUD>();
+            logic.bar = hudBar;
+            hudBar.Show(false);
+            return logic;
+        }
+
         var root = new GameObject("Flashlight HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
         Canvas canvas = root.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -58,7 +73,8 @@ public sealed class FlashlightHUD : MonoBehaviour
     /// <param name="usesBatteries">Paid flashlight: hint says R + how many Batteries you carry.</param>
     public void Show(string itemName, float charge, bool switchedOn, bool usesBatteries, int batteries)
     {
-        if (!gameObject.activeSelf) gameObject.SetActive(true);
+        if (bar != null) bar.Show(true);
+        else if (!gameObject.activeSelf) gameObject.SetActive(true);
         charge = Mathf.Clamp01(charge);
         int percent = Mathf.CeilToInt(charge * 100f);
         bool low = charge < 0.25f;
@@ -68,23 +84,40 @@ public sealed class FlashlightHUD : MonoBehaviour
             shownPercent = percent;
             shownState = state;
             string word = charge <= 0f ? "<color=#FF6A5A>EMPTY</color>" : switchedOn ? "ON" : "OFF";
-            label.text = $"{itemName}  {word}  {percent}%";
+            string labelText = $"{itemName}  {word}  {percent}%";
+            string hintText;
             if (usesBatteries)
-                hint.text = batteries > 0
+                hintText = batteries > 0
                     ? (low ? $"PRESS [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] FOR A NEW BATTERY (x{batteries})" : $"[{FlashlightController.ToggleHint}] on/off   [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] battery x{batteries}")
                     : (low ? "NO BATTERIES - buy them in the lobby shop" : $"[{FlashlightController.ToggleHint}] on/off   no batteries");
             else
-                hint.text = low ? $"MASH [{Keybinds.KeyName(GameAction.FlashlightCrank).ToUpperInvariant()}] TO CHARGE" : $"[{FlashlightController.ToggleHint}] on/off   [{Keybinds.KeyName(GameAction.FlashlightCrank)}] charge";
+                hintText = low ? $"MASH [{Keybinds.KeyName(GameAction.FlashlightCrank).ToUpperInvariant()}] TO CHARGE" : $"[{FlashlightController.ToggleHint}] on/off   [{Keybinds.KeyName(GameAction.FlashlightCrank)}] charge";
+            if (bar != null) { bar.SetLabel(labelText); bar.SetHint(hintText); }
+            else { label.text = labelText; hint.text = hintText; }
+        }
+        // Pulse the prompt so a dying light is noticed.
+        float hintAlpha = low ? 0.55f + 0.45f * Mathf.Sin(Time.unscaledTime * 8f) : 1f;
+        if (bar != null)
+        {
+            bar.Set(charge);
+            bar.SetFillColour(low ? Low : Full);
+            bar.SetHintAlpha(hintAlpha);
+            return;
         }
         fill.rectTransform.sizeDelta = new Vector2(BarWidth * charge, 14);
         fill.color = low ? Low : Full;
-        // Pulse the prompt so a dying light is noticed.
-        hint.alpha = low ? 0.55f + 0.45f * Mathf.Sin(Time.unscaledTime * 8f) : 1f;
+        hint.alpha = hintAlpha;
     }
 
     public void Hide()
     {
+        if (bar != null) { bar.Show(false); return; }
         if (gameObject.activeSelf) gameObject.SetActive(false);
+    }
+
+    private void OnDestroy()
+    {
+        if (bar != null) bar.Show(false);
     }
 
     private static RectTransform Rect(string name, Transform parent, Vector2 size)

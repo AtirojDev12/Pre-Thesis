@@ -160,7 +160,7 @@ public sealed class ShopUI : MonoBehaviour
                 row.buy.gameObject.SetActive(have < max);
                 row.buy.interactable = money >= row.item.price;
                 row.status.text = have >= max ? $"<color=#73FF8C>x{have} (MAX)</color>"
-                    : $"<size=70%>x{have}/{max}</size>  <color=#FFCC4D>{row.item.price}</color>";
+                    : $"<size=70%>x{have}/{max}</size>  " + (row.item.price > 0 ? $"<color=#FFCC4D>{row.item.price}</color>" : "<color=#73FF8C>FREE</color>"); // 17 Nov: free syringe
                 continue;
             }
             row.buy.gameObject.SetActive(!owned);

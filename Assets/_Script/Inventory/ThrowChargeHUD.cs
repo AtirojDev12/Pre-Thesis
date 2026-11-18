@@ -2,14 +2,32 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Throw charge bar (left side), shown while you charge a throw.
+///
+/// 16 Nov 2026 (Mr.k): the bar is now a real part of the GAME HUD prefab (HudBar "throw":
+/// frame + fill + texts, all editable). This script is only the logic. If the GAME HUD has no
+/// such bar (run Tools > Pre-Thesis > UI > GAME HUD: Add Missing Parts), the old code-made bar is used.
+/// </summary>
 public sealed class ThrowChargeHUD : MonoBehaviour
 {
     private Image fill;
     private TMP_Text label;
     private TMP_Text hint;
+    private HudBar bar; // 16 Nov: the bar inside the GAME HUD (null = code-made bar)
 
     public static ThrowChargeHUD Create()
     {
+        HudBar hudBar = HudBar.Find(HudBar.ThrowCharge);
+        if (hudBar != null)
+        {
+            // Logic only: the pictures and texts live in the GAME HUD prefab.
+            ThrowChargeHUD logic = new GameObject("Throw Charge HUD (logic)").AddComponent<ThrowChargeHUD>();
+            logic.bar = hudBar;
+            hudBar.Show(false);
+            return logic;
+        }
+
         GameObject root = new GameObject("Throw Charge HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
         Canvas canvas = root.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -65,10 +83,30 @@ public sealed class ThrowChargeHUD : MonoBehaviour
     }
     public void Show(string itemName, float charge)
     {
+        charge = Mathf.Clamp01(charge);
+        string hintText = Keybinds.Fix(charge >= 1f ? "MAX\nRelease Q to throw" : "Release Q to throw"); // 20 Oct: rebindable
+        if (bar != null)
+        {
+            bar.Show(true);
+            bar.SetLabel(itemName);
+            bar.Set(charge);
+            bar.SetHint(hintText);
+            return;
+        }
         gameObject.SetActive(true);
         label.text = itemName;
-        fill.rectTransform.sizeDelta = new Vector2(24, 131 * Mathf.Clamp01(charge));
-        hint.text = Keybinds.Fix(charge >= 1f ? "MAX\nRelease Q to throw" : "Release Q to throw"); // 20 Oct: rebindable
+        fill.rectTransform.sizeDelta = new Vector2(24, 131 * charge);
+        hint.text = hintText;
     }
-    public void Hide() => gameObject.SetActive(false);
+
+    public void Hide()
+    {
+        if (bar != null) bar.Show(false);
+        else gameObject.SetActive(false);
+    }
+
+    private void OnDestroy()
+    {
+        if (bar != null) bar.Show(false);
+    }
 }

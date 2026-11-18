@@ -8,6 +8,9 @@ using UnityEngine;
 /// Punishment (nobody looks long enough): the mirror shatters — jumpscare,
 /// damage and sanity loss for everyone in this toilet.
 /// One copy of this rule per toilet room (men's, women's).
+///
+/// 16 Nov 2026 (Mr.k): the box only decides who the crack STARTS on. Those players (and anyone
+/// who walks in while it runs) are punished when it shatters, even if they left the toilet.
 /// </summary>
 public sealed class RuleCrackedMirror : ZoneRuleBase
 {
@@ -56,7 +59,8 @@ public sealed class RuleCrackedMirror : ZoneRuleBase
         if (!IsServerSide) return;
         if (!ServerRuleLive) { if (mirror >= 0) Reset(); return; }
 
-        List<PlayerHealth> players = ServerPlayersInside();
+        // No crack: who is inside (may it start?). Cracked: who it started on, wherever they are now.
+        List<PlayerHealth> players = mirror < 0 ? ServerPlayersInside() : ServerInvolved();
         if (shattered)
         {
             if (Now >= resetAt) Reset();
@@ -77,6 +81,7 @@ public sealed class RuleCrackedMirror : ZoneRuleBase
         {
             Log("Someone looked at the crack. It fades.");
             mirror = -1;
+            ServerRelease();
             Apply();
             nextRoll = Now + cooldownSeconds;
             return;
@@ -89,6 +94,7 @@ public sealed class RuleCrackedMirror : ZoneRuleBase
             Log("Nobody looked. The mirror shatters.");
             for (int i = 0; i < players.Count; i++)
                 ServerPunish(players[i], damage, sanityLoss, true, "The mirror shattered!");
+            ServerRelease();
         }
     }
 
@@ -97,6 +103,7 @@ public sealed class RuleCrackedMirror : ZoneRuleBase
         mirror = Random.Range(0, mirrors.Length);
         looked = 0f;
         deadline = Now + windowSeconds;
+        ServerLockIn();
         Apply();
         Log($"Mirror {mirror + 1} cracks.");
     }
@@ -105,6 +112,7 @@ public sealed class RuleCrackedMirror : ZoneRuleBase
     {
         mirror = -1;
         shattered = false;
+        ServerRelease();
         Apply();
         nextRoll = Now + cooldownSeconds;
     }
@@ -123,7 +131,8 @@ public sealed class RuleCrackedMirror : ZoneRuleBase
         {
             localTimer = 0.15f;
             localLooking = false;
-            if (mirror >= 0 && !shattered && mirrors != null && mirror < mirrors.Length && LocalInside)
+            // 16 Nov: no "inside the box" test here. The server only counts players the crack started on.
+            if (mirror >= 0 && !shattered && mirrors != null && mirror < mirrors.Length && LocalAlive)
             {
                 Camera cam = RuleFx.LocalCamera();
                 localLooking = RuleFx.IsLookingAt(cam != null ? cam.transform : null, mirrors[mirror].position,
@@ -152,5 +161,14 @@ public sealed class RuleCrackedMirror : ZoneRuleBase
             if (show) shatteredLook.SetPositionAndRotation(at.position, at.rotation);
             if (shatteredLook.gameObject.activeSelf != show) shatteredLook.gameObject.SetActive(show);
         }
+    }
+
+    /// <summary>17 Nov (Task 8): Memo Book steps.</summary>
+    public override bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (mirror < 0 || shattered || !ServerIsInvolved(player)) return false;
+        entry = GuideStep(GuideSeverity.ChaseOrHp, 0, MemoGuideTexts.Current.mirrorLook);
+        return true;
     }
 }

@@ -139,9 +139,10 @@ public sealed class SanitySettings : ScriptableObject
     public float taskDifficultyShaken = 1.25f;
     public float taskDifficultyBreaking = 1.5f;
 
-    [Header("Sanity bar (screen, from bottom-left, 1920x1080 units)")]
-    public Vector2 barPosition = new Vector2(24f, 130f);
-    public Vector2 barSize = new Vector2(280f, 14f);
+    // 14 Nov: the sanity bar now lives in the GAME HUD prefab (SanityBarUI); move/resize it there.
+    // Kept (hidden) only so existing SanitySettings assets load without data loss.
+    [HideInInspector] public Vector2 barPosition = new Vector2(24f, 130f);
+    [HideInInspector] public Vector2 barSize = new Vector2(280f, 14f);
 
     // ---- Runtime ------------------------------------------------------------
 

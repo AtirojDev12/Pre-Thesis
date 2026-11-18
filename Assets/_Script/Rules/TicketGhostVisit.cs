@@ -6,8 +6,9 @@ using UnityEngine.AI;
 /// 7 Nov 2026 (Mr.k): Ticket Zone rule "The one who returns" (the timed ghost, GhostManager).
 ///
 /// TIMELINE (GhostManager calls the hooks):
-///   1. Warning: Ticket Zone lights are switched ON (if a player had them off), the lights
-///      flicker, and both RESTROOM BREAK signs appear at their orange spots.
+///   1. Warning: Ticket Zone lights are switched ON (if a player had them off) and the lights
+///      flicker. (15 Nov: the RESTROOM BREAK signs are always in the map, on their orange home
+///      spots or wherever the players left them.)
 ///      Players have 10 s: put each sign on its blue spot, switch the lights OFF, stay quiet.
 ///   2. The ghost comes (short light cut, the special ingredient vanishes). It walks:
 ///        Popcorn sign's RED stop spot -> sign not on its blue spot and a player in the green
@@ -17,7 +18,8 @@ using UnityEngine.AI;
 ///        green seller area (Popcorn / Ticket seller: behind the counters).
 ///      If it senses a player on the way (sees in the light, hears in the dark) it chases and
 ///      attacks (the visit ends). A noise that is not a player: it checks it, then goes on.
-///   3. The ghost leaves: the signs vanish and the lights come back ON by themselves.
+///   3. The ghost leaves: the lights come back ON by themselves. The signs STAY (15 Nov). A sign
+///      left on its blue spot keeps its counter closed (no customers) until it is carried away.
 ///
 /// SERVER ONLY logic (plain MonoBehaviour, no network state of its own: the signs replicate).
 /// Made by Tools > Pre-Thesis > Scenes > Map: Ticket Ghost Restroom Break Signs.
@@ -61,20 +63,40 @@ public sealed class TicketGhostVisit : MonoBehaviour
 
     // ---- Hooks from GhostManager (server / offline) ----------------------------------------
 
-    /// <summary>SERVER. Warning starts: Ticket Zone lights on, signs appear.</summary>
+    /// <summary>SERVER. Warning starts: Ticket Zone lights on. (15 Nov: the signs are already in the map.)</summary>
     public void ServerWarningStarted()
     {
         SetZoneLights(true);
-        foreach (RestBreakSign sign in signs) if (sign != null) sign.ServerShow();
         routeGhost = null;
+        visitRunning = true; // 17 Nov: Memo Book
+        visits++;
     }
 
-    /// <summary>SERVER. The ghost is gone (time up or after an attack): signs vanish, lights back on.</summary>
+    /// <summary>SERVER. The ghost is gone (time up or after an attack): lights back on. (15 Nov: the signs stay.)</summary>
     public void ServerGhostGone()
     {
-        foreach (RestBreakSign sign in signs) if (sign != null) sign.ServerHide();
         SetZoneLights(true);
         routeGhost = null;
+        visitRunning = false;
+    }
+
+    // ---- Memo Book live guide (17 Nov, Task 8) ------------------------------------------------
+
+    private bool visitRunning;
+    private int visits;
+
+    /// <summary>SERVER. Survival step for a player in the Ticket Zone while the ghost visit runs.</summary>
+    public bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (!visitRunning || player == null || !MemoGuide.InZoneOrNoBox(ZoneTaskList.TicketZoneID, player.transform.position)) return false;
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        bool allPlaced = true;
+        foreach (RestBreakSign sign in signs) if (sign != null && !sign.IsPlaced) { allPlaced = false; break; }
+        entry = allPlaced
+            ? GuideEntry.Make(GuideSeverity.ChaseOrHp, "ticket-ghost:" + visits + ":1", t.ticketGhostQuiet)
+            : GuideEntry.Make(GuideSeverity.ChaseOrHp, "ticket-ghost:" + visits + ":0", t.ticketGhostSigns);
+        return true;
     }
 
     private void SetZoneLights(bool on)

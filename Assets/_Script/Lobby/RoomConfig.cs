@@ -30,9 +30,34 @@ public class RoomConfig
     public int playerLimit = MaxPlayers;
     public bool isPrivate = false;
     public string password = string.Empty;
+    /// <summary>17 Nov (Task 8): minutes before 00:00 the team enters the map (0 = 00:00, 60 = 23:00). Host picks it on the Lobby Board.</summary>
+    public int entryMinutesBefore = 0;
+
+    /// <summary>17 Nov: the entry times the host can pick (minutes before 00:00).</summary>
+    public static readonly int[] EntryChoices = { 60, 45, 30, 15, 0 };
+
+    /// <summary>Clamps to one of <see cref="EntryChoices"/>.</summary>
+    public static int CleanEntry(int minutes)
+    {
+        int best = 0, bestGap = int.MaxValue;
+        foreach (int choice in EntryChoices)
+        {
+            int gap = Math.Abs(choice - minutes);
+            if (gap < bestGap) { bestGap = gap; best = choice; }
+        }
+        return best;
+    }
+
+    /// <summary>"11:30 PM" for an entry time.</summary>
+    public static string EntryLabel(int minutesBefore)
+    {
+        int total = (24 * 60 - CleanEntry(minutesBefore)) % (24 * 60);
+        return MatchHUD.FormatClock(total / 60, total % 60);
+    }
 
     /// <summary>
     /// Clamps values into range and enforces "private rooms need a password".
+    /// 15 Nov: also refuses a locked difficulty or a locked / unknown map (RoomLocks, MapCatalog).
     /// Call this on the HOST/server side immediately before CreateLobby — treat
     /// any RoomConfig built from UI input as untrusted until it passes this.
     /// </summary>
@@ -40,6 +65,19 @@ public class RoomConfig
     {
         playerLimit = Math.Clamp(playerLimit, MinPlayers, MaxPlayers);
         roomName = SanitizeRoomName(roomName);
+        entryMinutesBefore = CleanEntry(entryMinutesBefore);
+
+        // 15 Nov (Mr.k): Hard and 13 Rules are locked for now; only the Cinema map is open.
+        if (RoomLocks.IsLocked(difficulty))
+        {
+            error = RoomDisplay.Difficulty(difficulty) + " is locked for now.";
+            return false;
+        }
+        if (MapCatalog.IsLocked(mapID))
+        {
+            error = RoomDisplay.MapName(mapID) + " is locked for now.";
+            return false;
+        }
 
         if (isPrivate && string.IsNullOrWhiteSpace(password))
         {

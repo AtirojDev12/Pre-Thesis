@@ -13,6 +13,10 @@ using UnityEngine;
 ///
 /// Result: the map has 3 zones (Ticket Zone, Screen Rooms, Toilets). Ticket and popcorn
 /// sales already report to every board, so no gameplay script changes.
+///
+/// 15 Nov 2026 (Mr.k): the Ticket Zone now has TWO boards on purpose (Tickets + Food, still one
+/// zone): see TaskBoardSetup. This tool is kept only to put them back on one board; its menu
+/// name now starts with "(old)".
 /// </summary>
 public static class TicketZoneMergeSetup
 {
@@ -20,7 +24,7 @@ public static class TicketZoneMergeSetup
     private const string PopcornID = "zone_popcorn";
     private const string Title = "TICKET ZONE";
 
-    [MenuItem("Tools/Pre-Thesis/Scenes/Map: Merge Ticket + Popcorn Boards (one Ticket Zone)", false, 61)]
+    [MenuItem("Tools/Pre-Thesis/Scenes/Map: (old) Merge Ticket + Food Boards Into One", false, 99)]
     private static void Merge()
     {
         if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog("Ticket Zone", "Stop Play mode first.", "OK"); return; }

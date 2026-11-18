@@ -122,7 +122,7 @@ public sealed class PlayerItemThrow : NetworkBehaviour
         if (!valid || !Finite(direction.x) || !Finite(direction.y) || !Finite(direction.z) || direction.sqrMagnitude < 0.01f) return;
         ItemCatalog.ItemInfo info = ItemCatalog.Find(serverItem);
         if (info == null || !info.throwable || string.IsNullOrEmpty(info.worldPrefabPath)) return;
-        GameObject prefab = Resources.Load<GameObject>(info.worldPrefabPath);
+        GameObject prefab = ItemCatalog.LoadWorldPrefab(serverItem); // 17 Nov: new free models fall back to the paid ones
         if (prefab == null) { Debug.LogError("Missing world item prefab: " + info.worldPrefabPath, this); return; }
         direction.Normalize();
         float elapsed = Mathf.Max(0f, (float)(Now - serverStarted));
@@ -190,13 +190,15 @@ public sealed class PlayerItemThrow : NetworkBehaviour
     {
         Vector3 basePosition = transform.position + Vector3.up * 0.6f;
         int dropped = 0;
+        float memoTag = MemoBook.OwnerTag(gameObject); // 17 Nov (Task 8)
         for (int i = 0; i < PlayerInventory.SlotCount; i++)
         {
             InventorySlot state = inventory.GetSlot(i);
             if (state.IsEmpty) continue;
+            // 17 Nov (Task 8): your own Memo Book is destroyed, not dropped.
+            if (MemoBook.OwnedBy(state, gameObject)) { inventory.ServerRemoveAt(i); continue; }
             ItemCatalog.ItemInfo info = ItemCatalog.Find(state.itemId);
-            GameObject prefab = info != null && !string.IsNullOrEmpty(info.worldPrefabPath)
-                ? Resources.Load<GameObject>(info.worldPrefabPath) : null;
+            GameObject prefab = info != null ? ItemCatalog.LoadWorldPrefab(state.itemId) : null; // 17 Nov: fallback for new models
             if (inventory.ServerRemoveAt(i) == null) continue;
             if (prefab == null) continue;
 
@@ -216,6 +218,8 @@ public sealed class PlayerItemThrow : NetworkBehaviour
             dropped++;
         }
         if (dropped > 0) Debug.Log($"[PlayerItemThrow] {name}: dropped {dropped} item(s).", this);
+        // 17 Nov (Task 8, #72): copies of your Memo Book that others hold or that lie on the floor go too.
+        MemoBook.ServerDestroyCopiesOf(memoTag);
     }
 
     /// <summary>How far out an item can go before a wall (never inside the body: min 0.55 m).</summary>

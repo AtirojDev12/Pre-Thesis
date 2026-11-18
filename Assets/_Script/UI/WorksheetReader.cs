@@ -53,7 +53,11 @@ public sealed class WorksheetReader : MonoBehaviour
         new Color(0.06f, 0.52f, 0.52f), new Color(0.70f, 0.18f, 0.40f), new Color(0.40f, 0.44f, 0.12f),
     };
 
-    private enum Kind { Goal, Win, Zone, Tips }
+    private enum Kind { Goal, Win, Zone, Tips, Live }
+
+    // ---- 17 Nov (Task 8): the LIVE guide (own Memo Book, its map, from 00:00) ----
+    private bool live;
+    private string liveKey = "";
 
     private struct Topic
     {
@@ -129,7 +133,15 @@ public sealed class WorksheetReader : MonoBehaviour
             if (Time.unscaledTime >= nextRefresh)
             {
                 nextRefresh = Time.unscaledTime + RefreshSeconds;
-                if (RefreshData()) Rebuild();
+                bool nowLive = MemoGuide.LocalLive();
+                if (RefreshData() || nowLive != live) { live = nowLive; Rebuild(); }
+                else if (live)
+                {
+                    // Zones done X / Y can change; the step can change.
+                    UpdateLiveHeader();
+                    MemoGuide.LocalStep(out string key, out _, out _);
+                    if (key != liveKey) ShowPage(current);
+                }
             }
             return;
         }
@@ -155,6 +167,7 @@ public sealed class WorksheetReader : MonoBehaviour
         EnsureUi();
         EnsureEventSystem();
         signature = "";
+        live = MemoGuide.LocalLive();
         RefreshData();
         Rebuild();
         canvasRoot.SetActive(true);
@@ -218,7 +231,12 @@ public sealed class WorksheetReader : MonoBehaviour
     private void Rebuild()
     {
         topics.Clear();
-        if (guide != null)
+        if (live)
+        {
+            // 17 Nov (Task 8): one live page. No topics to pick.
+            topics.Add(new Topic { kind = Kind.Live, badge = "!", label = MemoGuideTexts.Current.liveTitle, detail = "", color = GoalColor });
+        }
+        else if (guide != null)
         {
             topics.Add(new Topic { kind = Kind.Goal, badge = "!", label = "Your goal", detail = "", color = GoalColor });
             topics.Add(new Topic { kind = Kind.Win, badge = "?", label = "How to win", detail = "", color = WinColor });
@@ -240,6 +258,7 @@ public sealed class WorksheetReader : MonoBehaviour
                        "Difficulty: <b>" + RoomDisplay.Difficulty(difficulty) + "</b>     Players: <b>" + players + "</b>";
         goalText.text = guide == null ? "<size=60%>No guide for this map yet.</size>"
             : "<size=55%><color=#5A4A2A>TONIGHT'S GOAL</color></size>\nFinish <color=#A00000>" + required + (required == 1 ? " zone" : " zones") + "</color>";
+        if (live) UpdateLiveHeader();
 
         // Topic buttons.
         for (int i = topicList.childCount - 1; i >= 0; i--)
@@ -283,9 +302,13 @@ public sealed class WorksheetReader : MonoBehaviour
             Destroy(old);
         }
         pageNumber.text = topics.Count > 0 ? (index + 1) + " / " + topics.Count : "";
-        if (guide == null || topics.Count == 0)
+        if (live)
         {
-            Heading("Work sheet", Ink);
+            LivePage();
+        }
+        else if (guide == null || topics.Count == 0)
+        {
+            Heading("Memo Book", Ink);
             Body(pageContent, "There is no guide for the map \"" + mapId + "\" yet.", 28f, Muted);
         }
         else
@@ -303,6 +326,38 @@ public sealed class WorksheetReader : MonoBehaviour
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(pageContent);
         pageScroll.verticalNormalizedPosition = 1f;
+    }
+
+    /// <summary>
+    /// 17 Nov (Task 8): left page of the live guide: the map, how many players STARTED, zones done X / Y.
+    /// Never: who is alive, where people are, exits, which zones are done, the time.
+    /// </summary>
+    private void UpdateLiveHeader()
+    {
+        MatchDirector match = MatchDirector.Instance;
+        int done = match != null ? match.ZonesCompleted : 0;
+        int need = match != null ? match.ZonesRequired : required;
+        subText.text = (guide != null ? guide.mapName : mapId) + "  ·  <color=#A00000>LIVE</color>\n" +
+                       "Started with <b>" + players + "</b> " + (players == 1 ? "player" : "players");
+        goalText.text = "<size=55%><color=#5A4A2A>ZONES DONE</color></size>\n<color=#A00000>" + done + " / " + need + "</color>";
+    }
+
+    /// <summary>17 Nov (Task 8): right page of the live guide: ONE step, then the zone list (names + where).</summary>
+    private void LivePage()
+    {
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        MemoGuide.LocalStep(out string key, out string text, out bool danger);
+        liveKey = key;
+        Heading(danger ? t.dangerTitle : t.liveTitle, danger ? Danger : GoalColor);
+        Body(pageContent, text, 32f, danger ? Danger : Ink);
+        Body(pageContent, t.costNote, 20f, Muted);
+        List<string> zones = MemoGuide.ZoneLines(guide);
+        if (zones.Count > 0)
+        {
+            Section("Zones", Ink);
+            Bullets(pageContent, zones, 24f, Ink);
+        }
+        MemoGuide.LocalStepShown(key); // a NEW step costs sanity once (only while the book is open)
     }
 
     private void GoalPage(Color color)
@@ -598,7 +653,7 @@ public sealed class WorksheetReader : MonoBehaviour
         lp.anchoredPosition = new Vector2(edge, -edge);
         lp.sizeDelta = new Vector2(leftWidth, pageHeight);
 
-        TextMeshProUGUI title = NewText("Title", lp, "<b>WORK SHEET</b>", 46f, Ink, TextAlignmentOptions.TopLeft);
+        TextMeshProUGUI title = NewText("Title", lp, "<b>MEMO BOOK</b>", 46f, Ink, TextAlignmentOptions.TopLeft);
         Place(title.rectTransform, 36f, 26f, -36f, 60f);
         title.characterSpacing = 3f;
         subText = NewText("Sub", lp, "", 23f, Muted, TextAlignmentOptions.TopLeft);

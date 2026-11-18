@@ -63,6 +63,16 @@ public sealed class PlayerListHUD : MonoBehaviour
     private GameObject lobbyBar;
     private Button readyButton, startButton, leaveButton;
     private TMP_Text readyLabel;
+    private Button entryButton;      // 17 Nov (Task 8): host changes the entry time
+    private TMP_Text entryText;
+    // 17 Nov fix: the entry time row is its OWN screen (canvas). The Tab panel has a designer copy in
+    // the GAME HUD (UI Hub) that hides the game's panel and only shows the parts it knows, so a new
+    // part inside the panel was invisible. This small screen sits over the panel's empty line.
+    private Canvas entryCanvas;
+    private RectTransform entryRow;
+    private RectTransform entryList;                 // 17 Nov: the pop-up list of times
+    private readonly List<Button> entryChoices = new List<Button>();
+    private readonly List<TMP_Text> entryChoiceLabels = new List<TMP_Text>();
     private readonly Row[] rows = new Row[MaxRows];
     private readonly List<RoHRoomPlayer> seats = new List<RoHRoomPlayer>(MaxRows);
     private bool open;
@@ -116,6 +126,8 @@ public sealed class PlayerListHUD : MonoBehaviour
         open = value;
         if (canvas == null) Build();
         canvas.enabled = value;
+        if (entryCanvas != null) entryCanvas.enabled = value && InLobby;
+        if (entryList != null && !value) entryList.gameObject.SetActive(false);
 
         if (value)
         {
@@ -233,10 +245,31 @@ public sealed class PlayerListHUD : MonoBehaviour
             else if (isHost) statusText.text = canStart ? "Everyone is ready. Press Start." : "Waiting for players to get ready...";
             else if (local != null && local.readyToBegin) statusText.text = "Ready. Waiting for the host to start...";
             else statusText.text = "Press Ready when you are set.";
+
+            // 17 Nov (Task 8): entry time. Host changes it here; everyone sees it.
+            string entry = RoomConfig.EntryLabel(RoHRoomPlayer.HostEntryMinutes);
+            entryText.text = "Entry time: <color=#FFCC4D>" + entry + "</color>" +
+                (RoHRoomPlayer.HostEntryMinutes > 0 ? "  <size=80%>(the shift starts at 12:00 AM)</size>" : "");
+            entryButton.gameObject.SetActive(isHost);
+            entryButton.interactable = !starting;
+            if (!isHost || starting) entryList.gameObject.SetActive(false);
+            // The current time is marked in the list.
+            for (int i = 0; i < entryChoiceLabels.Count; i++)
+            {
+                bool current = RoomConfig.EntryChoices[i] == RoHRoomPlayer.HostEntryMinutes;
+                entryChoiceLabels[i].text = (current ? "> " : "") + RoomConfig.EntryLabel(RoomConfig.EntryChoices[i]);
+                entryChoiceLabels[i].color = current ? AccentColor : TextColor;
+            }
         }
 
-        float height = -RowsTop + Mathf.Max(1, seats.Count) * RowStep + (lobby ? 140f : 60f);
+        float height = -RowsTop + Mathf.Max(1, seats.Count) * RowStep + (lobby ? 196f : 60f);
         panel.sizeDelta = new Vector2(PanelWidth, height);
+        // 17 Nov: the entry time screen sits on the empty line above Ready / Start / Leave.
+        if (entryCanvas != null)
+        {
+            entryCanvas.enabled = open && lobby;
+            entryRow.anchoredPosition = new Vector2(0f, -height * 0.5f + 154f);
+        }
     }
 
     private void OnSlider(int index, float value)
@@ -283,6 +316,24 @@ public sealed class PlayerListHUD : MonoBehaviour
     {
         if (Room != null && Room.StartMatch()) starting = true;
         Refresh();
+    }
+
+    /// <summary>17 Nov (Task 8): host: open / close the list of entry times.</summary>
+    private void OnEntryTime()
+    {
+        if (!NetworkServer.active || starting) return;
+        entryList.gameObject.SetActive(!entryList.gameObject.activeSelf);
+        Refresh();
+    }
+
+    /// <summary>17 Nov: host picked a time in the list.</summary>
+    private void OnEntryChoice(int index)
+    {
+        if (!NetworkServer.active || starting || index < 0 || index >= RoomConfig.EntryChoices.Length) return;
+        foreach (RoHRoomPlayer seat in RoHRoomPlayer.All)
+            if (seat != null && seat.isOwned && seat.IsHost) { seat.ServerSetEntryTime(RoomConfig.EntryChoices[index]); break; }
+        entryList.gameObject.SetActive(false);
+        nextRefresh = Time.unscaledTime + 0.1f;
     }
 
     private void OnLeave()
@@ -345,6 +396,47 @@ public sealed class PlayerListHUD : MonoBehaviour
         leaveButton = NewButton("Leave Button", bar, "Leave", ButtonColor, TextColor, out _);
         Place((RectTransform)leaveButton.transform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(866f, 4f), new Vector2(1086f, -4f));
         leaveButton.onClick.AddListener(OnLeave);
+
+        // 17 Nov (Task 8): entry time row = its own small screen (see entryCanvas), lobby only.
+        var entryGo = new GameObject("Player List Entry Time");
+        DontDestroyOnLoad(entryGo);
+        entryCanvas = entryGo.AddComponent<Canvas>();
+        entryCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        entryCanvas.sortingOrder = 452; // above the Tab panel (and its designer copy)
+        CanvasScaler entryScaler = entryGo.AddComponent<CanvasScaler>();
+        entryScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        entryScaler.referenceResolution = new Vector2(1920f, 1080f);
+        entryScaler.matchWidthOrHeight = 0.5f;
+        entryGo.AddComponent<GraphicRaycaster>();
+        entryRow = NewRect("Entry Time Row", entryGo.transform);
+        entryRow.anchorMin = entryRow.anchorMax = new Vector2(0.5f, 0.5f);
+        entryRow.pivot = new Vector2(0.5f, 0.5f);
+        entryRow.sizeDelta = new Vector2(PanelWidth - 64f, 52f);
+        entryText = NewText("Entry Time", entryRow, string.Empty, 22f, TextColor, TextAlignmentOptions.MidlineLeft);
+        entryText.richText = true;
+        Place(entryText.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(600f, 0f));
+        entryButton = NewButton("Entry Time Button", entryRow, "Choose time...", ButtonColor, TextColor, out _);
+        Place((RectTransform)entryButton.transform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(620f, 4f), new Vector2(840f, -4f));
+        entryButton.onClick.AddListener(OnEntryTime);
+
+        // The pop-up list: opens above the button, one button per time.
+        entryList = NewRect("Entry Time List", entryRow);
+        int choices = RoomConfig.EntryChoices.Length;
+        const float choiceHeight = 44f;
+        Place(entryList, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(620f, 0f), new Vector2(840f, choices * choiceHeight + 8f));
+        entryList.gameObject.AddComponent<Image>().color = PanelColor;
+        for (int i = 0; i < choices; i++)
+        {
+            Button choice = NewButton("Time " + (i + 1), entryList, RoomConfig.EntryLabel(RoomConfig.EntryChoices[i]), ButtonColor, TextColor, out TMP_Text label);
+            float top = -4f - i * choiceHeight;
+            Place((RectTransform)choice.transform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(4f, top - choiceHeight + 4f), new Vector2(-4f, top));
+            int captured = i;
+            choice.onClick.AddListener(() => OnEntryChoice(captured));
+            entryChoices.Add(choice);
+            entryChoiceLabels.Add(label);
+        }
+        entryList.gameObject.SetActive(false);
+        entryCanvas.enabled = false;
 
         hintText = NewText("Hint", panel, string.Empty, 18f, MutedColor, TextAlignmentOptions.Center);
         Place(hintText.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(24f, 12f), new Vector2(-24f, 44f));

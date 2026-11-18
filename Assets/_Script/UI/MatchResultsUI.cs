@@ -126,7 +126,7 @@ public sealed class MatchResultsUI : MonoBehaviour
         if (SpectatorSession.Requested) return false;       // no body, no items
         if (PlayerInventory.LastLoadout.Count == 0) return false;
         MatchDirector match = MatchDirector.Instance;
-        if (match == null || !match.RoundRunning) return false; // lobby / round over
+        if (match == null || !match.InMatch) return false; // lobby / round over (17 Nov: the pre-shift counts)
         PlayerHealth me = PlayerHealth.LocalInstance;
         if (me == null) return false;
         // Escaped: the result (keep what you carried) is already on its way.
@@ -177,6 +177,9 @@ public sealed class MatchResultsUI : MonoBehaviour
             ApplyCarriedConsumables(r.carriedConsumables); // before LastLoadout is cleared
             ApplyCarriedItems(r.carriedItems, out lostItems, out foundItems);
         }
+
+        // 17 Nov (Task 8): the match ended normally, so the "left mid-match" Memo Book marker goes.
+        SaveManager.SetMemoBookInMatch("");
 
         // Your round is over: your body stays exactly where it is.
         if (PlayerHealth.LocalInstance != null) MatchDirector.FreezeBody(PlayerHealth.LocalInstance.gameObject);

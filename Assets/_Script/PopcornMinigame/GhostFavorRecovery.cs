@@ -13,7 +13,14 @@ public struct GhostFavorState
     public double disappearedAt;
 }
 
-/// <summary>Observes the existing light state; the popcorn network object owns replication.</summary>
+/// <summary>
+/// Observes the existing light state; the popcorn network object owns replication.
+///
+/// 17 Nov 2026 (Mr.k, Task 6 #46): the displaced Ghost Flavor is a HOTBAR item now. Picking it
+/// up needs a free hotbar slot and puts the "Ghost Flavor" token there (ItemCatalog.GhostFlavor).
+/// The bottle shows only while that slot is in the carrier's hand. R drops it only while it is
+/// in the hand. Bringing it home, dropping it, or losing the token ends the carry.
+/// </summary>
 public sealed class GhostFavorRecovery : MonoBehaviour
 {
     public static GhostFavorRecovery Instance { get; private set; }
@@ -34,6 +41,8 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     private GhostFavorTrail trail;
     private GhostFavorDisappearVfx disappearVfx;
     private uint disappearanceId;
+    private Renderer[] favorRenderers;   // 17 Nov: hidden while it is in the carrier's hotbar but not the hand
+    private bool favorShown = true;
     private bool HasAuthority => !NetworkMode.SessionEnding && (NetworkMode.IsOffline ||
         (PopcornNetSync.Instance != null && PopcornNetSync.Instance.isServer));
     public bool DroppedThisFrame => dropFrame == Time.frameCount;
@@ -60,6 +69,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         homeRotation = target.rotation;
         state = new GhostFavorState { position = homePosition, rotation = homeRotation };
         colliders = target.GetComponentsInChildren<Collider>();
+        favorRenderers = target.GetComponentsInChildren<Renderer>(true);
         colliderEnabled = new bool[colliders.Length];
         for (int i = 0; i < colliders.Length; i++) colliderEnabled[i] = colliders[i].enabled;
         favorBody = target.GetComponent<Rigidbody>();
@@ -90,12 +100,16 @@ public sealed class GhostFavorRecovery : MonoBehaviour
                 blackoutHandled = true;
                 Relocate();
             }
+            // 17 Nov: the carry ends when the token left the hotbar (thrown away, lost on death ...).
+            if (carrier != null && carrier.TryGetComponent(out PlayerInventory carrierInventory) && !carrierInventory.Has(ItemCatalog.GhostFlavor))
+                Drop();
             if (carrier != null && !carrier.IsDead && !carrier.IsDowned)
             {
                 state.position = carrier.transform.TransformPoint(new Vector3(0.45f, 1f, 0.8f));
                 state.rotation = carrier.transform.rotation;
                 if (Vector3.Distance(carrier.transform.position, homePosition) <= 1.8f)
                 {
+                    TakeToken(carrier);
                     carrier = null;
                     wasCarried = false;
                     state.displaced = false;
@@ -115,8 +129,8 @@ public sealed class GhostFavorRecovery : MonoBehaviour
             }
             PublishState();
         }
-        if (IsLocalCarrier && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.ReloadOrDiscard) &&
-            !BlackBoxCarry.UsesLocalDiscardInput)
+        if (IsLocalHolding && !GameplayInput.Blocked && Keybinds.WasPressed(GameAction.ReloadOrDiscard) &&
+            !BlackBoxCarry.UsesLocalDiscardInput) // 17 Nov: only while it is in the hand
         {
             dropFrame = Time.frameCount;
             RequestInteraction(true);
@@ -146,10 +160,37 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         }
         for (int i = 0; i < colliders.Length; i++)
             if (colliders[i] != null) colliders[i].enabled = colliderEnabled[i] && !carried;
+
+        // 17 Nov: in the carrier's hotbar but not in the hand = put away (not drawn).
+        bool show = !carried || CarrierHoldsInHand(visible.carrierId);
+        if (show != favorShown && favorRenderers != null)
+        {
+            favorShown = show;
+            foreach (Renderer r in favorRenderers) if (r != null) r.enabled = show;
+        }
+    }
+
+    /// <summary>17 Nov: the local player carries it AND has its hotbar slot in the hand.</summary>
+    public bool IsLocalHolding => IsLocalCarrier && PlayerInventory.Local != null && PlayerInventory.Local.IsHolding(ItemCatalog.GhostFlavor);
+
+    private bool CarrierHoldsInHand(uint carrierNetId)
+    {
+        PlayerHealth body = NetworkMode.IsOffline ? carrier
+            : NetworkClient.spawned.TryGetValue(carrierNetId, out NetworkIdentity id) && id != null ? id.GetComponent<PlayerHealth>()
+            : NetworkServer.active && NetworkServer.spawned.TryGetValue(carrierNetId, out id) && id != null ? id.GetComponent<PlayerHealth>() : null;
+        PlayerInventory inventory = body != null ? body.GetComponent<PlayerInventory>() : null;
+        return inventory == null || inventory.IsHolding(ItemCatalog.GhostFlavor);
+    }
+
+    /// <summary>17 Nov, authority: the carrier's hotbar token goes.</summary>
+    private static void TakeToken(PlayerHealth player)
+    {
+        if (player != null && player.TryGetComponent(out PlayerInventory inventory)) inventory.ServerRemoveAll(ItemCatalog.GhostFlavor);
     }
 
     private void Drop()
     {
+        TakeToken(carrier);
         carrier = null;
         wasCarried = false;
         state.carrierId = 0;
@@ -214,9 +255,10 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     }
 
     public string Prompt => IsHome ? "Ghost Flavor" : IsLocalCarrier
-        ? "Ghost Flavor · Carry back to the popcorn station · [R] Drop"
+        ? "Ghost Flavor · Carry back to the popcorn station · [R] Drop (in hand)"
         : VisibleState.carrierId != 0 ? "Ghost Flavor · Another player is carrying it"
-        : "Ghost Flavor · [E] Pick up and return to the popcorn station";
+        : PlayerInventory.Local != null && !PlayerInventory.Local.HasEmptySlot ? "Ghost Flavor · Hotbar full: make room first"
+        : "Ghost Flavor · [E] Pick up (takes a hotbar slot) and return to the popcorn station";
 
     public void RequestInteraction(bool drop = false)
     {
@@ -242,6 +284,8 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         if (!state.displaced) return true;
         if (carrier == null)
         {
+            // 17 Nov: the Ghost Flavor takes a hotbar slot, so it needs a free one.
+            if (!player.TryGetComponent(out PlayerInventory inventory) || !inventory.ServerAddToken(ItemCatalog.GhostFlavor)) return false;
             if (falling)
             {
                 favorBody.linearVelocity = Vector3.zero;

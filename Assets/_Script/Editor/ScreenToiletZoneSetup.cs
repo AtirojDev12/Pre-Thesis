@@ -44,6 +44,8 @@ public static class ScreenToiletZoneSetup
                 "There is no MatchDirector in the open scene. Open Cinema_GamePlay first.", "OK");
             return;
         }
+        // 15 Nov: chores and task boards now sit under the zone boxes; rebuilding would make doubles.
+        if (!ZoneBoxSetup.ConfirmOldTool("Screen + Toilet Zones")) return;
 
         Transform theater = FindInScene(scene, "TeaterZone");
         Transform normalRoom = theater != null ? theater.Find("ScreenRoom") : null;

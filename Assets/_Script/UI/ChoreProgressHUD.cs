@@ -5,6 +5,10 @@ using UnityEngine.UI;
 /// <summary>
 /// 14 Oct 2026. Local "hold E" progress bar for ZoneChoreSpot (bottom centre).
 /// Created the first time it is needed; one per scene. Purely visual.
+///
+/// 16 Nov 2026 (Mr.k): the bar is now a real part of the GAME HUD prefab (HudBar "task":
+/// frame + fill + text, all editable). This script is only the logic. If the GAME HUD has no
+/// such bar (run Tools > Pre-Thesis > UI > GAME HUD: Add Missing Parts), the old code-made bar is used.
 /// </summary>
 public sealed class ChoreProgressHUD : MonoBehaviour
 {
@@ -16,6 +20,7 @@ public sealed class ChoreProgressHUD : MonoBehaviour
     private RectTransform fill;
     private TMP_Text label;
     private string shownText;
+    private HudBar bar; // 16 Nov: the bar inside the GAME HUD (null = code-made bar)
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
@@ -32,6 +37,13 @@ public sealed class ChoreProgressHUD : MonoBehaviour
     {
         if (instance == null) instance = Create();
         owner = who;
+        if (instance.bar != null)
+        {
+            instance.bar.Show(true);
+            instance.bar.SetLabel(text);
+            instance.bar.Set(progress);
+            return;
+        }
         if (!instance.gameObject.activeSelf) instance.gameObject.SetActive(true);
         if (instance.shownText != text)
         {
@@ -46,11 +58,22 @@ public sealed class ChoreProgressHUD : MonoBehaviour
     {
         if (instance == null || owner != who) return;
         owner = null;
-        instance.gameObject.SetActive(false);
+        if (instance.bar != null) instance.bar.Show(false);
+        else instance.gameObject.SetActive(false);
     }
 
     private static ChoreProgressHUD Create()
     {
+        HudBar hudBar = HudBar.Find(HudBar.TaskProgress);
+        if (hudBar != null)
+        {
+            // Logic only: the pictures and text live in the GAME HUD prefab.
+            ChoreProgressHUD logic = new GameObject("Chore Progress HUD (logic)").AddComponent<ChoreProgressHUD>();
+            logic.bar = hudBar;
+            hudBar.Show(false);
+            return logic;
+        }
+
         var root = new GameObject("Chore Progress HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
         Canvas canvas = root.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -107,6 +130,7 @@ public sealed class ChoreProgressHUD : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (bar != null) bar.Show(false);
         if (instance == this) instance = null;
     }
 }

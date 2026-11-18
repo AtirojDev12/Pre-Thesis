@@ -11,6 +11,9 @@ using UnityEngine.UI;
 /// Built in code by MatchDirector.Start on every machine (no prefab, no scene
 /// edit). Lives in the gameplay scene only, so it disappears on scene change.
 /// Reads MatchDirector's synced values only; it never decides anything.
+///
+/// 15 Nov 2026 (Mr.k): the clock shows AM / PM in 12-hour style ("12:00 AM", "06:00 AM",
+/// later "11:30 PM" for the pre-shift hour). One formatter for every clock text: FormatClock.
 /// </summary>
 public sealed class MatchHUD : MonoBehaviour
 {
@@ -42,6 +45,17 @@ public sealed class MatchHUD : MonoBehaviour
         if (instance == this) instance = null;
     }
 
+    /// <summary>
+    /// 24-hour match time -> the text players see: "12:00 AM" (00:00), "06:00 AM", "11:30 PM" (23:30).
+    /// </summary>
+    public static string FormatClock(int hour, int minute)
+    {
+        hour = ((hour % 24) + 24) % 24;
+        int shown = hour % 12;
+        if (shown == 0) shown = 12;
+        return $"{shown:00}:{minute:00} {(hour < 12 ? "AM" : "PM")}";
+    }
+
     private void Build()
     {
         var canvas = gameObject.AddComponent<Canvas>();
@@ -65,7 +79,7 @@ public sealed class MatchHUD : MonoBehaviour
         var bgRt = (RectTransform)bg.transform;
         bgRt.anchorMin = bgRt.anchorMax = new Vector2(0.5f, 1f);
         bgRt.pivot = new Vector2(0.5f, 1f);
-        bgRt.sizeDelta = new Vector2(200f, 64f);
+        bgRt.sizeDelta = new Vector2(300f, 64f); // 15 Nov: wider for "12:00 AM"
         var bgImage = bg.GetComponent<Image>();
         bgImage.color = new Color(0f, 0f, 0f, 0.55f);
         bgImage.raycastTarget = false;
@@ -89,7 +103,7 @@ public sealed class MatchHUD : MonoBehaviour
         if (total != shownMinute)
         {
             shownMinute = total;
-            clockText.text = $"{hour:00}:{minute:00}";
+            clockText.text = FormatClock(hour, minute);
             clockText.color = director.ExtraHour ? Danger : Normal;
         }
 
@@ -97,15 +111,19 @@ public sealed class MatchHUD : MonoBehaviour
         Color color;
         switch (director.Phase)
         {
+            case MatchPhase.PreShift: // 17 Nov (Task 8)
+                status = "Before the shift - everything opens at 12:00 AM";
+                color = Normal;
+                break;
             case MatchPhase.Night:
-                if (director.MinimumMet) { status = "All zones done - the exit opens at 06:00"; color = Good; }
+                if (director.MinimumMet) { status = "All zones done - the exit opens at 06:00 AM"; color = Good; }
                 else { status = $"Zones done: {director.ZonesCompleted}/{director.ZonesRequired}"; color = Normal; }
                 break;
             case MatchPhase.Escape:
-                if (director.MinimumMet) { status = "THE EXIT IS OPEN - get out before 07:00!"; color = Good; }
+                if (director.MinimumMet) { status = "THE EXIT IS OPEN - get out before 07:00 AM!"; color = Good; }
                 else
                 {
-                    status = $"THE GHOSTS ARE HUNTING - finish every zone ({director.ZonesCompleted}/{director.ZonesRequired}) and get out before 07:00!";
+                    status = $"THE GHOSTS ARE HUNTING - finish every zone ({director.ZonesCompleted}/{director.ZonesRequired}) and get out before 07:00 AM!";
                     color = Danger;
                 }
                 break;

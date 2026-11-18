@@ -17,12 +17,13 @@ public sealed class FlashlightVisual : MonoBehaviour
     [SerializeField] private Renderer lensRenderer;
     [Tooltip("Where a dropped flashlight's beam comes out (points along +Z). Empty = this object.")]
     [SerializeField] private Transform beamOrigin;
+    [Tooltip("17 Nov: colour of the body (free and paid flashlights look different).")]
+    [SerializeField] private Color bodyColor = new Color(0.1f, 0.1f, 0.11f);
 
     private MaterialPropertyBlock properties;
     private Light floorBeam;
     private bool wantFloorBeam;
 
-    private static readonly Color BodyColor = new Color(0.1f, 0.1f, 0.11f);
     private static readonly Color LensOff = new Color(0.15f, 0.15f, 0.12f);
     private static readonly Color LensOn = new Color(1f, 0.95f, 0.75f);
 
@@ -32,8 +33,8 @@ public sealed class FlashlightVisual : MonoBehaviour
         foreach (Renderer r in GetComponentsInChildren<Renderer>())
         {
             if (r == lensRenderer) continue;
-            properties.SetColor("_BaseColor", BodyColor);
-            properties.SetColor("_Color", BodyColor);
+            properties.SetColor("_BaseColor", bodyColor);
+            properties.SetColor("_Color", bodyColor);
             r.SetPropertyBlock(properties);
         }
         SetLens(false);
@@ -73,6 +74,10 @@ public sealed class FlashlightVisual : MonoBehaviour
         floorBeam.color = LensOn;
         floorBeam.enabled = true;
     }
+
+#if UNITY_EDITOR
+    public void EditorSetBodyColor(Color color) => bodyColor = color;
+#endif
 
     private void SetLens(bool on)
     {

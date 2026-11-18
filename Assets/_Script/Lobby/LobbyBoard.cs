@@ -48,7 +48,9 @@ public sealed class LobbyBoard : MonoBehaviour
     private readonly List<RoHRoomPlayer> players = new List<RoHRoomPlayer>(RoomConfig.MaxPlayers);
     private readonly LobbyBoardRow[] rows = new LobbyBoardRow[RoomConfig.MaxPlayers];
     private LobbyBoardButton button;
-    private TMP_Text titleText, infoText, statusText, buttonText, hintText;
+    private TMP_Text titleText, infoText, statusText, buttonText, hintText, entryText;
+    private Image entryImage;
+    private const float EntryTop = 1525f, EntryHeight = 105f; // 17 Nov (Task 8): entry time row
     private Image buttonImage;
     private float nextRefresh;
 
@@ -90,6 +92,21 @@ public sealed class LobbyBoard : MonoBehaviour
         RoHRoomPlayer me = LocalSeat();
         if (me == null) return string.Empty;
         return me.readyToBegin ? "[E] Cancel ready" : "[E] Ready";
+    }
+
+    /// <summary>17 Nov (Task 8): prompt of the entry time row.</summary>
+    internal string EntryPrompt() =>
+        IsHost ? "[E] Change the entry time (now " + RoomConfig.EntryLabel(RoHRoomPlayer.HostEntryMinutes) + ")" : string.Empty;
+
+    internal bool CanChangeEntry() => IsHost && Room != null && Room.InRoomScene;
+
+    /// <summary>Host: E on the entry time row = next time (11:00 PM -> 11:15 PM -> ... -> 12:00 AM -> 11:00 PM).</summary>
+    internal void PressEntry()
+    {
+        if (!CanChangeEntry()) return;
+        RoHRoomPlayer me = LocalSeat();
+        if (me != null) me.ServerNextEntryTime();
+        nextRefresh = 0f;
     }
 
     internal float KickProgress(LobbyBoardRow row) =>
@@ -176,8 +193,15 @@ public sealed class LobbyBoard : MonoBehaviour
             statusText.text = "No room. Start from the Main Menu.";
             for (int i = 0; i < rows.Length; i++) rows[i].Draw(null, false, false, 0);
             buttonText.text = string.Empty;
+            entryText.text = string.Empty;
             return;
         }
+
+        // 17 Nov (Task 8): entry time (host picks; everyone sees it).
+        string entry = RoomConfig.EntryLabel(RoHRoomPlayer.HostEntryMinutes);
+        entryText.text = IsHost
+            ? $"ENTRY TIME: <color=#FFCC4D>{entry}</color>   <size=70%>(E: change)</size>"
+            : $"ENTRY TIME: <color=#FFCC4D>{entry}</color>";
 
         room.GetOrderedRoomPlayers(players);
         RoomConfig config = LobbyController.Instance != null ? LobbyController.Instance.CurrentRoom : null;
@@ -277,6 +301,15 @@ public sealed class LobbyBoard : MonoBehaviour
 
         hintText = NewText("Hint", displayRt, "", 52f, Muted, TextAlignmentOptions.Center);
         Place(hintText.rectTransform, ButtonTop + ButtonHeight + 25f, 80f);
+
+        // 17 Nov (Task 8): entry time row (the team enters the map at this time; the shift starts at 12:00 AM).
+        entryImage = NewImage("Entry Time", displayRt, RowColor);
+        Place(entryImage.rectTransform, EntryTop, EntryHeight);
+        entryText = NewText("Entry Time Text", entryImage.rectTransform, "", 64f, TextColor, TextAlignmentOptions.Center);
+        entryText.richText = true;
+        Stretch(entryText.rectTransform);
+        BoxCollider entryCol = NewCollider("Entry Time (host: E)", EntryTop, EntryHeight);
+        entryCol.gameObject.AddComponent<LobbyBoardEntryButton>().Init(this, entryImage);
 
         Refresh();
     }
@@ -443,5 +476,28 @@ public sealed class LobbyBoardButton : MonoBehaviour, ILocalInteractable, IInter
     {
         // A little bigger while looked at.
         if (image != null) image.rectTransform.localScale = on ? new Vector3(1.04f, 1.08f, 1f) : Vector3.one;
+    }
+}
+
+/// <summary>17 Nov 2026 (Mr.k, Task 8): the entry time row. Host: E = next entry time.</summary>
+public sealed class LobbyBoardEntryButton : MonoBehaviour, ILocalInteractable, IInteractionHighlight
+{
+    private LobbyBoard board;
+    private Image image;
+
+    internal void Init(LobbyBoard owner, Image rowImage)
+    {
+        board = owner;
+        image = rowImage;
+    }
+
+    public string GetInteractionPrompt() => board != null ? board.EntryPrompt() : string.Empty;
+    public bool CanInteract() => board != null && board.CanChangeEntry();
+    public Transform GetTransform() => transform;
+    public void Interact(GameObject interactor) => board.PressEntry();
+
+    public void SetHighlighted(bool on)
+    {
+        if (image != null) image.color = on ? LobbyBoard.RowHighlight : LobbyBoard.RowBase(false);
     }
 }

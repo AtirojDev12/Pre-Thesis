@@ -8,6 +8,11 @@ using UnityEngine;
 ///   2. When they sit back down, leave the room at once.
 /// Punishment (move while they stare, or still inside after they sit): they come
 /// after you, but they cannot leave the screen room.
+///
+/// 16 Nov 2026 (Mr.k): the box only decides who the stare STARTS on. Running out of the room
+/// while they stare = moving. A player who broke the rule and is already OUTSIDE the room is
+/// chased outside too (leaving must not free them). A player caught inside is chased inside
+/// the room only, as before. Step 2 (leave the room) still needs you to really leave.
 /// </summary>
 public sealed class RuleAudienceStands : ZoneRuleBase
 {
@@ -58,10 +63,11 @@ public sealed class RuleAudienceStands : ZoneRuleBase
 
             case Phase.Stare:
                 if (!audience.Visible) { EndEvent(); return; }
-                if (staredAt == null || !zone.Contains(staredAt)) staredAt = players.Count > 0 ? players[0] : null;
+                List<PlayerHealth> held = ServerInvolved(); // who it started on, wherever they are now
+                if (staredAt == null || !held.Contains(staredAt)) staredAt = held.Count > 0 ? held[0] : null;
                 if (staredAt != null) audience.ServerSetStanding(true, staredAt.transform.position);
-                watch.AddLateComers(players);
-                PlayerHealth mover = watch.FirstMover(zone, moveTolerance);
+                watch.AddLateComers(held);
+                PlayerHealth mover = watch.FirstMover(null, moveTolerance); // running out of the box = moved
                 if (mover != null)
                 {
                     Log($"{mover.name} moved while they stared.");
@@ -95,6 +101,7 @@ public sealed class RuleAudienceStands : ZoneRuleBase
     {
         staredAt = players[Random.Range(0, players.Count)];
         audience.ServerSetStanding(true, staredAt.transform.position);
+        ServerLockIn();
         watch.Start(players);
         phase = Phase.Stare;
         phaseEnd = Now + stareSeconds;
@@ -113,7 +120,8 @@ public sealed class RuleAudienceStands : ZoneRuleBase
             RuleGhost ghost = chasers[used++];
             if (ghost == null) continue;
             Vector3 from = audience.Count > 0 ? audience.Member(Random.Range(0, audience.Count)).position : zone.Box.center;
-            ghost.ServerChase(p, from, zone, chaseSeconds, null);
+            // Caught inside: they cannot leave the room. Already outside (ran out): they follow.
+            ghost.ServerChase(p, from, zone.Contains(p) ? zone : null, chaseSeconds, null);
         }
         EndEvent();
     }
@@ -124,6 +132,7 @@ public sealed class RuleAudienceStands : ZoneRuleBase
         phase = Phase.Idle;
         staredAt = null;
         watch.Clear();
+        ServerRelease();
         nextRoll = Now + cooldownSeconds;
     }
 
@@ -132,5 +141,15 @@ public sealed class RuleAudienceStands : ZoneRuleBase
         if (!IsServerSide || phase != Phase.Idle || audience == null || !audience.Visible) return;
         List<PlayerHealth> players = ServerPlayersInside();
         if (players.Count > 0) StartEvent(players);
+    }
+
+    /// <summary>17 Nov (Task 8): Memo Book steps.</summary>
+    public override bool ServerGuideFor(PlayerHealth player, out GuideEntry entry)
+    {
+        entry = default;
+        if (phase == Phase.Idle || !ServerIsInvolved(player)) return false;
+        MemoGuideTexts t = MemoGuideTexts.Current;
+        entry = phase == Phase.Stare ? GuideStep(GuideSeverity.ChaseOrHp, 0, t.audienceStill) : GuideStep(GuideSeverity.ChaseOrHp, 1, t.audienceLeave);
+        return true;
     }
 }

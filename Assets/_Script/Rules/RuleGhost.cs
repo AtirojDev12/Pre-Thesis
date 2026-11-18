@@ -49,6 +49,9 @@ public sealed class RuleGhost : NetworkBehaviour
     private Mode mode;
     private PlayerHealth target;
     private RuleZone keepInside;
+    private RuleZone huntZone;                                                // Hunt: players inside it are targets
+    private readonly System.Collections.Generic.List<PlayerHealth> marked =   // Hunt (16 Nov): hunted wherever they are
+        new System.Collections.Generic.List<PlayerHealth>();
     private double until;
     private int untilHour = -1;
     private float nextHit;
@@ -93,11 +96,20 @@ public sealed class RuleGhost : NetworkBehaviour
         until = Now + seconds;
     }
 
-    /// <summary>SERVER. Appear and attack ANY player inside <paramref name="stayIn"/> for some seconds (toilet swarm).</summary>
-    public void ServerHunt(Vector3 from, RuleZone stayIn, float seconds, string message)
+    /// <summary>
+    /// SERVER. Appear and attack ANY player inside <paramref name="stayIn"/> for some seconds (toilet swarm).
+    /// 16 Nov: <paramref name="alsoHunt"/> = these players are hunted wherever they are (leaving the
+    /// zone does not free them). With such a list the ghost may leave the zone.
+    /// </summary>
+    public void ServerHunt(Vector3 from, RuleZone stayIn, float seconds, string message,
+        System.Collections.Generic.List<PlayerHealth> alsoHunt = null)
     {
-        ServerAppear(from, stayIn, message);
+        bool free = alsoHunt != null && alsoHunt.Count > 0;
+        ServerAppear(from, free ? null : stayIn, message);
         mode = Mode.Hunt;
+        huntZone = stayIn;
+        marked.Clear();
+        if (free) marked.AddRange(alsoHunt);
         until = Now + seconds;
     }
 
@@ -118,6 +130,8 @@ public sealed class RuleGhost : NetworkBehaviour
         mode = Mode.Hidden;
         target = null;
         keepInside = null;
+        huntZone = null;
+        marked.Clear();
         untilHour = -1;
         SetOut(false);
     }
@@ -188,7 +202,10 @@ public sealed class RuleGhost : NetworkBehaviour
                 if (keepInside != null && !keepInside.Contains(target)) return null; // it cannot follow out
                 return target;
             case Mode.Hunt:
-                return keepInside != null ? Nearest(keepInside.PlayersInside(buffer), float.MaxValue) : null;
+                if (huntZone != null) huntZone.PlayersInside(buffer); else buffer.Clear();
+                for (int i = 0; i < marked.Count; i++)
+                    if (marked[i] != null && !buffer.Contains(marked[i])) buffer.Add(marked[i]);
+                return Nearest(buffer, float.MaxValue);
             case Mode.Roam:
                 return Nearest(PlayerRegistry.All, noticeRange);
             default:
@@ -216,8 +233,9 @@ public sealed class RuleGhost : NetworkBehaviour
         flat.y = 0f;
         if (flat.sqrMagnitude < 1f || Random.value < 0.002f)
         {
-            Vector3 pick = keepInside != null
-                ? keepInside.RandomPointInside(transform.position.y)
+            RuleZone home = keepInside != null ? keepInside : (mode == Mode.Hunt ? huntZone : null);
+            Vector3 pick = home != null
+                ? home.RandomPointInside(transform.position.y)
                 : transform.position + new Vector3(Random.Range(-12f, 12f), 0f, Random.Range(-12f, 12f));
             wanderPoint = NavMesh.SamplePosition(pick, out NavMeshHit hit, 4f, NavMesh.AllAreas) ? hit.position : pick;
         }

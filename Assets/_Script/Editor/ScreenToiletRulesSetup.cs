@@ -40,6 +40,8 @@ public static class ScreenToiletRulesSetup
             EditorUtility.DisplayDialog("Screen + Toilet Rules", "There is no MatchDirector in the open scene. Open Cinema_GamePlay first.", "OK");
             return;
         }
+        // 15 Nov: chores and task boards now sit under the zone boxes; rebuilding would delete them.
+        if (!ZoneBoxSetup.ConfirmOldTool("Screen + Toilet Rules")) return;
 
         Transform theater = Find(scene, "TeaterZone");
         Transform ghostRoom = theater != null ? theater.Find("GhostScreenRoom") : null;

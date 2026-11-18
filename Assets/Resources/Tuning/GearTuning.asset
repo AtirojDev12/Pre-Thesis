@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 954d6f2bef201c4479b7daf7426eab99, type: 3}
+  m_Name: GearTuning
+  m_EditorClassIdentifier: Assembly-CSharp::GearTuning
+  freeWalkie:
+    displayName: Free Walkie-Talkie
+    description: 'Free. Runs on a battery: about 20 minutes ON, drains 3x faster
+      while you talk or hear someone. Full again in the lobby. Lost if you die.'
+    price: 0
+  freeWalkieBattery:
+    secondsWhenIdle: 1200
+    talkOrHearMultiplier: 3
+  paidWalkie:
+    displayName: Walkie-Talkie
+    description: Talk to every teammate who carries a switched-on walkie, at any
+      distance. No battery. Lost if you die.
+    price: 100
+  paidSyringe:
+    displayName: Syringe
+    description: 'Hold Left Click: heal 75% of your missing health. Or hold it on
+      a downed friend to get them up.'
+    price: 150
+    maxCarry: 3
+    healPartOfMissing: 0.75
+    healFlat: 0
+  freeSyringe:
+    displayName: Free Syringe
+    description: 'Free, carry 1. Hold Left Click: +15 health. Or hold it on a downed
+      friend to get them up.'
+    price: 0
+    maxCarry: 1
+    healPartOfMissing: 0
+    healFlat: 15
+  syringeUse:
+    holdSeconds: 2
+    reviveRange: 2.5

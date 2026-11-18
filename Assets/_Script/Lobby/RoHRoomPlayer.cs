@@ -37,6 +37,7 @@ public class RoHRoomPlayer : NetworkRoomPlayer
     [SyncVar] private ushort pingMs;                       // round trip, from the server's own measure
     [SyncVar] private string productUserId = string.Empty; // EOS id (owner sends it once)
     [SyncVar] private uint talkerNetId;                    // this connection's main object (lobby body / match body)
+    [SyncVar] private int entryMinutes;                    // 17 Nov: host's seat only: entry time (minutes before 00:00)
     private float nextServerRefresh;
 
     /// <summary>Every seat on this machine (lobby and match). No FindObjects needed.</summary>
@@ -47,6 +48,34 @@ public class RoHRoomPlayer : NetworkRoomPlayer
     public int PingMs => pingMs;
     public string ProductUserId => productUserId;
     public uint TalkerNetId => talkerNetId;
+    /// <summary>17 Nov (Task 8): the entry time the host picked (minutes before 00:00). Read it on the host's seat.</summary>
+    public int EntryMinutes => entryMinutes;
+
+    /// <summary>SERVER (host). 17 Nov: next entry time on the Lobby Board (23:00 -> 23:15 -> ... -> 00:00 -> 23:00).</summary>
+    public void ServerNextEntryTime()
+    {
+        if (!NetworkServer.active || !isHost) return;
+        int[] choices = RoomConfig.EntryChoices;
+        int at = System.Array.IndexOf(choices, RoomConfig.CleanEntry(entryMinutes));
+        entryMinutes = choices[(at + 1) % choices.Length];
+    }
+
+    /// <summary>SERVER (host). 17 Nov: set the entry time directly (picked from the Tab menu list).</summary>
+    public void ServerSetEntryTime(int minutesBefore)
+    {
+        if (!NetworkServer.active || !isHost) return;
+        entryMinutes = RoomConfig.CleanEntry(minutesBefore);
+    }
+
+    /// <summary>Every machine: the host's entry time (0 when there is no host seat).</summary>
+    public static int HostEntryMinutes
+    {
+        get
+        {
+            foreach (RoHRoomPlayer seat in All) if (seat != null && seat.isHost) return RoomConfig.CleanEntry(seat.entryMinutes);
+            return 0;
+        }
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => All.Clear();

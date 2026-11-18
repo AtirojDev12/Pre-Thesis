@@ -50,4 +50,12 @@ public enum MatchPhase
 
     /// <summary>The round is resolved. Nobody is still playing.</summary>
     Ended = 4,
+
+    /// <summary>
+    /// 17 Nov 2026 (Mr.k, Task 8): the PRE-SHIFT, from the entry time the host picked on the
+    /// Lobby Board (23:00 - 23:45) until 00:00. Players walk around and talk. Nothing else runs:
+    /// no customers, tasks, ghosts, rules or sanity loss (RoundRunning is false). Then Night.
+    /// Not used when the host picks 00:00.
+    /// </summary>
+    PreShift = 5,
 }

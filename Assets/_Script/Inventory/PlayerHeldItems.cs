@@ -140,12 +140,16 @@ public sealed class PlayerHeldItems : NetworkBehaviour
                 Place(taskVisual, taskOffset);
             }
         }
-        if (!inventory.IsHoldingRadio) Clear(ref radioVisual);
+        if (!inventory.IsHoldingRadio) { Clear(ref radioVisual); radioVisualId = null; }
         else
         {
+            // 17 Nov: free and paid walkies have their own model.
+            if (radioVisual != null && radioVisualId != inventory.HeldSlot.itemId) Clear(ref radioVisual);
             if (radioVisual == null)
             {
-                GameObject radio = Resources.Load<GameObject>("Items/WalkieTalkie");
+                radioVisualId = inventory.HeldSlot.itemId;
+                ItemCatalog.ItemInfo radioInfo = ItemCatalog.Find(radioVisualId);
+                GameObject radio = ItemCatalog.LoadPrefab(radioInfo != null ? radioInfo.heldPrefabPath : null, "Items/WalkieTalkie");
                 if (radio != null) radioVisual = CreateVisual(radio, "Remote walkie-talkie", .24f);
             }
             if (radioVisual != null)
@@ -169,7 +173,8 @@ public sealed class PlayerHeldItems : NetworkBehaviour
         // 31 Oct (Mr.k): other players see the ghost part in your hand (model = first child of its world prefab).
         // 5 Nov: the work sheet too (same way).
         string heldId = inventory.HeldSlot.IsEmpty ? null : inventory.HeldSlot.itemId;
-        if (!ItemCatalog.IsGhostPart(heldId) && !ItemCatalog.IsWorksheet(heldId)) { Clear(ref partVisual); partVisualId = null; }
+        // 17 Nov: syringes too.
+        if (!ItemCatalog.IsGhostPart(heldId) && !ItemCatalog.IsWorksheet(heldId) && !ItemCatalog.IsSyringe(heldId)) { Clear(ref partVisual); partVisualId = null; }
         else
         {
             if (partVisual == null || partVisualId != heldId)
@@ -177,13 +182,16 @@ public sealed class PlayerHeldItems : NetworkBehaviour
                 Clear(ref partVisual);
                 partVisualId = heldId;
                 ItemCatalog.ItemInfo info = ItemCatalog.Find(heldId);
-                GameObject world = info != null ? Resources.Load<GameObject>(info.worldPrefabPath) : null;
+                GameObject world = info != null ? ItemCatalog.LoadWorldPrefab(heldId) : null;
                 if (world != null && world.transform.childCount > 0)
-                    partVisual = CreateVisual(world.transform.GetChild(0).gameObject, "Remote held item", ItemCatalog.IsWorksheet(heldId) ? .22f : .3f);
+                    partVisual = CreateVisual(world.transform.GetChild(0).gameObject, "Remote held item",
+                        ItemCatalog.IsWorksheet(heldId) ? .22f : ItemCatalog.IsSyringe(heldId) ? .16f : .3f);
             }
             if (partVisual != null) Place(partVisual, mapOffset);
         }
     }
+
+    private string radioVisualId; // 17 Nov: which walkie the remote model shows
 
     private Transform Chest()
     {

@@ -73,8 +73,9 @@ public class PersistentHUD : MonoBehaviour
     {
         // Health, stamina, prompts and the crosshair only display information.
         // Their overlay graphics must not eat clicks intended for world-space controls.
+        // 16 Nov: not the screens kept here for the UI Hub (UiHubScreen): their copies have real buttons.
         foreach (Graphic graphic in GetComponentsInChildren<Graphic>(true))
-            graphic.raycastTarget = false;
+            if (graphic.GetComponentInParent<UiHubScreen>(true) == null) graphic.raycastTarget = false;
 
         if (_instance != null && _instance != this)
         {
@@ -87,6 +88,15 @@ public class PersistentHUD : MonoBehaviour
 
         _instance = this;
         ApplyVisibility();
+
+        // 16 Nov (Mr.k): the status bars and the hotbar are now parts of this prefab. The game
+        // switches them on when needed, so start with all of them off (whatever state the
+        // designer saved them in while editing the prefab).
+        foreach (HudBar bar in GetComponentsInChildren<HudBar>(true)) bar.Show(false);
+        foreach (HotbarView hotbar in GetComponentsInChildren<HotbarView>(true)) hotbar.Show(false);
+        // Editable versions of code-built screens: only copies of them are shown (UiLayoutRuntime).
+        foreach (UiHubScreen screen in GetComponentsInChildren<UiHubScreen>(true))
+            if (screen.gameObject.activeSelf) screen.gameObject.SetActive(false);
 
         if (!surviveSceneLoads) return;
 
@@ -117,4 +127,24 @@ public class PersistentHUD : MonoBehaviour
     {
         if (_instance == this) _instance = null;
     }
+
+#if UNITY_EDITOR
+    // 17 Nov 2026 (Mr.k): there is ONE GAME HUD in the project, in the Lobby scene. It follows the
+    // players into the map by itself. Pressing Play straight in a map scene (testing) would have no
+    // HUD, so in the Unity Editor only the prefab is added for that run. Builds always start from
+    // the menu, so they never need this.
+    private const string EditorPrefabPath = "Assets/Prefab/GAME HUD.prefab";
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)] // after the scene's Awake, before any Start
+    private static void EditorAddForDirectPlay()
+    {
+        if (_instance != null || FindAnyObjectByType<PersistentHUD>(FindObjectsInactive.Include) != null) return;
+        string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (scene == "MainMenu" || scene == "Lobby") return; // the normal way in: the Lobby brings the HUD
+        var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefabPath);
+        if (prefab == null) return;
+        Instantiate(prefab).name = prefab.name;
+        Debug.Log($"[GAME HUD] \"{scene}\" has no GAME HUD (the only copy is in the Lobby scene). One was added for this test run. Editor only.");
+    }
+#endif
 }

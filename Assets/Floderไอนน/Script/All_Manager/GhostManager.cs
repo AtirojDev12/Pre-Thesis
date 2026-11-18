@@ -74,6 +74,8 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
         // server.
         if (!HasAuthority) return;
         if (isGhostActive || isSequenceRunning) return;
+        // 17 Nov (Mr.k, Task 8): no ghost before 00:00 (pre-shift). The timer starts at 00:00.
+        if (MatchDirector.Instance != null && !MatchDirector.Instance.RoundRunning) return;
 
         timer += Time.deltaTime;
 

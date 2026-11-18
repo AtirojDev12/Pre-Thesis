@@ -28,6 +28,8 @@ public static class ScreenRoomBonusSetup
     [MenuItem("Tools/Pre-Thesis/Scenes/Map: Screen Room Bonus Tasks (Normal Room)", false, 52)]
     private static void Menu()
     {
+        // 15 Nov: chores now sit under the zone boxes; rebuilding would make doubles.
+        if (!ZoneBoxSetup.ConfirmOldTool("Screen Room Bonus Tasks")) return;
         Scene scene = SceneManager.GetActiveScene();
         Transform root = Find(scene, RootName);
         if (root == null)

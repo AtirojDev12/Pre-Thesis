@@ -43,8 +43,9 @@ public static class GameplayLoopSetup
         int made = 0;
         GameObject last = null;
 
-        // 5 Nov (Mr.k): Tickets + Popcorn & Water are ONE zone ("Ticket Zone"): one board with
-        // both kinds of lines. An old map with two boards: run "Map: Merge Ticket + Popcorn Boards".
+        // 5 Nov (Mr.k): Tickets + Popcorn & Water are ONE zone ("Ticket Zone").
+        // 15 Nov (Mr.k): the zone has TWO boards again (Tickets + Food); both count as one zone.
+        // A new map gets one board here; split it with "Map: Task Boards - Split Ticket Zone + Staff Room Copies".
         ZoneTaskList ticketBoard = FindBoard("zone_ticket");
         if (ticketBoard == null && FindBoard("zone_popcorn") == null)
         {
@@ -58,11 +59,6 @@ public static class GameplayLoopSetup
                     AddTask(so, "Sell Water", ZoneTaskKind.Water, PopcornFlavor.Drink, 0, 15);
                 });
             made++;
-        }
-        else if (FindBoard("zone_popcorn") != null)
-        {
-            Debug.LogWarning("[GameplayLoopSetup] This map still has a separate popcorn board. Run Tools > Pre-Thesis > Scenes > " +
-                             "Map: Merge Ticket + Popcorn Boards (one Ticket Zone).");
         }
         if (ticketBoard != null && HasOldTicketLines(ticketBoard))
         {

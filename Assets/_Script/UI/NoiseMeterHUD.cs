@@ -1,8 +1,5 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 /// <summary>
@@ -12,16 +9,22 @@ using UnityEngine.UI;
 /// Values come from <see cref="PlayerNoise.Local"/>. A white line on each bar
 /// marks <see cref="PlayerNoise.LoudThreshold"/>; above it the bar turns red.
 ///
-/// Built in code, lives for the whole game (no prefab, no scene edits). Shown
-/// only in a match (when there is a local player) or while it is being moved.
+/// 16 Nov 2026 (Mr.k):
+///   - MIC and GAME are now TWO SEPARATE BARS inside the GAME HUD prefab (<see cref="HudBar"/>:
+///     frame + fill + line + label, each editable and movable on its own).
+///   - Each bar has a lying (horizontal) and a standing (vertical) version in the prefab.
+///     Settings > Sound > Noise meter still lets the PLAYER pick the direction; the game
+///     shows that version and hides the other one.
+///   - Players can no longer drag the meter around: the designer places the bars in the
+///     GAME HUD prefab. ("Move meter" / "Reset position" are gone from Settings.)
+///   - This script is only the logic. If the GAME HUD has no noise bars (run
+///     Tools > Pre-Thesis > UI > GAME HUD: Add Missing Parts), it builds the old code-made
+///     meter in the top-right corner.
 ///
-/// SETTINGS (Settings > Sound > Noise meter)
-///   - Direction: vertical bars (standing) or horizontal bars (lying).
-///   - Move meter: the screen dims, drag the meter anywhere, press Done / Enter / Esc.
-///   - Reset position: back to the top-right corner.
-///   Position is saved as a fraction of the screen, so it survives resolution changes.
+/// Lives for the whole game. Shown only in a match (when there is a local player).
+/// LOCAL ONLY (UI).
 /// </summary>
-public sealed class NoiseMeterHUD : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+public sealed class NoiseMeterHUD : MonoBehaviour
 {
     private static readonly Color PanelColor = new Color(0.06f, 0.05f, 0.05f, 0.7f);
     private static readonly Color TrackColor = new Color(1f, 1f, 1f, 0.12f);
@@ -29,31 +32,25 @@ public sealed class NoiseMeterHUD : MonoBehaviour, IBeginDragHandler, IDragHandl
     private static readonly Color MidColor = new Color(0.95f, 0.78f, 0.3f, 1f);
     private static readonly Color LoudColor = new Color(0.95f, 0.3f, 0.25f, 1f);
     private static readonly Color TextColor = new Color(0.96f, 0.94f, 0.93f, 1f);
-    private static readonly Color AccentColor = new Color(0.85f, 0.64f, 0.25f, 1f);
 
     private const int NormalSortOrder = 49;   // just under the pause menu (50)
-    private const int EditSortOrder = 32500;  // above every menu while moving it
     private const float Margin = 24f;
 
     private static NoiseMeterHUD instance;
 
-    /// <summary>True while the player is dragging the meter into place.</summary>
-    public static bool IsEditing => instance != null && instance.editing;
+    // The bars inside the GAME HUD prefab (null = not there).
+    private HudBar micLying, micStanding, gameLying, gameStanding;
+    private PersistentHUD barsFrom;
 
-    /// <summary>Frame on which editing ended (so the Esc that ended it does not also close a menu).</summary>
-    public static int EditEndedFrame { get; private set; } = -1;
-
-    private Canvas canvas;
+    // Old code-made meter (only when the GAME HUD has no noise bars).
     private RectTransform canvasRect;
     private RectTransform meter;
-    private Image meterPanel;
     private readonly Bar micBar = new Bar();
     private readonly Bar gameBar = new Bar();
-    private GameObject editLayer;
-    private bool editing;
-    private bool vertical;
     private bool built;
     private Vector2 lastCanvasSize;
+
+    private bool vertical;
 
     private sealed class Bar
     {
@@ -64,210 +61,138 @@ public sealed class NoiseMeterHUD : MonoBehaviour, IBeginDragHandler, IDragHandl
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics()
-    {
-        instance = null;
-        EditEndedFrame = -1;
-    }
+    private static void ResetStatics() => instance = null;
 
-    /// <summary>Creates the meter once (called when a local player appears, or from Settings).</summary>
+    /// <summary>Creates the meter logic once (called when a local player appears).</summary>
     public static NoiseMeterHUD Ensure()
     {
         if (instance != null) return instance;
-
-        var go = new GameObject("Noise Meter HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        var go = new GameObject("Noise Meter HUD (logic)");
         DontDestroyOnLoad(go);
         instance = go.AddComponent<NoiseMeterHUD>();
-        instance.Build();
+        instance.vertical = GameSettings.NoiseMeterVertical;
+        GameSettings.Changed += instance.OnSettingsChanged;
         return instance;
-    }
-
-    /// <summary>Settings > "Move meter": dim the screen and let the player drag the meter.</summary>
-    public static void BeginEdit(bool verticalPreview)
-    {
-        NoiseMeterHUD hud = Ensure();
-        hud.vertical = verticalPreview;
-        hud.LayoutBars();
-        hud.editing = true;
-        hud.canvas.sortingOrder = EditSortOrder;
-        hud.editLayer.SetActive(true);
-        hud.editLayer.transform.SetAsFirstSibling(); // dim behind the meter
-        hud.meterPanel.raycastTarget = true;          // draggable only now
-        EnsureEventSystem();
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-    }
-
-    /// <summary>Settings > "Reset position": back to the top-right corner (saved at once).</summary>
-    public static void ResetPosition()
-    {
-        GameSettings.ResetNoiseMeterPosition();
-        if (instance != null) instance.ApplySavedPosition();
     }
 
     private void OnDestroy()
     {
         GameSettings.Changed -= OnSettingsChanged;
+        ShowHudBars(false, null, null);
         if (instance == this) instance = null;
     }
 
     private void OnSettingsChanged()
     {
-        if (editing) return; // the preview keeps the direction chosen in Settings
         bool v = GameSettings.NoiseMeterVertical;
-        if (v != vertical)
-        {
-            vertical = v;
-            LayoutBars();
-        }
-        ApplySavedPosition();
+        if (v == vertical) return;
+        vertical = v;
+        if (built) { LayoutBars(); PlaceTopRight(); }
     }
 
     // ---- Update -------------------------------------------------------------------
 
     private void LateUpdate()
     {
-        if (!built) return;
-
         PlayerNoise noise = PlayerNoise.Local;
-        bool show = editing || noise != null;
+        bool show = noise != null;
+
+        if (FindHudBars())
+        {
+            if (built && meter.gameObject.activeSelf) meter.gameObject.SetActive(false);
+            // The version for the chosen direction; the other direction if the designer removed one.
+            HudBar mic = vertical ? (micStanding != null ? micStanding : micLying) : (micLying != null ? micLying : micStanding);
+            HudBar game = vertical ? (gameStanding != null ? gameStanding : gameLying) : (gameLying != null ? gameLying : gameStanding);
+            ShowHudBars(show, mic, game);
+            if (!show) return;
+            SetHudBar(mic, noise.Mic);
+            SetHudBar(game, noise.Game);
+            return;
+        }
+
+        // Old code-made meter.
+        if (!show && !built) return;
+        if (!built) BuildOldMeter();
         if (meter.gameObject.activeSelf != show) meter.gameObject.SetActive(show);
         if (!show) return;
 
         // The canvas size is only final after the CanvasScaler ran: re-place when it changes.
         Vector2 canvasSize = canvasRect.rect.size;
-        if (canvasSize != lastCanvasSize && !editing)
+        if (canvasSize != lastCanvasSize)
         {
             lastCanvasSize = canvasSize;
-            ApplySavedPosition();
+            PlaceTopRight();
         }
-
-        float mic, game;
-        if (noise != null) { mic = noise.Mic; game = noise.Game; }
-        else
-        {
-            // Moving the meter from the main menu: animate so the bars are visible.
-            float t = Time.unscaledTime;
-            mic = 0.45f + 0.35f * Mathf.Sin(t * 2.1f);
-            game = 0.35f + 0.3f * Mathf.Sin(t * 1.3f + 1f);
-        }
-        SetBar(micBar, mic);
-        SetBar(gameBar, game);
-
-        if (editing)
-        {
-            Keyboard kb = Keyboard.current;
-            if (kb != null && (kb.escapeKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame))
-                EndEdit();
-        }
+        SetOldBar(micBar, noise.Mic);
+        SetOldBar(gameBar, noise.Game);
     }
 
-    private void SetBar(Bar bar, float value)
+    // ---- Bars in the GAME HUD prefab ---------------------------------------------------
+
+    /// <summary>Looks the bars up again when the GAME HUD appears or is replaced. True = at least MIC and GAME exist.</summary>
+    private bool FindHudBars()
+    {
+        PersistentHUD hud = PersistentHUD.Instance;
+        if (hud != barsFrom)
+        {
+            barsFrom = hud;
+            micLying = HudBar.Find(HudBar.MicNoiseHorizontal);
+            micStanding = HudBar.Find(HudBar.MicNoiseVertical);
+            gameLying = HudBar.Find(HudBar.GameNoiseHorizontal);
+            gameStanding = HudBar.Find(HudBar.GameNoiseVertical);
+        }
+        return (micLying != null || micStanding != null) && (gameLying != null || gameStanding != null);
+    }
+
+    private void ShowHudBars(bool show, HudBar mic, HudBar game)
+    {
+        if (micLying != null) micLying.Show(show && micLying == mic);
+        if (micStanding != null) micStanding.Show(show && micStanding == mic);
+        if (gameLying != null) gameLying.Show(show && gameLying == game);
+        if (gameStanding != null) gameStanding.Show(show && gameStanding == game);
+    }
+
+    private static void SetHudBar(HudBar bar, float value)
+    {
+        if (bar == null) return;
+        value = Mathf.Clamp01(value);
+        bar.Set(value);
+        bar.SetFillColour(ColourFor(value));
+        bar.SetMarker(PlayerNoise.LoudThreshold);
+    }
+
+    private static Color ColourFor(float value) =>
+        value >= PlayerNoise.LoudThreshold ? LoudColor
+        : value >= PlayerNoise.LoudThreshold * 0.66f ? MidColor : QuietColor;
+
+    // ---- Old code-made meter (fallback) ----------------------------------------------------
+
+    private static void SetOldBar(Bar bar, float value)
     {
         value = Mathf.Clamp01(value);
         bar.fill.fillAmount = value;
-        bar.fill.color = value >= PlayerNoise.LoudThreshold ? LoudColor
-            : value >= PlayerNoise.LoudThreshold * 0.66f ? MidColor : QuietColor;
+        bar.fill.color = ColourFor(value);
     }
 
-    // ---- Dragging (edit mode only) ----------------------------------------------------
-
-    private Vector2 dragOffset;
-    private bool dragging;
-
-    // Drag events from any child bubble up to this component, so check that
-    // the drag started ON the meter (not on the dimmed background).
-    public void OnBeginDrag(PointerEventData e)
+    private void BuildOldMeter()
     {
-        GameObject hit = e.pointerPressRaycast.gameObject;
-        dragging = editing && hit != null && hit.transform.IsChildOf(meter);
-        if (!dragging) return;
-        dragOffset = meter.anchoredPosition - ToCanvas(e.position);
-    }
-
-    public void OnDrag(PointerEventData e)
-    {
-        if (!dragging || !editing) return;
-        meter.anchoredPosition = ClampInside(ToCanvas(e.position) + dragOffset);
-    }
-
-    public void OnEndDrag(PointerEventData e) => dragging = false;
-
-    /// <summary>Screen pixels -> canvas units measured from the bottom-left corner.</summary>
-    private Vector2 ToCanvas(Vector2 screen)
-    {
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screen, null, out Vector2 local);
-        return local + canvasRect.rect.size * 0.5f; // local is from the centre
-    }
-
-    private void EndEdit()
-    {
-        if (!editing) return;
-        editing = false;
-        EditEndedFrame = Time.frameCount;
-        editLayer.SetActive(false);
-        canvas.sortingOrder = NormalSortOrder;
-        meterPanel.raycastTarget = false; // never catch clicks during play
-
-        // Save as a fraction of the screen (centre of the meter).
-        Vector2 size = canvasRect.rect.size;
-        Vector2 centre = meter.anchoredPosition; // anchored at bottom-left, pivot centre
-        GameSettings.SetNoiseMeterPosition(centre.x / size.x, centre.y / size.y);
-        GameSettings.Save();
-
-        // Back to the saved direction (the preview may have shown an unapplied one).
-        vertical = GameSettings.NoiseMeterVertical;
-        LayoutBars();
-        ApplySavedPosition();
-    }
-
-    // ---- Layout ---------------------------------------------------------------------------
-
-    private void Build()
-    {
-        canvas = GetComponent<Canvas>();
+        var root = new GameObject("Noise Meter HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+        root.transform.SetParent(transform, false);
+        Canvas canvas = root.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = NormalSortOrder;
-        var scaler = GetComponent<CanvasScaler>();
+        var scaler = root.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
-        canvasRect = (RectTransform)transform;
+        canvasRect = (RectTransform)root.transform;
 
-        // Edit layer: dim + instructions + Done button. Swallows every click so
-        // nothing behind it can be pressed while moving the meter.
-        RectTransform edit = NewRect("Edit Layer", transform);
-        Stretch(edit);
-        Image dim = edit.gameObject.AddComponent<Image>();
-        dim.color = new Color(0f, 0f, 0f, 0.6f);
-        dim.raycastTarget = true;
-
-        TMP_Text hint = MakeText(edit, "Hint", "Drag the noise meter where you want it.\nEnter or Esc = done", 30, TextAlignmentOptions.Center);
-        hint.rectTransform.anchorMin = hint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-        hint.rectTransform.sizeDelta = new Vector2(1000f, 120f);
-        hint.rectTransform.anchoredPosition = new Vector2(0f, 60f);
-
-        RectTransform done = NewRect("Done Button", edit);
-        done.anchorMin = done.anchorMax = new Vector2(0.5f, 0.5f);
-        done.sizeDelta = new Vector2(220f, 64f);
-        done.anchoredPosition = new Vector2(0f, -40f);
-        Image doneImage = done.gameObject.AddComponent<Image>();
-        doneImage.color = AccentColor;
-        Button doneButton = done.gameObject.AddComponent<Button>();
-        doneButton.targetGraphic = doneImage;
-        doneButton.onClick.AddListener(EndEdit);
-        TMP_Text doneText = MakeText(done, "Text", "Done", 28, TextAlignmentOptions.Center);
-        doneText.color = Color.black;
-        editLayer = edit.gameObject;
-        editLayer.SetActive(false);
-
-        // The meter itself.
-        meter = NewRect("Meter", transform);
+        meter = NewRect("Meter", root.transform);
         meter.anchorMin = meter.anchorMax = Vector2.zero;   // position in canvas units from bottom-left
         meter.pivot = new Vector2(0.5f, 0.5f);
-        meterPanel = meter.gameObject.AddComponent<Image>();
+        Image meterPanel = meter.gameObject.AddComponent<Image>();
         meterPanel.color = PanelColor;
-        meterPanel.raycastTarget = false; // switched on only while moving the meter
+        meterPanel.raycastTarget = false;
 
         micBar.track = MakeTrack("Mic");
         gameBar.track = MakeTrack("Game");
@@ -278,11 +203,9 @@ public sealed class NoiseMeterHUD : MonoBehaviour, IBeginDragHandler, IDragHandl
         micBar.label = MakeText(meter, "Mic Label", "MIC", 16, TextAlignmentOptions.Center);
         gameBar.label = MakeText(meter, "Game Label", "GAME", 16, TextAlignmentOptions.Center);
 
-        vertical = GameSettings.NoiseMeterVertical;
         LayoutBars();
         built = true;
-        GameSettings.Changed += OnSettingsChanged;
-        ApplySavedPosition();
+        PlaceTopRight();
         meter.gameObject.SetActive(false);
     }
 
@@ -290,7 +213,6 @@ public sealed class NoiseMeterHUD : MonoBehaviour, IBeginDragHandler, IDragHandl
     private void LayoutBars()
     {
         if (meter == null) return;
-
         if (vertical)
         {
             // Two standing bars side by side, label under each.
@@ -350,27 +272,13 @@ public sealed class NoiseMeterHUD : MonoBehaviour, IBeginDragHandler, IDragHandl
         }
     }
 
-    private void ApplySavedPosition()
+    /// <summary>The old meter always sits in the top-right corner (16 Nov: players no longer move it).</summary>
+    private void PlaceTopRight()
     {
         if (meter == null) return;
         Vector2 size = canvasRect.rect.size;
         if (size.x <= 1f || size.y <= 1f) size = new Vector2(1920f, 1080f);
-
-        Vector2 pos;
-        if (GameSettings.TryGetNoiseMeterPosition(out float fx, out float fy))
-            pos = new Vector2(fx * size.x, fy * size.y);
-        else // default: top-right corner
-            pos = new Vector2(size.x - Margin - meter.sizeDelta.x / 2f, size.y - Margin - meter.sizeDelta.y / 2f);
-
-        meter.anchoredPosition = ClampInside(pos);
-    }
-
-    private Vector2 ClampInside(Vector2 pos)
-    {
-        Vector2 size = canvasRect.rect.size;
-        Vector2 half = meter.sizeDelta / 2f;
-        return new Vector2(Mathf.Clamp(pos.x, half.x, Mathf.Max(half.x, size.x - half.x)),
-                           Mathf.Clamp(pos.y, half.y, Mathf.Max(half.y, size.y - half.y)));
+        meter.anchoredPosition = new Vector2(size.x - Margin - meter.sizeDelta.x / 2f, size.y - Margin - meter.sizeDelta.y / 2f);
     }
 
     // ---- UI helpers -------------------------------------------------------------------------
@@ -408,7 +316,6 @@ public sealed class NoiseMeterHUD : MonoBehaviour, IBeginDragHandler, IDragHandl
     }
 
     private static Sprite whiteSprite;
-
     private static Sprite WhiteSprite()
     {
         if (whiteSprite != null) return whiteSprite;
@@ -442,13 +349,5 @@ public sealed class NoiseMeterHUD : MonoBehaviour, IBeginDragHandler, IDragHandl
         label.alignment = align;
         label.raycastTarget = false;
         return label;
-    }
-
-    private static void EnsureEventSystem()
-    {
-        if (EventSystem.current != null) return;
-        var go = new GameObject("EventSystem");
-        go.AddComponent<EventSystem>();
-        go.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
     }
 }

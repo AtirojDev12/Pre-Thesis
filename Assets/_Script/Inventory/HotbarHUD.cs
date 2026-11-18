@@ -3,9 +3,13 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Bottom-centre hotbar for the local player, built in code (no prefab, no
-/// scene edits). Shows the 4 slots, which one is in your hand, Walkie-Talkie
-/// ON/OFF, when you are talking on the radio, and the mic state.
+/// Bottom-centre hotbar for the local player. Shows the 4 slots, which one is in your
+/// hand, Walkie-Talkie ON/OFF, when you are talking on the radio, and the mic state.
+///
+/// 16 Nov 2026 (Mr.k): the hotbar is now a real part of the GAME HUD prefab
+/// (<see cref="HotbarView"/>: frames, texts, optional item icons, all editable). This script
+/// is only the logic and writes into that view. If the GAME HUD has no hotbar (run
+/// Tools > Pre-Thesis > UI > GAME HUD: Add Missing Parts), it builds the old code-made one.
 /// </summary>
 public sealed class HotbarHUD : MonoBehaviour
 {
@@ -22,9 +26,24 @@ public sealed class HotbarHUD : MonoBehaviour
     private bool showingShoutHint; // 31 Oct
     private TMP_Text statusText;
     private bool dirty = true;
+    private HotbarView view;    // 16 Nov: the hotbar inside the GAME HUD (null = code-made hotbar)
+    private string shownHint = string.Empty;
 
     public static HotbarHUD Create(PlayerInventory owner)
     {
+        HotbarView hudView = HotbarView.Find(PlayerInventory.SlotCount);
+        if (hudView != null)
+        {
+            // Logic only: the pictures and texts live in the GAME HUD prefab.
+            var logic = new GameObject("Hotbar HUD (logic)").AddComponent<HotbarHUD>();
+            logic.inventory = owner;
+            logic.view = hudView;
+            hudView.Show(true);
+            owner.Changed += logic.MarkDirty;
+            GameSettings.Changed += logic.MarkDirty;
+            return logic;
+        }
+
         var go = new GameObject("Hotbar HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
         var canvas = go.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -48,6 +67,7 @@ public sealed class HotbarHUD : MonoBehaviour
     {
         if (inventory != null) inventory.Changed -= MarkDirty;
         GameSettings.Changed -= MarkDirty;
+        if (view != null) view.Show(false);
     }
 
     private void Build()
@@ -96,26 +116,49 @@ public sealed class HotbarHUD : MonoBehaviour
             {
                 InventorySlot slot = inventory.GetSlot(i);
                 bool selected = i == inventory.SelectedSlot;
-                frames[i].color = selected ? SelectedColor : SlotColor;
 
-                if (slot.IsEmpty) labels[i].text = string.Empty;
-                else if (slot.spare)
-                    labels[i].text = ItemCatalog.DisplayName(slot.itemId) + "\n" + Colour("SPARE", OffColor);
+                // The item's name, and its state words (second line).
+                string itemName = slot.IsEmpty ? string.Empty : ItemCatalog.DisplayName(slot.itemId);
+                string state = string.Empty;
+                if (slot.IsEmpty) { }
+                else if (slot.spare) state = Colour("SPARE", OffColor);
                 else if (ItemCatalog.IsRadio(slot.itemId))
-                    labels[i].text = ItemCatalog.DisplayName(slot.itemId) + "\n" +
-                        (slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor));
+                    state = ItemCatalog.UsesWalkieBattery(slot.itemId) // 17 Nov: the free walkie's battery
+                        ? (slot.charge <= 0f ? Colour("EMPTY", OffColor)
+                            : (slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor)) + " " + Mathf.CeilToInt(slot.charge * 100f) + "%")
+                        : slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor);
                 else if (ItemCatalog.IsFlashlight(slot.itemId)) // 5 Oct
-                    labels[i].text = ItemCatalog.DisplayName(slot.itemId) + "\n" +
-                        (slot.charge <= 0f ? Colour("EMPTY", OffColor)
-                            : (slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor)) + " " + Mathf.CeilToInt(slot.charge * 100f) + "%");
+                    state = slot.charge <= 0f ? Colour("EMPTY", OffColor)
+                        : (slot.poweredOn ? Colour("ON", OnColor) : Colour("OFF", OffColor)) + " " + Mathf.CeilToInt(slot.charge * 100f) + "%";
                 else if (ItemCatalog.MaxStack(slot.itemId) > 1) // 5 Oct: Battery x3
-                    labels[i].text = ItemCatalog.DisplayName(slot.itemId) + "\n" + Colour("x" + slot.Units, OnColor);
-                else labels[i].text = ItemCatalog.DisplayName(slot.itemId);
+                    state = Colour("x" + slot.Units, OnColor);
+
+                if (view != null) // 16 Nov: the hotbar in the GAME HUD prefab
+                {
+                    Sprite icon = slot.IsEmpty ? null : view.IconOf(slot.itemId);
+                    string shown = icon != null && view.HideNameWhenIconShown ? string.Empty : itemName;
+                    string viewWords = state.Length == 0 ? shown : shown.Length == 0 ? state : shown + "\n" + state;
+                    view.SetSlot(i, selected, viewWords, icon);
+                    continue;
+                }
+
+                frames[i].color = selected ? SelectedColor : SlotColor;
+                labels[i].text = state.Length == 0 ? itemName : itemName + "\n" + state;
                 labels[i].color = selected ? Color.black : TextColor;
             }
 
             // 20 Oct: key names come from Settings > Controls (Keybinds).
-            hintText.text = inventory.IsHoldingSpare
+            SetHint(inventory.HandsBlocked // 17 Nov: a large two-handed object (sign)
+                ? $"Hands full: put the sign down first [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}]"
+                : inventory.IsHoldingSyringe
+                ? $"Hold [{Keybinds.KeyName(GameAction.UseSyringe)}] heal yourself   ·   look at a downed friend: get them up"
+                : inventory.IsHolding(ItemCatalog.BlackBox)
+                ? $"[E] on the drop spot: throw it in   ·   [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] put it back"
+                : inventory.IsHolding(ItemCatalog.GhostFlavor)
+                ? $"Bring it back to the popcorn station   ·   [{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] drop it"
+                : inventory.IsHolding(ItemCatalog.FilmReelGhost) // 17 Nov (Task 5)
+                ? GhostReelHint()
+                : inventory.IsHoldingSpare
                 ? $"Spare copy: you cannot use it.   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
                 : inventory.IsHoldingRadio
                 ? $"Hold [{Keybinds.KeyName(GameAction.WalkieTalk)}] talk on radio   ·   " +
@@ -128,15 +171,17 @@ public sealed class HotbarHUD : MonoBehaviour
                 : inventory.IsHoldingMap // 24 Oct
                 ? $"Hold [{Keybinds.KeyName(GameAction.ReadMap)}] read the map   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it for a friend"
                 : !inventory.HeldSlot.IsEmpty && !inventory.HeldSlot.spare && ItemCatalog.IsWorksheet(inventory.HeldSlot.itemId) // 5 Nov
-                ? $"[{Keybinds.KeyName(GameAction.ReadMap)}] open the work sheet   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it"
-                : PlayerSanity.HotbarHint(inventory); // 8 Oct: snack / holy items
+                ? $"[{Keybinds.KeyName(GameAction.ReadMap)}] open the Memo Book   ·   [{Keybinds.KeyName(GameAction.ThrowOrDrop)}] drop it"
+                : inventory.HeldSlot.IsEmpty && CarryProp.LocalHandProp != null // 17 Nov: mop / normal film reel
+                ? HandPropHint(CarryProp.LocalHandProp)
+                : PlayerSanity.HotbarHint(inventory)); // 8 Oct: snack / holy items
         }
 
         // 31 Oct: while downed, the hint line shows the downed hint (5 Nov: the walkie key, polled).
         string shoutHint = PlayerVoice.Local != null ? PlayerVoice.Local.LocalShoutHint : null;
         if (shoutHint != null)
         {
-            if (hintText.text != shoutHint) hintText.text = shoutHint;
+            SetHint(shoutHint);
             showingShoutHint = true;
         }
         else if (showingShoutHint)
@@ -155,7 +200,18 @@ public sealed class HotbarHUD : MonoBehaviour
             default: mic = Colour("Voice: offline", OffColor); break;
         }
         bool talking = PlayerVoice.Local != null && PlayerVoice.Local.RadioTransmitting;
-        statusText.text = talking ? mic + "\n" + Colour("RADIO: TALKING", SelectedColor) : mic;
+        string status = talking ? mic + "\n" + Colour("RADIO: TALKING", SelectedColor) : mic;
+        if (view != null) view.SetVoiceStatus(status);
+        else if (statusText.text != status) statusText.text = status;
+    }
+
+    private void SetHint(string text)
+    {
+        if (text == null) text = string.Empty;
+        if (text == shownHint) return;
+        shownHint = text;
+        if (view != null) view.SetHint(text);
+        else hintText.text = text;
     }
 
     // ---- UI helpers ----------------------------------------------------------
@@ -192,5 +248,22 @@ public sealed class HotbarHUD : MonoBehaviour
         rt.pivot = new Vector2(anchor.x, 0f);
         rt.sizeDelta = size;
         rt.anchoredPosition = position;
+    }
+
+    /// <summary>17 Nov (Task 5): hint for the ghost film reel in the hotbar (shows its show time).</summary>
+    private static string GhostReelHint()
+    {
+        CarryProp reel = CarryProp.LocalCarriedByToken(ItemCatalog.FilmReelGhost);
+        string name = reel != null ? reel.FullName : "Ghost Film Reel";
+        return name + ": hold [E] at the ghost room projector   ·   [" + Keybinds.KeyName(GameAction.ReloadOrDiscard) + "] put it back";
+    }
+
+    /// <summary>17 Nov (Task 5): hint for the mop / normal film reel in your hand.</summary>
+    private static string HandPropHint(CarryProp prop)
+    {
+        string drop = $"[{Keybinds.KeyName(GameAction.ReloadOrDiscard)}] put it down";
+        return prop.CarryId == CarryProp.Mop
+            ? "Mop in hand: arrows show stains near you. Hold [E] on a stain   ·   " + drop
+            : prop.FullName + " in hand: hold [E] at its projector   ·   " + drop.Replace("put it down", "put it back");
     }
 }

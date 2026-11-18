@@ -6,7 +6,8 @@ using UnityEngine.UI;
 /// 8 Oct (Mr.k). Everything sanity does to YOUR OWN screen. Added at runtime by
 /// PlayerSanity on the owner only (no prefab edit, no scene edit).
 ///
-///   - Sanity bar (bottom-left) + "chanting" / "cannot recover" text
+///   - (The sanity bar itself lives in the GAME HUD canvas: SanityBarUI. This class only
+///      shares ShouldShow / StatusText with it.)
 ///   - Eat / feed progress bar (centre)
 ///   - SHAKEN: dark screen edges.  BREAKING: darker edges that pulse like a heartbeat
 ///   - BREAKING: your friends look like ghosts (only on YOUR screen)
@@ -17,16 +18,9 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class SanityEffects : MonoBehaviour
 {
-    private static readonly Color CalmColor = new Color(0.55f, 0.8f, 1f);
-    private static readonly Color ShakenColor = new Color(1f, 0.8f, 0.3f);
-    private static readonly Color BreakingColor = new Color(1f, 0.25f, 0.25f);
-
     private PlayerSanity sanity;
     private GameObject root;
     private Image vignette;
-    private RectTransform barFill;
-    private Image barFillImage;
-    private Text barLabel;
     private GameObject useRoot;
     private RectTransform useFill;
     private Text useLabel;
@@ -34,7 +28,6 @@ public sealed class SanityEffects : MonoBehaviour
     private AudioSource audioSource;
     private float flashUntil;
     private float shownVignette;
-    private string shownText;
 
     private void Awake() => sanity = GetComponent<PlayerSanity>();
 
@@ -58,25 +51,13 @@ public sealed class SanityEffects : MonoBehaviour
     private void LateUpdate()
     {
         if (sanity == null) return;
-        bool show = sanity.InPlay || (MatchDirector.Instance != null && !PlayerInventory.InLobby && sanity.Value < PlayerSanity.Max);
+        bool show = ShouldShow(sanity);
         if (root == null) { if (!show) return; Build(); }
         if (root.activeSelf != show) root.SetActive(show);
         if (!show) { ClearHallucinations(); return; }
 
         SanitySettings s = SanitySettings.Current;
         SanityLevel level = sanity.Level;
-
-        // Bar
-        float fraction = sanity.Fraction;
-        barFill.anchorMax = new Vector2(fraction, 1f);
-        Color colour = level == SanityLevel.Breaking ? BreakingColor : level == SanityLevel.Shaken ? ShakenColor : CalmColor;
-        if (level == SanityLevel.Breaking) colour.a = 0.6f + 0.4f * Mathf.Abs(Mathf.Sin(Time.time * 4f));
-        barFillImage.color = colour;
-        string text = "SANITY " + Mathf.CeilToInt(sanity.Value)
-            + (sanity.IsChanting ? (sanity.BlocksGain ? "   chanting (cannot recover now)" : "   chanting...") : "")
-            + (!sanity.IsChanting && sanity.BlocksGain ? "   cannot recover" : "")
-            + (!sanity.IsChanting && !sanity.BlocksGain && sanity.Value < PlayerSanity.Max && sanity.InPlay ? $"   [{Keybinds.KeyName(GameAction.Chant)}] chant" : "");
-        if (text != shownText) { shownText = text; barLabel.text = text; }
 
         // Eat / feed progress
         bool using_ = sanity.UseProgress > 0f;
@@ -224,11 +205,26 @@ public sealed class SanityEffects : MonoBehaviour
         haunted.Clear();
     }
 
+    /// <summary>Whether the sanity UI should be on screen for this player (shared with SanityBarUI).</summary>
+    public static bool ShouldShow(PlayerSanity sanity)
+    {
+        if (sanity == null) return false;
+        return sanity.InPlay || (MatchDirector.Instance != null && !PlayerInventory.InLobby && sanity.Value < PlayerSanity.Max);
+    }
+
+    /// <summary>"SANITY 75" plus the chanting / cannot-recover hint (shared with SanityBarUI).</summary>
+    public static string StatusText(PlayerSanity sanity)
+    {
+        return "SANITY " + Mathf.CeilToInt(sanity.Value)
+            + (sanity.IsChanting ? (sanity.BlocksGain ? "   chanting (cannot recover now)" : "   chanting...") : "")
+            + (!sanity.IsChanting && sanity.BlocksGain ? "   cannot recover" : "")
+            + (!sanity.IsChanting && !sanity.BlocksGain && sanity.Value < PlayerSanity.Max && sanity.InPlay ? $"   [{Keybinds.KeyName(GameAction.Chant)}] chant" : "");
+    }
+
     // ---- UI (built in code) ------------------------------------------------------
 
     private void Build()
     {
-        SanitySettings s = SanitySettings.Current;
         root = new GameObject("Sanity Screen");
         var canvas = root.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -244,25 +240,6 @@ public sealed class SanityEffects : MonoBehaviour
         vignette = NewImage("Vignette", root.transform, Color.clear);
         vignette.sprite = MakeVignetteSprite();
         Stretch(vignette.rectTransform);
-
-        // Sanity bar
-        Image back = NewImage("Sanity Bar", root.transform, new Color(0f, 0f, 0f, 0.55f));
-        RectTransform backRt = back.rectTransform;
-        backRt.anchorMin = backRt.anchorMax = backRt.pivot = Vector2.zero;
-        backRt.anchoredPosition = s.barPosition;
-        backRt.sizeDelta = s.barSize;
-        barFillImage = NewImage("Fill", backRt, CalmColor);
-        barFill = barFillImage.rectTransform;
-        barFill.anchorMin = Vector2.zero;
-        barFill.anchorMax = Vector2.one;
-        barFill.offsetMin = barFill.offsetMax = Vector2.zero;
-        barLabel = NewText("Label", backRt, "SANITY", 18, TextAnchor.LowerLeft);
-        RectTransform labelRt = barLabel.rectTransform;
-        labelRt.anchorMin = new Vector2(0f, 1f);
-        labelRt.anchorMax = new Vector2(1f, 1f);
-        labelRt.pivot = new Vector2(0f, 0f);
-        labelRt.anchoredPosition = new Vector2(0f, 2f);
-        labelRt.sizeDelta = new Vector2(400f, 24f);
 
         // Eat / feed progress (centre, under the crosshair)
         Image useBack = NewImage("Use Progress", root.transform, new Color(0f, 0f, 0f, 0.6f));
