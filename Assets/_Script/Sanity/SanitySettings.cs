@@ -85,6 +85,24 @@ public sealed class SanitySettings : ScriptableObject
     [Range(0.1f, 3f), Tooltip("Moving faster than this (m/s) stops the chant from counting: stand still to pray.")]
     public float chantMaxMoveSpeed = 0.6f;
 
+    [Header("Chant sound (19 Nov: Sanity on Pregress)")]
+    [Tooltip("FALLBACK ONLY: the clip, volume and distances come from the SoundLibrary entry \"Sanity_Chant\" (Resources/Audio/SoundLibrary.asset). These three are used only if that entry is missing. Delay, loop and fades below always apply.")]
+    public AudioClip chantSound;
+    [Range(0f, 1f), Tooltip("Loudness (0..1). The player's SFX volume setting is applied on top.")]
+    public float chantSoundVolume = 0.8f;
+    [Range(0f, 10f), Tooltip("Seconds the key must be held before the sound starts, so a quick tap stays silent.")]
+    public float chantSoundDelay = 3f;
+    [Tooltip("On = loops while the key is held. Off = plays once.")]
+    public bool chantSoundLoop = true;
+    [Range(0f, 3f), Tooltip("Seconds to fade in when it starts.")]
+    public float chantSoundFadeIn = 0.5f;
+    [Range(0f, 3f), Tooltip("Seconds to fade out after the key is let go.")]
+    public float chantSoundFadeOut = 0.4f;
+    [Range(0.1f, 20f), Tooltip("Metres: full volume up to here.")]
+    public float chantSoundNearDistance = 2f;
+    [Range(1f, 50f), Tooltip("Metres: silent from here on.")]
+    public float chantSoundFarDistance = 12f;
+
     // ---- Items ---------------------------------------------------------------
 
     [Serializable]

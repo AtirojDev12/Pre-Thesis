@@ -117,22 +117,9 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     [SerializeField, Min(0f)] private float minDistanceFromCounters = 12f;
     [SerializeField, Min(0f)] private float minDistanceBetweenParts = 8f;
 
-    [Header("Sounds (optional)")]
+    [Header("Sounds (optional) - 19 Nov: set in MissingPartSound.asset; these are only used if the asset's clip is empty")]
     [SerializeField] private AudioClip attackClip;
     [SerializeField] private AudioClip partReturnedClip;
-
-    [Header("Crying (15 Nov) - starts after the first E on the ghost")]
-    [Tooltip("Looping cry. Empty = a generated placeholder cry.")]
-    [SerializeField] private AudioClip cryClip;
-    // 16 Nov: new field names on purpose, so the quiet values saved in the scene are dropped.
-    [Tooltip("The cry can be heard from this far away (metres). Beyond it: silence.")]
-    [SerializeField, Min(5f)] private float cryRange = 50f;
-    [Tooltip("At this distance (metres) or closer the cry is at its loudest.")]
-    [SerializeField, Min(0f)] private float cryNearDistance = 3f;
-    [Tooltip("Loudness at the edge of the range (0..1). Must be easy to hear.")]
-    [SerializeField, Range(0f, 1f)] private float cryEdgeVolume = 0.3f;
-    [Tooltip("Loudness at the near distance (0..1).")]
-    [SerializeField, Range(0f, 1f)] private float cryNearVolume = 1f;
 
     [Header("Custom Model (optional; empty = placeholder shapes)")]
     [Tooltip("The designer's body. Its centre should be about 1 m above the floor (like the customers).")]
@@ -189,14 +176,30 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     private bool stopSent;
     private GameObject handVisual;
     private GhostBodyPart handPart;
-    private AudioSource crySource;        // 15 Nov
-    private SoundCategoryVolume cryVolume;
-    private float cryLoudness;
-    private float nextCryScan;
-    private bool cryPartFound;
-    private Vector3 cryPartPosition;
-    private Transform cryListener;        // 16 Nov: the local ears (camera / AudioListener)
-    private static AudioClip loudPlaceholderCry;
+    // 19 Nov: finding sound (4 levels, replaces the single crying loop). Two voices for crossfades.
+    private sealed class FindVoice { public AudioSource source; public SoundCategoryVolume volume; public float fade; public int level = -1; }
+    private readonly FindVoice[] findVoices = new FindVoice[2];
+    private int findActive;
+    private int findLevel = -1;            // -1 = silent, 0 = Nearest .. 3 = Far Away
+    private float nextFindScan;
+    private bool findPartFound;
+    private Vector3 findPartPosition;
+    private Transform findListener;        // the local ears (camera / AudioListener)
+    private AudioSource standbySource;    // 19 Nov: GhostFindBodySound while it waits for the first E
+    private SoundCategoryVolume standbyVolume;
+    private float standbyLoudness;
+    private bool standbyWasOn;
+    private Stage loggedStage = Stage.Idle;   // 19 Nov: debug, Console line on every stage change
+    private enum VoiceKind { None, HelpMe, PartVoice }
+    private AudioSource voiceSource;      // 19 Nov: HelpME / I am here / Over here lines
+    private SoundCategoryVolume voiceVolume;
+    private VoiceKind voiceKind;
+    private long voiceSlot;
+    private long voiceSkipSlot = long.MinValue;
+    private AudioSource workSource;       // 19 Nov: MIssingPartWorkonProcess while someone holds E to put a part back
+    private SoundCategoryVolume workVolume;
+    private float workLoudness;
+    private bool workWasOn;
 
     private static double Now => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
     private bool HasAuthority => NetworkMode.HasServerAuthority(this);
@@ -281,9 +284,23 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
         ChoreProgressHUD.Hide(this);
         ClearHand();
         if (HasAuthority) ReleaseGate();
-        if (crySource != null) Destroy(crySource.gameObject); // 15 Nov: made again when it cries next
-        crySource = null;
-        cryLoudness = 0f;
+        for (int i = 0; i < findVoices.Length; i++) // 19 Nov: made again when it is needed next
+        {
+            if (findVoices[i] != null && findVoices[i].source != null) Destroy(findVoices[i].source.gameObject);
+            findVoices[i] = null;
+        }
+        findLevel = -1;
+        if (standbySource != null) Destroy(standbySource.gameObject); // 19 Nov
+        standbySource = null;
+        standbyLoudness = 0f;
+        standbyWasOn = false;
+        if (voiceSource != null) Destroy(voiceSource.gameObject); // 19 Nov
+        voiceSource = null;
+        voiceKind = VoiceKind.None;
+        if (workSource != null) Destroy(workSource.gameObject); // 19 Nov
+        workSource = null;
+        workLoudness = 0f;
+        workWasOn = false;
     }
 
     // ======================================================================
@@ -601,7 +618,7 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
         StopWork();
         if (inventory.ServerRemoveAt(inventory.SelectedSlot) == null) return;
         missing &= ~part;
-        if (NetworkMode.IsOffline) PlayClip(partReturnedClip, transform.position);
+        if (NetworkMode.IsOffline) PlayEventSound(false, transform.position);
         else RpcPlayClip(false, transform.position);
         Debug.Log($"[MissingPartsGhost] {GhostBodyParts.Name(part)} given back by {worker.name}. Still missing: {missing}.", this);
         if (missing == GhostBodyPart.None) ServerSucceed();
@@ -648,7 +665,7 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
             if (p.TryGetComponent(out PlayerSanity sanity) && sanityLossFraction > 0f)
                 sanity.ServerDrain(sanity.Value * sanityLossFraction, "missing parts ghost", false);
         }
-        if (NetworkMode.IsOffline) PlayClip(attackClip, at);
+        if (NetworkMode.IsOffline) PlayEventSound(true, at);
         else RpcPlayClip(true, at);
         Debug.Log($"[MissingPartsGhost] Time up. Attacked {hit.Count} player(s).", this);
         ServerGone();
@@ -915,11 +932,28 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     // ---- Sounds ---------------------------------------------------------------------
 
     [ClientRpc]
-    private void RpcPlayClip(bool attack, Vector3 position) => PlayClip(attack ? attackClip : partReturnedClip, position);
+    private void RpcPlayClip(bool attack, Vector3 position) => PlayEventSound(attack, position);
 
-    private static void PlayClip(AudioClip clip, Vector3 position)
+    /// <summary>
+    /// 19 Nov: attack (time up) / part returned. Clips and distances come from MissingPartSound.asset
+    /// (MissingPartAttack / MissingPartSuccess); the old fields on this component are the fallback.
+    /// Plays through AudioManager, so the SFX volume slider applies. Offline: called directly;
+    /// online: the server sends RpcPlayClip and every client plays it here.
+    /// </summary>
+    private void PlayEventSound(bool attack, Vector3 position)
     {
-        if (clip != null) AudioSource.PlayClipAtPoint(clip, position);
+        MissingPartSound s = MissingPartSound.Current;
+        AudioClip clip = attack ? (s.attackClip != null ? s.attackClip : attackClip)
+                                : (s.partReturnedClip != null ? s.partReturnedClip : partReturnedClip);
+        if (clip == null || Application.isBatchMode) return;
+        float volume = attack ? s.attackVolume : s.partReturnedVolume;
+        float far = attack ? s.attackFarDistance : s.partReturnedFarDistance;
+        Vector3 at = position + Vector3.up * 0.6f;
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayClip(clip, SoundCategory.Sfx, volume, at, true, s.eventNearDistance, far, gameObject.scene);
+        else
+            AudioSource.PlayClipAtPoint(clip, at, volume);
+        Debug.Log("[MissingPartSound] " + (attack ? "Attack" : "Part returned") + " sound (" + clip.name + ").", this);
     }
 
     // ======================================================================
@@ -960,71 +994,346 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
         UpdateBubble();
         UpdateTimer();
         UpdateHand();
-        UpdateCry();
+        UpdateFinding();
+        UpdateStandbySound();
+        UpdateVoices();
+        UpdateWorkSound();
     }
 
-    // ---- Crying (15 Nov, Mr.k; loudness redone 16 Nov) --------------------------------------
+    // ---- Hold-E work sound (19 Nov) ----------------------------------------------------------
     //
-    // Starts after the first E on the ghost (helped). LOCAL on every machine: it only reads
-    // values that are already synced (missing, helped, item and player positions). No network traffic.
-    //
-    //   Head missing  : the HEAD (or the upper body, which has the head) cries from where it lies,
-    //                   or from the player who carries it. Loudness = how close YOU are to it:
-    //                   easy to hear at cryRange (50 m), loudest at cryNearDistance.
-    //   Head attached : the GHOST cries. Loudness = how close its body is to the nearest missing
-    //                   part (same 50 m scale). Everyone within the range of the ghost hears it.
-    //
-    // 16 Nov: Unity's own 3D falloff is switched OFF (flat curve). It made the cry silent until
-    // you stood on the source. The sound is still 3D for DIRECTION; the loudness is set here.
+    // While a player HOLDS E on the ghost to put a part back (workerId != 0), MIssingPartWorkonProcess
+    // plays from the ghost. Letting go of E or finishing (the part is back on -> MissingPartSuccess)
+    // fades it out. LOCAL on every machine: it only reads the synced workerId, so everyone nearby
+    // hears it. Settings: Resources/Tuning/MissingPartSound.asset, "Putting a part back" section.
 
-    private void UpdateCry()
+    private void UpdateWorkSound()
     {
-        bool cry = Active && helped && missing != GhostBodyPart.None && stage != Stage.Leaving;
-        if (!cry)
+        MissingPartSound s = MissingPartSound.Current;
+        bool on = workerId != 0 && Helpable && s.workClip != null
+            && !NetworkMode.SessionEnding && !Application.isBatchMode;
+
+        if (on && !workWasOn)
         {
-            if (crySource != null && crySource.isPlaying) { crySource.Stop(); cryLoudness = 0f; }
+            EnsureWorkSource();
+            workSource.clip = s.workClip;
+            workSource.loop = s.workLoop;
+            workSource.time = 0f;
+            workLoudness = 1f;
+            workSource.Play();
+            Debug.Log("[MissingPartSound] Work sound START (" + s.workClip.name + ").", this);
+        }
+        else if (!on && workWasOn)
+            Debug.Log("[MissingPartSound] Work sound STOP.", this);
+        workWasOn = on;
+        if (workSource == null) return;
+
+        if (!on)
+            workLoudness = s.workFadeOut > 0f ? Mathf.MoveTowards(workLoudness, 0f, Time.deltaTime / s.workFadeOut) : 0f;
+        workSource.minDistance = Mathf.Max(0.1f, s.workNearDistance);
+        workSource.maxDistance = Mathf.Max(workSource.minDistance + 0.1f, s.workFarDistance);
+        workVolume.SetBaseVolume(s.workVolume * workLoudness);
+        if (!on && workLoudness <= 0f && workSource.isPlaying) workSource.Stop();
+    }
+
+    private void EnsureWorkSource()
+    {
+        if (workSource != null) return;
+        var go = new GameObject("Missing Parts Ghost Work");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = Vector3.up * 0.6f;
+        workSource = go.AddComponent<AudioSource>();
+        workSource.playOnAwake = false;
+        workSource.spatialBlend = 1f;   // 3D: you hear it from the ghost
+        workSource.dopplerLevel = 0f;
+        workSource.priority = 40;
+        workSource.rolloffMode = AudioRolloffMode.Linear;
+        workVolume = go.AddComponent<SoundCategoryVolume>();
+        workVolume.Category = SoundCategory.Sfx;
+        workVolume.SetBaseVolume(0f);
+    }
+
+    // ---- Standby sound (19 Nov) -----------------------------------------------------------
+    //
+    // While it stands at the counter and NOBODY has pressed E yet (helped == false):
+    //   head or upper body missing (no mouth) -> the KNOCK loop (GhostFindBodySound) from its body,
+    //   head attached (full body / arms missing) -> it says HelpME (UpdateVoices), no knock.
+    // The first E (helped) or leaving the counter fades the knock out. LOCAL on every machine: it only
+    // reads synced values (stage, helped, missing). Settings: Resources/Tuning/MissingPartSound.asset.
+
+    private void UpdateStandbySound()
+    {
+        if (stage != loggedStage)
+        {
+            Debug.Log("[MissingPartSound] Ghost stage " + loggedStage + " -> " + stage + " (helped " + helped + ").", this);
+            loggedStage = stage;
+        }
+        MissingPartSound s = MissingPartSound.Current;
+        bool waiting = stage == Stage.AtCounter || (s.standbyWhileQueued && stage == Stage.Queued);
+        bool noMouth = (missing & (GhostBodyPart.Head | GhostBodyPart.UpperBody)) != GhostBodyPart.None;
+        bool on = Active && waiting && !helped && noMouth && missing != GhostBodyPart.None
+            && s.standbyKnockClip != null && !NetworkMode.SessionEnding && !Application.isBatchMode;
+
+        if (on != standbyWasOn) LogStandby(on, s);
+        if (on && !standbyWasOn)
+        {
+            EnsureStandbySource();
+            standbySource.clip = s.standbyKnockClip;
+            standbySource.loop = s.standbyLoop;
+            standbySource.time = 0f;
+            standbyLoudness = s.standbyFadeIn > 0f ? 0f : 1f;
+            standbySource.Play();
+        }
+        standbyWasOn = on;
+        if (standbySource == null) return;
+
+        float fade = on ? s.standbyFadeIn : s.standbyFadeOut;
+        standbyLoudness = fade > 0f
+            ? Mathf.MoveTowards(standbyLoudness, on ? 1f : 0f, Time.deltaTime / fade)
+            : (on ? 1f : 0f);
+
+        // Live values: changes in the asset are heard right away (also in Play mode).
+        standbySource.minDistance = Mathf.Max(0.1f, s.standbyNearDistance);
+        standbySource.maxDistance = Mathf.Max(standbySource.minDistance + 0.1f, s.standbyFarDistance);
+        standbyVolume.SetBaseVolume(s.standbyVolume * standbyLoudness);
+        if (!on && standbyLoudness <= 0f && standbySource.isPlaying) standbySource.Stop();
+    }
+
+    /// <summary>19 Nov: Console line each time the standby sound starts / stops (and how far your ears are).</summary>
+    private void LogStandby(bool on, MissingPartSound s)
+    {
+        Transform ears = FindEars();
+        string dist = ears != null ? Vector3.Distance(ears.position, transform.position).ToString("0.0") + " m" : "no AudioListener found";
+        if (on)
+            Debug.Log("[MissingPartSound] Standby knock START (" + s.standbyKnockClip.name + "). Your ears are " + dist
+                + " away; heard up to " + s.standbyFarDistance + " m.", this);
+        else
+            Debug.Log("[MissingPartSound] Standby knock STOP (stage " + stage + ", helped " + helped + ").", this);
+    }
+
+    // ---- Voices (19 Nov): HelpME / I am here / Over here ----------------------------------
+    //
+    //   Head attached (full body / arms missing): the GHOST says HelpME every helpMeInterval seconds,
+    //       while it waits at the counter (instead of the knock) AND while it follows a player.
+    //   Head or upper body missing: after the first E, the part that has the head says "I am here" or
+    //       "Over here" (random) every partVoiceInterval seconds, from where it lies or from the player
+    //       carrying it. The 4-level finding sound keeps playing under it.
+    //
+    // NETWORK: nothing is sent. The lines follow the shared network clock (NetworkTime): a line starts
+    // at every multiple of the interval, and the random pick comes from that time slot, so every player
+    // hears the same line at the same moment. Entering a state also says one line right away.
+
+    private void UpdateVoices()
+    {
+        MissingPartSound s = MissingPartSound.Current;
+        bool ok = Active && missing != GhostBodyPart.None && stage != Stage.Leaving
+            && !NetworkMode.SessionEnding && !Application.isBatchMode;
+        bool noMouth = (missing & (GhostBodyPart.Head | GhostBodyPart.UpperBody)) != GhostBodyPart.None;
+        bool waiting = stage == Stage.AtCounter || (s.standbyWhileQueued && stage == Stage.Queued);
+
+        VoiceKind kind = VoiceKind.None;
+        Vector3 at = transform.position + Vector3.up * 0.6f;
+        if (ok && !noMouth && (helped || waiting)) kind = VoiceKind.HelpMe;
+        else if (ok && noMouth && helped && findPartFound)
+        {
+            kind = VoiceKind.PartVoice;
+            at = findPartPosition + Vector3.up * 0.2f; // the head part (UpdateFinding found it)
+        }
+
+        if (voiceSource != null && kind != VoiceKind.None) voiceSource.transform.position = at;
+        if (kind == VoiceKind.None)
+        {
+            if (voiceKind != VoiceKind.None && !Active && voiceSource != null) voiceSource.Stop();
+            voiceKind = VoiceKind.None;
             return;
         }
 
-        GhostBodyPart headParts = missing & (GhostBodyPart.Head | GhostBodyPart.UpperBody);
-        bool headless = headParts != GhostBodyPart.None;
-        if (Time.time >= nextCryScan)
+        float interval = Mathf.Max(1f, kind == VoiceKind.HelpMe ? s.helpMeInterval : s.partVoiceInterval);
+        long slot = (long)System.Math.Floor(Now / interval);
+        if (kind != voiceKind)
         {
-            nextCryScan = Time.time + 0.25f;
-            cryPartFound = FindNearestPart(headless ? headParts : missing, out cryPartPosition);
-            cryListener = FindEars(); // again each scan: the ears change when you spectate
+            voiceKind = kind;
+            voiceSlot = slot;
+            AudioClip first = PlayVoice(kind, slot, at, s);
+            // Skip the next shared slot if it comes before this first line is over.
+            double nextLine = (slot + 1) * (double)interval;
+            float length = first != null ? first.length : 0f;
+            voiceSkipSlot = nextLine - Now < length + 0.5f ? slot + 1 : slot;
+            Debug.Log("[MissingPartSound] Voice -> " + (kind == VoiceKind.HelpMe ? "HelpME" : "I am here / Over here")
+                + " every " + interval + " s.", this);
+            return;
         }
-
-        Vector3 source = headless && cryPartFound ? cryPartPosition + Vector3.up * 0.2f : transform.position + Vector3.up * 0.6f;
-        float toEars = cryListener != null ? Vector3.Distance(cryListener.position, source) : 0f;
-
-        float target = 0f;
-        if (cryPartFound)
-        {
-            if (headless) target = CryVolumeAt(toEars);
-            else
-            {
-                // Hot / cold: louder as the body and the part get closer. Fades out at the edge of the range.
-                float edgeFade = Mathf.Clamp01((cryRange - toEars) / Mathf.Max(0.01f, cryRange * 0.2f));
-                target = CryVolumeAt(Vector3.Distance(transform.position, cryPartPosition)) * edgeFade;
-            }
-        }
-        cryLoudness = Mathf.MoveTowards(cryLoudness, target, Time.deltaTime * 1.5f);
-
-        EnsureCrySource();
-        crySource.transform.position = source;
-        crySource.maxDistance = Mathf.Max(cryRange, 5f);
-        cryVolume.SetBaseVolume(cryLoudness);
-        if (cryLoudness > 0.001f) { if (!crySource.isPlaying) crySource.Play(); }
-        else if (crySource.isPlaying) crySource.Stop();
+        if (slot == voiceSlot) return;
+        voiceSlot = slot;
+        if (slot > voiceSkipSlot) PlayVoice(kind, slot, at, s);
     }
 
-    /// <summary>0 beyond the range, cryEdgeVolume at the edge, rising evenly to cryNearVolume at the near distance.</summary>
-    private float CryVolumeAt(float distance)
+    private AudioClip PlayVoice(VoiceKind kind, long slot, Vector3 at, MissingPartSound s)
     {
-        if (distance > cryRange) return 0f;
-        float near = Mathf.Min(cryNearDistance, cryRange - 0.01f);
-        return Mathf.Lerp(cryEdgeVolume, cryNearVolume, Mathf.InverseLerp(cryRange, near, distance));
+        AudioClip clip;
+        float volume;
+        if (kind == VoiceKind.HelpMe) { clip = s.helpMeClip; volume = s.helpMeVolume; }
+        else
+        {
+            AudioClip[] lines = s.partVoiceClips;
+            clip = lines != null && lines.Length > 0 ? lines[PickFromSlot(slot, lines.Length)] : null;
+            volume = s.partVoiceVolume;
+        }
+        if (clip == null) return null;
+        EnsureVoiceSource();
+        voiceSource.transform.position = at;
+        voiceSource.minDistance = Mathf.Max(0.1f, s.voiceNearDistance);
+        voiceSource.maxDistance = Mathf.Max(voiceSource.minDistance + 0.1f, s.voiceFarDistance);
+        voiceVolume.SetBaseVolume(volume);
+        voiceSource.clip = clip;
+        voiceSource.time = 0f;
+        voiceSource.Play();
+        return clip;
+    }
+
+    /// <summary>The same "random" pick on every machine: it only depends on the time slot and this ghost.</summary>
+    private int PickFromSlot(long slot, int count)
+    {
+        ulong h = (ulong)(slot + (long)netId * 7919L) * 2654435761UL;
+        return (int)((h >> 16) % (ulong)count);
+    }
+
+    private void EnsureVoiceSource()
+    {
+        if (voiceSource != null) return;
+        var go = new GameObject("Missing Parts Ghost Voice");
+        voiceSource = go.AddComponent<AudioSource>();
+        voiceSource.playOnAwake = false;
+        voiceSource.loop = false;
+        voiceSource.spatialBlend = 1f;   // 3D: you hear WHERE it talks from
+        voiceSource.dopplerLevel = 0f;
+        voiceSource.priority = 40;
+        voiceSource.rolloffMode = AudioRolloffMode.Linear;
+        voiceVolume = go.AddComponent<SoundCategoryVolume>();
+        voiceVolume.Category = SoundCategory.Sfx;
+        voiceVolume.SetBaseVolume(0f);
+    }
+
+    private void EnsureStandbySource()
+    {
+        if (standbySource != null) return;
+        var go = new GameObject("Missing Parts Ghost Standby");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = Vector3.up * 0.6f;
+        standbySource = go.AddComponent<AudioSource>();
+        standbySource.playOnAwake = false;
+        standbySource.spatialBlend = 1f;   // 3D: you hear WHERE the ghost is
+        standbySource.dopplerLevel = 0f;
+        standbySource.priority = 48;
+        standbySource.rolloffMode = AudioRolloffMode.Linear;
+        standbyVolume = go.AddComponent<SoundCategoryVolume>();
+        standbyVolume.Category = SoundCategory.Sfx;
+        standbyVolume.SetBaseVolume(0f);
+    }
+
+    // ---- Finding sound (19 Nov; replaces the 15/16 Nov single crying loop) -------------------
+    //
+    // Starts after the first E on the ghost (helped). LOCAL on every machine: it only reads
+    // values that are already synced (missing, helped, item and player positions). No network traffic.
+    // Settings: Resources/Tuning/MissingPartSound.asset, "Finding" section.
+    //
+    // 4 levels, each with its own looping clip: Nearest / Near / Far / Far Away. Beyond Far Away = silent.
+    //   Head missing  : the sound comes from the HEAD (or the upper body, which has the head) where
+    //                   it lies, or from the player who carries it. Level = how close YOU are to it.
+    //   Head attached : the sound comes from the GHOST. Level = how close its body is to the nearest
+    //                   missing part (hot / cold). Heard by everyone within Far Away of the ghost.
+    // A level change crossfades to the new clip and keeps the loop position (same-length loops).
+    // Unity's own 3D falloff is OFF (flat curve): the sound is 3D for DIRECTION, the level sets loudness.
+
+    private void UpdateFinding()
+    {
+        MissingPartSound s = MissingPartSound.Current;
+        bool on = Active && helped && missing != GhostBodyPart.None && stage != Stage.Leaving
+            && !NetworkMode.SessionEnding && !Application.isBatchMode;
+        int level = -1;
+        float distance = 0f;
+        Vector3 source = transform.position + Vector3.up * 0.6f;
+        if (on)
+        {
+            GhostBodyPart headParts = missing & (GhostBodyPart.Head | GhostBodyPart.UpperBody);
+            bool headless = headParts != GhostBodyPart.None;
+            if (Time.time >= nextFindScan)
+            {
+                nextFindScan = Time.time + 0.25f;
+                findPartFound = FindNearestPart(headless ? headParts : missing, out findPartPosition);
+                findListener = FindEars(); // again each scan: the ears change when you spectate
+            }
+            if (findPartFound)
+            {
+                if (headless) source = findPartPosition + Vector3.up * 0.2f;
+                float toEars = findListener != null ? Vector3.Distance(findListener.position, source) : 0f;
+                distance = headless ? toEars : Vector3.Distance(transform.position, findPartPosition);
+                level = s.FindingLevelAt(distance);
+                if (!headless && toEars > s.findingFarAway.upToDistance) level = -1; // too far from the ghost to hear it
+            }
+        }
+
+        if (level != findLevel)
+        {
+            Debug.Log("[MissingPartSound] Finding level -> " + MissingPartSound.FindingLevelName(level)
+                + (level >= 0 ? " (" + distance.ToString("0.0") + " m)" : "") + ".", this);
+            SwitchFindingLevel(level, s);
+        }
+
+        float step = s.findingCrossfade > 0f ? Time.deltaTime / s.findingCrossfade : 1f;
+        for (int i = 0; i < findVoices.Length; i++)
+        {
+            FindVoice v = findVoices[i];
+            if (v == null || v.source == null) continue;
+            float target = i == findActive && findLevel >= 0 ? 1f : 0f;
+            v.fade = Mathf.MoveTowards(v.fade, target, step);
+            if (target > 0f) v.source.transform.position = source; // a fading-out voice stays where it was
+            float levelVolume = v.level >= 0 ? s.FindingLevelOf(v.level).volume : 0f;
+            v.volume.SetBaseVolume(s.findingVolume * levelVolume * v.fade); // live: asset changes are heard at once
+            if (v.fade <= 0f && v.source.isPlaying) v.source.Stop();
+        }
+    }
+
+    /// <summary>The new level's clip starts on the other voice (at the old loop position); the old voice fades out.</summary>
+    private void SwitchFindingLevel(int level, MissingPartSound s)
+    {
+        findLevel = level;
+        if (level < 0) return; // the active voice fades out in UpdateFinding
+        FindVoice old = findVoices[findActive];
+        findActive = 1 - findActive;
+        FindVoice v = EnsureFindVoice(findActive);
+        v.level = level;
+        AudioClip clip = s.FindingLevelOf(level).clip;
+        v.source.clip = clip;
+        if (clip == null) { v.source.Stop(); return; }
+        float time = old != null && old.source != null && old.source.isPlaying ? old.source.time : 0f;
+        v.source.time = Mathf.Repeat(time, clip.length);
+        v.source.Play();
+    }
+
+    private FindVoice EnsureFindVoice(int index)
+    {
+        FindVoice v = findVoices[index];
+        if (v != null && v.source != null) return v;
+        var go = new GameObject("Missing Parts Ghost Finding " + (index == 0 ? "A" : "B"));
+        var source = go.AddComponent<AudioSource>();
+        source.playOnAwake = false;
+        source.loop = true;
+        source.spatialBlend = 1f;   // 3D: you hear WHERE it comes from
+        source.dopplerLevel = 0f;
+        source.priority = 32;       // never dropped when many sounds play
+        source.reverbZoneMix = 0f;
+        // Flat falloff: distance does not change the loudness here. The level does.
+        source.rolloffMode = AudioRolloffMode.Custom;
+        source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, AnimationCurve.Constant(0f, 1f, 1f));
+        source.minDistance = 1f;
+        source.maxDistance = 500f;
+        var volume = go.AddComponent<SoundCategoryVolume>();
+        volume.Category = SoundCategory.Sfx;
+        volume.SetBaseVolume(0f);
+        v = new FindVoice { source = source, volume = volume };
+        findVoices[index] = v;
+        return v;
     }
 
     /// <summary>The local player's ears: the own camera, else the scene's AudioListener (spectator / dev camera).</summary>
@@ -1062,45 +1371,6 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
             }
         }
         return best < float.MaxValue;
-    }
-
-    private void EnsureCrySource()
-    {
-        if (crySource != null) return;
-        var go = new GameObject("Missing Parts Ghost Cry");
-        crySource = go.AddComponent<AudioSource>();
-        crySource.playOnAwake = false;
-        crySource.loop = true;
-        crySource.clip = cryClip != null ? cryClip : LoudPlaceholderCry();
-        crySource.spatialBlend = 1f;   // 3D: you hear WHERE it comes from
-        crySource.dopplerLevel = 0f;
-        crySource.priority = 32;       // never dropped when many sounds play
-        crySource.reverbZoneMix = 0f;
-        // Flat falloff: distance does not change the loudness here. UpdateCry sets it (16 Nov).
-        crySource.rolloffMode = AudioRolloffMode.Custom;
-        crySource.SetCustomCurve(AudioSourceCurveType.CustomRolloff, AnimationCurve.Constant(0f, 1f, 1f));
-        crySource.minDistance = 1f;
-        crySource.maxDistance = Mathf.Max(cryRange, 5f);
-        cryVolume = go.AddComponent<SoundCategoryVolume>();
-        cryVolume.Category = SoundCategory.Sfx;
-        cryVolume.SetBaseVolume(0f);
-    }
-
-    /// <summary>The generated placeholder cry is very soft (peak 0.28). This copy is raised to full level.</summary>
-    private static AudioClip LoudPlaceholderCry()
-    {
-        if (loudPlaceholderCry != null) return loudPlaceholderCry;
-        AudioClip soft = RuleFx.PlaceholderClip(RuleFx.PlaceholderSound.Crying);
-        var data = new float[soft.samples * soft.channels];
-        if (!soft.GetData(data, 0)) return soft;
-        float peak = 0f;
-        for (int i = 0; i < data.Length; i++) peak = Mathf.Max(peak, Mathf.Abs(data[i]));
-        if (peak < 0.0001f) return soft;
-        float gain = 0.95f / peak;
-        for (int i = 0; i < data.Length; i++) data[i] *= gain;
-        loudPlaceholderCry = AudioClip.Create("Placeholder Crying (loud)", soft.samples, soft.channels, soft.frequency, false);
-        loudPlaceholderCry.SetData(data, 0);
-        return loudPlaceholderCry;
     }
 
     private void ApplyLook(bool force)

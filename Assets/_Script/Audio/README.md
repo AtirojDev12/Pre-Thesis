@@ -124,6 +124,27 @@ orders. Both are preloaded 3D SFX with 2–15 metre attenuation, sent once throu
 the authoritative world-sound relay. Invalid requests and duplicate sales are
 silent; restoring the shared selection does not replay a click.
 
+## Ghost Flavor disappearance
+
+When the Ghost Flavor seasoning disappears from the popcorn station (blackout or
+a ghost arriving), `GhostFavorDisappearVfx` plays `GhostFavor_Disappear`
+(`Sound/SFX/GhostFavor/เสียงรสชาติผีหาย.wav`) once with the smoke, as a 3D SFX
+at the station with 2–15 metre attenuation. It follows the replicated
+`disappearanceId`, so every player hears it once with no extra network message;
+a player who joins more than 0.75 s after the event does not hear it. It uses
+`PlayClip`, so it does not raise the local player's noise bar. Change the clip,
+volume or distances on the `GhostFavor_Disappear` entry in SoundLibrary.
+
+## Sanity chant
+
+Holding the chant key (default C) plays `Sanity_Chant` (`Sound/SFX/Sanity/Sanity on Pregress.wav`)
+from the chanting player, after the key has been held for 3 seconds so a quick
+tap stays silent. It loops while held and fades out on release, as 3D SFX with
+2–12 metre attenuation. `PlayerSanity` reads the synced chanting flag on every
+machine, so nearby teammates hear it with no extra network message. Change the
+clip, volume and distances on the `Sanity_Chant` library entry; the delay, loop
+and fades are in `Resources/Tuning/SanitySettings.asset` ("Chant sound").
+
 ## Light switches
 
 

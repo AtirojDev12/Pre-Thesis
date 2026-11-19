@@ -35,6 +35,14 @@ MonoBehaviour:
   chantFriendRadius: 4
   chantMaxPerSecond: 3
   chantMaxMoveSpeed: 0.6
+  chantSound: {fileID: 8300000, guid: 94b17b1168ceeb543abe30c1b0589959, type: 3}
+  chantSoundVolume: 0.8
+  chantSoundDelay: 3
+  chantSoundLoop: 1
+  chantSoundFadeIn: 0.5
+  chantSoundFadeOut: 0.4
+  chantSoundNearDistance: 2
+  chantSoundFarDistance: 12
   snack:
     displayName: Snack
     description: Hold Left Click to eat (+sanity). Hold Right Click on a friend to

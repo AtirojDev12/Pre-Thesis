@@ -179,34 +179,34 @@ MonoBehaviour:
     clips:
     - {fileID: 8300000, guid: d1a23164442f1df479cb1dcc334f7603, type: 3}
     category: 1
-    volume: 0.8
+    volume: 0.3
     spatial: 1
     minDistance: 1
-    maxDistance: 5
+    maxDistance: 3
     cooldown: 0
   - id: Popcorn_WaterPour
     clips:
     - {fileID: 8300000, guid: b77da33449abb654ba9378a162042e73, type: 3}
     category: 1
-    volume: 0.65
+    volume: 0.3
     spatial: 1
     minDistance: 1
-    maxDistance: 5
+    maxDistance: 3
     cooldown: 0
   - id: Popcorn_WaterEnd
     clips:
     - {fileID: 8300000, guid: 9a9ba941127a5ab4ba2aa7cef94ba9df, type: 3}
     category: 1
-    volume: 0.8
+    volume: 0.3
     spatial: 1
     minDistance: 1
-    maxDistance: 5
+    maxDistance: 3
     cooldown: 0
   - id: Popcorn_Scoop
     clips:
     - {fileID: 8300000, guid: 86c6f037e42586d4b96fd959019d27e9, type: 3}
     category: 1
-    volume: 0.8
+    volume: 0.5
     spatial: 1
     minDistance: 1
     maxDistance: 5
@@ -215,8 +215,26 @@ MonoBehaviour:
     clips:
     - {fileID: 8300000, guid: b4223409c9736e04bbd7d573900ce922, type: 3}
     category: 1
-    volume: 0.8
+    volume: 0.5
     spatial: 1
     minDistance: 1
     maxDistance: 5
+    cooldown: 0
+  - id: GhostFavor_Disappear
+    clips:
+    - {fileID: 8300000, guid: ca231dc34f8bff5418aab8d1a50fae60, type: 3}
+    category: 1
+    volume: 0.5
+    spatial: 1
+    minDistance: 2
+    maxDistance: 15
+    cooldown: 0
+  - id: Sanity_Chant
+    clips:
+    - {fileID: 8300000, guid: 94b17b1168ceeb543abe30c1b0589959, type: 3}
+    category: 1
+    volume: 0.8
+    spatial: 1
+    minDistance: 1
+    maxDistance: 1
     cooldown: 0

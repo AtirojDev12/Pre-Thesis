@@ -108,6 +108,11 @@ public sealed class PlayerSanity : NetworkBehaviour
     {
         All.Remove(this);
         if (Local == this) Local = null;
+        if (chantSource != null) Destroy(chantSource.gameObject); // 19 Nov
+        chantSource = null;
+        chantHeldSince = -1f;
+        chantLoudness = 0f;
+        chantSoundOn = false;
     }
 
     public override void OnStartLocalPlayer() => BecomeLocal();
@@ -143,6 +148,78 @@ public sealed class PlayerSanity : NetworkBehaviour
     {
         if (NetworkMode.HasServerAuthority(this)) ServerTick();
         if (IsOwner) OwnerTick();
+        UpdateChantSound();
+    }
+
+    // ---- Chant sound (19 Nov) ------------------------------------------------
+    //
+    // "Sanity on Pregress" plays from this player once they have held the chant key (default C)
+    // for chantSoundDelay seconds (3 s), so a quick tap stays silent. It loops while held and fades
+    // out on release. LOCAL on every machine: it reads the synced 'chanting' flag, so everyone
+    // near the player hears it.
+    //   Clip, volume, distances: SoundLibrary entry "Sanity_Chant" (Resources/Audio/SoundLibrary.asset).
+    //   Delay, loop, fades: Resources/Tuning/SanitySettings.asset, "Chant sound" (its clip / volume /
+    //   distances are only used when the SoundLibrary entry is missing).
+    public const string ChantSoundId = "Sanity_Chant";
+
+    private AudioSource chantSource;
+    private SoundCategoryVolume chantVolume;
+    private float chantHeldSince = -1f;
+    private float chantLoudness;
+    private bool chantSoundOn;
+
+    private void UpdateChantSound()
+    {
+        SanitySettings s = Settings;
+        SoundLibrary.Entry lib = AudioManager.Instance != null ? AudioManager.Instance.Find(ChantSoundId) : null;
+        AudioClip clip = lib != null && lib.clips != null && lib.clips.Length > 0 && lib.clips[0] != null
+            ? lib.clips[0] : s.chantSound;
+        float baseVolume = lib != null ? lib.volume : s.chantSoundVolume;
+        float near = lib != null ? lib.minDistance : s.chantSoundNearDistance;
+        float far = lib != null ? lib.maxDistance : s.chantSoundFarDistance;
+        bool held = chanting && InPlay && clip != null
+            && !NetworkMode.SessionEnding && !Application.isBatchMode;
+        if (!held) chantHeldSince = -1f;
+        else if (chantHeldSince < 0f) chantHeldSince = Time.time;
+        bool on = held && Time.time - chantHeldSince >= s.chantSoundDelay;
+
+        if (on && !chantSoundOn)
+        {
+            EnsureChantSource();
+            chantSource.clip = clip;
+            chantSource.loop = s.chantSoundLoop;
+            chantSource.time = 0f;
+            chantLoudness = s.chantSoundFadeIn > 0f ? 0f : 1f;
+            chantSource.Play();
+        }
+        chantSoundOn = on;
+        if (chantSource == null) return;
+
+        float fade = on ? s.chantSoundFadeIn : s.chantSoundFadeOut;
+        chantLoudness = fade > 0f
+            ? Mathf.MoveTowards(chantLoudness, on ? 1f : 0f, Time.deltaTime / fade)
+            : (on ? 1f : 0f);
+        chantSource.minDistance = Mathf.Max(0.1f, near);
+        chantSource.maxDistance = Mathf.Max(chantSource.minDistance + 0.1f, far);
+        chantVolume.SetBaseVolume(baseVolume * chantLoudness);
+        if (!on && chantLoudness <= 0f && chantSource.isPlaying) chantSource.Stop();
+    }
+
+    private void EnsureChantSource()
+    {
+        if (chantSource != null) return;
+        var go = new GameObject("Chant Sound");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = Vector3.up * 1.5f; // about the mouth
+        chantSource = go.AddComponent<AudioSource>();
+        chantSource.playOnAwake = false;
+        chantSource.spatialBlend = 1f;   // 3D: you hear WHO is chanting
+        chantSource.dopplerLevel = 0f;
+        chantSource.priority = 64;
+        chantSource.rolloffMode = AudioRolloffMode.Linear;
+        chantVolume = go.AddComponent<SoundCategoryVolume>();
+        chantVolume.Category = SoundCategory.Sfx;
+        chantVolume.SetBaseVolume(0f);
     }
 
     // ---- Is sanity running for this body right now? --------------------------
