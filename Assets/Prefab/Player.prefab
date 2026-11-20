@@ -415,7 +415,7 @@ MonoBehaviour:
   crouchSpeedMultiplier: 0.45
   crouchHeight: 1.2
   playerCamera: {fileID: 443704085783855534}
-  playerAnimator: {fileID: -2365669203378768568}
+  playerAnimator: {fileID: 3166380901532058706}
   animationDampTime: 0.1
   stabilizeRunningHips: 1
   runningHipStability: 1
@@ -578,8 +578,8 @@ Animator:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3873886348749462617}
   m_Enabled: 1
-  m_Avatar: {fileID: 9000000, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
-  m_Controller: {fileID: 9100000, guid: 0c59530fc632ec147975f4671126690a, type: 2}
+  m_Avatar: {fileID: 9000000, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
+  m_Controller: {fileID: 9100000, guid: 6064756d774beda40bc0ca9932612fd9, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
@@ -781,12 +781,24 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -4706228988682842286, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
       propertyPath: m_Name
       value: Y Bot
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
       propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082271958561512970, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5822821947120931875, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
+      propertyPath: m_Enabled
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents:
@@ -857,6 +869,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
+--- !u!95 &3166380901532058706 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
+  m_PrefabInstance: {fileID: 8834843173330549187}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &9012004618201964072 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
