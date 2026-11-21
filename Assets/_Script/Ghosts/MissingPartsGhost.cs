@@ -187,6 +187,7 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     private Transform findListener;        // the local ears (camera / AudioListener)
     private AudioSource standbySource;    // 19 Nov: GhostFindBodySound while it waits for the first E
     private SoundCategoryVolume standbyVolume;
+    private float soundsCutUntil;          // 21 Nov: after the success sound, keep the rest quiet until the synced state catches up
     private float standbyLoudness;
     private bool standbyWasOn;
     private Stage loggedStage = Stage.Idle;   // 19 Nov: debug, Console line on every stage change
@@ -618,8 +619,12 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
         StopWork();
         if (inventory.ServerRemoveAt(inventory.SelectedSlot) == null) return;
         missing &= ~part;
-        if (NetworkMode.IsOffline) PlayEventSound(false, transform.position);
-        else RpcPlayClip(false, transform.position);
+        // 21 Nov: the success sound only when the LAST part is back (not for each part).
+        if (missing == GhostBodyPart.None)
+        {
+            if (NetworkMode.IsOffline) PlayEventSound(false, transform.position);
+            else RpcPlayClip(false, transform.position);
+        }
         Debug.Log($"[MissingPartsGhost] {GhostBodyParts.Name(part)} given back by {worker.name}. Still missing: {missing}.", this);
         if (missing == GhostBodyPart.None) ServerSucceed();
     }
@@ -940,11 +945,31 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     /// Plays through AudioManager, so the SFX volume slider applies. Offline: called directly;
     /// online: the server sends RpcPlayClip and every client plays it here.
     /// </summary>
+    /// <summary>21 Nov: cuts every looping / talking sound of this ghost right away (finding, voices,
+    /// standby knock, hold-E work). They stay off because the ghost has nothing missing any more.</summary>
+    private void StopAllGhostSounds()
+    {
+        for (int i = 0; i < findVoices.Length; i++)
+        {
+            FindVoice v = findVoices[i];
+            if (v == null || v.source == null) continue;
+            v.fade = 0f;
+            v.volume.SetBaseVolume(0f);
+            v.source.Stop();
+        }
+        findLevel = -1;
+        soundsCutUntil = Time.time + 2f; // on clients the RPC can arrive before "missing = none" / "Leaving"
+        if (voiceSource != null) voiceSource.Stop();
+        if (standbySource != null) { standbyLoudness = 0f; standbySource.Stop(); }
+        if (workSource != null) { workLoudness = 0f; workVolume.SetBaseVolume(0f); workSource.Stop(); }
+    }
+
     private void PlayEventSound(bool attack, Vector3 position)
     {
         MissingPartSound s = MissingPartSound.Current;
         AudioClip clip = attack ? (s.attackClip != null ? s.attackClip : attackClip)
                                 : (s.partReturnedClip != null ? s.partReturnedClip : partReturnedClip);
+        if (!attack) StopAllGhostSounds(); // 21 Nov: all parts back -> ONLY the success sound, the rest cut at once
         if (clip == null || Application.isBatchMode) return;
         float volume = attack ? s.attackVolume : s.partReturnedVolume;
         float far = attack ? s.attackFarDistance : s.partReturnedFarDistance;
@@ -1011,7 +1036,7 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     {
         MissingPartSound s = MissingPartSound.Current;
         bool on = workerId != 0 && Helpable && s.workClip != null
-            && !NetworkMode.SessionEnding && !Application.isBatchMode;
+            && Time.time >= soundsCutUntil && !NetworkMode.SessionEnding && !Application.isBatchMode;
 
         if (on && !workWasOn)
         {
@@ -1072,7 +1097,7 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
         bool waiting = stage == Stage.AtCounter || (s.standbyWhileQueued && stage == Stage.Queued);
         bool noMouth = (missing & (GhostBodyPart.Head | GhostBodyPart.UpperBody)) != GhostBodyPart.None;
         bool on = Active && waiting && !helped && noMouth && missing != GhostBodyPart.None
-            && s.standbyKnockClip != null && !NetworkMode.SessionEnding && !Application.isBatchMode;
+            && s.standbyKnockClip != null && Time.time >= soundsCutUntil && !NetworkMode.SessionEnding && !Application.isBatchMode;
 
         if (on != standbyWasOn) LogStandby(on, s);
         if (on && !standbyWasOn)
@@ -1127,7 +1152,7 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     {
         MissingPartSound s = MissingPartSound.Current;
         bool ok = Active && missing != GhostBodyPart.None && stage != Stage.Leaving
-            && !NetworkMode.SessionEnding && !Application.isBatchMode;
+            && Time.time >= soundsCutUntil && !NetworkMode.SessionEnding && !Application.isBatchMode;
         bool noMouth = (missing & (GhostBodyPart.Head | GhostBodyPart.UpperBody)) != GhostBodyPart.None;
         bool waiting = stage == Stage.AtCounter || (s.standbyWhileQueued && stage == Stage.Queued);
 
@@ -1240,8 +1265,10 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     // 4 levels, each with its own looping clip: Nearest / Near / Far / Far Away. Beyond Far Away = silent.
     //   Head missing  : the sound comes from the HEAD (or the upper body, which has the head) where
     //                   it lies, or from the player who carries it. Level = how close YOU are to it.
-    //   Head attached : the sound comes from the GHOST. Level = how close its body is to the nearest
-    //                   missing part (hot / cold). Heard by everyone within Far Away of the ghost.
+    //   Head attached : (21 Nov) the sound comes from the missing ARM lying in the map, nearest to YOU.
+    //                   Level = how close YOU are to it. An arm a player already carries does not count,
+    //                   so with both arms missing it moves on to the arm still lying there; once every
+    //                   missing arm is picked up it goes quiet (HelpME from the ghost goes on).
     // A level change crossfades to the new clip and keeps the loop position (same-length loops).
     // Unity's own 3D falloff is OFF (flat curve): the sound is 3D for DIRECTION, the level sets loudness.
 
@@ -1249,7 +1276,7 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
     {
         MissingPartSound s = MissingPartSound.Current;
         bool on = Active && helped && missing != GhostBodyPart.None && stage != Stage.Leaving
-            && !NetworkMode.SessionEnding && !Application.isBatchMode;
+            && Time.time >= soundsCutUntil && !NetworkMode.SessionEnding && !Application.isBatchMode;
         int level = -1;
         float distance = 0f;
         Vector3 source = transform.position + Vector3.up * 0.6f;
@@ -1260,16 +1287,16 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
             if (Time.time >= nextFindScan)
             {
                 nextFindScan = Time.time + 0.25f;
-                findPartFound = FindNearestPart(headless ? headParts : missing, out findPartPosition);
                 findListener = FindEars(); // again each scan: the ears change when you spectate
+                findPartFound = headless
+                    ? FindNearestPart(headParts, out findPartPosition)
+                    : FindNearestLyingPart(missing, findListener != null ? findListener.position : transform.position, out findPartPosition);
             }
             if (findPartFound)
             {
-                if (headless) source = findPartPosition + Vector3.up * 0.2f;
-                float toEars = findListener != null ? Vector3.Distance(findListener.position, source) : 0f;
-                distance = headless ? toEars : Vector3.Distance(transform.position, findPartPosition);
+                source = findPartPosition + Vector3.up * 0.2f; // the part itself (head or arm)
+                distance = findListener != null ? Vector3.Distance(findListener.position, source) : 0f;
                 level = s.FindingLevelAt(distance);
-                if (!headless && toEars > s.findingFarAway.upToDistance) level = -1; // too far from the ghost to hear it
             }
         }
 
@@ -1343,6 +1370,20 @@ public sealed class MissingPartsGhost : InteractableBase, IDevGhostSource
         if (cam != null && cam.isActiveAndEnabled) return cam.transform;
         AudioListener ears = FindAnyObjectByType<AudioListener>();
         return ears != null ? ears.transform : null;
+    }
+
+    /// <summary>21 Nov: nearest still-missing part LYING in the map (not in anyone's hotbar) to a point (your ears).</summary>
+    private static bool FindNearestLyingPart(GhostBodyPart wanted, Vector3 from, out Vector3 position)
+    {
+        position = default;
+        float best = float.MaxValue;
+        foreach (WorldInventoryItem item in FindObjectsByType<WorldInventoryItem>())
+        {
+            if (item == null || (GhostBodyParts.FromItem(item.ItemId) & wanted) == 0) continue;
+            float d = (item.transform.position - from).sqrMagnitude;
+            if (d < best) { best = d; position = item.transform.position; }
+        }
+        return best < float.MaxValue;
     }
 
     /// <summary>Nearest still-missing part to the ghost's body: lying in the map, or in a player's hotbar.</summary>
