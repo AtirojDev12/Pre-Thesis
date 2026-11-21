@@ -1488,12 +1488,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HealthBarUI
   playerHealth: {fileID: 0}
+  frameImage: {fileID: 0}
+  fillImage: {fileID: 0}
+  iconImage: {fileID: 0}
   healthSlider: {fileID: 8322649733439078646}
   healthText: {fileID: 7453518924357310835}
+  textFormat: HP {0}
+  smoothSpeed: 1.5
+  previewFill: 1
+  sortingOrder: 45
   downedPanel: {fileID: 2683348857546082357}
   downedTimerText: {fileID: 7416153694838723305}
   downedStatusText: {fileID: 6764435865806875664}
-  fillImage: {fileID: 0}
+  useHealthColors: 0
   healthGradient:
     serializedVersion: 2
     key0: {r: 0.035793483, g: 1, b: 0, a: 1}
@@ -2371,11 +2378,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 72dc2675a4e3460988350558fb552fb1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SanityBarUI
-  sanitySlider: {fileID: 610000000000000003}
+  frameImage: {fileID: 0}
   fillImage: {fileID: 610000000000000034}
+  iconImage: {fileID: 0}
+  sanitySlider: {fileID: 610000000000000003}
   sanityText: {fileID: 610000000000000044}
   hideWhenUnbound: 1
   sortingOrder: 45
+  smoothSpeed: 1.5
+  previewFill: 1
   useLevelColors: 1
   calmColor: {r: 0.55, g: 0.8, b: 1, a: 1}
   shakenColor: {r: 1, g: 0.8, b: 0.3, a: 1}
@@ -18385,7 +18396,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: New Text
+  m_text: 'HP
+
+'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
   m_sharedMaterial: {fileID: 2140032, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
