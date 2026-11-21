@@ -5,18 +5,18 @@ using UnityEngine.UI;
 /// <summary>
 /// สคริปต์แสดงหลอดเลือด (Health Bar) บน UI
 ///
-/// This belongs on the SCENE UI Canvas, not on the player prefab. A prefab that
-/// gets spawned at runtime cannot hold a reference to a scene object, so the old
-/// arrangement (HealthBarUI sitting on Player.prefab with an empty PlayerHealth
-/// slot) could never work in a real match. Instead this binds itself to
-/// whichever player belongs to THIS machine, as soon as that player spawns.
+/// This belongs on the SCENE UI Canvas (the GAME HUD prefab), not on the player prefab.
+/// It binds itself to whichever player belongs to THIS machine, as soon as that player spawns.
 ///
-/// วิธีใช้:
-/// 1) สร้าง UI > Slider ใน Canvas (คลิกขวาใน Hierarchy > UI > Slider)
-/// 2) ลบ Handle ของ Slider ออกได้ถ้าไม่ต้องการให้ลากได้ (เอาไว้โชว์อย่างเดียว)
-/// 3) ใส่สคริปต์นี้ไว้ที่ Canvas หรือ Slider
-/// 4) ลาก Slider / Fill / Text (TMP) มาใส่ในช่องด้านล่าง
-/// 5) ไม่ต้องลาก PlayerHealth -- สคริปต์จะหาผู้เล่นของเครื่องนี้เองตอนเกิด
+/// 21 Nov 2026: works like HudBar now -- Frame + Fill + Icon pictures.
+///
+/// เปลี่ยนรูป / แก้ไข (เปิด GAME HUD prefab > HP):
+///   - Frame = รูปกรอบ/พื้นหลัง, Fill = รูปหลอดที่ลด/เพิ่ม, Icon = ไอคอนหัวใจ
+///     กดที่ช่องใน component นี้เพื่อไปที่ object นั้น แล้วเปลี่ยน Source Image ได้เลย
+///   - Fill ต้องเป็น Image Type "Filled" + Fill Method "Horizontal" -> รูปจะถูก "ตัด" ไม่บี้
+///   - ลาก "Preview Fill" เพื่อดูหน้าตาหลอดตอนเลือดเหลือน้อยใน Editor (ไม่มีผลตอนเล่น)
+///   - ย้าย / ย่อขยาย / เปลี่ยนสีได้อิสระ แค่ให้ช่องใน component นี้ยังชี้ถูก object
+///   - ไม่ต้องลาก PlayerHealth -- สคริปต์จะหาผู้เล่นของเครื่องนี้เอง
 /// </summary>
 public class HealthBarUI : MonoBehaviour
 {
@@ -24,9 +24,28 @@ public class HealthBarUI : MonoBehaviour
     [Tooltip("Leave EMPTY in a real match -- it binds to the local player automatically. Only set this to pin the bar to one specific player in a test scene.")]
     [SerializeField] private PlayerHealth playerHealth;
 
+    [Header("Pictures (เปลี่ยนรูปแต่ละอันได้แยกกัน)")]
+    [Tooltip("รูปกรอบ / พื้นหลังของหลอด (optional)")]
+    [SerializeField] private Image frameImage;
+    [Tooltip("รูปหลอดเลือดที่ลด/เพิ่ม. Image Type = Filled (Horizontal) -> รูปถูกตัด ไม่บี้")]
+    [SerializeField] private Image fillImage;
+    [Tooltip("ไอคอนข้างหลอด (optional)")]
+    [SerializeField] private Image iconImage;
+
     [Header("UI Elements")]
+    [Tooltip("Optional. Only needed if the Fill picture is NOT 'Filled' (then the Slider squeezes it).")]
     [SerializeField] private Slider healthSlider;
     [SerializeField] private TMP_Text healthText;
+    [Tooltip("{0} = เลือดตอนนี้, {1} = เลือดเต็ม.  เช่น  HP {0}   หรือ   {0} / {1}")]
+    [SerializeField] private string textFormat = "HP {0}";
+
+    [Header("Bar")]
+    [Tooltip("ความเร็วที่หลอดเลื่อนไปค่าใหม่ (เต็มหลอดต่อวินาที). 0 = เปลี่ยนทันที")]
+    [SerializeField, Min(0f)] private float smoothSpeed = 1.5f;
+    [Tooltip("Editor only: drag to see how the bar looks when HP is low.")]
+    [SerializeField, Range(0f, 1f)] private float previewFill = 1f;
+    [Tooltip("Draw order. 45 = above the sanity dark screen edges (44). 0 = leave it to the GAME HUD canvas.")]
+    [SerializeField] private int sortingOrder = 45;
 
     [Header("Downed State UI")]
     [SerializeField] private GameObject downedPanel;
@@ -34,7 +53,8 @@ public class HealthBarUI : MonoBehaviour
     [SerializeField] private TMP_Text downedStatusText;
 
     [Header("สีของหลอดเลือด (optional)")]
-    [SerializeField] private Image fillImage;
+    [Tooltip("On = tint the Fill picture with the gradient below (right = full HP). Off = the Fill keeps its own colour.")]
+    [SerializeField] private bool useHealthColors;
     [SerializeField] private Gradient healthGradient; // เขียว -> เหลือง -> แดง
 
     [Tooltip("Hide the bar while no local player exists (e.g. in the lobby, or before spawn).")]
@@ -46,6 +66,12 @@ public class HealthBarUI : MonoBehaviour
     private PlayerHealth _bound;
     private bool _manuallyAssigned;
     private CanvasGroup _fadeGroup;
+    private float _targetRatio = 1f;
+    private float _shownRatio = -1f;
+
+    public Image FrameImage => frameImage;
+    public Image FillImage => fillImage;
+    public Image IconImage => iconImage;
 
     private void Awake()
     {
@@ -57,6 +83,16 @@ public class HealthBarUI : MonoBehaviour
                 "[HealthBarUI] Bar Root points at this same GameObject. Clearing it -- deactivating ourselves would " +
                 "stop this script listening for the local player and the bar would never reappear. Fading instead.", this);
             barRoot = null;
+        }
+
+        HudFill.DetachSlider(healthSlider, fillImage);
+
+        if (sortingOrder != 0)
+        {
+            // The GAME HUD canvas draws at order 0, under the sanity vignette (44).
+            if (!TryGetComponent(out Canvas canvas)) canvas = gameObject.AddComponent<Canvas>();
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = sortingOrder;
         }
     }
 
@@ -76,6 +112,13 @@ public class HealthBarUI : MonoBehaviour
     {
         if (!_manuallyAssigned) PlayerHealth.LocalInstanceChanged -= Bind;
         Unbind();
+    }
+
+    private void Update()
+    {
+        if (_bound == null || Mathf.Approximately(_shownRatio, _targetRatio)) return;
+        _shownRatio = HudFill.Smooth(_shownRatio, _targetRatio, smoothSpeed);
+        ShowRatio(_shownRatio);
     }
 
     private void Bind(PlayerHealth health)
@@ -99,6 +142,7 @@ public class HealthBarUI : MonoBehaviour
         _bound.OnDownedTimerChanged.AddListener(UpdateDownedTimer);
         _bound.OnDeath.AddListener(HideDownedState);
 
+        _shownRatio = -1f; // jump straight to the new player's HP, no slide
         UpdateHealthBar(_bound.CurrentHealth, _bound.MaxHealth);
         UpdateDownedState();
     }
@@ -122,7 +166,8 @@ public class HealthBarUI : MonoBehaviour
             _fadeGroup = gameObject.AddComponent<CanvasGroup>();
 
         _fadeGroup.alpha = visible ? 1f : 0f;
-        _fadeGroup.blocksRaycasts = visible;
+        _fadeGroup.blocksRaycasts = false;
+        _fadeGroup.interactable = false;
     }
 
     private void Unbind()
@@ -139,22 +184,24 @@ public class HealthBarUI : MonoBehaviour
     private void UpdateHealthBar(float current, float max)
     {
         UpdateDownedState();
-        if (healthSlider != null)
+
+        _targetRatio = max > 0f ? Mathf.Clamp01(current / max) : 0f;
+        if (_shownRatio < 0f || smoothSpeed <= 0f)
         {
-            healthSlider.maxValue = max;
-            healthSlider.value = current;
+            _shownRatio = _targetRatio;
+            ShowRatio(_shownRatio);
         }
 
         if (healthText != null)
-        {
-            healthText.text = $"{Mathf.Ceil(current)} / {Mathf.Ceil(max)}";
-        }
+            healthText.text = HudFill.Format(textFormat, current, max);
+    }
 
-        if (fillImage != null && healthGradient != null)
-        {
-            float ratio = max > 0f ? current / max : 0f;
+    private void ShowRatio(float ratio)
+    {
+        HudFill.Apply(fillImage, healthSlider, ratio);
+
+        if (useHealthColors && fillImage != null && healthGradient != null)
             fillImage.color = healthGradient.Evaluate(ratio);
-        }
     }
 
     private void UpdateDownedState()
@@ -190,4 +237,18 @@ public class HealthBarUI : MonoBehaviour
             downedTimerText.text = $"{Mathf.Ceil(remainingTime)}s";
         }
     }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        if (Application.isPlaying)
+        {
+            if (_bound != null) UpdateHealthBar(_bound.CurrentHealth, _bound.MaxHealth);
+            return;
+        }
+        // Editor preview: see the cut picture while designing.
+        if (HudFill.IsCut(fillImage) && !Mathf.Approximately(fillImage.fillAmount, previewFill))
+            fillImage.fillAmount = previewFill;
+    }
+#endif
 }
