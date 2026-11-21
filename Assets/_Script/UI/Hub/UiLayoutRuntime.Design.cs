@@ -78,6 +78,13 @@ public sealed partial class UiLayoutRuntime
         public bool textIsLive;    // the game changed the words once: from then on always copy them
         public bool textApplied, positionApplied, sizeApplied;
 
+        // 21 Nov: the game's part makes its children by code (UiLiveChildren): this part shows live copies.
+        public bool sLive;
+        public bool liveCleared;
+        public bool muted;         // a sample part inside a live part: never updated again
+        public readonly List<Transform> liveSources = new List<Transform>();
+        public readonly List<GameObject> liveClones = new List<GameObject>();
+
         // Repeat only.
         public float nextRows;
         public int rowsChildCount = -1;
@@ -232,6 +239,7 @@ public sealed partial class UiLayoutRuntime
         st.sToggle = t.GetComponent<Toggle>();
         st.sDropdown = t.GetComponent<TMP_Dropdown>();
         st.sInput = t.GetComponent<TMP_InputField>();
+        st.sLive = t.GetComponent<UiLiveChildren>() != null;
     }
 
     /// <summary>The design part's own controls send the player's input to the game's controls (once per link).</summary>
@@ -312,13 +320,18 @@ public sealed partial class UiLayoutRuntime
             d.nextResolve = Time.unscaledTime + ResolveEvery;
             ResolveDesignLinks(s);
         }
+        updating = d;
         for (int i = 0; i < d.links.Count; i++) UpdateLink(d.links[i]);
+        updating = null;
     }
+
+    /// <summary>The design whose links are being updated (for live parts that silence their sample parts).</summary>
+    private static DesignState updating;
 
     private static void UpdateLink(LinkState st)
     {
         UiLink l = st.link;
-        if (l == null || st.target == null) return;
+        if (l == null || st.target == null || st.muted) return;
         if (l.repeat && !st.isRowRoot)
         {
             if (st.source == null) ClearRepeat(st); else UpdateRepeat(st);
@@ -339,6 +352,7 @@ public sealed partial class UiLayoutRuntime
             if (!on) return;
             if (st.graphic != null && st.sGraphic != null && st.graphic.enabled != st.sGraphic.enabled) st.graphic.enabled = st.sGraphic.enabled;
         }
+        if (st.sLive) UpdateLiveChildren(st);
 
         if (!st.ownKnown) ReadOwn(st);
 
@@ -523,6 +537,94 @@ public sealed partial class UiLayoutRuntime
         if (whole <= 0.001f) return 0f;
         float part = (h ? rt.rect.width * rt.localScale.x : rt.rect.height * rt.localScale.y);
         return Mathf.Clamp01(part / whole);
+    }
+
+    // ---- Live children (21 Nov) --------------------------------------------------------------------
+
+    /// <summary>
+    /// The game's part makes its children by code (a page of the Memo Book). The design part drops
+    /// its own sample children once, then shows a copy of every shown game child, in the same order.
+    /// Copied again only when the game's shown children change (new page, new step, part shown / hidden).
+    /// </summary>
+    private static void UpdateLiveChildren(LinkState st)
+    {
+        Transform game = st.source, design = st.target;
+        if (!st.liveCleared)
+        {
+            st.liveCleared = true;
+            // The sample parts inside stop for good (else a list link inside would keep adding rows).
+            if (updating != null)
+                foreach (LinkState other in updating.links)
+                {
+                    if (other == st || other.target == null || !other.target.IsChildOf(design)) continue;
+                    other.muted = true;
+                    for (int c = 0; c < other.clones.Count; c++) DropClone(other.clones[c]);
+                    other.clones.Clear();
+                }
+            for (int i = design.childCount - 1; i >= 0; i--) DropClone(design.GetChild(i).gameObject);
+        }
+        else if (design.childCount != st.liveClones.Count)
+        {
+            // Anything else that got in (rows made by another link) goes.
+            for (int i = design.childCount - 1; i >= 0; i--)
+            {
+                GameObject child = design.GetChild(i).gameObject;
+                if (child.activeSelf && !st.liveClones.Contains(child)) DropClone(child);
+            }
+        }
+
+        bool same = true;
+        int n = 0;
+        for (int i = 0; i < game.childCount; i++)
+        {
+            Transform child = game.GetChild(i);
+            if (!child.gameObject.activeSelf) continue; // hidden, or on its way out (a page being replaced)
+            if (n >= st.liveSources.Count || st.liveSources[n] != child || st.liveClones[n] == null) { same = false; break; }
+            n++;
+        }
+        if (same && n == st.liveSources.Count) return;
+
+        for (int i = 0; i < st.liveClones.Count; i++) DropClone(st.liveClones[i]);
+        st.liveClones.Clear();
+        st.liveSources.Clear();
+        for (int i = 0; i < game.childCount; i++)
+        {
+            Transform child = game.GetChild(i);
+            if (!child.gameObject.activeSelf) continue;
+            GameObject copy = Instantiate(child.gameObject, design, false);
+            copy.name = child.name;
+            ForwardClicks(copy.transform, child);
+            st.liveSources.Add(child);
+            st.liveClones.Add(copy);
+        }
+
+        // A new page starts at its top.
+        if (design is RectTransform rect)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rect);
+            ScrollRect scroll = design.GetComponentInParent<ScrollRect>();
+            if (scroll != null && scroll.content == rect) scroll.verticalNormalizedPosition = 1f;
+        }
+    }
+
+    private static void DropClone(GameObject go)
+    {
+        if (go == null) return;
+        go.SetActive(false); // out of the layout at once (Destroy waits for the end of the frame)
+        Destroy(go);
+    }
+
+    /// <summary>Buttons inside a live copy click the game's buttons (same order in both).</summary>
+    private static void ForwardClicks(Transform copy, Transform game)
+    {
+        Button[] mine = copy.GetComponentsInChildren<Button>(true);
+        if (mine.Length == 0) return;
+        Button[] theirs = game.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < mine.Length && i < theirs.Length; i++)
+        {
+            Button g = theirs[i];
+            mine[i].onClick.AddListener(() => { if (g != null && g.interactable && g.isActiveAndEnabled) g.onClick.Invoke(); });
+        }
     }
 
     // ---- Repeat rows ----------------------------------------------------------------------------

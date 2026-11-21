@@ -752,6 +752,9 @@ public sealed class WorksheetReader : MonoBehaviour
         cv.childForceExpandWidth = true;
         cv.childForceExpandHeight = false;
         column.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        // 21 Nov: every page's lines are made here again on each change. The UI Hub copy of this book
+        // (GAME HUD > Worksheet Book) shows a live copy of them instead of its fixed sample lines.
+        column.AddComponent<UiLiveChildren>();
 
         pageScroll = view.AddComponent<ScrollRect>();
         pageScroll.viewport = viewport;
