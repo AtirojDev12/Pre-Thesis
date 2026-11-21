@@ -22,7 +22,7 @@ MonoBehaviour:
   standbyFadeOut: 0.4
   helpMeClip: {fileID: 8300000, guid: a8650e10ee6e63c41851ae50e1daa37a, type: 3}
   helpMeVolume: 0.5
-  helpMeInterval: 5
+  helpMeInterval: 8
   partVoiceClips:
   - {fileID: 8300000, guid: cfffdca684936554d8025e22a52ffa8b, type: 3}
   - {fileID: 8300000, guid: 8358b4e8ac3224f4b95f851540cc702c, type: 3}

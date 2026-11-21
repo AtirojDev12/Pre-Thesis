@@ -51,14 +51,15 @@ public sealed class CustomerModelVisual : MonoBehaviour
     public float FloorY { get; private set; }
 
     /// <summary>
-    /// Creates a human customer at a route point (capsule-centre convention).
+    /// Creates a customer (human, or ghost when <paramref name="ghost"/> is true) at a
+    /// route point (capsule-centre convention).
     /// Returns null when no model is configured, so callers can fall back to a capsule.
     /// </summary>
     public static CustomerModelVisual TryCreate(string name, Vector3 position, Quaternion rotation,
-        uint seed, bool startWalking, float labelGapAboveHead, bool addInteractionCollider)
+        uint seed, bool startWalking, float labelGapAboveHead, bool addInteractionCollider, bool ghost = false)
     {
         CustomerModelLibrary library = CustomerModelLibrary.Instance;
-        if (library == null || !library.TryPick(seed, out CustomerModelLibrary.Entry entry)) return null;
+        if (library == null || !library.TryPick(seed, ghost, out CustomerModelLibrary.Entry entry)) return null;
 
         var root = new GameObject(name);
         root.transform.SetPositionAndRotation(position, rotation);

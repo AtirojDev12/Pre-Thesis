@@ -1,9 +1,11 @@
 using UnityEngine;
 
 /// <summary>
-/// The human customer bodies (NPC models + their Idle/Walk animator controllers).
+/// The customer bodies (NPC models + their Idle/Walk animator controllers):
+/// human customers pick from Human Models, ghost customers from Ghost Models
+/// (the GhostNPC variants: same rigs, ghost textures).
 /// Lives at Resources/CustomerModels.asset so runtime-created customers can load it.
-/// Ghost customers do NOT use this: they stay as tinted capsules for now.
+/// A list left empty falls back to the old tinted capsule for that customer type.
 /// </summary>
 [CreateAssetMenu(fileName = "CustomerModels", menuName = "Pre-Thesis/Customer Model Library")]
 public sealed class CustomerModelLibrary : ScriptableObject
@@ -24,6 +26,8 @@ public sealed class CustomerModelLibrary : ScriptableObject
     }
 
     [SerializeField] private Entry[] humanModels = new Entry[0];
+    [Tooltip("Ghost customers (popcorn counter + ticket booth). Empty = ghosts stay capsules.")]
+    [SerializeField] private Entry[] ghostModels = new Entry[0];
 
     private static CustomerModelLibrary instance;
     private static bool loaded;
@@ -47,16 +51,20 @@ public sealed class CustomerModelLibrary : ScriptableObject
     /// Deterministic pick: every client passes the same synced id (ticket round /
     /// popcorn order id), so all players see the same model for the same customer.
     /// </summary>
-    public bool TryPick(uint seed, out Entry entry)
+    public bool TryPick(uint seed, out Entry entry) => TryPick(seed, false, out entry);
+
+    /// <summary>Same deterministic pick, from the ghost list when <paramref name="ghost"/> is true.</summary>
+    public bool TryPick(uint seed, bool ghost, out Entry entry)
     {
         entry = default;
-        if (humanModels == null) return false;
+        Entry[] models = ghost ? ghostModels : humanModels;
+        if (models == null) return false;
         int valid = 0;
-        foreach (Entry e in humanModels) if (e.model != null) valid++;
+        foreach (Entry e in models) if (e.model != null) valid++;
         if (valid == 0) return false;
         uint hash = seed * 2654435761u;
         int index = (int)((hash >> 16) % (uint)valid);
-        foreach (Entry e in humanModels)
+        foreach (Entry e in models)
         {
             if (e.model == null) continue;
             if (index-- == 0) { entry = e; return true; }

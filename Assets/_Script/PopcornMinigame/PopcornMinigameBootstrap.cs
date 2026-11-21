@@ -377,10 +377,11 @@ public sealed class CounterSlot : MonoBehaviour
 
         string customerName = $"{order.customerType}{(order.chooseAny ? " Choice" : "")} Customer";
         bool ghost = order.customerType == PopcornCustomerType.Ghost;
-        // Humans use an NPC model (picked from the synced order id so every client sees the
-        // same one, feet kept on the floor by CustomerModelVisual). Ghosts stay capsules.
-        CustomerModelVisual model = ghost ? null : CustomerModelVisual.TryCreate(customerName, spawnPosition,
-            Quaternion.identity, order.id, true, PopcornCustomer.PromptGapAboveHead, true);
+        // Humans and ghosts both use an NPC model (picked from the synced order id so every
+        // client sees the same one, feet kept on the floor by CustomerModelVisual). Ghosts pick
+        // from the GhostNPC list; with no model configured either falls back to a tinted capsule.
+        CustomerModelVisual model = CustomerModelVisual.TryCreate(customerName, spawnPosition,
+            Quaternion.identity, order.id, true, PopcornCustomer.PromptGapAboveHead, true, ghost);
         GameObject customerObject;
         if (model != null) customerObject = model.gameObject;
         else

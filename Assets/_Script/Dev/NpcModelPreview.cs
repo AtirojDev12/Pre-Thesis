@@ -1,13 +1,18 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
 /// Preview helper for the ModelPreview scene: gives an NPC model its Idle/Walk
 /// controller in Play Mode. Use the buttons in the Inspector (NpcModelPreviewEditor)
 /// or tick "Walking" to switch between the Idle and Walk animation in place.
+/// In the Game view, ModelPreviewHub lists it under its Category tab ("NPC" by default;
+/// the ghost customers use "GhostNPC").
 /// </summary>
 [DisallowMultipleComponent]
-public sealed class NpcModelPreview : MonoBehaviour
+public sealed class NpcModelPreview : MonoBehaviour, IModelPreview
 {
+    [Tooltip("Tab this model is listed under in the ModelPreview panel, e.g. NPC or GhostNPC.")]
+    [SerializeField] private string category = "NPC";
     [Tooltip("Controller with Idle/Walk states and a bool 'IsWalking'.")]
     [SerializeField] private RuntimeAnimatorController controller;
     [SerializeField] private bool walking;
@@ -32,6 +37,14 @@ public sealed class NpcModelPreview : MonoBehaviour
     public bool IsPaused => paused;
     public bool IsReady => animator != null && animator.runtimeAnimatorController != null;
 
+    // ---- IModelPreview (ModelPreviewHub) ----------------------------------------
+    private static readonly string[] AnimationNames = { "Idle", "Walk" };
+    public string Category => string.IsNullOrEmpty(category) ? "NPC" : category;
+    public string DisplayName => name;
+    public IReadOnlyList<string> Animations => AnimationNames;
+    public string CurrentAnimation => walking ? "Walk" : "Idle";
+    public void PlayAnimation(string animationName) => PlayState(animationName == "Walk");
+
     private void Start()
     {
         animator = GetComponentInChildren<Animator>();
@@ -45,7 +58,7 @@ public sealed class NpcModelPreview : MonoBehaviour
         if (controller != null) animator.runtimeAnimatorController = controller;
         animator.applyRootMotion = false; // walk in place, same as the customers in game
         Apply();
-        NpcPreviewControls.EnsureExists(); // on-screen buttons + keyboard shortcuts in the Game view
+        ModelPreviewHub.EnsureExists(); // on-screen model tabs + animation buttons in the Game view
     }
 
     public void SetPlaybackSpeed(float speed)

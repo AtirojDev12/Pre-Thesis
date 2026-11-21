@@ -305,14 +305,15 @@ public sealed class TicketMinigame : MonoBehaviour
         {
             if (customer != null) Destroy(customer);
             customerModel = null;
-            if (!visible.ghost)
             {
-                // Human: NPC model picked from the synced round, so every client sees the same one.
-                // The bubble keeps the same gap above the head as it had above the capsule top.
+                // Human or ghost: NPC model picked from the synced round, so every client sees the
+                // same one (ghosts pick from the GhostNPC list). The bubble keeps the same gap above
+                // the head as it had above the capsule top.
                 float gapAboveHead = Mathf.Max(0.1f, bubbleOffset.y - 1f);
-                customerModel = CustomerModelVisual.TryCreate("Human Ticket Customer", visible.position,
+                customerModel = CustomerModelVisual.TryCreate(
+                    visible.ghost ? "Ghost Ticket Customer" : "Human Ticket Customer", visible.position,
                     visible.rotation, (uint)visible.round, visible.stage != TicketCustomerStage.Waiting,
-                    gapAboveHead, false);
+                    gapAboveHead, false, visible.ghost);
             }
             if (customerModel != null)
             {
@@ -322,7 +323,7 @@ public sealed class TicketMinigame : MonoBehaviour
             }
             else
             {
-                // Ghost (or no model configured): same primitive, proportions and colours as the popcorn CounterSlot.
+                // No model configured: same primitive, proportions and colours as the popcorn CounterSlot.
                 customer = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                 customer.name = visible.ghost ? "Ghost Ticket Customer" : "Human Ticket Customer";
                 customer.transform.localScale = new Vector3(0.75f, 1, 0.75f);

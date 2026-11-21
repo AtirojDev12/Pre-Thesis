@@ -25,3 +25,16 @@ MonoBehaviour:
     controller: {fileID: 9100000, guid: f49a8071e8254ec5b40f26638d78f961, type: 2}
     lockHeadToRestPose: 0
     armSpreadDegrees: 10
+  ghostModels:
+  - model: {fileID: 919132149155446097, guid: 5d57d9b0e6b72eb48885ac121932f178, type: 3}
+    controller: {fileID: 9100000, guid: 267e3a0070314c25838f60dc4c594dcd, type: 2}
+    lockHeadToRestPose: 0
+    armSpreadDegrees: 10
+  - model: {fileID: 919132149155446097, guid: 389fba32d10320043ba495f0dd8cbe4e, type: 3}
+    controller: {fileID: 9100000, guid: 426e69b9c7204cf5b420216a92a9f9d6, type: 2}
+    lockHeadToRestPose: 0
+    armSpreadDegrees: 10
+  - model: {fileID: 919132149155446097, guid: fdb567ce42050ed4aad83d70785ef57f, type: 3}
+    controller: {fileID: 9100000, guid: f49a8071e8254ec5b40f26638d78f961, type: 2}
+    lockHeadToRestPose: 0
+    armSpreadDegrees: 10

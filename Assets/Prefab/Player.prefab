@@ -252,7 +252,6 @@ GameObject:
   - component: {fileID: 2048010285176511286}
   - component: {fileID: 3946688187242594844}
   - component: {fileID: 7152060350326202251}
-  - component: {fileID: -2365669203378768568}
   - component: {fileID: 2159096992710589729}
   - component: {fileID: 43268456614067055}
   - component: {fileID: 7397698309218730996}
@@ -569,28 +568,6 @@ MonoBehaviour:
   rotationSensitivity: 0.01
   positionPrecision: 0.01
   scalePrecision: 0.01
---- !u!95 &-2365669203378768568
-Animator:
-  serializedVersion: 7
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3873886348749462617}
-  m_Enabled: 1
-  m_Avatar: {fileID: 9000000, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
-  m_Controller: {fileID: 9100000, guid: 6064756d774beda40bc0ca9932612fd9, type: 2}
-  m_CullingMode: 0
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 0
-  m_LinearVelocityBlending: 0
-  m_StabilizeFeet: 0
-  m_AnimatePhysics: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorStateOnDisable: 0
-  m_WriteDefaultValuesOnDisable: 0
 --- !u!114 &2159096992710589729
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -791,7 +768,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1082271958561512970, guid: 45740fa1fb06af6429ade5c06b83d2ec, type: 3}
       propertyPath: m_IsActive
@@ -863,6 +840,18 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
       propertyPath: m_Name
       value: M_player@T-Pose
+      objectReference: {fileID: 0}
+    - target: {fileID: 5866666021909216657, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: 6064756d774beda40bc0ca9932612fd9, type: 2}
+    - target: {fileID: 5866666021909216657, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
+      propertyPath: m_CullingMode
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5866666021909216657, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
