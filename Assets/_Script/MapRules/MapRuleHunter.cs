@@ -47,6 +47,12 @@ public sealed class MapRuleHunter : MapEventBase
         }
     }
 
+    /// <summary>SERVER. 23 Nov: F1 dev cheat: lights out + the hunter now (without the VIP).</summary>
+    public void ServerDevStart() { if (IsServerSide && NightRunning && state != State.Hunting) Begin(); }
+
+    /// <summary>SERVER. 23 Nov: F1 dev cheat: the hunt ends now (lights back).</summary>
+    public void ServerDevEnd() { if (IsServerSide && state == State.Hunting) End(); }
+
     private void Begin()
     {
         state = State.Hunting;
@@ -56,7 +62,7 @@ public sealed class MapRuleHunter : MapEventBase
         hunter = MapWalker.ServerTake(Role);
         if (hunter != null)
         {
-            hunter.ServerAppear(FarPoint(), MapWalker.Body.Male);
+            hunter.ServerAppear(FarPoint(), MapWalker.Body.Guard); // 23 Nov: security guard ghost mockup
             hunter.ServerSetLight(true);
             hunter.ServerSetSpeed(T.hunterWalkSpeed);
             hunter.ServerRoam();

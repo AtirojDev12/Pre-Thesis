@@ -34,6 +34,9 @@ public sealed class DevCheatPanel : MonoBehaviour
         SanityFull, SanityMinus25, SanityZero, GiveSanityItems, // 8 Oct
         ClockMinusHour, GhostSummonNow, GhostFireTrigger, CompleteTaskLine, CompleteZone, // 14 Oct
         InfHealthOn, InfHealthOff, InfSanityOn, InfSanityOff, UntargetableOn, UntargetableOff, // 14 Oct
+        // 23 Nov: Map Rules + map events (added at the END so older numbers keep their meaning)
+        AudienceRoamOn, AudienceRoamOff, ToiletGhostsOn, ToiletGhostsOff,
+        VipStart, VipFilmIn, VipServe, VipFail, HunterStart, HunterEnd, ForeignStart, ForeignAllIn, ForeignClear,
     }
 
     private static bool serverHandlerReady;
@@ -139,6 +142,35 @@ public sealed class DevCheatPanel : MonoBehaviour
             case Cheat.LightsToggle:
                 if (BuildingLightManager.Instance != null) BuildingLightManager.Instance.SetLights(!BuildingLightManager.LightsOn);
                 break;
+            // 23 Nov: Map Rules + map events
+            case Cheat.AudienceRoamOn:
+            case Cheat.AudienceRoamOff:
+                FilmGhostEvent film = FindAnyObjectByType<FilmGhostEvent>();
+                if (film != null) film.DevForced = cheat == Cheat.AudienceRoamOn;
+                break;
+            case Cheat.ToiletGhostsOn:
+            case Cheat.ToiletGhostsOff:
+                ToiletGhostEvent toilet = FindAnyObjectByType<ToiletGhostEvent>();
+                if (toilet != null) toilet.DevForced = cheat == Cheat.ToiletGhostsOn;
+                break;
+            case Cheat.VipStart: if (MapRuleVip.Instance != null) MapRuleVip.Instance.ServerDevStart(); break;
+            case Cheat.VipFilmIn: if (MapRuleVip.Instance != null) MapRuleVip.Instance.ServerDevFilmIn(); break;
+            case Cheat.VipServe: if (MapRuleVip.Instance != null) MapRuleVip.Instance.ServerDevServe(); break;
+            case Cheat.VipFail: if (MapRuleVip.Instance != null) MapRuleVip.Instance.ServerDevFail(); break;
+            case Cheat.HunterStart:
+            case Cheat.HunterEnd:
+                MapRuleHunter hunter = FindAnyObjectByType<MapRuleHunter>();
+                if (hunter != null) { if (cheat == Cheat.HunterStart) hunter.ServerDevStart(); else hunter.ServerDevEnd(); }
+                break;
+            case Cheat.ForeignStart:
+            case Cheat.ForeignAllIn:
+            case Cheat.ForeignClear:
+                MapRuleForeign foreign = FindAnyObjectByType<MapRuleForeign>();
+                if (foreign == null) break;
+                if (cheat == Cheat.ForeignStart) foreign.ServerDevStart();
+                else if (cheat == Cheat.ForeignAllIn) foreign.ServerDevAllIn();
+                else foreign.ServerDevClear();
+                break;
             case Cheat.GhostsFreeze: Enemy_Abstract_Class.DevFrozen = true; break;
             case Cheat.GhostsUnfreeze: Enemy_Abstract_Class.DevFrozen = false; break;
         }
@@ -219,6 +251,7 @@ public sealed class DevCheatPanel : MonoBehaviour
 
     // 14 Oct: collapsible sections (click the arrow line). All closed at start = small panel.
     private bool showMoney, showPlayer, showMatch, showTasks, showDarkness, showGhost;
+    private bool showMapRules; // 23 Nov
     private bool showXRay; // 31 Oct: see everything through walls (DevXRayView)
     private readonly System.Collections.Generic.HashSet<string> openBoards = new System.Collections.Generic.HashSet<string>();
     private System.Collections.Generic.List<IDevGhostSource> ghostSources = new System.Collections.Generic.List<IDevGhostSource>();
@@ -364,6 +397,29 @@ public sealed class DevCheatPanel : MonoBehaviour
             Row(("Open the exit now", () => Do(Cheat.OpenExit, "Zones done + 06:00")),
                 ("Lights on / off", () => Do(Cheat.LightsToggle, "Lights toggled")));
             // 23 Nov: the Hard / 13 Rules unlock is gone (no difficulty levels any more).
+        }
+
+        // 23 Nov: start / stop every Map Rule and map event (the night must be running: 00:00 - 06:00).
+        if (Section("Map Rules + events  (night only)", ref showMapRules))
+        {
+            GUILayout.Label("  Film change time (all audience ghosts roam)");
+            Row(("Audience roam: START", () => Do(Cheat.AudienceRoamOn, "Audience roams (forced)")),
+                ("Audience roam: STOP", () => Do(Cheat.AudienceRoamOff, "Audience back (unless the film is due)")));
+            GUILayout.Label("  Toilet cleaning time (2 ghosts complain)");
+            Row(("Toilet ghosts: START", () => Do(Cheat.ToiletGhostsOn, "Toilet ghosts walk (forced)")),
+                ("Toilet ghosts: STOP", () => Do(Cheat.ToiletGhostsOff, "Toilet ghosts leave (unless toilets are dirty)")));
+            GUILayout.Label("  Map Rule 3: VIP guest (clock stops)");
+            Row(("VIP arrives now", () => Do(Cheat.VipStart, "VIP arrives (front door)")),
+                ("VIP film is in", () => Do(Cheat.VipFilmIn, "VIP film put in the crank projector")));
+            Row(("VIP served (skip)", () => Do(Cheat.VipServe, "VIP served: Map Rules 2 + 1 start")),
+                ("VIP time out (fail)", () => Do(Cheat.VipFail, "VIP failed: jumpscare + half sanity")));
+            GUILayout.Label("  Map Rule 2: lights out + flashlight hunter");
+            Row(("Hunter: START", () => Do(Cheat.HunterStart, "Lights out, hunter walks")),
+                ("Hunter: END", () => Do(Cheat.HunterEnd, "Hunt over, lights back")));
+            GUILayout.Label("  Map Rule 1: hidden things");
+            Row(("Hidden things: START", () => Do(Cheat.ForeignStart, "New hidden things")),
+                ("All get in (pests)", () => Do(Cheat.ForeignAllIn, "Every hidden thing got in")));
+            Row(("Hidden things: CLEAR", () => Do(Cheat.ForeignClear, "Hidden things + pests removed")), ("", null));
         }
 
         if (Section("Tasks  (finish lines / zones)", ref showTasks)) TaskBoards();

@@ -1,0 +1,73 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa3442ec43528fc49b5d0a73fd2b6b54, type: 3}
+  m_Name: MapRuleTuning
+  m_EditorClassIdentifier: Assembly-CSharp::MapRuleTuning
+  mapRulesHour: 3
+  hitReach: 2.6
+  hitLine: '*WHACK*'
+  batName: Bat
+  batPrice: 150
+  batDescription: A baseball bat. Left Click to hit the hidden things after 3 AM
+    (the mop works too). Lost if you die.
+  filmGhostSpeed: 1.5
+  filmGhostDamagePerSecond: 5
+  filmGhostLookAngle: 9
+  filmGhostLookDistance: 25
+  filmGhostLookLine: Don't look at it...
+  toiletGhostSpeed: 1.8
+  toiletLines:
+  - The toilet is dirty!
+  - Somebody clean the toilet!
+  - Staff! The toilets are filthy!
+  - Go clean the toilet... please...
+  toiletLineSeconds: 4
+  toiletShoutRange: 9
+  vipSeconds: 90
+  vipSpeed: 3.2
+  vipFollowDistance: 1.6
+  vipSeatRadius: 2.2
+  crankPresses: 20
+  vipFailSanityPart: 0.5
+  vipArriveLine: A VIP guest has arrived. The clock is stopped! Take the VIP to the
+    ghost screen room.
+  vipPrompt: 'Press E: take the VIP guest'
+  vipFollowLine: Lead the way.
+  vipSeatedLine: The VIP is seated. Crank the projector in the ghost room!
+  crankPrompt: 'Press E fast: crank the projector'
+  crankWaitPrompt: Bring the VIP to its seat first
+  vipDoneLine: The VIP enjoyed the film. Time moves again.
+  vipFailLine: The VIP is furious...
+  hunterHours: 1
+  hunterWalkSpeed: 1.7
+  hunterRunSpeed: 4.4
+  hunterBeamRange: 12
+  hunterBeamAngle: 22
+  hunterLightIntensity: 25
+  hunterCatchRange: 1.1
+  hunterGiveUpSeconds: 4
+  lightsOutLine: The lights went out... Something walks with a flashlight. Don't
+    let it see you.
+  hunterSpottedLine: It saw you. RUN!
+  lightsBackLine: The lights are back.
+  foreignCount: 5
+  foreignSeconds: 75
+  foreignMinPlayerDistance: 8
+  pestBlockSeconds: 20
+  pestSanityOnSight: 3
+  pestSightCooldown: 8
+  pestSightAngle: 25
+  pestSpeed: 2.4
+  foreignStartLine: Something is hiding in the building. Find it and hit it out!
+  foreignOutLine: Driven out!
+  foreignInLine: Something got in...
+  pestBlockLine: Something is in the way...

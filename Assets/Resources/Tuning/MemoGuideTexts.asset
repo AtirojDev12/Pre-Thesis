@@ -35,9 +35,9 @@ MonoBehaviour:
   cleanStains: Follow the red arrows and hold E on each stain.
   audienceStill: The audience is standing and staring. Do NOT move.
   audienceLeave: Leave the Ghost Screen Room now.
-  staffFindShadow: The screen shows static. Find the black shadow on a seat and stand
-    on it.
-  staffStay: Stay on the shadow until the screen comes back.
+  staffFindShadow: The screen shows static. Find the black shadow on a seat, look
+    at that seat and press E to sit on it.
+  staffStay: Stay seated until the screen comes back (SPACE = stand up).
   mirrorLook: A mirror is cracked. Look at the crack until it stops.
   cryingLightOff: Someone is crying in the last stall. Turn the toilet light OFF
     (switch by the door).
@@ -59,3 +59,16 @@ MonoBehaviour:
     bring it back to the popcorn station.
   filmLate: The ghost room film is LATE. Put the film "{film}" in the projector before
     the next film, or everyone gets hurt.
+  vipBring: A VIP guest is at the front door and the clock is stopped. Press E on
+    the VIP and lead it to its seat in the ghost screen room. Someone bring the VIP
+    film (gold reel, top of the ghost room film shelf) to the crank projector.
+  vipCrank: The VIP is seated. Put the VIP film (gold reel) in the crank projector
+    if it is not in yet, then press E fast until the film is done.
+  hunterHide: Lights out. Stay out of the flashlight beam. If it sees you, RUN and
+    break its line of sight.
+  foreignFind: Things are hiding against the walls. Find them and hit them (Left
+    Click) with a Bat or a mop before they get in.
+  foreignPest: Something got in. Don't look at it, and work at another spot while
+    it blocks one.
+  filmGhostAvoid: A ghost from the ghost room walks the halls. Don't look at it.
+    Change the ghost room film to send it back.

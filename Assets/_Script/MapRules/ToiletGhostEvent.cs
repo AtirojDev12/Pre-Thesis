@@ -19,10 +19,13 @@ public sealed class ToiletGhostEvent : MapEventBase
     private readonly List<PlayerHealth> players = new List<PlayerHealth>();
     private readonly List<ZoneChoreSpot> dirty = new List<ZoneChoreSpot>();
 
+    /// <summary>SERVER. 23 Nov: F1 dev cheat: the two ghosts walk even if the toilets are clean.</summary>
+    public bool DevForced { get; set; }
+
     private void Update()
     {
         if (!IsServerSide) return;
-        bool due = NightRunning && FindDirty();
+        bool due = NightRunning && (FindDirty() || DevForced);
         if (due && female == null && male == null) Begin();
         else if (!due && (female != null || male != null)) End();
         if (female != null || male != null) Tick();

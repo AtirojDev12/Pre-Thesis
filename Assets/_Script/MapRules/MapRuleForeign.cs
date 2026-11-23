@@ -68,6 +68,24 @@ public sealed class MapRuleForeign : MapEventBase
         }
     }
 
+    /// <summary>SERVER. 23 Nov: F1 dev cheat: new hidden things now (without the VIP).</summary>
+    public void ServerDevStart()
+    {
+        if (!IsServerSide || !NightRunning) return;
+        if (state == State.Running) End();
+        Begin();
+    }
+
+    /// <summary>SERVER. 23 Nov: F1 dev cheat: every hidden thing gets in now (pests).</summary>
+    public void ServerDevAllIn()
+    {
+        if (!IsServerSide || state != State.Running) return;
+        foreach (Thing t in things) if (!t.pest && t.walker != null && t.walker.IsOut) GetIn(t);
+    }
+
+    /// <summary>SERVER. 23 Nov: F1 dev cheat: remove every hidden thing and pest.</summary>
+    public void ServerDevClear() { if (IsServerSide && state == State.Running) End(); }
+
     private void Begin()
     {
         state = State.Running;
@@ -111,7 +129,7 @@ public sealed class MapRuleForeign : MapEventBase
         {
             Vector3 p = MapNav.RandomPoint(transform.position);
             Vector3 normal = Vector3.forward;
-            if (NavMesh.FindClosestEdge(p, out NavMeshHit edge, NavMesh.AllAreas) && edge.distance < 4f)
+            if (NavMesh.FindClosestEdge(p, out NavMeshHit edge, NavMesh.AllAreas) && edge.distance < 4f && MapNav.Inside(edge.position))
             {
                 p = edge.position;
                 normal = edge.normal;

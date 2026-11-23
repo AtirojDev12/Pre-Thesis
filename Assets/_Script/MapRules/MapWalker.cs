@@ -26,7 +26,9 @@ using UnityEngine.InputSystem;
 [DisallowMultipleComponent]
 public sealed class MapWalker : InteractableBase
 {
-    public enum Body : byte { None = 0, Female = 1, Male = 2, AnyGhost = 3 }
+    // 23 Nov: Guard = the flashlight hunter (security guard ghost), Vip = the VIP guest ghost.
+    // Both are MOCKUP bodies (MapMockups), not the NPC ghost models.
+    public enum Body : byte { None = 0, Female = 1, Male = 2, AnyGhost = 3, Guard = 4, Vip = 5 }
 
     [Tooltip("Which controller uses this walker (set by the setup tool). Example: VIP, Hunter, Foreign.")]
     [SerializeField] private string role = "";
@@ -37,6 +39,7 @@ public sealed class MapWalker : InteractableBase
     [SyncVar] private Vector3 netPosition;
     [SyncVar] private float netYaw;
     [SyncVar(hook = nameof(OnBodyChanged))] private Body body;
+    [SyncVar(hook = nameof(OnSeedChanged))] private uint modelSeed; // 23 Nov: AnyGhost with this seed (0 = its netId)
     [SyncVar] private string bubble = "";
     [SyncVar] private bool lightOn;
     [SyncVar] private bool interactable;
@@ -44,6 +47,7 @@ public sealed class MapWalker : InteractableBase
     [SyncVar] private bool hittable;
     [SyncVar] private float lookAngle;      // 0 = nobody reports looking at it
     [SyncVar] private float lookDistance = 20f;
+    [SyncVar(hook = nameof(OnSeatedChanged))] private bool seatedLook; // 23 Nov: mockup "Seated" pose (VIP)
 
     public static readonly List<MapWalker> All = new List<MapWalker>();
 
@@ -64,7 +68,7 @@ public sealed class MapWalker : InteractableBase
     private Vector3 goal;
     private Transform follow;
     private float followStop = 1.6f;
-    private float nextPath, nextSync;
+    private float nextPath, nextSync, nextPick;
     private NavMeshPath path;
     private Vector3[] corners = new Vector3[16];
     private int cornerCount, cornerIndex;
@@ -73,7 +77,10 @@ public sealed class MapWalker : InteractableBase
     // Client only.
     private CustomerModelVisual visual;
     private GameObject fallback;
+    private GameObject mockup;   // 23 Nov: Guard / VIP mockup body (also kept in fallback)
+    private Transform bobPart;
     private Body builtBody = (Body)255;
+    private uint builtSeed;
     private Light torch;
     private Canvas bubbleCanvas;
     private TMP_Text bubbleText;
@@ -146,6 +153,8 @@ public sealed class MapWalker : InteractableBase
         netPosition = at;
         netYaw = yaw;
         body = look;
+        modelSeed = 0;
+        seatedLook = false;
         mode = Mode.Idle;
         follow = null;
         speed = defaultSpeed;
@@ -165,11 +174,39 @@ public sealed class MapWalker : InteractableBase
         prompt = "";
         hittable = false;
         lookAngle = 0f;
+        seatedLook = false;
         mode = Mode.Idle;
         follow = null;
         lookingSince.Clear();
         Reserved = false;
         ApplyLook();
+    }
+
+    /// <summary>SERVER. Stand exactly here, facing <paramref name="yaw"/> (no NavMesh snap: a seat, a booth).</summary>
+    public void ServerPlaceAt(Vector3 at, float yaw)
+    {
+        if (!NetworkMode.HasServerAuthority(this)) return;
+        mode = Mode.Idle;
+        follow = null;
+        transform.SetPositionAndRotation(at, Quaternion.Euler(0f, yaw, 0f));
+        netPosition = at;
+        netYaw = yaw;
+    }
+
+    /// <summary>SERVER. 23 Nov: this exact ghost model (AnyGhost body), e.g. the same one as an audience member.</summary>
+    public void ServerSetModelSeed(uint seed)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || modelSeed == seed) return;
+        modelSeed = seed;
+        ApplyLook();
+    }
+
+    /// <summary>SERVER. 23 Nov: the mockup body sits (VIP on its seat) or stands.</summary>
+    public void ServerSetSeated(bool seated)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || seatedLook == seated) return;
+        seatedLook = seated;
+        MapMockups.SetSeated(mockup, seated);
     }
 
     public void ServerSetSpeed(float metresPerSecond) => speed = Mathf.Max(0.1f, metresPerSecond);
@@ -225,7 +262,11 @@ public sealed class MapWalker : InteractableBase
         {
             case Mode.GoTo: Move(goal); break;
             case Mode.Roam:
-                if (FlatDistance(transform.position, goal) < 1f) goal = MapNav.RandomPoint(transform.position);
+                if (FlatDistance(transform.position, goal) < 1f && Time.time >= nextPick)
+                {
+                    nextPick = Time.time + 0.5f; // a failed pick (stays put) is not retried every frame
+                    goal = MapNav.RandomPoint(transform.position);
+                }
                 Move(goal);
                 break;
             case Mode.Follow:
@@ -267,6 +308,10 @@ public sealed class MapWalker : InteractableBase
             next = corners[Mathf.Clamp(cornerIndex, 0, cornerCount - 1)];
         }
         Vector3 step = Vector3.MoveTowards(transform.position, next, speed * Time.deltaTime);
+        // 23 Nov fix: always on the walkable floor. Before, a ghost with no path (or between two far path
+        // corners on stairs) walked in a straight line through the air.
+        if (NavMesh.SamplePosition(step, out NavMeshHit onFloor, 1.2f, NavMesh.AllAreas)) step = onFloor.position;
+        else if (cornerCount == 0) return; // off the NavMesh and no path: do not float away
         Face(step);
         transform.position = step;
     }
@@ -304,6 +349,14 @@ public sealed class MapWalker : InteractableBase
         {
             walkingShown = walking;
             if (visual != null) visual.SetWalking(walking);
+        }
+        // 23 Nov: the mockup bodies have no animation: a small bob while walking.
+        if (bobPart != null)
+        {
+            float y = walking && !seatedLook ? Mathf.Abs(Mathf.Sin(Time.time * 7f)) * 0.035f : 0f;
+            Vector3 lp = bobPart.localPosition;
+            lp.y = Mathf.Lerp(lp.y, y, 1f - Mathf.Exp(-20f * Time.deltaTime));
+            bobPart.localPosition = lp;
         }
 
         if (torch != null && torch.enabled != lightOn) torch.enabled = lightOn;
@@ -403,10 +456,13 @@ public sealed class MapWalker : InteractableBase
     }
 
     private void OnBodyChanged(Body oldValue, Body newValue) => ApplyLook();
+    private void OnSeedChanged(uint oldValue, uint newValue) => ApplyLook();
+    private void OnSeatedChanged(bool oldValue, bool newValue) => MapMockups.SetSeated(mockup, newValue);
 
     private void ApplyLook()
     {
-        if (isOut && builtBody != body) BuildBody();
+        if (isOut && (builtBody != body || builtSeed != modelSeed)) BuildBody();
+        MapMockups.SetSeated(mockup, seatedLook);
         if (visual != null && visual.gameObject.activeSelf != isOut) visual.gameObject.SetActive(isOut);
         if (fallback != null && fallback.activeSelf != isOut) fallback.SetActive(isOut);
         if (torch == null) MakeTorch();
@@ -417,13 +473,43 @@ public sealed class MapWalker : InteractableBase
     private void BuildBody()
     {
         builtBody = body;
+        builtSeed = modelSeed;
+        if (torch != null && torch.transform.parent != transform)
+        {
+            // 23 Nov: the torch sat in the old mockup's hand: back on the walker before that body goes.
+            torch.transform.SetParent(transform, false);
+            torch.transform.localPosition = new Vector3(0.25f, 1.35f, 0.3f);
+            torch.transform.localRotation = Quaternion.Euler(8f, 0f, 0f);
+        }
         if (visual != null) Destroy(visual.gameObject);
         if (fallback != null) Destroy(fallback);
         visual = null;
         fallback = null;
+        mockup = null;
+        bobPart = null;
         if (body == Body.None) return;
 
-        uint seed = body == Body.Female ? GhostSeed(true) : body == Body.Male ? GhostSeed(false) : (netId != 0 ? netId : 7u);
+        // 23 Nov: Guard / VIP = mockup bodies (feet at the root, no capsule-centre offset).
+        if (MapMockups.Handles(body))
+        {
+            mockup = MapMockups.Build(body, transform);
+            fallback = mockup;
+            bobPart = MapMockups.BobPart(mockup);
+            MapMockups.SetSeated(mockup, seatedLook);
+            Transform lens = mockup.transform.Find(MapMockups.LensName);
+            if (lens == null) lens = mockup.transform.Find(MapMockups.StandingName + "/" + MapMockups.LensName);
+            if (lens != null)
+            {
+                if (torch == null) MakeTorch();
+                torch.transform.SetParent(lens.parent, true);
+                torch.transform.position = lens.position;
+                torch.transform.rotation = Quaternion.LookRotation(lens.up, Vector3.up); // the lens cylinder points along its up
+            }
+            return;
+        }
+
+        uint seed = body == Body.Female ? GhostSeed(true) : body == Body.Male ? GhostSeed(false)
+            : modelSeed != 0 ? modelSeed : (netId != 0 ? netId : 7u);
         visual = CustomerModelVisual.TryCreate("Body (" + body + ")", transform.position + Vector3.up, transform.rotation,
             seed, false, 0.25f, false, true);
         if (visual != null)
@@ -528,27 +614,87 @@ public sealed class MapWalker : InteractableBase
     public void EditorSetRole(string value) => role = value;
 }
 
-/// <summary>23 Nov 2026 (Mr.k): random walkable points on the map's NavMesh (cached per scene).</summary>
+/// <summary>
+/// 23 Nov 2026 (Mr.k): random walkable points on the map's NavMesh (cached per scene).
+/// Fix (23 Nov, clip): ONLY points INSIDE the cinema building. Before, ghosts walked out to the
+/// street. A point counts as inside when:
+///   1. something is above it (roof / ceiling, up to 15 m), and
+///   2. walls are around it (at least 3 of 4 flat rays hit something within 40 m;
+///      this drops the entrance canopy outside the front door), and
+///   3. the walker can really walk there from where it is (complete NavMesh path;
+///      this drops table tops and other islands).
+/// </summary>
 public static class MapNav
 {
+    private const float RoofHeight = 15f;
+    private const float WallReach = 40f;
+    private const int Tries = 24;
+
     private static Vector3[] vertices;
     private static int[] indices;
     private static float[] cumulative;
     private static UnityEngine.SceneManagement.Scene builtFor;
+    private static NavMeshPath testPath;
+    private static readonly Vector3[] flat = { Vector3.forward, Vector3.back, Vector3.left, Vector3.right };
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() { vertices = null; indices = null; cumulative = null; builtFor = default; }
+    private static void ResetStatics() { vertices = null; indices = null; cumulative = null; builtFor = default; testPath = null; }
 
-    /// <summary>A random point on the NavMesh (area-weighted). Falls back to near <paramref name="near"/>.</summary>
+    /// <summary>A random point INSIDE the building that a walker at <paramref name="near"/> can walk to.</summary>
     public static Vector3 RandomPoint(Vector3 near)
     {
         UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
         if (vertices == null || scene != builtFor) Build(scene);
-        if (cumulative == null || cumulative.Length == 0 || cumulative[cumulative.Length - 1] <= 0f)
+        if (testPath == null) testPath = new NavMeshPath();
+        bool haveFrom = NavMesh.SamplePosition(near, out NavMeshHit from, 2f, NavMesh.AllAreas);
+        if (!haveFrom || !Inside(from.position))
         {
-            Vector3 p = near + new Vector3(UnityEngine.Random.Range(-12f, 12f), 0f, UnityEngine.Random.Range(-12f, 12f));
-            return NavMesh.SamplePosition(p, out NavMeshHit h, 4f, NavMesh.AllAreas) ? h.position : near;
+            // Asked from outside / off the NavMesh (a controller object): test reachability from a task spot.
+            Vector3 anchor = Anchor();
+            haveFrom = NavMesh.SamplePosition(anchor, out from, 3f, NavMesh.AllAreas);
         }
+        bool table = cumulative != null && cumulative.Length > 0 && cumulative[cumulative.Length - 1] > 0f;
+        for (int t = 0; t < Tries; t++)
+        {
+            Vector3 p;
+            if (table) p = PickOnTable();
+            else
+            {
+                Vector3 q = near + new Vector3(UnityEngine.Random.Range(-12f, 12f), 0f, UnityEngine.Random.Range(-12f, 12f));
+                if (!NavMesh.SamplePosition(q, out NavMeshHit h, 4f, NavMesh.AllAreas)) continue;
+                p = h.position;
+            }
+            if (!Inside(p)) continue;
+            if (haveFrom && !(NavMesh.CalculatePath(from.position, p, NavMesh.AllAreas, testPath)
+                              && testPath.status == NavMeshPathStatus.PathComplete)) continue;
+            return p;
+        }
+        return haveFrom ? from.position : near; // nothing good: stay put (never walk outside)
+    }
+
+    /// <summary>A walkable point surely inside: the first task spot that passes <see cref="Inside"/>.</summary>
+    private static Vector3 Anchor()
+    {
+        foreach (ZoneChoreSpot spot in ZoneChoreSpot.All)
+            if (spot != null && NavMesh.SamplePosition(spot.transform.position, out NavMeshHit h, 3f, NavMesh.AllAreas) && Inside(h.position))
+                return h.position;
+        return Vector3.zero;
+    }
+
+    /// <summary>True when the point is inside the building (roof above + walls around).</summary>
+    public static bool Inside(Vector3 point)
+    {
+        Vector3 up = point + Vector3.up * 0.3f;
+        if (!Physics.Raycast(up, Vector3.up, RoofHeight, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) return false;
+        Vector3 chest = point + Vector3.up * 1.2f;
+        int walls = 0;
+        for (int i = 0; i < flat.Length; i++)
+            if (Physics.Raycast(chest, flat[i], WallReach, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) walls++;
+        return walls >= 3;
+    }
+
+    private static Vector3 PickOnTable()
+    {
         float r = UnityEngine.Random.value * cumulative[cumulative.Length - 1];
         int lo = 0, hi = cumulative.Length - 1;
         while (lo < hi) { int mid = (lo + hi) / 2; if (cumulative[mid] < r) lo = mid + 1; else hi = mid; }
@@ -566,12 +712,16 @@ public static class MapNav
         indices = tri.indices;
         int count = indices.Length / 3;
         cumulative = new float[count];
-        float total = 0f;
+        float total = 0f, all = 0f;
         for (int i = 0; i < count; i++)
         {
             Vector3 a = vertices[indices[i * 3]], b = vertices[indices[i * 3 + 1]], c = vertices[indices[i * 3 + 2]];
-            total += Vector3.Cross(b - a, c - a).magnitude * 0.5f;
+            float area = Vector3.Cross(b - a, c - a).magnitude * 0.5f;
+            all += area;
+            // Outside triangles (street, canopy, roof top) never get picked.
+            if (Inside((a + b + c) / 3f)) total += area;
             cumulative[i] = total;
         }
+        Debug.Log($"[MapNav] Walk area inside the building: {total:0} of {all:0} m2 ({count} triangles).");
     }
 }

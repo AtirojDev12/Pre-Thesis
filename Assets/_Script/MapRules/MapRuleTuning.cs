@@ -70,6 +70,9 @@ public sealed class MapRuleTuning : ScriptableObject
     public string vipSeatedLine = "The VIP is seated. Crank the projector in the ghost room!";
     public string crankPrompt = "Press E fast: crank the projector";
     public string crankWaitPrompt = "Bring the VIP to its seat first";
+    public string crankNeedFilmPrompt = "Needs the VIP film (gold reel on the ghost room film shelf)";
+    public string crankFilmPrompt = "Press E: put the VIP film in";
+    public string filmInLine = "The VIP film is in. Seat the VIP, then crank!";
     public string vipDoneLine = "The VIP enjoyed the film. Time moves again.";
     public string vipFailLine = "The VIP is furious...";
 
@@ -108,6 +111,18 @@ public sealed class MapRuleTuning : ScriptableObject
     public string foreignOutLine = "Driven out!";
     public string foreignInLine = "Something got in...";
     public string pestBlockLine = "Something is in the way...";
+
+    [Header("Seats (23 Nov)")]
+    [Tooltip("A sitting player is lowered this much (metres), so the eyes are at sitting height.")]
+    [Range(0f, 0.8f)] public float playerSitDrop = 0.42f;
+    [Tooltip("Sitting pose: thighs point forward, this many degrees below flat.")]
+    [Range(-20f, 40f)] public float sitThighDownDegrees = 8f;
+    [Tooltip("Sitting pose: shins point down, leaning this many degrees forward.")]
+    [Range(-30f, 40f)] public float sitShinForwardDegrees = 6f;
+    [Tooltip("Seconds for a seat to fold open / shut.")]
+    [Min(0.01f)] public float seatFoldSeconds = 0.25f;
+    public string sitPrompt = "Press E: sit";
+    public string standHint = "[SPACE] stand up";
 
     private static MapRuleTuning current;
 

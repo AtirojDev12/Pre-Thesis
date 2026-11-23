@@ -98,6 +98,9 @@ public static class ItemCatalog
     /// </summary>
     public const string Bat = "bat";
 
+    /// <summary>23 Nov (Mr.k): the VIP film (Map Rule 3), a hotbar token of a scene reel (CarryProp).</summary>
+    public const string FilmReelVip = "film_reel_vip";
+
     public sealed class ItemInfo
     {
         public string id;
@@ -283,6 +286,13 @@ public static class ItemCatalog
             id = FilmReelGhost, displayName = "Ghost Film Reel", matchOnly = true, carryToken = true,
             permanent = false, inShop = false, throwable = false,
             description = "For the ghost room projector. Hold it and hold E at the projector. R (in hand) = put it back on its shelf.",
+        },
+        // 23 Nov (Mr.k): the VIP film reel (Map Rule 3): a hotbar token while you carry it.
+        new ItemInfo
+        {
+            id = FilmReelVip, displayName = "VIP Film Reel", matchOnly = true, carryToken = true,
+            permanent = false, inShop = false, throwable = false,
+            description = "The VIP's film. Hold it and press E on the crank projector in the ghost room. R (in hand) = put it back on its shelf.",
         },
         // 23 Nov (Mr.k): the Bat for Map Rule 1. Name, price, text in MapRuleTuning.
         new ItemInfo

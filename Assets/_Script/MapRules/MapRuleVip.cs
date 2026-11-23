@@ -30,10 +30,15 @@ public sealed class MapRuleVip : MapEventBase
     [SyncVar] private Stage stage;
     [SyncVar] private double deadline;
     [SyncVar] private int cranks;
+    [SyncVar] private bool filmIn; // 23 Nov: the VIP film is in the crank projector
+
+    /// <summary>23 Nov: what the VIP film reel asks for (CarryProp carry id).</summary>
+    public const string FilmId = ItemCatalog.FilmReelVip;
 
     public static MapRuleVip Instance { get; private set; }
     public Stage Current => stage;
     public int Cranks => cranks;
+    public bool FilmIn => filmIn;
     /// <summary>Map Rule 3 is over (served or failed): Map Rules 2 and 1 run.</summary>
     public bool Finished => stage == Stage.Served || stage == Stage.Failed;
     /// <summary>The VIP is waiting for someone, following, or seated (the clock is stopped).</summary>
@@ -43,6 +48,9 @@ public sealed class MapRuleVip : MapEventBase
 
     private MapWalker vip;
     private PlayerHealth escort;
+    private int seatIndex = -1;
+    private bool seatedDown;
+    private float sitDeadline;
     private MatchDirector startedFor;
     private readonly List<PlayerHealth> players = new List<PlayerHealth>();
 
@@ -76,6 +84,8 @@ public sealed class MapRuleVip : MapEventBase
         if (match == null || !match.RoundRunning || match.Phase != MatchPhase.Night) { EndRun(false, true); return; }
         if (Now >= deadline) { Fail(); return; }
 
+        if (stage == Stage.Seated && vip != null && !seatedDown && (vip.ServerArrived(0.4f) || Time.time >= sitDeadline)) TakeSeat();
+
         if (stage == Stage.Arrived && vip != null)
         {
             if (escort != null && (!PlayerRegistry.IsHuntable(escort) || escort.IsDowned)) DropEscort();
@@ -98,13 +108,14 @@ public sealed class MapRuleVip : MapEventBase
         startedFor = MatchDirector.Instance;
         stage = Stage.Arrived;
         cranks = 0;
+        filmIn = false;
         deadline = Now + T.vipSeconds;
         if (MatchDirector.Instance != null) MatchDirector.Instance.ServerSetClockPaused(true);
         vip = MapWalker.ServerTake(Role);
         if (vip != null)
         {
             Vector3 at = entrance != null ? entrance.position : DefaultEntrance();
-            vip.ServerAppear(at, MapWalker.Body.AnyGhost);
+            vip.ServerAppear(at, MapWalker.Body.Vip); // 23 Nov: VIP ghost mockup (not an NPC ghost)
             vip.ServerSetSpeed(T.vipSpeed);
             vip.ServerSetPress(T.vipPrompt);
             vip.ServerInteracted -= OnVipPressed;
@@ -143,16 +154,79 @@ public sealed class MapRuleVip : MapEventBase
     {
         stage = Stage.Seated;
         escort = null;
-        vip.ServerGoTo(seat.position);
+        seatedDown = false;
+        sitDeadline = Time.time + 2f; // walks the last steps, then sits
+        CinemaSeat chair = VipChair();
+        vip.ServerGoTo(chair != null ? chair.StandPoint : seat.position);
         vip.ServerSay("");
         ServerShowAll(false, T.vipSeatedLine);
         Debug.Log("[Map Rules] VIP seated. Crank the projector.", this);
     }
 
-    /// <summary>SERVER. One E press on the crank projector.</summary>
+    /// <summary>The VIP's cinema seat (back row, middle; next to the VIP Seat point), or null.</summary>
+    private CinemaSeat VipChair()
+    {
+        SeatSystem seats = SeatSystem.Instance;
+        if (seats == null || seat == null) return null;
+        if (seatIndex < 0) seatIndex = seats.NearestSeat(seat.position, 1.5f, true);
+        return seats.Seat(seatIndex);
+    }
+
+    /// <summary>The VIP sits down on its seat (the seat folds open, legs bent).</summary>
+    private void TakeSeat()
+    {
+        seatedDown = true;
+        vip.ServerSetSeated(true); // 23 Nov: the mockup sits (legs bent)
+        CinemaSeat chair = VipChair();
+        if (chair == null) { vip.ServerPlaceAt(seat.position, seat.eulerAngles.y); return; }
+        vip.ServerPlaceAt(chair.FloorPoint, chair.Yaw);
+        if (SeatSystem.Instance != null) SeatSystem.Instance.ServerSit(chair.Index, vip.netId);
+    }
+
+    // ---- F1 dev cheats (23 Nov) ----
+
+    /// <summary>SERVER. The VIP arrives now (also again after it was served / failed).</summary>
+    public void ServerDevStart()
+    {
+        if (!IsServerSide || !NightRunning || Running) return;
+        if (vip != null) vip.ServerHide();
+        vip = null;
+        escort = null;
+        seatIndex = -1;
+        seatedDown = false;
+        Arrive();
+    }
+
+    /// <summary>SERVER. The VIP film is in the crank projector.</summary>
+    public void ServerDevFilmIn() { if (IsServerSide && Running) filmIn = true; }
+
+    /// <summary>SERVER. Skip: the VIP is served now (clock runs, Map Rules 2 + 1 start).</summary>
+    public void ServerDevServe() { if (IsServerSide && Running) { filmIn = true; Serve(); } }
+
+    /// <summary>SERVER. Skip: the VIP time runs out now (the punishment).</summary>
+    public void ServerDevFail() { if (IsServerSide && Running) Fail(); }
+
+    /// <summary>SERVER. E on the crank projector: put the VIP film in first, then crank.</summary>
+    public void ServerUseProjector(GameObject who)
+    {
+        if (!Running || who == null) return;
+        if (!filmIn)
+        {
+            CarryProp reel = CarryProp.ServerHeld(who, FilmId);
+            if (reel == null) return;
+            reel.ServerConsume(); // back on its shelf (ready for the next night)
+            filmIn = true;
+            if (who.TryGetComponent(out PlayerHealth p)) ServerShow(p, false, T.filmInLine);
+            Debug.Log("[Map Rules] The VIP film is in the crank projector.", this);
+            return;
+        }
+        ServerCrank(who);
+    }
+
+    /// <summary>SERVER. One E press on the crank (the VIP seated, the film in).</summary>
     public void ServerCrank(GameObject who)
     {
-        if (stage != Stage.Seated) return;
+        if (stage != Stage.Seated || !filmIn) return;
         cranks++;
         if (cranks >= T.crankPresses) Serve();
     }
@@ -188,8 +262,10 @@ public sealed class MapRuleVip : MapEventBase
         if (vip != null)
         {
             vip.ServerInteracted -= OnVipPressed;
+            if (SeatSystem.Instance != null) SeatSystem.Instance.ServerFree(vip.netId);
             vip.ServerHide();
         }
+        seatedDown = false;
         vip = null;
         escort = null;
         if (nightOver && Running) stage = Stage.Failed;
@@ -206,7 +282,9 @@ public sealed class MapRuleVip : MapEventBase
         if (timerRoot == null) MakeTimer();
         if (!timerRoot.activeSelf) timerRoot.SetActive(true);
         int s = Mathf.CeilToInt(SecondsLeft);
-        string what = stage == Stage.Arrived ? "Take the VIP to its seat (ghost room)" : $"Crank the projector  {cranks} / {T.crankPresses}";
+        string film = filmIn ? "" : "  +  put the VIP film (gold reel, film shelf) in the crank projector";
+        string what = stage == Stage.Arrived ? "Take the VIP to its seat (ghost room)" + film
+            : !filmIn ? "Put the VIP film (gold reel, film shelf) in the crank projector" : $"Crank the projector  {cranks} / {T.crankPresses}";
         string text = $"VIP  {s / 60}:{s % 60:00}\n<size=70%>{what}</size>";
         if (timerText.text != text) timerText.text = text;
     }

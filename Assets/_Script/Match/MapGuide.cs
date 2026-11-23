@@ -74,7 +74,7 @@ public sealed class MapGuide : ScriptableObject
         new RuleText
         {
             title = "3 AM: the VIP guest",
-            whatToDo = "A VIP guest arrives and the clock stops. Press E on it, lead it to its seat in the ghost screen room, then crank the hand projector (press E fast) until the film is done.",
+            whatToDo = "A VIP guest comes in at the front door and the clock stops. Press E on it and lead it to its seat in the ghost screen room. Put the VIP film (gold reel, ghost room film shelf) in the crank projector, then crank it (press E fast) until the film is done.",
             ifYouBreakIt = "Not done in time: everyone gets a jumpscare and loses half of their sanity.",
         },
         new RuleText

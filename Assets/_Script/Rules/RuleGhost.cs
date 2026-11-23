@@ -270,6 +270,8 @@ public sealed class RuleGhost : NetworkBehaviour
 
         Vector3 step = Vector3.MoveTowards(transform.position, next, speed * Time.deltaTime);
         if (keepInside != null) step = keepInside.Box.ClosestPoint(step);
+        // 23 Nov fix: stay on the walkable floor (it walked straight through the air down stairs).
+        if (NavMesh.SamplePosition(step, out NavMeshHit onFloor, 1.2f, NavMesh.AllAreas)) step = onFloor.position;
         Vector3 dir = step - transform.position;
         dir.y = 0f;
         if (dir.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);

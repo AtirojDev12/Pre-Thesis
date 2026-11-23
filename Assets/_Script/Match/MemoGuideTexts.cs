@@ -48,8 +48,8 @@ public sealed class MemoGuideTexts : ScriptableObject
     [Header("Rules: Ghost Screen Room")]
     [TextArea(1, 3)] public string audienceStill = "The audience is standing and staring. Do NOT move.";
     [TextArea(1, 3)] public string audienceLeave = "Leave the Ghost Screen Room now.";
-    [TextArea(1, 3)] public string staffFindShadow = "The screen shows static. Find the black shadow on a seat and stand on it.";
-    [TextArea(1, 3)] public string staffStay = "Stay on the shadow until the screen comes back.";
+    [TextArea(1, 3)] public string staffFindShadow = "The screen shows static. Find the black shadow on a seat, look at that seat and press E to sit on it.";
+    [TextArea(1, 3)] public string staffStay = "Stay seated until the screen comes back (SPACE = stand up).";
 
     [Header("Rules: toilets")]
     [TextArea(1, 3)] public string mirrorLook = "A mirror is cracked. Look at the crack until it stops.";
@@ -71,8 +71,8 @@ public sealed class MemoGuideTexts : ScriptableObject
     [TextArea(1, 3)] public string filmLate = "The ghost room film is LATE. Put the film \"{film}\" in the projector before the next film, or everyone gets hurt.";
 
     [Header("Map Rules + map events (23 Nov)")]
-    [TextArea(1, 3)] public string vipBring = "A VIP guest is here and the clock is stopped. Press E on the VIP and lead it to its seat in the ghost screen room.";
-    [TextArea(1, 3)] public string vipCrank = "The VIP is seated. Crank the projector in the ghost room: press E fast until the film is done.";
+    [TextArea(1, 3)] public string vipBring = "A VIP guest is at the front door and the clock is stopped. Press E on the VIP and lead it to its seat in the ghost screen room. Someone bring the VIP film (gold reel, top of the ghost room film shelf) to the crank projector.";
+    [TextArea(1, 3)] public string vipCrank = "The VIP is seated. Put the VIP film (gold reel) in the crank projector if it is not in yet, then press E fast until the film is done.";
     [TextArea(1, 3)] public string hunterHide = "Lights out. Stay out of the flashlight beam. If it sees you, RUN and break its line of sight.";
     [TextArea(1, 3)] public string foreignFind = "Things are hiding against the walls. Find them and hit them (Left Click) with a Bat or a mop before they get in.";
     [TextArea(1, 3)] public string foreignPest = "Something got in. Don't look at it, and work at another spot while it blocks one.";

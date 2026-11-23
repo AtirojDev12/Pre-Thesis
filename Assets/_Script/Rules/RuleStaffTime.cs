@@ -10,7 +10,8 @@ using UnityEngine;
 ///   2. Every ghost inside the Screen Room disappears (seated audience, rule ghosts,
 ///      the timed ghost). Ghosts that walk in while the static runs disappear too.
 ///   3. A black SHADOW appears on one of the shadow spots (the seat players must use).
-///      For now: just stand on it. (Later: press E to sit on the real cinema chair.)
+///      23 Nov: the spots sit on real cinema seats. Press E on that seat to sit, SPACE to stand up
+///      (SeatSystem). No seat near a spot = the old way (stand on it).
 ///   4. Stay on the shadow until the static stops: random 3–6 s. Step off = start again.
 ///   5. Nobody on the shadow within 13 s: the ghost comes out of the screen and roams
 ///      the whole map until 06:00 (mockup rule ghost). The 13 s pauses while someone
@@ -236,7 +237,7 @@ public sealed class RuleStaffTime : ZoneRuleBase
         PlayerHealth sitter = SitterBody();
         if (sitterId != 0 && !OnShadow(sitter))
         {
-            if (sitter != null) ServerShow(sitter, false, "You left the shadow. Stand on it again.");
+            if (sitter != null) ServerShow(sitter, false, "You stood up. Sit on the shadow's seat again (E).");
             sitterId = 0;
             offlineSitter = null;
             sitter = null;
@@ -302,6 +303,10 @@ public sealed class RuleStaffTime : ZoneRuleBase
     private bool OnShadow(PlayerHealth p)
     {
         if (p == null || p.IsDead || p.IsDowned || !HasSpot) return false;
+        // 23 Nov (Mr.k): the shadow sits on a real cinema seat: press E on that seat to sit (SPACE = stand up).
+        SeatSystem seats = SeatSystem.Instance;
+        int seat = seats != null ? seats.NearestSeat(shadowSpots[spot].position, 1.2f, true) : -1;
+        if (seat >= 0) return seats.ServerSeatOf(p) == seat;
         Vector3 d = p.transform.position - shadowSpots[spot].position;
         if (Mathf.Abs(d.y) > 1.5f) return false;
         d.y = 0f;
@@ -552,7 +557,7 @@ public sealed class RuleStaffTime : ZoneRuleBase
         bool mine = movieOn && sitterId != 0 && me != null && (NetworkMode.IsOffline ? sitterId == 1u : sitterId == me.netId);
         if (!mine) { ChoreProgressHUD.Hide(this); return; }
         float need = sitNeed > 0.1f ? sitNeed : 1f;
-        ChoreProgressHUD.ShowText(this, "Stay on the shadow... wait for the static to stop", (float)((Now - sitStart) / need));
+        ChoreProgressHUD.ShowText(this, "Stay seated on the shadow... wait for the static to stop", (float)((Now - sitStart) / need));
     }
 
     protected override void OnDisable()

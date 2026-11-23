@@ -13,8 +13,11 @@ using UnityEngine.SceneManagement;
 ///       MapRuleVip, MapRuleHunter, MapRuleForeign.
 ///     - Walkers (MapWalker, hidden until used, NPC ghost model at runtime):
 ///       FilmGhost x1, ToiletGhostF x1, ToiletGhostM x1, VIP x1, Hunter x1, Foreign x6.
-///     - VIP entrance (first exit door), VIP seat (ghost screen room, next to the audience)
-///       and the hand-crank projector (next to the ghost room film projector). Move them freely.
+///     - VIP entrance (first exit door) and VIP seat (ghost room, back row, middle).
+///     - 23 Nov: every chair cushion becomes a CinemaSeat (E = sit, SPACE = stand up, folds open);
+///       the audience ghosts, the VIP and the Staff Time shadow are put on real seats.
+///     - 23 Nov: the VIP crank projector (RM_Projector + handle) waits hidden at the ghost room
+///       projector, facing the screen; it is swapped in only while the VIP is here.
 ///     - The Bat item: Resources/Items/Bat (held) + WorldBat (floor pickup, registered in the
 ///       NetworkManager), listed in UI Hub > 3D models.
 ///     - Resources/Tuning/MapRuleTuning.asset (all numbers + sentences).
@@ -23,7 +26,7 @@ using UnityEngine.SceneManagement;
 ///   Tools > Pre-Thesis > Designer Settings > Map Rules
 ///     Selects MapRuleTuning.asset.
 /// </summary>
-public static class MapRulesSetup
+public static partial class MapRulesSetup
 {
     private const string Title = "Map Rules";
     private const string RootName = "Map Rules";
@@ -61,6 +64,10 @@ public static class MapRulesSetup
         EnsureWalkers(scene, log);
         EnsureVipPoints(root, log);
         EnsureBat(log);
+        EnsureSeats(scene, root, log);      // 23 Nov: real cinema seats (sit with E, SPACE = stand up)
+        SeatGhosts(root, log);              // audience + VIP + Staff Time shadow on seats
+        SwapProjectors(scene, log);         // VIP crank projector: swapped in for the ghost room projector only while the VIP is here
+        UpdateMemoTexts(log);
 
         EditorSceneManager.MarkSceneDirty(scene);
         AssetDatabase.SaveAssets();
@@ -130,12 +137,16 @@ public static class MapRulesSetup
         }
         Vector3 park = ParkPoint();
         int made = 0;
+        // 23 Nov: one film walker per audience member (they all leave their seats at film change time).
+        GhostAudience crowd = Object.FindAnyObjectByType<GhostAudience>(FindObjectsInactive.Include);
+        int filmWalkers = Mathf.Max(1, crowd != null ? crowd.Count : 1);
         foreach ((string role, int count) in Walkers)
         {
+            int want = role == FilmGhostEvent.Role ? filmWalkers : count;
             int have = 0;
             foreach (MapWalker w in Object.FindObjectsByType<MapWalker>(FindObjectsInactive.Include))
                 if (w.Role == role) have++;
-            for (int i = have; i < count; i++)
+            for (int i = have; i < want; i++)
             {
                 var go = new GameObject($"Walker - {role} {i + 1}");
                 Undo.RegisterCreatedObjectUndo(go, Title);
@@ -169,11 +180,20 @@ public static class MapRulesSetup
             if (s.Kind == ZoneTaskKind.FilmChange && s.CountsForZoneBoard) { ghostFilm = s; break; }
         GhostAudience audience = Object.FindAnyObjectByType<GhostAudience>(FindObjectsInactive.Include);
 
+        // 23 Nov: the VIP comes in at the FRONT DOOR, where the ticket / snack customers come from.
+        Vector3? front = FrontDoor();
         if (entrance == null)
         {
             ExitPoint exit = Object.FindAnyObjectByType<ExitPoint>(FindObjectsInactive.Include);
-            entrance = Point(root.transform, "VIP Entrance", exit != null ? exit.transform.position : root.transform.position);
-            log.AppendLine("+ VIP Entrance (at the first exit door; move it freely)");
+            Vector3 at = front ?? (exit != null ? exit.transform.position : root.transform.position);
+            entrance = Point(root.transform, "VIP Entrance", at);
+            log.AppendLine("+ VIP Entrance (front door; move it freely)");
+        }
+        else if (front.HasValue && Vector3.Distance(entrance.position, front.Value) > 0.5f && !entrance.name.EndsWith("(moved by hand)"))
+        {
+            Undo.RecordObject(entrance, Title);
+            entrance.position = front.Value;
+            log.AppendLine("- VIP Entrance moved to the front door (where the ticket customers come in). Rename it \"VIP Entrance (moved by hand)\" to keep your own place.");
         }
         if (seat == null)
         {
@@ -186,12 +206,69 @@ public static class MapRulesSetup
         so.FindProperty("entrance").objectReferenceValue = entrance;
         so.FindProperty("seat").objectReferenceValue = seat;
         so.ApplyModifiedPropertiesWithoutUndo();
+        EnsureVipFilm(root.scene, ghostFilm, log);
 
-        if (Object.FindAnyObjectByType<CrankProjector>(FindObjectsInactive.Include) == null)
+    }
+
+    /// <summary>Where the ticket customers appear (TicketMinigame "Spawn Point"), else the popcorn customers. Null = none.</summary>
+    private static Vector3? FrontDoor()
+    {
+        foreach (TicketMinigame t in Object.FindObjectsByType<TicketMinigame>(FindObjectsInactive.Include))
         {
-            Vector3 at = ghostFilm != null ? ghostFilm.transform.position + ghostFilm.transform.right * 1.2f : seat.position + Vector3.forward;
-            MakeCrankProjector(root.scene, at, log);
+            Transform p = new SerializedObject(t).FindProperty("spawnPoint")?.objectReferenceValue as Transform;
+            if (p != null) return p.position;
         }
+        foreach (PopcornMinigameBootstrap b in Object.FindObjectsByType<PopcornMinigameBootstrap>(FindObjectsInactive.Include))
+        {
+            Transform p = new SerializedObject(b).FindProperty("customerSpawnPoint")?.objectReferenceValue as Transform;
+            if (p != null) return p.position;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 23 Nov: the VIP film reel (gold, "VIP") on top of the ghost room film shelf (else next to the projector).
+    /// A hotbar reel (CarryProp): take it, press E on the crank projector with it in hand. R = back on the shelf.
+    /// </summary>
+    private static void EnsureVipFilm(Scene scene, ZoneChoreSpot ghostFilm, StringBuilder log)
+    {
+        foreach (CarryProp p in Object.FindObjectsByType<CarryProp>(FindObjectsInactive.Include))
+            if (p.CarryId == MapRuleVip.FilmId) return; // already there (keeps your place)
+        Transform shelf = null;
+        foreach (Transform t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))
+            if (t.name == "Film Reel Shelf (Ghost Room)") { shelf = t; break; }
+        Vector3 at = shelf != null ? shelf.position + Vector3.up * 1.78f
+            : ghostFilm != null ? ghostFilm.transform.position + Vector3.right * 1f : Vector3.zero;
+        Quaternion rot = shelf != null ? shelf.rotation : Quaternion.identity;
+
+        var reel = new GameObject("VIP Film Reel (gold, hotbar)");
+        Undo.RegisterCreatedObjectUndo(reel, Title);
+        SceneManager.MoveGameObjectToScene(reel, scene);
+        reel.transform.SetPositionAndRotation(at, rot);
+        Material gold = Mat("RM_FilmReel_VIP", new Color(0.95f, 0.75f, 0.2f));
+        Material dark = Mat("RM_ProjectorDark", new Color(0.08f, 0.08f, 0.09f));
+        Part(reel.transform, PrimitiveType.Cylinder, "Reel", new Vector3(0f, 0.19f, 0f), new Vector3(0.36f, 0.025f, 0.36f), gold, new Vector3(90f, 0f, 0f));
+        Part(reel.transform, PrimitiveType.Cylinder, "Hub", new Vector3(0f, 0.19f, 0f), new Vector3(0.08f, 0.04f, 0.08f), dark, new Vector3(90f, 0f, 0f));
+        var text = new GameObject("Label VIP");
+        text.transform.SetParent(reel.transform, false);
+        text.transform.localPosition = new Vector3(0f, 0.19f, 0.03f);
+        text.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        TMPro.TextMeshPro tmp = text.AddComponent<TMPro.TextMeshPro>();
+        tmp.text = "VIP";
+        tmp.fontSize = 0.6f;
+        tmp.fontStyle = TMPro.FontStyles.Bold;
+        tmp.alignment = TMPro.TextAlignmentOptions.Center;
+        tmp.color = new Color(0.1f, 0.05f, 0f);
+        tmp.rectTransform.sizeDelta = new Vector2(0.3f, 0.12f);
+        reel.AddComponent<NetworkIdentity>();
+        BoxCollider box = reel.AddComponent<BoxCollider>();
+        box.center = new Vector3(0f, 0.19f, 0f);
+        box.size = new Vector3(0.38f, 0.38f, 0.1f);
+        CarryProp prop = reel.AddComponent<CarryProp>();
+        prop.EditorSetup(MapRuleVip.FilmId, "VIP Film Reel", ItemCatalog.FilmReelVip, true, "VIP");
+        prop.EditorSetHold(new Vector3(0.22f, -0.42f, 0.6f), new Vector3(0f, 180f, 0f), 1f, new Vector3(0.25f, 0.8f, 0.35f), Vector3.zero);
+        EditorUtility.SetDirty(prop);
+        log.AppendLine($"+ VIP Film Reel (gold) {(shelf != null ? "on top of the ghost room film shelf" : "next to the ghost room projector")}");
     }
 
     private static Transform Point(Transform parent, string name, Vector3 at)
@@ -201,35 +278,6 @@ public static class MapRulesSetup
         go.transform.SetParent(parent, false);
         go.transform.position = at;
         return go.transform;
-    }
-
-    private static void MakeCrankProjector(Scene scene, Vector3 at, StringBuilder log)
-    {
-        var root = new GameObject("Crank Projector (VIP)");
-        Undo.RegisterCreatedObjectUndo(root, Title);
-        SceneManager.MoveGameObjectToScene(root, scene);
-        root.transform.position = at;
-        Material metal = Mat("RM_CrankMetal", new Color(0.22f, 0.22f, 0.24f));
-        Material brass = Mat("RM_CrankBrass", new Color(0.7f, 0.55f, 0.25f));
-        var model = new GameObject("Model");
-        model.transform.SetParent(root.transform, false);
-        Part(model.transform, PrimitiveType.Cube, "Stand", new Vector3(0f, 0.45f, 0f), new Vector3(0.35f, 0.9f, 0.35f), metal);
-        Part(model.transform, PrimitiveType.Cube, "Body", new Vector3(0f, 1.05f, 0f), new Vector3(0.45f, 0.3f, 0.6f), metal);
-        Part(model.transform, PrimitiveType.Cylinder, "Lens", new Vector3(0f, 1.05f, 0.38f), new Vector3(0.14f, 0.08f, 0.14f), brass, new Vector3(90f, 0f, 0f));
-        Part(model.transform, PrimitiveType.Cylinder, "Reel A", new Vector3(0f, 1.38f, 0.15f), new Vector3(0.3f, 0.02f, 0.3f), brass, new Vector3(0f, 0f, 90f));
-        Part(model.transform, PrimitiveType.Cylinder, "Reel B", new Vector3(0f, 1.38f, -0.18f), new Vector3(0.3f, 0.02f, 0.3f), brass, new Vector3(0f, 0f, 90f));
-        var handle = new GameObject("Crank Handle");
-        handle.transform.SetParent(model.transform, false);
-        handle.transform.localPosition = new Vector3(0.26f, 1.05f, 0f);
-        Part(handle.transform, PrimitiveType.Cube, "Arm", new Vector3(0.02f, 0f, 0.1f), new Vector3(0.03f, 0.03f, 0.22f), brass);
-        Part(handle.transform, PrimitiveType.Cylinder, "Grip", new Vector3(0.06f, 0f, 0.2f), new Vector3(0.04f, 0.05f, 0.04f), metal, new Vector3(0f, 0f, 90f));
-        BoxCollider box = root.AddComponent<BoxCollider>();
-        box.center = new Vector3(0f, 0.8f, 0f);
-        box.size = new Vector3(0.6f, 1.6f, 0.8f);
-        root.AddComponent<NetworkIdentity>();
-        CrankProjector crank = root.AddComponent<CrankProjector>();
-        crank.EditorSetHandle(handle.transform);
-        log.AppendLine("+ Crank Projector (VIP) next to the ghost room projector (move it freely)");
     }
 
     // ---- Bat item --------------------------------------------------------------------------
