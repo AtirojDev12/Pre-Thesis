@@ -173,7 +173,7 @@ public sealed class PlayerListHUD : MonoBehaviour
         title.text = lobby && config != null && !string.IsNullOrEmpty(config.roomName) ? SafeName(config.roomName).ToUpperInvariant() : "PLAYERS";
         string players = $"Players {seats.Count} / {limit}";
         infoText.text = lobby && config != null
-            ? $"{RoomDisplay.MapName(config.mapID)}   |   {RoomDisplay.Difficulty(config.difficulty)}   |   {(config.isPrivate ? "Private" : "Public")}   |   {players}"
+            ? $"{RoomDisplay.MapName(config.mapID)}   |   {(config.isPrivate ? "Private" : "Public")}   |   {players}" // 23 Nov: no difficulty
             : players;
 
         hintText.text = $"[{Keybinds.KeyName(GameAction.PlayerList)}] or [Esc] close   ·   Voice volume is only on your PC   ·   0% = muted";

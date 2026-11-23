@@ -120,6 +120,11 @@ public abstract class ZoneRuleBase : NetworkBehaviour
     }
 
     // ---- Difficulty: which rules run (5 Nov, Mr.k) ----------------------------------------
+    // 23 Nov (Mr.k): difficulty levels are removed -> every zone rule runs (AllRulesAlwaysOn).
+    // The old per-difficulty counts below are kept only for reference.
+
+    /// <summary>23 Nov: true = every zone rule is on in every match (no difficulty levels).</summary>
+    public const bool AllRulesAlwaysOn = true;
     //
     //   A zone with 4 rules or fewer: Easy = 1 random, Normal = 2 random.
     //   A zone with 5 rules or more : Easy = 2 random, Normal = 3 random.
@@ -130,6 +135,8 @@ public abstract class ZoneRuleBase : NetworkBehaviour
     /// <summary>How many of a zone's <paramref name="ruleCount"/> rules run at this difficulty.</summary>
     public static int RulesForDifficulty(DifficultyLevel level, int ruleCount)
     {
+        // 23 Nov (Mr.k): difficulty levels are removed. Every zone rule is on in every match.
+        if (AllRulesAlwaysOn) return Mathf.Max(0, ruleCount);
         int k;
         switch (level)
         {
@@ -164,7 +171,7 @@ public abstract class ZoneRuleBase : NetworkBehaviour
             int k = RulesForDifficulty(level, titles.Count);
             var chosen = titles.GetRange(0, k);
             foreach (ZoneRuleBase r in pair.Value) r.activeThisRound = chosen.Contains(r.ruleTitle);
-            Debug.Log($"[Rules] {level}: {pair.Key} uses {k} of {titles.Count} rules this round: {string.Join(", ", chosen)}");
+            Debug.Log($"[Rules] {pair.Key} uses {k} of {titles.Count} rules this round: {string.Join(", ", chosen)}");
         }
         return true;
     }

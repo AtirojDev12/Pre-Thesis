@@ -46,6 +46,7 @@ public class CreateRoomPanel : MonoBehaviour
 
         BuildDifficultyOptions();
         difficultyDropdown.onValueChanged.AddListener(OnDifficultyPicked);
+        HideDifficultyRow(); // 23 Nov (Mr.k): difficulty levels are removed
 
         if (mapDropdown != null)
         {
@@ -105,6 +106,33 @@ public class CreateRoomPanel : MonoBehaviour
         VerticalLayoutGroup group = parent.GetComponent<VerticalLayoutGroup>();
         if (parent is RectTransform card && group != null)
             card.sizeDelta += new Vector2(0f, rowHeight + group.spacing);
+    }
+
+    /// <summary>
+    /// 23 Nov (Mr.k): difficulty levels are removed. Hides the "Difficulty" label and list
+    /// (after the map list was copied from it) and makes the card shorter by those rows.
+    /// </summary>
+    private void HideDifficultyRow()
+    {
+        if (difficultyDropdown == null) return;
+        Transform parent = difficultyDropdown.transform.parent;
+        VerticalLayoutGroup group = parent != null ? parent.GetComponent<VerticalLayoutGroup>() : null;
+        float removed = 0f;
+        var hide = new List<GameObject> { difficultyDropdown.gameObject };
+        Transform label = parent != null ? parent.Find("Difficulty Label") : null;
+        if (label != null) hide.Add(label.gameObject);
+        foreach (GameObject go in hide)
+        {
+            if (!go.activeSelf) continue;
+            var rect = (RectTransform)go.transform;
+            LayoutElement element = go.GetComponent<LayoutElement>();
+            float h = element != null && element.preferredHeight > 0f ? element.preferredHeight
+                    : rect.rect.height > 1f ? rect.rect.height : rect.sizeDelta.y;
+            removed += h + (group != null ? group.spacing : 0f);
+            go.SetActive(false);
+        }
+        if (parent is RectTransform card && group != null && removed > 0f)
+            card.sizeDelta -= new Vector2(0f, removed);
     }
 
     /// <summary>Fills the difficulty list. Run again when the dev unlock is switched (16 Nov).</summary>
@@ -203,7 +231,7 @@ public class CreateRoomPanel : MonoBehaviour
             roomName = roomNameField != null && !string.IsNullOrWhiteSpace(roomNameField.text)
                 ? roomNameField.text : DefaultRoomName(),
             mapID = mapID,
-            difficulty = (DifficultyLevel)Mathf.Clamp(difficultyDropdown.value, 0, RoomDisplay.DifficultyOptions.Length - 1),
+            difficulty = RoomConfig.FixedDifficulty, // 23 Nov: no difficulty levels
             playerLimit = Mathf.RoundToInt(playerLimitSlider.value),
             isPrivate = privateToggle.isOn,
             password = privateToggle.isOn ? passwordField.text.Trim() : string.Empty,

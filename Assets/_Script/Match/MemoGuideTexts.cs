@@ -70,6 +70,14 @@ public sealed class MemoGuideTexts : ScriptableObject
     [TextArea(1, 3)] public string flavorFind = "The Ghost Flavor is gone. Lights off, find it (follow the trail) and bring it back to the popcorn station.";
     [TextArea(1, 3)] public string filmLate = "The ghost room film is LATE. Put the film \"{film}\" in the projector before the next film, or everyone gets hurt.";
 
+    [Header("Map Rules + map events (23 Nov)")]
+    [TextArea(1, 3)] public string vipBring = "A VIP guest is here and the clock is stopped. Press E on the VIP and lead it to its seat in the ghost screen room.";
+    [TextArea(1, 3)] public string vipCrank = "The VIP is seated. Crank the projector in the ghost room: press E fast until the film is done.";
+    [TextArea(1, 3)] public string hunterHide = "Lights out. Stay out of the flashlight beam. If it sees you, RUN and break its line of sight.";
+    [TextArea(1, 3)] public string foreignFind = "Things are hiding against the walls. Find them and hit them (Left Click) with a Bat or a mop before they get in.";
+    [TextArea(1, 3)] public string foreignPest = "Something got in. Don't look at it, and work at another spot while it blocks one.";
+    [TextArea(1, 3)] public string filmGhostAvoid = "A ghost from the ghost room walks the halls. Don't look at it. Change the ghost room film to send it back.";
+
     // ---- Runtime ----------------------------------------------------------------
 
     private static MemoGuideTexts current;

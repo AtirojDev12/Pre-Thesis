@@ -246,10 +246,9 @@ public class WaitingLobbyController : MonoBehaviour
         titleText.text = config != null && !string.IsNullOrEmpty(config.roomName) ? config.roomName : "Waiting Lobby";
 
         string map = RoomDisplay.MapName(config != null ? config.mapID : RoomConfig.DemoMapID);
-        string difficulty = config != null ? RoomDisplay.Difficulty(config.difficulty) : "?";
         string privacy = config != null && config.isPrivate ? "Private" : "Public";
 
-        infoText.text = $"{map}  |  {difficulty}  |  {privacy}  |  Players {players.Count} / {limit}";
+        infoText.text = $"{map}  |  {privacy}  |  Players {players.Count} / {limit}"; // 23 Nov: no difficulty
     }
 
     private void DrawSeats(RoHRoomManager room, RoHRoomPlayer local)

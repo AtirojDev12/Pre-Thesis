@@ -26,7 +26,12 @@ public class RoomConfig
     public string mapID = DemoMapID;
     /// <summary>Name the host gave the room; shown and searchable in the Room Browser.</summary>
     public string roomName = string.Empty;
-    public DifficultyLevel difficulty = DifficultyLevel.Normal;
+    /// <summary>23 Nov (Mr.k): difficulty levels are removed. Every match uses <see cref="FixedDifficulty"/>.
+    /// The field stays only because lobby data and saves carry it by name.</summary>
+    public DifficultyLevel difficulty = FixedDifficulty;
+
+    /// <summary>23 Nov (Mr.k): the ONE setup of every match: Normal task / ghost numbers, every zone rule on, map rules on.</summary>
+    public const DifficultyLevel FixedDifficulty = DifficultyLevel.Normal;
     public int playerLimit = MaxPlayers;
     public bool isPrivate = false;
     public string password = string.Empty;
@@ -66,13 +71,9 @@ public class RoomConfig
         playerLimit = Math.Clamp(playerLimit, MinPlayers, MaxPlayers);
         roomName = SanitizeRoomName(roomName);
         entryMinutesBefore = CleanEntry(entryMinutesBefore);
+        difficulty = FixedDifficulty; // 23 Nov: no difficulty levels any more
 
-        // 15 Nov (Mr.k): Hard and 13 Rules are locked for now; only the Cinema map is open.
-        if (RoomLocks.IsLocked(difficulty))
-        {
-            error = RoomDisplay.Difficulty(difficulty) + " is locked for now.";
-            return false;
-        }
+        // 15 Nov (Mr.k): only the Cinema map is open.
         if (MapCatalog.IsLocked(mapID))
         {
             error = RoomDisplay.MapName(mapID) + " is locked for now.";

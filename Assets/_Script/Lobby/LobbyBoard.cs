@@ -209,8 +209,7 @@ public sealed class LobbyBoard : MonoBehaviour
 
         titleText.text = config != null && !string.IsNullOrEmpty(config.roomName) ? config.roomName : "LOBBY";
         string map = RoomDisplay.MapName(config != null ? config.mapID : RoomConfig.DemoMapID);
-        string difficulty = config != null ? RoomDisplay.Difficulty(config.difficulty) : "?";
-        infoText.text = $"{map}  |  {difficulty}  |  Players {players.Count} / {limit}";
+        infoText.text = $"{map}  |  Players {players.Count} / {limit}"; // 23 Nov: no difficulty
 
         RoHRoomPlayer me = LocalSeat();
         int seats = Mathf.Clamp(limit, 1, rows.Length);

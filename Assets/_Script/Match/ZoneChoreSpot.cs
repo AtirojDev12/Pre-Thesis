@@ -162,7 +162,8 @@ public sealed class ZoneChoreSpot : InteractableBase
 
     private void OnEnable() { if (!All.Contains(this)) All.Add(this); }
 
-    private bool IsBlocked => ServerBlocked != null && ServerBlocked(this);
+    // 23 Nov: Map Rule 1 - a hidden thing that got in blocks the chore it stands at.
+    private bool IsBlocked => (ServerBlocked != null && ServerBlocked(this)) || MapRuleForeign.ServerBlocks(this);
 
     private static double Now => NetworkMode.IsOffline ? Time.timeAsDouble : NetworkTime.time;
 

@@ -384,6 +384,19 @@ public class MatchDirector : NetworkBehaviour
     public int EscapedCount => escapedCount;
 
     public MatchPhase Phase => phase;
+
+    // 23 Nov (Mr.k): Map Rule 3 (VIP guest) stops the clock. Every machine can read it.
+    [SyncVar] private bool clockPaused;
+    /// <summary>The night clock is stopped (VIP guest).</summary>
+    public bool ClockPaused => clockPaused;
+    /// <summary>SERVER. Stop / restart the night clock (only the Night phase stops).</summary>
+    public void ServerSetClockPaused(bool paused)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || clockPaused == paused) return;
+        clockPaused = paused;
+        if (NetworkServer.active) RpcSyncClock(secondsRemaining);
+        Debug.Log($"[MatchDirector] Night clock {(paused ? "STOPPED" : "running again")}.", this);
+    }
     /// <summary>
     /// The SHIFT is running: tasks, customers, ghosts, rules and sanity work.
     /// 17 Nov (Task 8): false during the pre-shift (before 00:00) and after the round.
@@ -623,6 +636,8 @@ public class MatchDirector : NetworkBehaviour
     /// </summary>
     private void ConfigureRound(RoomConfig config, int playerCount)
     {
+        config.difficulty = RoomConfig.FixedDifficulty; // 23 Nov (Mr.k): one setup for every match
+        clockPaused = false;
         DifficultyProfile profile = ResolveProfile(config.difficulty);
 
         syncedMapID = config.mapID;
@@ -858,6 +873,9 @@ public class MatchDirector : NetworkBehaviour
 
             return;
         }
+
+        // 23 Nov (Mr.k): Map Rule 3 (VIP guest) stops the night clock until the VIP film is played.
+        if (clockPaused && phase == MatchPhase.Night) return;
 
         secondsRemaining -= Time.deltaTime;
 

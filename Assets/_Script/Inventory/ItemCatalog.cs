@@ -91,6 +91,13 @@ public static class ItemCatalog
     /// <summary>17 Nov (Task 5): the ghost-room film reel. A HOTBAR token: the reel itself is a scene object (CarryProp).</summary>
     public const string FilmReelGhost = "film_reel_ghost";
 
+    /// <summary>
+    /// 23 Nov (Mr.k): the Bat (lobby shop, permanent, lost if you die). Left Click to hit the
+    /// hidden things of Map Rule 1 (the mop works too). Name, price, text: MapRuleTuning.
+    /// Models: Resources/Items/Bat + WorldBat (Tools > Pre-Thesis > One Step > Map Rules).
+    /// </summary>
+    public const string Bat = "bat";
+
     public sealed class ItemInfo
     {
         public string id;
@@ -277,6 +284,14 @@ public static class ItemCatalog
             permanent = false, inShop = false, throwable = false,
             description = "For the ghost room projector. Hold it and hold E at the projector. R (in hand) = put it back on its shelf.",
         },
+        // 23 Nov (Mr.k): the Bat for Map Rule 1. Name, price, text in MapRuleTuning.
+        new ItemInfo
+        {
+            id = Bat, displayName = "Bat", price = 150,
+            permanent = true, inShop = true, throwable = true,
+            worldPrefabPath = "Items/WorldBat",
+            heldPrefabPath = "Items/Bat",
+        },
         // 31 Oct (Mr.k): the Missing Parts ghost's parts. World prefabs made by the setup tool.
         GhostPartItem(GhostLeftArm, "Left Arm", "Items/WorldGhostPart_LeftArm"),
         GhostPartItem(GhostRightArm, "Right Arm", "Items/WorldGhostPart_RightArm"),
@@ -308,6 +323,7 @@ public static class ItemCatalog
     {
         SyncSanityItems();
         SyncGear();
+        SyncBat();
         if (syncedChanges == FlashlightTuning.Changes) return;
         FlashlightTuning t = FlashlightTuning.Current; // may bump Changes once while loading
         syncedChanges = FlashlightTuning.Changes;
@@ -321,6 +337,17 @@ public static class ItemCatalog
             battery.price = Mathf.Max(0, t.battery.price);
             battery.maxStack = Mathf.Max(1, t.battery.maxCarry);
         }
+    }
+
+    /// <summary>23 Nov: the Bat's name, price and text come from MapRuleTuning.</summary>
+    private static void SyncBat()
+    {
+        ItemInfo bat = FindRaw(Bat);
+        MapRuleTuning t = MapRuleTuning.Current;
+        if (bat == null || t == null) return;
+        bat.displayName = string.IsNullOrWhiteSpace(t.batName) ? "Bat" : t.batName;
+        bat.price = Mathf.Max(0, t.batPrice);
+        bat.description = t.batDescription;
     }
 
     /// <summary>17 Nov: walkies and syringes come from GearTuning.</summary>

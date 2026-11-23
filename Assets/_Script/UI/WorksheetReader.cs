@@ -255,7 +255,7 @@ public sealed class WorksheetReader : MonoBehaviour
         }
 
         subText.text = (guide != null ? guide.mapName : mapId) + "  ·  night shift\n" +
-                       "Difficulty: <b>" + RoomDisplay.Difficulty(difficulty) + "</b>     Players: <b>" + players + "</b>";
+                       "Players: <b>" + players + "</b>"; // 23 Nov: no difficulty levels any more
         goalText.text = guide == null ? "<size=60%>No guide for this map yet.</size>"
             : "<size=55%><color=#5A4A2A>TONIGHT'S GOAL</color></size>\nFinish <color=#A00000>" + required + (required == 1 ? " zone" : " zones") + "</color>";
         if (live) UpdateLiveHeader();
@@ -378,6 +378,20 @@ public sealed class WorksheetReader : MonoBehaviour
         Section("Rules tonight", color);
         Body(pageContent, MapGuide.RulesTonight(difficulty), 27f, Ink);
 
+        // 23 Nov (Mr.k): the Map Rules (whole map, every player, from 3 AM).
+        if (guide.mapRules != null && guide.mapRules.Count > 0)
+        {
+            Section("Map Rules (from 3 AM)", Danger);
+            foreach (MapGuide.RuleText r in guide.mapRules)
+            {
+                if (r == null) continue;
+                RectTransform card = Card(Danger, CardBg);
+                Body(card, "<b>" + r.title + "</b>", 22f, Danger);
+                if (!string.IsNullOrWhiteSpace(r.whatToDo)) Body(card, "<b>DO:</b> " + r.whatToDo.Trim(), 25f, Ink);
+                if (!string.IsNullOrWhiteSpace(r.ifYouBreakIt)) Body(card, "<i>" + r.ifYouBreakIt.Trim() + "</i>", 22f, Muted);
+            }
+        }
+
         Body(pageContent, "<i>Pick a zone on the left to see where it is, what to do there and its rules.</i>", 24f, Muted);
     }
 
@@ -418,8 +432,6 @@ public sealed class WorksheetReader : MonoBehaviour
             Section("Rules: " + MapGuide.ActiveRulesText(z, difficulty), color);
             if (z.ActiveRules(difficulty) < ruleCount)
                 Body(pageContent, "<i>You will not know which ones are on. Learn them all.</i>", 23f, Muted);
-            else if (z.allRulesOn)
-                Body(pageContent, "<i>Every rule here is on, on every difficulty.</i>", 23f, Muted);
             foreach (MapGuide.RuleText r in z.rules)
             {
                 RectTransform card = Card(color, CardBg);

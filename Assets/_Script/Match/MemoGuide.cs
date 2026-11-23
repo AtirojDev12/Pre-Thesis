@@ -66,6 +66,16 @@ public static class MemoGuide
         best = default;
         if (p == null || p.IsDead) return false;
 
+        // 23 Nov (Mr.k): Map Rules always win over Zone Rules (GuideEntry.mapRule).
+        MapRuleVip vip = MapRuleVip.Instance;
+        if (vip != null && vip.Running)
+            Offer(ref best, GuideEntry.Make(GuideSeverity.SanityDrain, vip.Current == MapRuleVip.Stage.Seated ? "vip:crank" : "vip:bring",
+                vip.Current == MapRuleVip.Stage.Seated ? T.vipCrank : T.vipBring, true));
+        if (MapRuleHunter.Active) Offer(ref best, GuideEntry.Make(GuideSeverity.InstantDeath, "hunter", T.hunterHide, true));
+        if (MapRuleForeign.HiddenLeft > 0) Offer(ref best, GuideEntry.Make(GuideSeverity.TaskBlock, "foreign:find", T.foreignFind, true));
+        else if (MapRuleForeign.PestCount > 0) Offer(ref best, GuideEntry.Make(GuideSeverity.SanityDrain, "foreign:pest", T.foreignPest, true));
+        if (FilmGhostEvent.GhostOut) Offer(ref best, GuideEntry.Make(GuideSeverity.ChaseOrHp, "filmghost", T.filmGhostAvoid));
+
         foreach (ZoneRuleBase rule in ZoneRuleBase.All)
             if (rule != null && rule.ActiveThisRound && rule.ServerGuideFor(p, out GuideEntry e) && e.BetterThan(best)) best = e;
 
@@ -91,6 +101,11 @@ public static class MemoGuide
             }
         }
         return best.IsSet;
+    }
+
+    private static void Offer(ref GuideEntry best, GuideEntry e)
+    {
+        if (e.BetterThan(best)) best = e;
     }
 
     /// <summary>Inside that quest zone's box, or the map has no box for it (then: everywhere).</summary>

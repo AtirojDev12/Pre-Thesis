@@ -51,7 +51,9 @@ public class RoomBrowserRow : MonoBehaviour
 
         if (nameText != null) nameText.text = room.roomName;
         mapText.text = RoomDisplay.MapName(room.mapID);
-        difficultyText.text = RoomDisplay.Difficulty(room.difficulty);
+        // 23 Nov (Mr.k): difficulty levels are removed: hide the column (the Room column takes the space).
+        if (difficultyText != null) difficultyText.gameObject.SetActive(false);
+        HideHeaderColumn();
         playersText.text = $"{room.currentPlayers} / {room.maxPlayers}";
 
         if (room.inProgress) statusText.text = "In game";
@@ -60,5 +62,17 @@ public class RoomBrowserRow : MonoBehaviour
         else statusText.text = "Open";
 
         joinButton.interactable = room.IsJoinable;
+    }
+
+    /// <summary>23 Nov: hides the list's "Difficulty" header label (the card that holds this row's list).</summary>
+    private void HideHeaderColumn()
+    {
+        for (Transform p = transform.parent; p != null; p = p.parent)
+        {
+            Transform label = p.Find("Header/Difficulty");
+            if (label == null) continue;
+            if (label.gameObject.activeSelf) label.gameObject.SetActive(false);
+            return;
+        }
     }
 }

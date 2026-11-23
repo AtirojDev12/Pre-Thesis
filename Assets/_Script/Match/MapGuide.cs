@@ -33,7 +33,7 @@ public sealed class MapGuide : ScriptableObject
         public Sprite picture;
         [TextArea(1, 3)] public string where = "";
         [TextArea(2, 6)] public string tasks = "";
-        [Tooltip("Zone rules. On Easy / Normal only some are active each night (random); Hard / 13 Rules = all.")]
+        [Tooltip("Zone rules. 23 Nov: all of them are on in every match.")]
         public List<RuleText> rules = new List<RuleText>();
         [Tooltip("5 Nov: FOR NOW every rule of this zone is on, on every difficulty (Ticket Zone, until its rules are rewritten).")]
         public bool allRulesOn;
@@ -64,6 +64,32 @@ public sealed class MapGuide : ScriptableObject
     public List<ZoneText> zones = new List<ZoneText>();
     [Tooltip("One tip per line.")]
     [TextArea(2, 8)] public string generalTips = "";
+
+    [Tooltip("23 Nov: the Map Rules (whole map, every player, from 3 AM). Shown on the 'Your goal' page.")]
+    public List<RuleText> mapRules = CinemaMapRules();
+
+    /// <summary>23 Nov: the Cinema's three Map Rules (Zone Quest Detail, 'Map Rules').</summary>
+    public static List<RuleText> CinemaMapRules() => new List<RuleText>
+    {
+        new RuleText
+        {
+            title = "3 AM: the VIP guest",
+            whatToDo = "A VIP guest arrives and the clock stops. Press E on it, lead it to its seat in the ghost screen room, then crank the hand projector (press E fast) until the film is done.",
+            ifYouBreakIt = "Not done in time: everyone gets a jumpscare and loses half of their sanity.",
+        },
+        new RuleText
+        {
+            title = "Lights out: the flashlight",
+            whatToDo = "After the VIP, all lights go out for 1 hour. Something walks the cinema with a flashlight. Stay out of its beam; if it sees you, run and break its line of sight.",
+            ifYouBreakIt = "If it catches you: jumpscare and instant death.",
+        },
+        new RuleText
+        {
+            title = "Hidden things",
+            whatToDo = "From 3 AM, things hide against the walls. Find them and hit them out with a Bat (lobby shop) or the mop.",
+            ifYouBreakIt = "One you miss gets in until morning: it blocks work spots, and seeing it costs sanity.",
+        },
+    };
 
     private static readonly Dictionary<string, MapGuide> cache = new Dictionary<string, MapGuide>();
 
@@ -154,9 +180,8 @@ public sealed class MapGuide : ScriptableObject
     {
         switch (difficulty)
         {
-            case DifficultyLevel.Easy: return "Easy: each zone uses only a few of its rules tonight, picked at random. Learn them all. You will not know which ones are on.";
-            case DifficultyLevel.Normal: return "Normal: each zone uses some of its rules tonight, picked at random. Learn them all. You will not know which ones are on.";
-            default: return "Hard / 13 Rules: every zone rule is on tonight.";
+            // 23 Nov (Mr.k): no difficulty levels any more: one setup for every match.
+            default: return "Every zone rule is on, every night. From 3 AM the Map Rules start too (see Map Rules).";
         }
     }
 
@@ -164,6 +189,7 @@ public sealed class MapGuide : ScriptableObject
 
     public void FillCinemaDefaults()
     {
+        mapRules = CinemaMapRules(); // 23 Nov
         mapID = RoomConfig.DemoMapID;
         mapName = "Cinema";
         zonesForOnePlayer = 2;
