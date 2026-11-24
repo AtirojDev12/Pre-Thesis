@@ -38,8 +38,14 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private GameObject busyOverlay;
     [SerializeField] private TMP_Text busyText;
 
+    [Header("Page change (24 Nov 2026)")]
+    [Tooltip("Optional. VCR fast-forward / rewind effect between pages. Empty = pages switch instantly.")]
+    [SerializeField] private VcrTapeTransition pageTransition;
+    private GameObject currentPanel;
+
     [Header("Message popup")]
     [SerializeField] private GameObject messagePopup;
+    [Tooltip("Optional: the popup can show only \"NO SIGNAL\" (24 Nov). Empty = the reason is only logged.")]
     [SerializeField] private TMP_Text messageText;
     [SerializeField] private Button messageOkButton;
 
@@ -114,7 +120,25 @@ public class MainMenuController : MonoBehaviour
 
     public void ShowMain() => ShowPanel(mainPanel);
 
+    /// <summary>
+    /// 24 Nov 2026: with a Page Transition set, a page change plays the VCR tape effect
+    /// (FF into a sub page, REW back to Main) and the pages switch in the middle of it.
+    /// </summary>
     private void ShowPanel(GameObject panel)
+    {
+        GameObject from = currentPanel;
+        currentPanel = panel;
+        if (pageTransition == null || from == null || from == panel || !from.activeInHierarchy)
+        {
+            if (pageTransition != null) pageTransition.Finish();
+            ApplyPanel(panel);
+            return;
+        }
+        bool forward = panel != mainPanel; // into a sub page = FF, back to Main = REW
+        pageTransition.Play(from, panel, forward, () => ApplyPanel(panel));
+    }
+
+    private void ApplyPanel(GameObject panel)
     {
         mainPanel.SetActive(panel == mainPanel);
         createPanel.gameObject.SetActive(panel == createPanel.gameObject);
@@ -159,7 +183,10 @@ public class MainMenuController : MonoBehaviour
 
     public void ShowMessage(string text)
     {
-        messageText.text = text;
+        // 24 Nov 2026: the popup only says "NO SIGNAL" now; the Message text was removed from the
+        // scene. The real reason still goes to the Console so it isn't lost while testing.
+        if (messageText != null) messageText.text = text;
+        if (!string.IsNullOrEmpty(text)) Debug.Log("[MainMenu] " + text);
         messagePopup.SetActive(true);
         messagePopup.transform.SetAsLastSibling();
     }

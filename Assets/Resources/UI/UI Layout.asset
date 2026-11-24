@@ -212,3 +212,13 @@ MonoBehaviour:
       preferredWidth: -1
       preferredHeight: -1
     added: []
+  - screenName: Main Menu UI
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 0}
+    design: {fileID: 0}
+    elements: []
+    added: []

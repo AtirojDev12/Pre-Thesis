@@ -86,11 +86,13 @@ public class SettingsPanel : MonoBehaviour
 
     private readonly List<Vector2Int> resolutions = new List<Vector2Int>();
 
-    // Tab look (same colours as the menu builder).
-    private static readonly Color TabColor = new Color32(0x2E, 0x24, 0x20, 0xFF);
-    private static readonly Color TabSelectedColor = new Color32(0xD9, 0xA4, 0x41, 0xFF);
+    // Tab look (24 Nov 2026: VCR theme, same as the Main Panel buttons). The selected tab is a
+    // white bar with VCR-blue text and its white "Cursor Block" child shown; the others are
+    // white text with no bar (a faint bar on hover).
+    private static readonly Color TabBarColor = new Color32(0xF2, 0xF2, 0xF2, 0xFF);
     private static readonly Color TabTextColor = new Color32(0xF4, 0xEF, 0xED, 0xFF);
-    private static readonly Color TabSelectedTextColor = new Color32(0x0E, 0x0B, 0x0A, 0xFF);
+    private static readonly Color TabSelectedTextColor = new Color32(0x1A, 0x2A, 0x9E, 0xFF);
+    private const string TabCursorBlockName = "Cursor Block";
     private static int lastTab; // reopen on the page the player used last
     private readonly List<string> microphones = new List<string>(); // index 0 = "" (Windows default)
 
@@ -180,10 +182,28 @@ public class SettingsPanel : MonoBehaviour
             if (tabPages[i] != null) tabPages[i].SetActive(selected);
 
             if (tabButtons == null || i >= tabButtons.Length || tabButtons[i] == null) continue;
-            if (tabButtons[i].targetGraphic != null) tabButtons[i].targetGraphic.color = selected ? TabSelectedColor : TabColor;
-            TMP_Text label = tabButtons[i].GetComponentInChildren<TMP_Text>(true);
-            if (label != null) label.color = selected ? TabSelectedTextColor : TabTextColor;
+            StyleTab(tabButtons[i], selected);
         }
+    }
+
+    /// <summary>VCR look of one tab: bar alpha comes from the button's colour tint.</summary>
+    private static void StyleTab(Button tab, bool selected)
+    {
+        if (tab.targetGraphic != null) tab.targetGraphic.color = TabBarColor;
+        ColorBlock c = tab.colors;
+        c.normalColor = selected ? Color.white : new Color(1f, 1f, 1f, 0f);
+        c.highlightedColor = selected ? Color.white : new Color(1f, 1f, 1f, 0.25f);
+        c.pressedColor = selected ? Color.white : new Color(1f, 1f, 1f, 0.35f);
+        c.selectedColor = selected ? Color.white : new Color(1f, 1f, 1f, 0f);
+        c.disabledColor = new Color(1f, 1f, 1f, 0f);
+        c.colorMultiplier = 1f;
+        tab.colors = c;
+
+        TMP_Text label = tab.GetComponentInChildren<TMP_Text>(true);
+        if (label != null) label.color = selected ? TabSelectedTextColor : TabTextColor;
+
+        Transform block = tab.transform.Find(TabCursorBlockName);
+        if (block != null) block.gameObject.SetActive(selected);
     }
 
     private void SetupSlider(Slider slider, float min, float max)
@@ -406,7 +426,7 @@ public class SettingsPanel : MonoBehaviour
         var scrollGo = new GameObject("Key List", typeof(RectTransform), typeof(Image), typeof(ScrollRect), typeof(LayoutElement));
         scrollGo.transform.SetParent(column, false);
         scrollGo.transform.SetSiblingIndex(insertAt);
-        scrollGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.18f); // also catches the mouse wheel between rows
+        scrollGo.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f); // invisible, still catches the mouse wheel between rows (24 Nov: VCR theme)
         LayoutElement scrollLayout = scrollGo.GetComponent<LayoutElement>();
         scrollLayout.flexibleHeight = 1f;
         scrollLayout.minHeight = 300f;
@@ -602,7 +622,7 @@ public class SettingsPanel : MonoBehaviour
 
             if (listening == (int)def.action)
             {
-                label.text = def.label + ":  <color=#D9A441>press a key...</color>  (Esc = cancel, Delete = clear)";
+                label.text = def.label + ":  <color=#FFFFFF><u>press a key...</u></color>  (Esc = cancel, Delete = clear)";
                 continue;
             }
 
