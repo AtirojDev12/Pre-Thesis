@@ -15,17 +15,35 @@ using UnityEngine.UI;
 /// this screen reads PlayerInventory.Local (your own body) only.
 /// Only the hotbar goes into a match; storage stays safe in the lobby.
 /// Built in code like ShopUI; Esc or Close shuts it.
+/// 24 Nov 2026: colours and fonts come from Resources/UI/Styles/Storage Style (Inspector), see CodeScreenStyle.
 /// </summary>
 public sealed class StorageUI : MonoBehaviour
 {
     private static StorageUI instance;
     public static bool IsOpen => instance != null;
 
-    private static readonly Color Panel = new Color(0.11f, 0.09f, 0.08f, 1f);
-    private static readonly Color RowColor = new Color(0.17f, 0.14f, 0.12f, 1f);
-    private static readonly Color Gold = new Color(1f, 0.8f, 0.3f);
-    private static readonly Color TextColor = new Color(0.95f, 0.93f, 0.9f);
-    private static readonly Color Muted = new Color(0.65f, 0.62f, 0.6f);
+    // 24 Nov: no colours in code any more. Edit Assets/Resources/UI/Styles/Storage Style in the Inspector.
+    private static CodeScreenStyle Style => CodeScreenStyle.Load("Storage Style", OriginalColours);
+
+    /// <summary>Used only when the Storage Style asset is missing (the look before 24 Nov).</summary>
+    private static void OriginalColours(CodeScreenStyle s)
+    {
+        s.dim = new Color(0f, 0f, 0f, 0.7f);
+        s.panel = new Color(0.11f, 0.09f, 0.08f, 1f);
+        s.listBack = new Color(0f, 0f, 0f, 0.2f);
+        s.row = s.myRow = new Color(0.17f, 0.14f, 0.12f, 1f);
+        s.title = s.accent = s.value = new Color(1f, 0.8f, 0.3f);
+        s.text = new Color(0.95f, 0.93f, 0.9f);
+        s.muted = new Color(0.65f, 0.62f, 0.6f);
+        s.faint = new Color32(0x7F, 0x7A, 0x75, 0xFF);
+        s.warning = new Color32(0xFF, 0x8A, 0x70, 0xFF);
+        s.good = new Color(0.45f, 1f, 0.55f);
+        s.bad = new Color(1f, 0.4f, 0.35f);
+        s.button = new Color(0.3f, 0.22f, 0.12f, 1f);
+        s.buttonText = s.buttonHoverText = s.text;
+        s.buttonHighlighted = new Color(1.4f, 1.3f, 1.1f);
+        s.buttonDisabled = new Color(0.45f, 0.45f, 0.45f, 0.6f);
+    }
 
     private PlayerInventory inventory;
     private RectTransform hotbarList;
@@ -86,7 +104,7 @@ public sealed class StorageUI : MonoBehaviour
         {
             InventorySlot slot = inventory.GetSlot(i);
             int index = i;
-            string label = (i + 1) + ".  " + (slot.IsEmpty ? "<color=#7F7A75>(empty)</color>" : Describe(slot));
+            string label = (i + 1) + ".  " + (slot.IsEmpty ? CodeScreenStyle.Paint("(empty)", Style.faint) : Describe(slot));
             string why = slot.IsEmpty ? null
                 : slot.spare ? "A friend's spare: give it back (Q)"
                 : ItemCatalog.MaxStack(slot.itemId) <= 1 && inventory.IsStored(slot.itemId) ? "One is already stored"
@@ -108,7 +126,7 @@ public sealed class StorageUI : MonoBehaviour
         }
         if (count == 0)
         {
-            TMP_Text empty = NewText("Empty", storageContent, "Nothing in storage.\nItems you buy with a full hotbar wait here.", 24f, Muted, FontStyles.Italic, TextAlignmentOptions.Center);
+            TMP_Text empty = NewText("Empty", storageContent, "Nothing in storage.\nItems you buy with a full hotbar wait here.", 24f, Style.muted, FontStyles.Italic, TextAlignmentOptions.Center);
             Anchor(empty.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -100f), Vector2.zero);
         }
         storageContent.sizeDelta = new Vector2(0f, Mathf.Max(1, count) * RowStep);
@@ -118,8 +136,8 @@ public sealed class StorageUI : MonoBehaviour
     {
         string name = ItemCatalog.DisplayName(slot.itemId);
         if (slot.Units > 1 || ItemCatalog.MaxStack(slot.itemId) > 1) name += "  x" + slot.Units;
-        if (ItemCatalog.IsFlashlight(slot.itemId)) name += "  <color=#A6A09A>" + Mathf.CeilToInt(slot.charge * 100f) + "%</color>";
-        if (slot.spare) name += "  <color=#FF8A70>SPARE</color>";
+        if (ItemCatalog.IsFlashlight(slot.itemId)) name += "  " + CodeScreenStyle.Paint(Mathf.CeilToInt(slot.charge * 100f) + "%", Style.muted);
+        if (slot.spare) name += "  " + CodeScreenStyle.Paint("SPARE", Style.warning);
         return name;
     }
 
@@ -157,21 +175,25 @@ public sealed class StorageUI : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         gameObject.AddComponent<GraphicRaycaster>();
 
-        Image dim = NewImage("Dim", transform, new Color(0f, 0f, 0f, 0.7f));
+        CodeScreenStyle style = Style;
+        Image dim = NewImage("Dim", transform, style.dim);
         Stretch(dim.rectTransform);
         dim.raycastTarget = true;
 
-        RectTransform card = NewImage("Card", transform, Panel).rectTransform;
+        Image cardImage = NewImage("Card", transform, style.panel);
+        style.StyleCard(cardImage);
+        RectTransform card = cardImage.rectTransform;
         card.anchorMin = card.anchorMax = card.pivot = new Vector2(0.5f, 0.5f);
         card.sizeDelta = new Vector2(1500f, 900f);
 
-        TMP_Text title = NewText("Title", card, "STORAGE", 64f, Gold, FontStyles.Bold, TextAlignmentOptions.Center);
+        TMP_Text title = NewText("Title", card, "STORAGE", 64f, style.title, FontStyles.Bold, TextAlignmentOptions.Center);
+        style.StyleText(title, style.title, true);
         Anchor(title.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(40f, -110f), new Vector2(-40f, -30f));
-        TMP_Text sub = NewText("Subtitle", card, "Only you can see your storage.  Only your HOTBAR goes into a match.", 26f, Muted, FontStyles.Normal, TextAlignmentOptions.Center);
+        TMP_Text sub = NewText("Subtitle", card, "Only you can see your storage.  Only your HOTBAR goes into a match.", 26f, style.muted, FontStyles.Normal, TextAlignmentOptions.Center);
         Anchor(sub.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(40f, -150f), new Vector2(-40f, -110f));
 
         // Left column: hotbar
-        TMP_Text left = NewText("Hotbar Title", card, "YOUR HOTBAR", 32f, TextColor, FontStyles.Bold, TextAlignmentOptions.Left);
+        TMP_Text left = NewText("Hotbar Title", card, "YOUR HOTBAR", 32f, style.text, FontStyles.Bold, TextAlignmentOptions.Left);
         Anchor(left.rectTransform, new Vector2(0f, 1f), new Vector2(0.45f, 1f), new Vector2(50f, -210f), new Vector2(0f, -160f));
         hotbarList = new GameObject("Hotbar", typeof(RectTransform)).GetComponent<RectTransform>();
         hotbarList.SetParent(card, false);
@@ -182,10 +204,11 @@ public sealed class StorageUI : MonoBehaviour
         hotbarList.offsetMax = new Vector2(-10f, -220f);
 
         // Right column: storage (scrolls)
-        TMP_Text right = NewText("Storage Title", card, "IN STORAGE", 32f, TextColor, FontStyles.Bold, TextAlignmentOptions.Left);
+        TMP_Text right = NewText("Storage Title", card, "IN STORAGE", 32f, style.text, FontStyles.Bold, TextAlignmentOptions.Left);
         Anchor(right.rectTransform, new Vector2(0.47f, 1f), new Vector2(1f, 1f), new Vector2(10f, -210f), new Vector2(-50f, -160f));
 
-        Image viewportImage = NewImage("Viewport", card, new Color(0f, 0f, 0f, 0.2f));
+        Image viewportImage = NewImage("Viewport", card, style.listBack);
+        CodeScreenStyle.PaintImage(viewportImage, style.listBack, style.listSprite);
         viewportImage.raycastTarget = true;
         viewportImage.gameObject.AddComponent<RectMask2D>();
         RectTransform viewport = viewportImage.rectTransform;
@@ -207,7 +230,7 @@ public sealed class StorageUI : MonoBehaviour
         scroll.movementType = ScrollRect.MovementType.Clamped;
         scroll.scrollSensitivity = 40f;
 
-        messageText = NewText("Message", card, "", 26f, Muted, FontStyles.Normal, TextAlignmentOptions.Center);
+        messageText = NewText("Message", card, "", 26f, style.muted, FontStyles.Normal, TextAlignmentOptions.Center);
         Anchor(messageText.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(40f, 105f), new Vector2(-40f, 145f));
 
         Button close = NewButton("Close", card, "Close (Esc)");
@@ -221,18 +244,20 @@ public sealed class StorageUI : MonoBehaviour
 
     private void AddRow(RectTransform parent, int index, string label, string buttonText, bool enabled, System.Action action, string why)
     {
-        RectTransform row = NewImage("Row " + index, parent, RowColor).rectTransform;
+        Image rowImage = NewImage("Row " + index, parent, Style.row);
+        CodeScreenStyle.PaintImage(rowImage, Style.row, Style.rowSprite);
+        RectTransform row = rowImage.rectTransform;
         row.anchorMin = new Vector2(0f, 1f);
         row.anchorMax = new Vector2(1f, 1f);
         row.pivot = new Vector2(0.5f, 1f);
         row.offsetMin = new Vector2(0f, -index * RowStep - (RowStep - 12f));
         row.offsetMax = new Vector2(0f, -index * RowStep);
 
-        TMP_Text text = NewText("Label", row, label, 28f, TextColor, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
+        TMP_Text text = NewText("Label", row, label, 28f, Style.text, FontStyles.Bold, TextAlignmentOptions.MidlineLeft);
         Anchor(text.rectTransform, new Vector2(0f, 0.35f), new Vector2(0.68f, 1f), new Vector2(18f, 0f), Vector2.zero);
         if (!string.IsNullOrEmpty(why))
         {
-            TMP_Text note = NewText("Why", row, why, 20f, Muted, FontStyles.Normal, TextAlignmentOptions.TopLeft);
+            TMP_Text note = NewText("Why", row, why, 20f, Style.muted, FontStyles.Normal, TextAlignmentOptions.TopLeft);
             Anchor(note.rectTransform, new Vector2(0f, 0f), new Vector2(0.7f, 0.38f), new Vector2(18f, 4f), Vector2.zero);
         }
 
@@ -263,7 +288,7 @@ public sealed class StorageUI : MonoBehaviour
         var tmp = go.GetComponent<TextMeshProUGUI>();
         tmp.text = Keybinds.Fix(text); // 20 Oct: "(Q)" -> the player's key
         tmp.fontSize = size;
-        tmp.color = color;
+        Style.StyleText(tmp, color); // 24 Nov: font + colour from Storage Style
         tmp.fontStyle = style;
         tmp.alignment = alignment;
         tmp.textWrappingMode = TextWrappingModes.NoWrap;
@@ -283,16 +308,14 @@ public sealed class StorageUI : MonoBehaviour
 
     private static Button NewButton(string name, Transform parent, string label)
     {
-        Image bg = NewImage(name, parent, new Color(0.3f, 0.22f, 0.12f, 1f));
+        Image bg = NewImage(name, parent, Style.button);
         bg.raycastTarget = true;
         var button = bg.gameObject.AddComponent<Button>();
-        ColorBlock colors = button.colors;
-        colors.highlightedColor = new Color(1.4f, 1.3f, 1.1f);
-        colors.disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.6f);
-        button.colors = colors;
+        button.targetGraphic = bg;
 
-        TMP_Text text = NewText("Label", bg.transform, label, 30f, TextColor, FontStyles.Bold, TextAlignmentOptions.Center);
+        TMP_Text text = NewText("Label", bg.transform, label, 30f, Style.buttonText, FontStyles.Bold, TextAlignmentOptions.Center);
         Stretch(text.rectTransform);
+        Style.StyleButton(button, text); // 24 Nov: colours, picture, hover words from Storage Style
         return button;
     }
 

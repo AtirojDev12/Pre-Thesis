@@ -23,6 +23,8 @@ public class StaminaBarUI : MonoBehaviour
     private void Awake()
     {
         if (barRoot == gameObject) barRoot = null;
+        // 24 Nov: like the sanity / health bars, a "Filled" fill picture is CUT, not squeezed by the slider.
+        HudFill.DetachSlider(staminaSlider, fillImage);
     }
 
     private void OnEnable()
@@ -66,11 +68,7 @@ public class StaminaBarUI : MonoBehaviour
     {
         float ratio = maximum > 0f ? current / maximum : 0f;
 
-        if (staminaSlider != null)
-        {
-            staminaSlider.maxValue = maximum;
-            staminaSlider.value = current;
-        }
+        HudFill.Apply(fillImage, staminaSlider, ratio); // 24 Nov: cut a Filled picture (HudFill), else the slider
 
         if (fillImage != null && useStaminaColors)
             fillImage.color = Color.Lerp(emptyStaminaColor, fullStaminaColor, ratio);

@@ -21,21 +21,47 @@ using UnityEngine.UI;
 /// While open the mouse is free and the player stands still (OverlayPanels).
 ///
 /// Built in code at runtime: no scene or prefab change needed.
+/// 24 Nov 2026: colours and fonts come from Resources/UI/Styles/Player List Style (Inspector), see CodeScreenStyle.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class PlayerListHUD : MonoBehaviour
 {
-    private static readonly Color PanelColor = new Color32(0x0E, 0x0B, 0x0A, 0xF0);
-    private static readonly Color RowColor = new Color32(0x2E, 0x24, 0x20, 0xFF);
-    private static readonly Color MyRowColor = new Color32(0x3E, 0x30, 0x1E, 0xFF);
-    private static readonly Color AccentColor = new Color32(0xD9, 0xA4, 0x41, 0xFF);
-    private static readonly Color TextColor = new Color32(0xF4, 0xEF, 0xED, 0xFF);
-    private static readonly Color MutedColor = new Color32(0x9A, 0x8F, 0x8B, 0xFF);
-    private static readonly Color GoodColor = new Color32(0x6C, 0xD0, 0x6A, 0xFF);
-    private static readonly Color MidColor = new Color32(0xE8, 0xC1, 0x4A, 0xFF);
-    private static readonly Color BadColor = new Color32(0xFF, 0x6A, 0x5A, 0xFF);
-    private static readonly Color ButtonColor = new Color32(0x4A, 0x3B, 0x34, 0xFF);
-    private static readonly Color KickColor = new Color32(0x73, 0x1A, 0x14, 0xFF);
+    // 24 Nov: no colours in code any more. Edit Assets/Resources/UI/Styles/Player List Style in the Inspector.
+    private static CodeScreenStyle Style => CodeScreenStyle.Load("Player List Style", OriginalColours);
+    private static Color RowColor => Style.row;
+    private static Color MyRowColor => Style.myRow;
+    private static Color AccentColor => Style.accent;
+    private static Color TextColor => Style.text;
+    private static Color MutedColor => Style.muted;
+    private static Color GoodColor => Style.good;
+    private static Color MidColor => Style.warning;
+    private static Color BadColor => Style.bad;
+
+    /// <summary>Used only when the Player List Style asset is missing (the look before 24 Nov).</summary>
+    private static void OriginalColours(CodeScreenStyle s)
+    {
+        s.dim = new Color(0f, 0f, 0f, 0f);
+        s.panel = new Color32(0x0E, 0x0B, 0x0A, 0xF0);
+        s.row = new Color32(0x2E, 0x24, 0x20, 0xFF);
+        s.myRow = new Color32(0x3E, 0x30, 0x1E, 0xFF);
+        s.title = s.accent = new Color32(0xD9, 0xA4, 0x41, 0xFF);
+        s.value = new Color32(0xFF, 0xCC, 0x4D, 0xFF);
+        s.text = new Color32(0xF4, 0xEF, 0xED, 0xFF);
+        s.muted = s.faint = new Color32(0x9A, 0x8F, 0x8B, 0xFF);
+        s.good = new Color32(0x6C, 0xD0, 0x6A, 0xFF);
+        s.warning = new Color32(0xE8, 0xC1, 0x4A, 0xFF);
+        s.bad = new Color32(0xFF, 0x6A, 0x5A, 0xFF);
+        s.button = new Color32(0x4A, 0x3B, 0x34, 0xFF);
+        s.buttonText = s.buttonHoverText = s.text;
+        s.primaryButton = s.accent;
+        s.primaryButtonText = Color.black;
+        s.dangerButton = new Color32(0x73, 0x1A, 0x14, 0xFF);
+        s.dangerButtonText = new Color(1f, 0.92f, 0.88f);
+        s.sliderBack = new Color32(0x1A, 0x14, 0x12, 0xFF);
+        s.sliderFill = s.accent;
+        s.sliderHandle = s.text;
+        s.titleStyle = FontStyles.Normal;
+    }
 
     private const int MaxRows = RoomConfig.MaxPlayers;
     private const float PanelWidth = 1180f;
@@ -193,10 +219,11 @@ public sealed class PlayerListHUD : MonoBehaviour
             if (me) local = seat;
             row.background.color = me ? MyRowColor : RowColor;
 
-            string state = !lobby ? "" : seat.IsHost ? "  <color=#D9A441>(Host)</color>"
-                : seat.readyToBegin ? "  <color=#6CD06A>Ready</color>" : "  <color=#9A8F8B>Not ready</color>";
-            if (!lobby && seat.IsHost) state = "  <color=#D9A441>(Host)</color>";
-            row.name.text = SafeName(seat.DisplayName) + state + (me ? "  <color=#9A8F8B>(You)</color>" : "");
+            string host = "  " + CodeScreenStyle.Paint("(Host)", AccentColor);
+            string state = !lobby ? "" : seat.IsHost ? host
+                : seat.readyToBegin ? "  " + CodeScreenStyle.Paint("Ready", GoodColor) : "  " + CodeScreenStyle.Paint("Not ready", MutedColor);
+            if (!lobby && seat.IsHost) state = host;
+            row.name.text = SafeName(seat.DisplayName) + state + (me ? "  " + CodeScreenStyle.Paint("(You)", MutedColor) : "");
 
             if (seat.IsHost) { row.ping.text = "Host"; row.ping.color = MutedColor; }
             else
@@ -248,7 +275,7 @@ public sealed class PlayerListHUD : MonoBehaviour
 
             // 17 Nov (Task 8): entry time. Host changes it here; everyone sees it.
             string entry = RoomConfig.EntryLabel(RoHRoomPlayer.HostEntryMinutes);
-            entryText.text = "Entry time: <color=#FFCC4D>" + entry + "</color>" +
+            entryText.text = "Entry time: " + CodeScreenStyle.Paint(entry, Style.value) +
                 (RoHRoomPlayer.HostEntryMinutes > 0 ? "  <size=80%>(the shift starts at 12:00 AM)</size>" : "");
             entryButton.gameObject.SetActive(isHost);
             entryButton.interactable = !starting;
@@ -258,7 +285,10 @@ public sealed class PlayerListHUD : MonoBehaviour
             {
                 bool current = RoomConfig.EntryChoices[i] == RoHRoomPlayer.HostEntryMinutes;
                 entryChoiceLabels[i].text = (current ? "> " : "") + RoomConfig.EntryLabel(RoomConfig.EntryChoices[i]);
-                entryChoiceLabels[i].color = current ? AccentColor : TextColor;
+                Color normal = current ? AccentColor : TextColor;
+                UiButtonTextColor swap = entryChoices[i].GetComponent<UiButtonTextColor>();
+                if (swap != null) swap.SetNormal(normal); // 24 Nov: hover words colour (style)
+                else entryChoiceLabels[i].color = normal;
             }
         }
 
@@ -365,9 +395,10 @@ public sealed class PlayerListHUD : MonoBehaviour
         panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.5f);
         panel.pivot = new Vector2(0.5f, 0.5f);
         panel.sizeDelta = new Vector2(PanelWidth, 400f);
-        panel.gameObject.AddComponent<Image>().color = PanelColor;
+        Style.StyleCard(panel.gameObject.AddComponent<Image>());
 
-        title = NewText("Title", panel, "PLAYERS", 34f, AccentColor, TextAlignmentOptions.MidlineLeft);
+        title = NewText("Title", panel, "PLAYERS", 34f, Style.title, TextAlignmentOptions.MidlineLeft);
+        Style.StyleText(title, Style.title, true);
         Place(title.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(32f, -66f), new Vector2(-32f, -18f));
         infoText = NewText("Info", panel, string.Empty, 22f, TextColor, TextAlignmentOptions.MidlineLeft);
         Place(infoText.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(32f, -100f), new Vector2(-32f, -68f));
@@ -387,13 +418,13 @@ public sealed class PlayerListHUD : MonoBehaviour
         lobbyBar = bar.gameObject;
         statusText = NewText("Status", bar, string.Empty, 22f, TextColor, TextAlignmentOptions.MidlineLeft);
         Place(statusText.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(560f, 0f));
-        readyButton = NewButton("Ready Button", bar, "Ready", AccentColor, Color.black, out readyLabel);
+        readyButton = NewButton("Ready Button", bar, "Ready", CodeScreenStyle.ButtonKind.Primary, out readyLabel);
         Place((RectTransform)readyButton.transform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(620f, 4f), new Vector2(840f, -4f));
         readyButton.onClick.AddListener(OnReady);
-        startButton = NewButton("Start Button", bar, "Start", AccentColor, Color.black, out _);
+        startButton = NewButton("Start Button", bar, "Start", CodeScreenStyle.ButtonKind.Primary, out _);
         Place((RectTransform)startButton.transform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(620f, 4f), new Vector2(840f, -4f));
         startButton.onClick.AddListener(OnStart);
-        leaveButton = NewButton("Leave Button", bar, "Leave", ButtonColor, TextColor, out _);
+        leaveButton = NewButton("Leave Button", bar, "Leave", CodeScreenStyle.ButtonKind.Normal, out _);
         Place((RectTransform)leaveButton.transform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(866f, 4f), new Vector2(1086f, -4f));
         leaveButton.onClick.AddListener(OnLeave);
 
@@ -415,7 +446,7 @@ public sealed class PlayerListHUD : MonoBehaviour
         entryText = NewText("Entry Time", entryRow, string.Empty, 22f, TextColor, TextAlignmentOptions.MidlineLeft);
         entryText.richText = true;
         Place(entryText.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0f), new Vector2(600f, 0f));
-        entryButton = NewButton("Entry Time Button", entryRow, "Choose time...", ButtonColor, TextColor, out _);
+        entryButton = NewButton("Entry Time Button", entryRow, "Choose time...", CodeScreenStyle.ButtonKind.Normal, out _);
         Place((RectTransform)entryButton.transform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(620f, 4f), new Vector2(840f, -4f));
         entryButton.onClick.AddListener(OnEntryTime);
 
@@ -424,10 +455,10 @@ public sealed class PlayerListHUD : MonoBehaviour
         int choices = RoomConfig.EntryChoices.Length;
         const float choiceHeight = 44f;
         Place(entryList, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(620f, 0f), new Vector2(840f, choices * choiceHeight + 8f));
-        entryList.gameObject.AddComponent<Image>().color = PanelColor;
+        Style.StyleCard(entryList.gameObject.AddComponent<Image>());
         for (int i = 0; i < choices; i++)
         {
-            Button choice = NewButton("Time " + (i + 1), entryList, RoomConfig.EntryLabel(RoomConfig.EntryChoices[i]), ButtonColor, TextColor, out TMP_Text label);
+            Button choice = NewButton("Time " + (i + 1), entryList, RoomConfig.EntryLabel(RoomConfig.EntryChoices[i]), CodeScreenStyle.ButtonKind.Normal, out TMP_Text label);
             float top = -4f - i * choiceHeight;
             Place((RectTransform)choice.transform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(4f, top - choiceHeight + 4f), new Vector2(-4f, top));
             int captured = i;
@@ -457,7 +488,7 @@ public sealed class PlayerListHUD : MonoBehaviour
         float top = RowsTop - index * RowStep;
         Place(rt, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(32f, top - RowHeight), new Vector2(-32f, top));
         row.background = rt.gameObject.AddComponent<Image>();
-        row.background.color = RowColor;
+        CodeScreenStyle.PaintImage(row.background, RowColor, Style.rowSprite);
         row.root = rt.gameObject;
 
         row.name = NewText("Name", rt, string.Empty, 26f, TextColor, TextAlignmentOptions.MidlineLeft);
@@ -477,7 +508,7 @@ public sealed class PlayerListHUD : MonoBehaviour
         row.volumeText = NewText("Volume", rt, string.Empty, 22f, TextColor, TextAlignmentOptions.MidlineRight);
         Place(row.volumeText.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(884f, 0f), new Vector2(980f, 0f));
 
-        row.kick = NewButton("Kick Button", rt, "Kick", KickColor, new Color(1f, 0.92f, 0.88f), out row.kickLabel);
+        row.kick = NewButton("Kick Button", rt, "Kick", CodeScreenStyle.ButtonKind.Danger, out row.kickLabel);
         Place((RectTransform)row.kick.transform, new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(996f, 10f), new Vector2(1104f, -10f));
         row.kick.onClick.AddListener(() => OnKick(captured));
         row.kick.gameObject.SetActive(false);
@@ -486,16 +517,16 @@ public sealed class PlayerListHUD : MonoBehaviour
         return row;
     }
 
-    private static Button NewButton(string name, Transform parent, string text, Color color, Color textColor, out TMP_Text label)
+    private static Button NewButton(string name, Transform parent, string text, CodeScreenStyle.ButtonKind kind, out TMP_Text label)
     {
         RectTransform rt = NewRect(name, parent);
         Image image = rt.gameObject.AddComponent<Image>();
-        image.color = color;
         Button button = rt.gameObject.AddComponent<Button>();
         button.targetGraphic = image;
-        label = NewText("Label", rt, text, 22f, textColor, TextAlignmentOptions.Center);
+        label = NewText("Label", rt, text, 22f, TextColor, TextAlignmentOptions.Center);
         label.fontStyle = FontStyles.Bold;
         Place(label.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Style.StyleButton(button, label, kind); // 24 Nov: colours, picture, hover words from the style
         return button;
     }
 
@@ -515,9 +546,9 @@ public sealed class PlayerListHUD : MonoBehaviour
         {
             switch (image.gameObject.name)
             {
-                case "Background": image.color = new Color32(0x1A, 0x14, 0x12, 0xFF); break;
-                case "Fill": image.color = AccentColor; break;
-                case "Handle": image.color = TextColor; break;
+                case "Background": image.color = Style.sliderBack; break;
+                case "Fill": image.color = Style.sliderFill; break;
+                case "Handle": image.color = Style.sliderHandle; break;
             }
         }
         return slider;
@@ -537,7 +568,7 @@ public sealed class PlayerListHUD : MonoBehaviour
         if (TMP_Settings.defaultFontAsset != null) tmp.font = TMP_Settings.defaultFontAsset;
         tmp.text = text;
         tmp.fontSize = size;
-        tmp.color = color;
+        Style.StyleText(tmp, color); // 24 Nov: font + colour from Player List Style
         tmp.alignment = align;
         tmp.raycastTarget = false;
         tmp.richText = false;
