@@ -4931,6 +4931,12 @@ MonoBehaviour:
   scanlinePeriod: 4
   grainSize: 2
   grainFps: 24
+  flickerTarget: {fileID: 1623227533}
+  jitterTargets:
+  - {fileID: 1667668101}
+  - {fileID: 508646535}
+  - {fileID: 986496494}
+  - {fileID: 263327546}
 --- !u!114 &337746120
 MonoBehaviour:
   m_ObjectHideFlags: 0

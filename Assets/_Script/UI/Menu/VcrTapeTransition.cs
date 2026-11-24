@@ -136,7 +136,8 @@ public class VcrTapeTransition : MonoBehaviour
         movedPage = from.transform as RectTransform;
         if (movedPage != null)
         {
-            movedPagePos = movedPage.anchoredPosition;
+            // a background glitch frame may have pushed the page sideways right now
+            movedPagePos = movedPage.anchoredPosition - VcrBackground.PageJitter;
             movedPageScale = movedPage.localScale;
         }
 
