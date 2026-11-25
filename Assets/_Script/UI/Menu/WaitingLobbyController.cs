@@ -16,6 +16,9 @@ using UnityEngine.UI;
 /// It reads live state straight from RoHRoomManager every frame (at most six
 /// seats), instead of listening to events. Mirror spawns and removes room
 /// players in several code paths, and polling six objects can never miss one.
+///
+/// 25 Nov 2026: VCR look like the other Lobby screens (Shop / Storage / Tab list):
+/// colours and font from Resources/UI/Styles/Player List Style, applied on Play.
 /// </summary>
 [DisallowMultipleComponent]
 public class WaitingLobbyController : MonoBehaviour
@@ -63,13 +66,25 @@ public class WaitingLobbyController : MonoBehaviour
     private int armedKickRow = -1;
     private float armedKickUntil;
 
+    // ---- VCR look (25 Nov 2026) -----------------------------------------------------
+    // Same look as the Tab player list: colours and font come from
+    // Assets/Resources/UI/Styles/Player List Style (edit it in the Inspector, both screens change).
+    // Applied when the game starts (Play), so the Scene view still shows the old colours.
+    // No asset = the scene's own look, exactly like before.
+    private const string VcrStyleName = "Player List Style";
+    private CodeScreenStyle vcr;
+
     private void Awake()
     {
+        if (Resources.Load<CodeScreenStyle>(CodeScreenStyle.Folder + VcrStyleName) != null)
+            vcr = CodeScreenStyle.Load(VcrStyleName, null);
+
         rowTemplate.gameObject.SetActive(false);
         for (int i = 0; i < RoomConfig.MaxPlayers; i++)
         {
             LobbyPlayerRow row = Instantiate(rowTemplate, playerListContent);
             row.gameObject.SetActive(false);
+            row.SetSeatNumber(i + 1);
             rows.Add(row);
             AddKickButton(row, i);
         }
@@ -77,6 +92,160 @@ public class WaitingLobbyController : MonoBehaviour
         readyButton.onClick.AddListener(ToggleReady);
         startButton.onClick.AddListener(StartMatch);
         leaveButton.onClick.AddListener(Leave);
+
+        if (vcr != null) ApplyVcrLook();
+    }
+
+    /// <summary>Turns the scene's brown panel into the blue VCR screen (see the mockup, 25 Nov).</summary>
+    private void ApplyVcrLook()
+    {
+        CodeScreenStyle s = vcr;
+
+        // Card: blue, square, white frame, room at the top for the PLAY / timecode corners.
+        RectTransform card = titleText.transform.parent as RectTransform;
+        Image cardImage = card != null ? card.GetComponent<Image>() : null;
+        if (cardImage != null)
+        {
+            card.sizeDelta = new Vector2(1100f, 900f);
+            VerticalLayoutGroup layout = card.GetComponent<VerticalLayoutGroup>();
+            if (layout != null) layout.padding = new RectOffset(48, 48, 100, 40);
+
+            cardImage.sprite = s.panelSprite; // the old one was rounded
+            s.StyleCard(cardImage);
+            Transform frame = card.childCount > 0 ? card.GetChild(0) : null;
+            if (frame != null && frame.name == "Frame") IgnoreLayout(frame); // the card is a layout group
+
+            // VCR corners: "PLAY ▶" left, tape counter right.
+            TMP_Text play = NewVcrText(card, "VCR Play", "PLAY", 34f, s.text, new Vector2(0f, 1f), new Vector2(40f, -30f), TextAlignmentOptions.TopLeft);
+            float playWidth = play.GetPreferredValues("PLAY").x;
+            NewVcrImage(card, "VCR Play Triangle", Triangle(), s.text, new Vector2(0f, 1f),
+                        new Vector2(40f + playWidth + 18f, -34f), new Vector2(26f, 26f));
+
+            TMP_Text counter = NewVcrText(card, "VCR Timecode", "0:00:00", 34f, s.text, new Vector2(1f, 1f), new Vector2(-40f, -30f), TextAlignmentOptions.TopRight);
+            counter.gameObject.AddComponent<VcrTimecode>(); // counts up from when the scene opened
+            NewVcrText(card, "VCR Speed", "SP", 24f, s.muted, new Vector2(1f, 1f), new Vector2(-40f, -72f), TextAlignmentOptions.TopRight);
+
+            // Dashed line under the room info.
+            var line = new GameObject("VCR Divider", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            line.transform.SetParent(card, false);
+            line.transform.SetSiblingIndex(infoText.transform.GetSiblingIndex() + 1);
+            LayoutElement lineLayout = line.GetComponent<LayoutElement>();
+            lineLayout.minHeight = lineLayout.preferredHeight = 2f;
+            Image lineImage = line.GetComponent<Image>();
+            lineImage.sprite = Dash();
+            lineImage.type = Image.Type.Tiled;
+            lineImage.color = s.faint;
+            lineImage.raycastTarget = false;
+        }
+
+        // Words.
+        s.StyleText(titleText, s.title, true);
+        s.StyleText(infoText, s.muted);
+        s.StyleText(statusText, s.text);
+
+        // Seats.
+        Sprite marker = Triangle();
+        foreach (LobbyPlayerRow row in rows) row.ApplyStyle(s, marker);
+
+        // Buttons: only words + thin frame, white bar with blue words under the mouse.
+        StyleVcrButton(leaveButton, null, CodeScreenStyle.ButtonKind.Normal);
+        StyleVcrButton(readyButton, readyButtonText, CodeScreenStyle.ButtonKind.Primary);
+        StyleVcrButton(startButton, null, CodeScreenStyle.ButtonKind.Primary);
+        for (int i = 0; i < kickButtons.Count; i++)
+            StyleVcrButton(kickButtons[i], kickLabels[i], CodeScreenStyle.ButtonKind.Danger);
+    }
+
+    private void StyleVcrButton(Button button, TMP_Text label, CodeScreenStyle.ButtonKind kind)
+    {
+        if (button == null) return;
+        if (label == null) label = button.GetComponentInChildren<TMP_Text>(true);
+        if (button.targetGraphic is Image image) image.sprite = vcr.buttonSprite; // the old one was rounded
+        vcr.StyleButton(button, label, kind);
+    }
+
+    private static void IgnoreLayout(Transform t)
+    {
+        LayoutElement layout = t.GetComponent<LayoutElement>();
+        if (layout == null) layout = t.gameObject.AddComponent<LayoutElement>();
+        layout.ignoreLayout = true;
+        var rt = (RectTransform)t;
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+    }
+
+    /// <summary>A text pinned to a corner of the card (not part of its layout).</summary>
+    private TMP_Text NewVcrText(Transform parent, string name, string words, float size, Color colour,
+                                Vector2 corner, Vector2 position, TextAlignmentOptions align)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+        go.transform.SetParent(parent, false);
+        go.GetComponent<LayoutElement>().ignoreLayout = true;
+        var rt = (RectTransform)go.transform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = corner;
+        rt.anchoredPosition = position;
+        rt.sizeDelta = new Vector2(320f, 44f);
+        var text = go.GetComponent<TextMeshProUGUI>();
+        text.text = words;
+        text.fontSize = size;
+        text.alignment = align;
+        text.raycastTarget = false;
+        vcr.StyleText(text, colour);
+        return text;
+    }
+
+    private static Image NewVcrImage(Transform parent, string name, Sprite sprite, Color colour,
+                                     Vector2 corner, Vector2 position, Vector2 size)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+        go.transform.SetParent(parent, false);
+        go.GetComponent<LayoutElement>().ignoreLayout = true;
+        var rt = (RectTransform)go.transform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = corner;
+        rt.anchoredPosition = position;
+        rt.sizeDelta = size;
+        Image image = go.GetComponent<Image>();
+        image.sprite = sprite;
+        image.color = colour;
+        image.raycastTarget = false;
+        return image;
+    }
+
+    // Small pixel pictures made in code (no new asset files): the ▶ and the dashed line.
+    private static Sprite triangleSprite, dashSprite;
+
+    private static Sprite Triangle()
+    {
+        if (triangleSprite != null) return triangleSprite;
+        const int n = 16;
+        var tex = new Texture2D(n, n, TextureFormat.RGBA32, false)
+        { name = "VCR Triangle (code)", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        var px = new Color32[n * n];
+        for (int y = 0; y < n; y++)
+        {
+            float width = (n * 0.5f - Mathf.Abs(y + 0.5f - n * 0.5f)) * 1.75f; // pointing right
+            for (int x = 0; x < n; x++)
+                px[y * n + x] = x + 0.5f <= width ? new Color32(255, 255, 255, 255) : new Color32(255, 255, 255, 0);
+        }
+        tex.SetPixels32(px);
+        tex.Apply();
+        triangleSprite = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f);
+        return triangleSprite;
+    }
+
+    private static Sprite Dash()
+    {
+        if (dashSprite != null) return dashSprite;
+        const int w = 24, h = 2; // 12 on, 12 off
+        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+        { name = "VCR Dash (code)", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+        var px = new Color32[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                px[y * w + x] = x < w / 2 ? new Color32(255, 255, 255, 255) : new Color32(255, 255, 255, 0);
+        tex.SetPixels32(px);
+        tex.Apply();
+        dashSprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f);
+        return dashSprite;
     }
 
     private void Start()
@@ -187,6 +356,12 @@ public class WaitingLobbyController : MonoBehaviour
         text.alignment = TextAlignmentOptions.Center;
         text.color = new Color(1f, 0.96f, 0.86f, 1f);
         text.raycastTarget = false;
+        if (vcr != null) // 25 Nov: VCR look (blue strip, white frame, VCR font)
+        {
+            stripImage.sprite = vcr.panelSprite;
+            vcr.StyleCard(stripImage);
+            vcr.StyleText(text, vcr.text);
+        }
         hintRoot.SetActive(false);
     }
 

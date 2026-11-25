@@ -107,6 +107,7 @@ public sealed class PlayerListHUD : MonoBehaviour
     private int armedKickRow = -1;
     private float armedKickUntil;
     private bool starting;
+    private UiMonitorLift lift;      // 25 Nov: "lift the monitor up" animation (Monitor Frame style)
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Create()
@@ -128,10 +129,14 @@ public sealed class PlayerListHUD : MonoBehaviour
         // Close: same key again, Esc, or something more important took the screen.
         bool esc = UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame;
         bool walking = PlayerHealth.LocalInstance != null || SpectatorSession.Active;
-        if (esc || Keybinds.WasPressed(GameAction.PlayerList) || PauseMenuController.IsOpen || MatchResultsUI.IsShowing
+        bool byPlayer = esc || Keybinds.WasPressed(GameAction.PlayerList);
+        if (byPlayer || PauseMenuController.IsOpen || MatchResultsUI.IsShowing
             || !NetworkClient.active || !walking)
         {
-            SetOpen(false);
+            // 25 Nov: only a close the player asked for (Tab / Esc) plays the monitor animation. Match start,
+            // leaving, death, the Esc menu or results taking the screen: shut at once (no animation stuck on
+            // screen across the scene change).
+            SetOpen(false, !byPlayer || starting);
             return;
         }
 
@@ -146,13 +151,26 @@ public sealed class PlayerListHUD : MonoBehaviour
         return PlayerHealth.LocalInstance != null || SpectatorSession.Active;
     }
 
-    private void SetOpen(bool value)
+    private void SetOpen(bool value, bool instant = false)
     {
         if (open == value) return;
         open = value;
         if (canvas == null) Build();
-        canvas.enabled = value;
-        if (entryCanvas != null) entryCanvas.enabled = value && InLobby;
+        // 25 Nov: the monitor rises / is lowered (UiMonitorLift). The canvas stays on until it is down;
+        // the entry time row (its own canvas) shows once the panel is in place.
+        if (entryCanvas != null) entryCanvas.enabled = false;
+        if (value)
+        {
+            canvas.enabled = true;
+            if (lift != null) lift.PlayOpen(() => { if (open && entryCanvas != null) entryCanvas.enabled = InLobby; });
+            else if (entryCanvas != null) entryCanvas.enabled = InLobby;
+        }
+        else if (lift != null && !instant) lift.PlayClose(() => { if (!open) canvas.enabled = false; });
+        else
+        {
+            if (lift != null) lift.Stop();
+            canvas.enabled = false;
+        }
         if (entryList != null && !value) entryList.gameObject.SetActive(false);
 
         if (value)
@@ -174,7 +192,7 @@ public sealed class PlayerListHUD : MonoBehaviour
 
     private void OnDisable()
     {
-        if (open) SetOpen(false);
+        if (open) SetOpen(false, true);
     }
 
     // ---- Content ---------------------------------------------------------------------
@@ -297,7 +315,7 @@ public sealed class PlayerListHUD : MonoBehaviour
         // 17 Nov: the entry time screen sits on the empty line above Ready / Start / Leave.
         if (entryCanvas != null)
         {
-            entryCanvas.enabled = open && lobby;
+            entryCanvas.enabled = open && lobby && (lift == null || !lift.Busy); // 25 Nov: not while rising
             entryRow.anchoredPosition = new Vector2(0f, -height * 0.5f + 154f);
         }
     }
@@ -369,7 +387,7 @@ public sealed class PlayerListHUD : MonoBehaviour
     private void OnLeave()
     {
         leaveButton.interactable = false;
-        SetOpen(false);
+        SetOpen(false, true); // 25 Nov: leaving the room: no animation
         if (Room != null) Room.LeaveSession();
     }
 
@@ -472,6 +490,7 @@ public sealed class PlayerListHUD : MonoBehaviour
         hintText = NewText("Hint", panel, string.Empty, 18f, MutedColor, TextAlignmentOptions.Center);
         Place(hintText.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(24f, 12f), new Vector2(-24f, 44f));
 
+        lift = UiMonitorLift.On(panel, "Player List"); // 25 Nov: open / close animation + monitor frame
         canvas.enabled = false;
     }
 

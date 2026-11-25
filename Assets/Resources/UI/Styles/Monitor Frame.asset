@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9a59492a18849d690191e0518ccb2c1, type: 3}
+  m_Name: Monitor Frame
+  m_EditorClassIdentifier: 
+  frame: {fileID: 0}
+  frameColor: {r: 1, g: 1, b: 1, a: 1}
+  framePadding:
+    left: 40
+    right: 40
+    top: 40
+    bottom: 70
+  screens: []
+  glass: {r: 0.02, g: 0.025, b: 0.05, a: 1}
+  noise: {fileID: 2800000, guid: 721f7c03982dda642a7302a34b8441af, type: 3}
+  noiseStrength: 0.55
+  grainSize: 3
+  animate: 1
+  liftSeconds: 0.32
+  liftDistance: 1100
+  startHeight: 0.82
+  startWidth: 0.94
+  startTilt: -4
+  bootSeconds: 0.24
+  offSeconds: 0.09
+  lowerSeconds: 0.26
+  fadeDim: 1

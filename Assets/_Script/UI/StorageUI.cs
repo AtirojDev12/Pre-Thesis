@@ -62,6 +62,7 @@ public sealed class StorageUI : MonoBehaviour
         instance.inventory = PlayerInventory.Local;
         instance.inventory.Changed += instance.MarkDirty;
         instance.Build();
+        instance.StartMonitor(); // 25 Nov
         OverlayPanels.Opened();
         PersistentHUD.PushHidden();
         OverlayPanels.SetMouseForUi(true);
@@ -69,7 +70,25 @@ public sealed class StorageUI : MonoBehaviour
 
     public static void Close()
     {
-        if (instance != null) Destroy(instance.gameObject);
+        if (instance == null || instance.closing) return;
+        // 25 Nov: the monitor switches off and is lowered first (UiMonitorLift), then the screen goes.
+        instance.closing = true;
+        GameObject go = instance.gameObject;
+        if (instance.lift != null) instance.lift.PlayClose(() => { if (go != null) Destroy(go); });
+        else Destroy(go);
+    }
+
+    // ---- 25 Nov: "lift the monitor up" open / close animation + monitor frame -----------------
+    // Settings and the frame drawing: Assets/Resources/UI/Styles/Monitor Frame (MonitorFrameStyle).
+    private UiMonitorLift lift;
+    private bool closing;
+
+    private void StartMonitor()
+    {
+        var card = transform.Find("Card") as RectTransform;
+        Transform dim = transform.Find("Dim");
+        lift = UiMonitorLift.On(card, "Storage", dim != null ? dim.GetComponent<Graphic>() : null);
+        if (lift != null) lift.PlayOpen();
     }
 
     private void OnDestroy()
