@@ -18849,6 +18849,7 @@ MonoBehaviour:
   localColor: {r: 0.85, g: 0.64, b: 0.25, a: 0.18}
   readyTextColor: {r: 0.45, g: 0.85, b: 0.5, a: 1}
   waitingTextColor: {r: 0.75, g: 0.75, b: 0.75, a: 1}
+  hostTextColor: {r: 0.45, g: 0.85, b: 0.5, a: 1}
 --- !u!114 &1788920484
 MonoBehaviour:
   m_ObjectHideFlags: 0

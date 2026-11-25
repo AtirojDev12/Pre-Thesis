@@ -284,7 +284,10 @@ public sealed partial class UiLayoutRuntime
     private static void UpdateDesign(LiveScreen s)
     {
         DesignState d = s.design;
-        if (d == null || d.wrapper == null || s.canvas == null) return;
+        if (d == null || d.wrapper == null) return;
+        // 25 Nov: the game's screen was destroyed (Shop / Storage close): hide its copy now, not at the
+        // next scan (up to 0.5 s later, it stayed on screen after the screen was closed).
+        if (s.canvas == null) { if (d.visible) { d.wrapper.SetActive(false); d.visible = false; } return; }
 
         bool visible = s.root.gameObject.activeInHierarchy && s.canvas.enabled;
         if (visible != d.visible) { d.wrapper.SetActive(visible); d.visible = visible; }
