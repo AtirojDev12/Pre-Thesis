@@ -57,8 +57,11 @@ public static class UiScreenCatalog
 
         // ---- Match panels
         E(MatchPanels, "Player List HUD", "Player list / lobby menu", "Press Tab in the lobby or the match.", "Assets/_Script/UI/PlayerListHUD.cs"),
-        E(MatchPanels, "Worksheet Book", "Work sheet memo book", "Match: take a work sheet from the Staff, then open it.", "Assets/_Script/UI/WorksheetReader.cs",
-            "Assets/Resources/Items/WorldWorksheet.prefab", "Assets/Resources/MapGuides/demo_map_01.asset"),
+        // 25 Nov: the Memo Book is a real prefab now (MemoBookView); the pages inside it are still made by code.
+        new Entry { category = MatchPanels, screen = "Worksheet Book", label = "Work sheet memo book", how = "Match: take a work sheet from the Staff, then open it.",
+            prefab = "Assets/Resources/UI/Memo Book.prefab", script = "Assets/_Script/UI/WorksheetReader.cs",
+            related = new[] { "Assets/Resources/Tuning/MemoBookLook.asset", "Assets/Resources/Tuning/MemoGuideTexts.asset",
+                "Assets/Resources/Items/WorldWorksheet.prefab", "Assets/Resources/MapGuides/demo_map_01.asset" } },
         E(MatchPanels, "Match Results", "Results screen", "End of a round (F1 > Open the exit now, then escape or wait).", "Assets/_Script/UI/MatchResultsUI.cs"),
         E(MatchPanels, "Paper Reader", "Paper note reader", "Read a paper note (the pages are on the paper object in the scene).", "Assets/_Script/Interactive/ReadablePaper.cs"),
 

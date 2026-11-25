@@ -11,13 +11,16 @@ using UnityEngine.UI;
 ///
 ///   Work sheet selected in the hotbar + PRESS the read key once (Settings > Controls
 ///   "Read map / open work sheet", default Left Click) = the book opens. No holding.
-///   LEFT page  = map, difficulty, players, tonight's goal, and the TOPIC list.
-///   RIGHT page = the picked topic: Your goal / How to win / one page per zone / Staff tips.
-///   Click a topic (or Up / Down, W / S). Mouse wheel scrolls a long page.
-///   Close: Esc, Right Click, or the X button. The player stands still while it is open.
+///   25 Nov: ONE page of pixel-art paper. The pages are picked with the POST-ITS on the
+///   right edge: Your goal / How to win / one page per zone / Staff tips.
+///   Click a post-it (or Up / Down, W / S, or the arrows at the bottom). Mouse wheel scrolls a long page.
+///   Close: Esc, Right Click, or the X post-it. The player stands still while it is open.
+///   From 00:00 your own Memo Book shows only the live page: bloody paper, no post-its, no arrows.
+///   The book itself is a PREFAB the team can edit: Resources/UI/Memo Book (MemoBookView,
+///   Tools > Pre-Thesis > Designer Settings > Memo Book Prefab). Colours: Resources/Tuning/MemoBookLook.
 ///
-/// Pictures: each zone (and the goal page) can show a picture set in the map's MapGuide
-/// asset (Resources/MapGuides/&lt;mapID&gt;). Empty = a drawn colour card.
+/// Pictures on the pages: each zone (and the goal page) can show a picture set in the map's
+/// MapGuide asset (Resources/MapGuides/&lt;mapID&gt;). Empty = a drawn colour card.
 ///
 /// LIVE and LIGHT: the numbers (map, difficulty, players, zone goal) are checked twice a
 /// second only while the book is open, and the pages are rebuilt only when one changed.
@@ -35,14 +38,10 @@ public sealed class WorksheetReader : MonoBehaviour
     private static WorksheetReader instance;
 
     // ---- Look ----
-    private static readonly Color Ink = new Color(0.13f, 0.11f, 0.10f);
+    private static Color Ink => MemoBookLook.Current.ink;
     private static readonly Color Muted = new Color(0.42f, 0.38f, 0.34f);
-    private static readonly Color PaperRight = new Color(0.98f, 0.96f, 0.89f);
-    private static readonly Color PaperLeft = new Color(0.95f, 0.92f, 0.84f);
-    private static readonly Color CoverColor = new Color(0.42f, 0.08f, 0.09f);
     private static readonly Color Danger = new Color(0.68f, 0.07f, 0.07f);
     private static readonly Color Highlight = new Color(1f, 0.84f, 0.48f);
-    private static readonly Color TopicIdle = new Color(1f, 1f, 1f, 0.35f);
     private static readonly Color CardBg = new Color(1f, 1f, 1f, 0.62f);
     private static readonly Color GoalColor = new Color(0.82f, 0.42f, 0.04f);
     private static readonly Color WinColor = new Color(0.13f, 0.52f, 0.24f);
@@ -69,13 +68,20 @@ public sealed class WorksheetReader : MonoBehaviour
 
     // ---- UI ----
     private GameObject canvasRoot;
-    private RectTransform topicList, pageContent;
+    private MemoBookView view;
+    private RectTransform pageContent, viewport;
     private ScrollRect pageScroll;
-    private TextMeshProUGUI subText, goalText, pageNumber;
-    private Sprite rounded, circle;
+    private Sprite rounded;
     private readonly List<Topic> topics = new List<Topic>();
-    private readonly List<Image> topicBgs = new List<Image>();
-    private readonly List<TextMeshProUGUI> topicLabels = new List<TextMeshProUGUI>();
+    // 25 Nov: the post-its of the prefab (their place and colour as saved), and the ones in use now.
+    private readonly List<Vector2> postItHome = new List<Vector2>();
+    private readonly List<Color> postItColor = new List<Color>();
+    private readonly List<string> postItWords = new List<string>(); // the words written on each post-it in the prefab
+    private readonly List<Image> tabs = new List<Image>();
+    private readonly List<Vector2> tabHome = new List<Vector2>();
+    private readonly List<Color> tabColors = new List<Color>();
+    private readonly List<GameObject> extraTabs = new List<GameObject>();
+    private Vector2 viewAnchorMin, viewAnchorMax, viewPivot, viewPosition, viewSize;
     private int current;
 
     // ---- Live data ----
@@ -127,8 +133,10 @@ public sealed class WorksheetReader : MonoBehaviour
             if (close) { Close(); return; }
             if (keyboard != null)
             {
-                if (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame) Select(current - 1);
-                else if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame) Select(current + 1);
+                if (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame ||
+                    keyboard.leftArrowKey.wasPressedThisFrame) Select(current - 1);
+                else if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame ||
+                         keyboard.rightArrowKey.wasPressedThisFrame) Select(current + 1);
             }
             if (Time.unscaledTime >= nextRefresh)
             {
@@ -137,8 +145,7 @@ public sealed class WorksheetReader : MonoBehaviour
                 if (RefreshData() || nowLive != live) { live = nowLive; Rebuild(); }
                 else if (live)
                 {
-                    // Zones done X / Y can change; the step can change.
-                    UpdateLiveHeader();
+                    // The step can change.
                     MemoGuide.LocalStep(out string key, out _, out _);
                     if (key != liveKey) ShowPage(current);
                 }
@@ -254,24 +261,48 @@ public sealed class WorksheetReader : MonoBehaviour
                 topics.Add(new Topic { kind = Kind.Tips, badge = "i", label = "Staff tips", detail = "", color = TipsColor });
         }
 
-        subText.text = (guide != null ? guide.mapName : mapId) + "  ·  night shift\n" +
-                       "Players: <b>" + players + "</b>"; // 23 Nov: no difficulty levels any more
-        goalText.text = guide == null ? "<size=60%>No guide for this map yet.</size>"
-            : "<size=55%><color=#5A4A2A>TONIGHT'S GOAL</color></size>\nFinish <color=#A00000>" + required + (required == 1 ? " zone" : " zones") + "</color>";
-        if (live) UpdateLiveHeader();
-
-        // Topic buttons.
-        for (int i = topicList.childCount - 1; i >= 0; i--)
+        // 25 Nov: the live page has bloody paper, no post-its and no arrows (only the X post-it).
+        MemoBookLook look = MemoBookLook.Current;
+        // 25 Nov: each page takes the colour of its post-it.
+        if (!live && look.pageColors != null && look.pageColors.Length > 0)
+            for (int i = 0; i < topics.Count; i++)
+            {
+                Topic t = topics[i];
+                t.color = look.pageColors[i % look.pageColors.Length];
+                topics[i] = t;
+            }
+        if (view.livePaper != null)
         {
-            GameObject old = topicList.GetChild(i).gameObject;
-            old.SetActive(false);
-            Destroy(old);
+            view.livePaper.gameObject.SetActive(live);
+            if (view.paper != null) view.paper.gameObject.SetActive(!live);
         }
-        topicBgs.Clear();
-        topicLabels.Clear();
-        const float listHeight = 452f, spacing = 6f;
-        float itemHeight = topics.Count > 0 ? Mathf.Clamp((listHeight - spacing * (topics.Count - 1)) / topics.Count, 38f, 60f) : 60f;
-        for (int i = 0; i < topics.Count; i++) MakeTopicButton(i, itemHeight);
+        if (view.previous != null) view.previous.gameObject.SetActive(!live);
+        if (view.next != null) view.next.gameObject.SetActive(!live);
+        if (view.pageNumber != null) view.pageNumber.gameObject.SetActive(!live);
+        if (live && view.liveTextArea != null) CopyRect(view.liveTextArea, viewport);
+        else
+        {
+            viewport.anchorMin = viewAnchorMin;
+            viewport.anchorMax = viewAnchorMax;
+            viewport.pivot = viewPivot;
+            viewport.anchoredPosition = viewPosition;
+            viewport.sizeDelta = viewSize;
+        }
+
+        // Post-its: one per page; none on the live page.
+        foreach (GameObject extra in extraTabs)
+        {
+            if (extra == null) continue;
+            extra.SetActive(false);
+            Destroy(extra);
+        }
+        extraTabs.Clear();
+        tabs.Clear();
+        tabHome.Clear();
+        tabColors.Clear();
+        foreach (Image p in view.postIts) if (p != null) p.gameObject.SetActive(false);
+        if (!live)
+            for (int i = 0; i < topics.Count; i++) UseTab(i);
 
         current = Mathf.Clamp(current, 0, Mathf.Max(0, topics.Count - 1));
         if (IsReading) ShowPage(current);
@@ -288,12 +319,16 @@ public sealed class WorksheetReader : MonoBehaviour
 
     private void ShowPage(int index)
     {
-        for (int i = 0; i < topicBgs.Count; i++)
+        // The open page's post-it sticks out; the others are a little darker.
+        MemoBookLook look = MemoBookLook.Current;
+        for (int i = 0; i < tabs.Count; i++)
         {
             bool on = i == index;
-            topicBgs[i].color = on ? Highlight : TopicIdle;
-            topicLabels[i].fontStyle = on ? FontStyles.Bold : FontStyles.Normal;
+            tabs[i].color = on ? tabColors[i] : tabColors[i] * look.idleTabTint;
+            tabs[i].rectTransform.anchoredPosition = tabHome[i] + (on ? new Vector2(look.selectedTabOut, 0f) : Vector2.zero);
         }
+        if (view.previous != null) view.previous.interactable = index > 0;
+        if (view.next != null) view.next.interactable = index < topics.Count - 1;
 
         for (int i = pageContent.childCount - 1; i >= 0; i--)
         {
@@ -301,7 +336,7 @@ public sealed class WorksheetReader : MonoBehaviour
             old.SetActive(false);
             Destroy(old);
         }
-        pageNumber.text = topics.Count > 0 ? (index + 1) + " / " + topics.Count : "";
+        if (view.pageNumber != null) view.pageNumber.text = topics.Count > 0 ? (index + 1) + " / " + topics.Count : "";
         if (live)
         {
             LivePage();
@@ -329,20 +364,9 @@ public sealed class WorksheetReader : MonoBehaviour
     }
 
     /// <summary>
-    /// 17 Nov (Task 8): left page of the live guide: the map, how many players STARTED, zones done X / Y.
-    /// Never: who is alive, where people are, exits, which zones are done, the time.
+    /// 17 Nov (Task 8): the live guide: ONE step, then the zone list (names + where).
+    /// 25 Nov: the old left page (map, players, zones done X / Y) is gone.
     /// </summary>
-    private void UpdateLiveHeader()
-    {
-        MatchDirector match = MatchDirector.Instance;
-        int done = match != null ? match.ZonesCompleted : 0;
-        int need = match != null ? match.ZonesRequired : required;
-        subText.text = (guide != null ? guide.mapName : mapId) + "  ·  <color=#A00000>LIVE</color>\n" +
-                       "Started with <b>" + players + "</b> " + (players == 1 ? "player" : "players");
-        goalText.text = "<size=55%><color=#5A4A2A>ZONES DONE</color></size>\n<color=#A00000>" + done + " / " + need + "</color>";
-    }
-
-    /// <summary>17 Nov (Task 8): right page of the live guide: ONE step, then the zone list (names + where).</summary>
     private void LivePage()
     {
         MemoGuideTexts t = MemoGuideTexts.Current;
@@ -392,7 +416,7 @@ public sealed class WorksheetReader : MonoBehaviour
             }
         }
 
-        Body(pageContent, "<i>Pick a zone on the left to see where it is, what to do there and its rules.</i>", 24f, Muted);
+        Body(pageContent, "<i>Pick a zone's post-it on the right to see where it is, what to do there and its rules.</i>", 24f, Muted);
     }
 
     private void WinPage(Color color)
@@ -579,248 +603,110 @@ public sealed class WorksheetReader : MonoBehaviour
     // Book (built once)
     // =====================================================================================
 
-    private void MakeTopicButton(int index, float height)
+    /// <summary>
+    /// 25 Nov: page i uses the prefab's post-it i. More pages than post-its: a copy of post-it
+    /// (i mod count), further down by the gap between the first two post-its.
+    /// </summary>
+    private void UseTab(int index)
     {
-        Topic t = topics[index];
-        Image bg = NewImage("Topic " + (index + 1), topicList, TopicIdle, rounded);
-        bg.raycastTarget = true;
-        bg.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
-        Button button = bg.gameObject.AddComponent<Button>();
-        ColorBlock colors = button.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = new Color(0.9f, 0.86f, 0.76f);
-        colors.pressedColor = new Color(0.8f, 0.74f, 0.62f);
-        colors.selectedColor = Color.white;
-        button.colors = colors;
-        button.targetGraphic = bg;
-        int captured = index;
-        button.onClick.AddListener(() => Select(captured));
+        int n = view.postIts.Count;
+        if (n == 0 || view.postIts[index % n] == null) return;
+        Image source = view.postIts[index % n];
+        Image tab = source;
+        Vector2 home = postItHome[index % n];
+        if (index >= n)
+        {
+            GameObject copy = Instantiate(source.gameObject, source.transform.parent, false);
+            copy.name = "Post-it " + (index + 1);
+            extraTabs.Add(copy);
+            tab = copy.GetComponent<Image>();
+            float step = n > 1 ? postItHome[0].y - postItHome[1].y : source.rectTransform.rect.height + 8f;
+            home.y -= step * n * (index / n);
+        }
+        tab.gameObject.SetActive(true);
 
-        float dot = Mathf.Min(42f, height - 12f);
-        Image badge = NewImage("Badge", bg.transform, t.color, circle);
-        RectTransform b = badge.rectTransform;
-        b.anchorMin = b.anchorMax = new Vector2(0f, 0.5f);
-        b.pivot = new Vector2(0f, 0.5f);
-        b.anchoredPosition = new Vector2(12f, 0f);
-        b.sizeDelta = new Vector2(dot, dot);
-        TextMeshProUGUI mark = NewText("Mark", badge.transform, t.badge, dot * 0.55f, Color.white, TextAlignmentOptions.Center);
-        mark.fontStyle = FontStyles.Bold;
-        Stretch(mark.rectTransform, 0f);
+        // 25 Nov: the words written on the post-it in the prefab stay. A copy (more pages than
+        // post-its) or an empty post-it gets the page's name.
+        TextMeshProUGUI mark = tab.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (mark != null)
+            mark.text = index < n && !string.IsNullOrWhiteSpace(postItWords[index]) ? postItWords[index] : topics[index].label;
+        Button button = tab.GetComponent<Button>();
+        if (button != null)
+        {
+            button.onClick.RemoveAllListeners();
+            int captured = index;
+            button.onClick.AddListener(() => Select(captured));
+        }
 
-        TextMeshProUGUI label = NewText("Label", bg.transform, t.label, height >= 54f ? 27f : 23f, Ink, TextAlignmentOptions.MidlineLeft);
-        RectTransform l = label.rectTransform;
-        l.anchorMin = Vector2.zero;
-        l.anchorMax = Vector2.one;
-        l.offsetMin = new Vector2(24f + dot, 0f);
-        l.offsetMax = new Vector2(-90f, 0f);
-        label.textWrappingMode = TextWrappingModes.NoWrap;
-        label.overflowMode = TextOverflowModes.Ellipsis;
-
-        TextMeshProUGUI detail = NewText("Detail", bg.transform, t.detail, 19f, Muted, TextAlignmentOptions.MidlineRight);
-        RectTransform d = detail.rectTransform;
-        d.anchorMin = Vector2.zero;
-        d.anchorMax = Vector2.one;
-        d.offsetMin = Vector2.zero;
-        d.offsetMax = new Vector2(-14f, 0f);
-
-        topicBgs.Add(bg);
-        topicLabels.Add(label);
+        tabs.Add(tab);
+        tabHome.Add(home);
+        tabColors.Add(postItColor[index % n]);
     }
 
+    /// <summary>25 Nov: the book comes from the prefab Resources/UI/Memo Book (made by code when it is missing).</summary>
     private void EnsureUi()
     {
         if (canvasRoot != null) return;
         rounded = MakeRoundedSprite(64, 18);
-        circle = MakeRoundedSprite(64, 32);
 
-        canvasRoot = new GameObject("Worksheet Book", typeof(RectTransform));
-        canvasRoot.transform.SetParent(transform, false);
-        Canvas canvas = canvasRoot.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 450;
-        CanvasScaler scaler = canvasRoot.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
-        canvasRoot.AddComponent<GraphicRaycaster>();
-
-        Image dim = NewImage("Dim", canvasRoot.transform, new Color(0f, 0f, 0f, 0.6f), null);
-        dim.raycastTarget = true;
-        Stretch(dim.rectTransform, 0f);
-
-        // Cover.
-        Image cover = NewImage("Cover", canvasRoot.transform, CoverColor, rounded);
-        RectTransform book = cover.rectTransform;
-        book.anchorMin = book.anchorMax = new Vector2(0.5f, 0.5f);
-        book.sizeDelta = new Vector2(1560f, 900f);
-        book.anchoredPosition = new Vector2(0f, 6f);
-
-        const float edge = 24f, leftWidth = 560f, gap = 56f;
-        float pageHeight = 900f - edge * 2f;
-
-        // ---- Left page ----
-        Image left = NewImage("Left Page", book, PaperLeft, rounded);
-        RectTransform lp = left.rectTransform;
-        lp.anchorMin = lp.anchorMax = lp.pivot = new Vector2(0f, 1f);
-        lp.anchoredPosition = new Vector2(edge, -edge);
-        lp.sizeDelta = new Vector2(leftWidth, pageHeight);
-
-        TextMeshProUGUI title = NewText("Title", lp, "<b>MEMO BOOK</b>", 46f, Ink, TextAlignmentOptions.TopLeft);
-        Place(title.rectTransform, 36f, 26f, -36f, 60f);
-        title.characterSpacing = 3f;
-        subText = NewText("Sub", lp, "", 23f, Muted, TextAlignmentOptions.TopLeft);
-        Place(subText.rectTransform, 36f, 86f, -36f, 66f);
-
-        Image goalCard = NewImage("Goal", lp, new Color(1f, 0.87f, 0.5f), rounded);
-        Place(goalCard.rectTransform, 30f, 160f, -30f, 112f);
-        goalText = NewText("Goal Text", goalCard.transform, "", 44f, Ink, TextAlignmentOptions.Center);
-        goalText.fontStyle = FontStyles.Bold;
-        Stretch(goalText.rectTransform, 6f);
-
-        TextMeshProUGUI topicsLabel = NewText("Topics Label", lp, "TOPICS", 20f, Muted, TextAlignmentOptions.TopLeft);
-        topicsLabel.fontStyle = FontStyles.Bold;
-        topicsLabel.characterSpacing = 6f;
-        Place(topicsLabel.rectTransform, 36f, 290f, -36f, 28f);
-
-        var list = new GameObject("Topics", typeof(RectTransform), typeof(VerticalLayoutGroup));
-        list.transform.SetParent(lp, false);
-        topicList = (RectTransform)list.transform;
-        Place(topicList, 24f, 324f, -24f, 452f);
-        VerticalLayoutGroup v = list.GetComponent<VerticalLayoutGroup>();
-        v.spacing = 6f;
-        v.childControlWidth = v.childControlHeight = true;
-        v.childForceExpandWidth = true;
-        v.childForceExpandHeight = false;
-        v.childAlignment = TextAnchor.UpperLeft;
-
-        TextMeshProUGUI help = NewText("Help", lp, "Click a topic   ·   Up / Down = next topic\nEsc or Right Click = close",
-            19f, Muted, TextAlignmentOptions.Bottom);
-        RectTransform hr = help.rectTransform;
-        hr.anchorMin = new Vector2(0f, 0f);
-        hr.anchorMax = new Vector2(1f, 0f);
-        hr.pivot = new Vector2(0.5f, 0f);
-        hr.anchoredPosition = new Vector2(0f, 16f);
-        hr.sizeDelta = new Vector2(-48f, 56f);
-
-        // ---- Spiral rings in the gap ----
-        float ringX = edge + leftWidth + gap * 0.5f;
-        for (int i = 0; i < 12; i++)
+        MemoBookView prefab = Resources.Load<MemoBookView>(MemoBookView.ResourcePath);
+        if (prefab != null) view = Instantiate(prefab, transform, false);
+        else
         {
-            float y = -edge - 40f - i * ((pageHeight - 80f) / 11f);
-            Image wire = NewImage("Ring " + (i + 1), book, new Color(0.72f, 0.72f, 0.74f), rounded);
-            RectTransform w = wire.rectTransform;
-            w.anchorMin = w.anchorMax = new Vector2(0f, 1f);
-            w.pivot = new Vector2(0.5f, 0.5f);
-            w.anchoredPosition = new Vector2(ringX, y);
-            w.sizeDelta = new Vector2(gap + 44f, 13f);
+            Debug.LogWarning("[WorksheetReader] No Memo Book prefab (" + MemoBookView.PrefabPath + "). Using the plain book. " +
+                             "Make it: Tools > Pre-Thesis > Designer Settings > Memo Book Prefab.");
+            view = MemoBookView.Build(null);
+            view.transform.SetParent(transform, false);
+        }
+        canvasRoot = view.gameObject;
+        canvasRoot.name = "Worksheet Book"; // the UI Hub knows the screen by this name
+
+        pageScroll = view.scroll;
+        pageContent = view.content;
+        viewport = pageScroll.viewport != null ? pageScroll.viewport : (RectTransform)pageScroll.transform;
+        viewAnchorMin = viewport.anchorMin;
+        viewAnchorMax = viewport.anchorMax;
+        viewPivot = viewport.pivot;
+        viewPosition = viewport.anchoredPosition;
+        viewSize = viewport.sizeDelta;
+
+        foreach (Image p in view.postIts)
+        {
+            postItHome.Add(p != null ? p.rectTransform.anchoredPosition : Vector2.zero);
+            postItColor.Add(p != null ? p.color : Color.white);
+            TextMeshProUGUI words = p != null ? p.GetComponentInChildren<TextMeshProUGUI>(true) : null;
+            postItWords.Add(words != null ? words.text : "");
         }
 
-        // ---- Right page (lined paper with a red margin) ----
-        Image right = NewImage("Right Page", book, PaperRight, rounded);
-        RectTransform rp = right.rectTransform;
-        rp.anchorMin = new Vector2(0f, 0f);
-        rp.anchorMax = new Vector2(1f, 1f);
-        rp.offsetMin = new Vector2(edge + leftWidth + gap, edge);
-        rp.offsetMax = new Vector2(-edge, -edge);
-        for (float y = 96f; y < pageHeight - 20f; y += 46f)
-        {
-            Image line = NewImage("Line", rp, new Color(0.25f, 0.42f, 0.8f, 0.10f), null);
-            RectTransform r = line.rectTransform;
-            r.anchorMin = new Vector2(0f, 1f);
-            r.anchorMax = new Vector2(1f, 1f);
-            r.pivot = new Vector2(0.5f, 1f);
-            r.anchoredPosition = new Vector2(0f, -y);
-            r.sizeDelta = new Vector2(0f, 2f);
-        }
-        Image margin = NewImage("Margin", rp, new Color(0.85f, 0.2f, 0.2f, 0.35f), null);
-        RectTransform m = margin.rectTransform;
-        m.anchorMin = new Vector2(0f, 0f);
-        m.anchorMax = new Vector2(0f, 1f);
-        m.pivot = new Vector2(0f, 0.5f);
-        m.anchoredPosition = new Vector2(70f, 0f);
-        m.sizeDelta = new Vector2(2f, 0f);
-
-        // Scrolling column.
-        var view = new GameObject("View", typeof(RectTransform), typeof(RectMask2D), typeof(Image));
-        view.transform.SetParent(rp, false);
-        view.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0f); // catches the mouse wheel
-        RectTransform viewport = (RectTransform)view.transform;
-        viewport.anchorMin = Vector2.zero;
-        viewport.anchorMax = Vector2.one;
-        viewport.offsetMin = new Vector2(96f, 76f);
-        viewport.offsetMax = new Vector2(-44f, -30f);
-
-        var column = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
-        column.transform.SetParent(viewport, false);
-        pageContent = (RectTransform)column.transform;
-        pageContent.anchorMin = new Vector2(0f, 1f);
-        pageContent.anchorMax = new Vector2(1f, 1f);
-        pageContent.pivot = new Vector2(0.5f, 1f);
-        pageContent.sizeDelta = Vector2.zero;
-        VerticalLayoutGroup cv = column.GetComponent<VerticalLayoutGroup>();
-        cv.spacing = 14f;
-        cv.padding = new RectOffset(0, 10, 4, 24);
-        cv.childControlWidth = cv.childControlHeight = true;
-        cv.childForceExpandWidth = true;
-        cv.childForceExpandHeight = false;
-        column.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        // 21 Nov: every page's lines are made here again on each change. The UI Hub copy of this book
-        // (GAME HUD > Worksheet Book) shows a live copy of them instead of its fixed sample lines.
-        column.AddComponent<UiLiveChildren>();
-
-        pageScroll = view.AddComponent<ScrollRect>();
-        pageScroll.viewport = viewport;
-        pageScroll.content = pageContent;
-        pageScroll.horizontal = false;
-        pageScroll.vertical = true;
-        pageScroll.movementType = ScrollRect.MovementType.Clamped;
-        pageScroll.scrollSensitivity = 45f;
-
-        // Footer: previous / page number / next.
-        Button prev = FooterButton(rp, "< Previous", -190f);
-        prev.onClick.AddListener(() => Select(current - 1));
-        Button next = FooterButton(rp, "Next >", 190f);
-        next.onClick.AddListener(() => Select(current + 1));
-        pageNumber = NewText("Page", rp, "", 22f, Muted, TextAlignmentOptions.Center);
-        RectTransform pn = pageNumber.rectTransform;
-        pn.anchorMin = pn.anchorMax = new Vector2(0.5f, 0f);
-        pn.pivot = new Vector2(0.5f, 0f);
-        pn.anchoredPosition = new Vector2(0f, 22f);
-        pn.sizeDelta = new Vector2(160f, 40f);
-
-        // Close (X) on the cover corner.
-        Image x = NewImage("Close", book, new Color(0.2f, 0.05f, 0.05f), circle);
-        x.raycastTarget = true;
-        RectTransform xr = x.rectTransform;
-        xr.anchorMin = xr.anchorMax = new Vector2(1f, 1f);
-        xr.pivot = new Vector2(0.5f, 0.5f);
-        xr.anchoredPosition = new Vector2(-8f, -8f);
-        xr.sizeDelta = new Vector2(54f, 54f);
-        Button closeButton = x.gameObject.AddComponent<Button>();
-        closeButton.targetGraphic = x;
-        closeButton.onClick.AddListener(Close);
-        TextMeshProUGUI xt = NewText("X", x.transform, "X", 28f, Color.white, TextAlignmentOptions.Center);
-        xt.fontStyle = FontStyles.Bold;
-        Stretch(xt.rectTransform, 0f);
+        if (view.previous != null) view.previous.onClick.AddListener(() => Select(current - 1));
+        if (view.next != null) view.next.onClick.AddListener(() => Select(current + 1));
+        if (view.close != null) view.close.onClick.AddListener(Close);
 
         canvasRoot.SetActive(false);
     }
 
-    private Button FooterButton(Transform parent, string label, float x)
+    /// <summary>Gives <paramref name="target"/> the same place and size as <paramref name="from"/> (both in the same parent).</summary>
+    private static void CopyRect(RectTransform from, RectTransform target)
     {
-        Image bg = NewImage(label, parent, new Color(0.42f, 0.08f, 0.09f, 0.9f), rounded);
-        bg.raycastTarget = true;
-        RectTransform r = bg.rectTransform;
-        r.anchorMin = r.anchorMax = new Vector2(0.5f, 0f);
-        r.pivot = new Vector2(0.5f, 0f);
-        r.anchoredPosition = new Vector2(x, 18f);
-        r.sizeDelta = new Vector2(190f, 46f);
-        Button button = bg.gameObject.AddComponent<Button>();
-        button.targetGraphic = bg;
-        TextMeshProUGUI t = NewText("Text", bg.transform, label, 22f, Color.white, TextAlignmentOptions.Center);
-        t.fontStyle = FontStyles.Bold;
-        Stretch(t.rectTransform, 0f);
-        return button;
+        if (from.parent != target.parent)
+        {
+            // Different parents: copy the corners instead.
+            var corners = new Vector3[4];
+            from.GetWorldCorners(corners);
+            var parent = (RectTransform)target.parent;
+            Vector2 min = parent.InverseTransformPoint(corners[0]);
+            Vector2 max = parent.InverseTransformPoint(corners[2]);
+            target.anchorMin = target.anchorMax = parent.pivot;
+            target.pivot = new Vector2(0.5f, 0.5f);
+            target.sizeDelta = max - min;
+            target.anchoredPosition = (min + max) * 0.5f;
+            return;
+        }
+        target.anchorMin = from.anchorMin;
+        target.anchorMax = from.anchorMax;
+        target.pivot = from.pivot;
+        target.anchoredPosition = from.anchoredPosition;
+        target.sizeDelta = from.sizeDelta;
     }
 
     private static void EnsureEventSystem()
@@ -923,16 +809,6 @@ public sealed class WorksheetReader : MonoBehaviour
         r.anchorMax = Vector2.one;
         r.offsetMin = new Vector2(inset, inset);
         r.offsetMax = new Vector2(-inset, -inset);
-    }
-
-    /// <summary>Top-anchored block: left inset, distance from the top, right inset (negative), height.</summary>
-    private static void Place(RectTransform r, float left, float top, float right, float height)
-    {
-        r.anchorMin = new Vector2(0f, 1f);
-        r.anchorMax = new Vector2(1f, 1f);
-        r.pivot = new Vector2(0.5f, 1f);
-        r.offsetMin = new Vector2(left, -top - height);
-        r.offsetMax = new Vector2(right, -top);
     }
 
     /// <summary>White rounded square made in code (no art asset needed), 9-sliced.</summary>
