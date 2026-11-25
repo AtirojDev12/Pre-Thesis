@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using Mirror;
 using TMPro;
 using UnityEngine;
@@ -50,7 +51,13 @@ public class PauseMenuController : MonoBehaviour
     private Camera leavingCamera;
     private bool leaving;
 
-    public static bool IsOpen => instance != null && instance.content != null && instance.content.activeSelf;
+    // 25 Nov: while the monitor is being lowered (closing) the menu already counts as closed.
+    public static bool IsOpen => instance != null && instance.content != null && instance.content.activeSelf && !instance.closing;
+
+    // ---- 25 Nov: "lift the monitor up" open / close animation + monitor frame ------------------
+    // Settings and the frame drawing: Assets/Resources/UI/Styles/Monitor Frame (MonitorFrameStyle).
+    private UiMonitorLift lift;
+    private bool closing;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => instance = null;
@@ -97,6 +104,12 @@ public class PauseMenuController : MonoBehaviour
         confirmCancelButton.onClick.AddListener(() => confirmPopup.SetActive(false));
         settingsPanel.BackRequested += ShowPause;
 
+        ApplyVcrLook(); // 25 Nov: before the monitor (its frame goes on top)
+
+        Transform dim = content.transform.Find("Dim");
+        lift = UiMonitorLift.On(pausePanel.transform as RectTransform, "Pause", dim != null ? dim.GetComponent<Graphic>() : null);
+        UiMonitorLift.On(settingsPanel.transform as RectTransform, "Pause Settings"); // frame only
+
         content.SetActive(false);
     }
 
@@ -138,7 +151,7 @@ public class PauseMenuController : MonoBehaviour
         // Lobby panel (Tab) / shop: Esc closes those instead.
         if (OverlayPanels.BlocksEscape) return;
 
-        if (!content.activeSelf)
+        if (!content.activeSelf || closing) // 25 Nov: Esc while it is going down = up again
         {
             // Only in a match: there must be a local player.
             if (PlayerHealth.LocalInstance != null || SpectatorSession.Active) Open();
@@ -156,8 +169,10 @@ public class PauseMenuController : MonoBehaviour
     private void Open()
     {
         EnsureEventSystem();
+        closing = false;
         content.SetActive(true);
         ShowPause();
+        if (lift != null) lift.PlayOpen(); // 25 Nov
         AudioManager.Instance?.PlayUI("UI_MenuOpen");
 
         GameplayInput.Blocked = true;
@@ -167,7 +182,17 @@ public class PauseMenuController : MonoBehaviour
 
     public void Close()
     {
-        CloseWithoutCursor();
+        if (closing) return;
+        if (lift != null && content.activeSelf && pausePanel.activeSelf)
+        {
+            // 25 Nov: you can move again at once; the picture switches off and is lowered first.
+            GameSettings.Save();
+            confirmPopup.SetActive(false);
+            GameplayInput.Blocked = false;
+            closing = true;
+            lift.PlayClose(() => { closing = false; content.SetActive(false); });
+        }
+        else CloseWithoutCursor();
 
         // Back to FPS look. Always lock rather than "restore": in the Unity
         // Editor, Esc itself already frees the cursor before this script runs,
@@ -179,6 +204,8 @@ public class PauseMenuController : MonoBehaviour
 
     private void CloseWithoutCursor()
     {
+        closing = false;
+        if (lift != null) lift.Stop(); // 25 Nov: shut at once (scene change / leaving)
         GameSettings.Save();
         confirmPopup.SetActive(false);
         content.SetActive(false);
@@ -197,6 +224,43 @@ public class PauseMenuController : MonoBehaviour
     {
         pausePanel.SetActive(false);
         settingsPanel.gameObject.SetActive(true);
+        // 25 Nov: the key list (with its scrollbar) is built the first time Settings opens.
+        if (vcr != null && !settingsStyled)
+        {
+            settingsStyled = true;
+            UiVcrRestyle.StyleScrollbars(settingsPanel.transform, vcr);
+        }
+    }
+
+    // ---- 25 Nov: VCR look -----------------------------------------------------
+    // The Esc menu (Pause, Settings, Leave confirmation) gets the same VCR look as the lobby screens.
+    // Colours / font: Assets/Resources/UI/Styles/Pause Style (Inspector). Applied when the game
+    // starts; the prefab itself is not changed. No asset = the old brown look.
+    private const string VcrStyleName = "Pause Style";
+    private CodeScreenStyle vcr;
+    private bool settingsStyled;
+
+    private void ApplyVcrLook()
+    {
+        if (Resources.Load<CodeScreenStyle>(CodeScreenStyle.Folder + VcrStyleName) == null) return;
+        vcr = CodeScreenStyle.Load(VcrStyleName, null);
+
+        var cards = new List<Image>();
+        AddCard(cards, pausePanel.transform);
+        AddCard(cards, settingsPanel.transform);
+        AddCard(cards, confirmPopup.transform.Find("Confirm Card"));
+
+        Transform apply = settingsPanel.transform.Find("Buttons/Apply Button");
+        var primary = new List<Button> { resumeButton };
+        if (apply != null && apply.TryGetComponent(out Button applyButton)) primary.Add(applyButton);
+        var danger = new List<Button> { leaveButton, confirmLeaveButton };
+
+        UiVcrRestyle.Apply(content.transform, vcr, cards, primary, danger);
+    }
+
+    private static void AddCard(List<Image> cards, Transform t)
+    {
+        if (t != null && t.TryGetComponent(out Image image)) cards.Add(image);
     }
 
     // ---- Leave ---------------------------------------------------------------

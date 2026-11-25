@@ -16,6 +16,7 @@ using UnityEngine.UI;
 /// Permanent items are LOST if you die in a match (MatchResultsUI).
 ///
 /// Built in code; Esc or Close shuts it.
+/// 24 Nov 2026: colours and fonts come from Resources/UI/Styles/Shop Style (Inspector), see CodeScreenStyle.
 /// </summary>
 public sealed class ShopUI : MonoBehaviour
 {
@@ -33,13 +34,34 @@ public sealed class ShopUI : MonoBehaviour
         public Button buy;
     }
 
-    private static readonly Color Panel = new Color(0.11f, 0.09f, 0.08f, 1f);
-    private static readonly Color RowColor = new Color(0.17f, 0.14f, 0.12f, 1f);
-    private static readonly Color Gold = new Color(1f, 0.8f, 0.3f);
-    private static readonly Color TextColor = new Color(0.95f, 0.93f, 0.9f);
-    private static readonly Color Muted = new Color(0.65f, 0.62f, 0.6f);
-    private static readonly Color Good = new Color(0.45f, 1f, 0.55f);
-    private static readonly Color Bad = new Color(1f, 0.4f, 0.35f);
+    // 24 Nov: no colours in code any more. Edit Assets/Resources/UI/Styles/Shop Style in the Inspector.
+    private static CodeScreenStyle Style => CodeScreenStyle.Load("Shop Style", OriginalColours);
+    private static Color Muted => Style.muted;
+    private static Color Good => Style.good;
+    private static Color Bad => Style.bad;
+
+    /// <summary>Used only when the Shop Style asset is missing (the look before 24 Nov).</summary>
+    private static void OriginalColours(CodeScreenStyle s)
+    {
+        s.dim = new Color(0f, 0f, 0f, 0.7f);
+        s.panel = new Color(0.11f, 0.09f, 0.08f, 1f);
+        s.listBack = new Color(0f, 0f, 0f, 0f);
+        s.row = s.myRow = new Color(0.17f, 0.14f, 0.12f, 1f);
+        s.title = s.accent = new Color(1f, 0.8f, 0.3f);
+        s.value = new Color32(0xFF, 0xCC, 0x4D, 0xFF);
+        s.text = new Color(0.95f, 0.93f, 0.9f);
+        s.muted = new Color(0.65f, 0.62f, 0.6f);
+        s.faint = new Color32(0xA6, 0xA0, 0x9A, 0xFF);
+        s.good = new Color(0.45f, 1f, 0.55f);
+        s.warning = new Color(1f, 0.8f, 0.3f);
+        s.bad = new Color(1f, 0.4f, 0.35f);
+        s.button = new Color(0.3f, 0.22f, 0.12f, 1f);
+        s.buttonText = s.buttonHoverText = s.text;
+        s.buttonHighlighted = new Color(1.4f, 1.3f, 1.1f);
+        s.buttonDisabled = new Color(0.45f, 0.45f, 0.45f, 0.6f);
+        s.scrollbarBack = new Color(0f, 0f, 0f, 0.35f);
+        s.scrollbarHandle = new Color(1f, 0.8f, 0.3f);
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => instance = null;
@@ -51,6 +73,7 @@ public sealed class ShopUI : MonoBehaviour
         instance = go.AddComponent<ShopUI>();
         instance.Build();
         instance.Refresh();
+        instance.StartMonitor(); // 25 Nov
         OverlayPanels.Opened();
         PersistentHUD.PushHidden();
         OverlayPanels.SetMouseForUi(true);
@@ -58,7 +81,25 @@ public sealed class ShopUI : MonoBehaviour
 
     public static void Close()
     {
-        if (instance != null) Destroy(instance.gameObject);
+        if (instance == null || instance.closing) return;
+        // 25 Nov: the monitor switches off and is lowered first (UiMonitorLift), then the screen goes.
+        instance.closing = true;
+        GameObject go = instance.gameObject;
+        if (instance.lift != null) instance.lift.PlayClose(() => { if (go != null) Destroy(go); });
+        else Destroy(go);
+    }
+
+    // ---- 25 Nov: "lift the monitor up" open / close animation + monitor frame -----------------
+    // Settings and the frame drawing: Assets/Resources/UI/Styles/Monitor Frame (MonitorFrameStyle).
+    private UiMonitorLift lift;
+    private bool closing;
+
+    private void StartMonitor()
+    {
+        var card = transform.Find("Card") as RectTransform;
+        Transform dim = transform.Find("Dim");
+        lift = UiMonitorLift.On(card, "Shop", dim != null ? dim.GetComponent<Graphic>() : null);
+        if (lift != null) lift.PlayOpen();
     }
 
     private void OnDestroy()
@@ -147,7 +188,8 @@ public sealed class ShopUI : MonoBehaviour
     private void Refresh()
     {
         int money = SaveManager.Current != null ? SaveManager.Current.currency : 0;
-        currencyText.text = $"Currency: <color=#FFCC4D>{money}</color>";
+        CodeScreenStyle style = Style;
+        currencyText.text = "Currency: " + CodeScreenStyle.Paint(money.ToString(), style.value);
 
         foreach (Row row in rows)
         {
@@ -159,16 +201,18 @@ public sealed class ShopUI : MonoBehaviour
                 int max = Mathf.Max(1, row.item.maxStack);
                 row.buy.gameObject.SetActive(have < max);
                 row.buy.interactable = money >= row.item.price;
-                row.status.text = have >= max ? $"<color=#73FF8C>x{have} (MAX)</color>"
-                    : $"<size=70%>x{have}/{max}</size>  " + (row.item.price > 0 ? $"<color=#FFCC4D>{row.item.price}</color>" : "<color=#73FF8C>FREE</color>"); // 17 Nov: free syringe
+                row.status.text = have >= max ? CodeScreenStyle.Paint($"x{have} (MAX)", style.good)
+                    : $"<size=70%>x{have}/{max}</size>  " + Price(row.item, style); // 17 Nov: free syringe
                 continue;
             }
             row.buy.gameObject.SetActive(!owned);
             row.buy.interactable = money >= row.item.price;
-            row.status.text = owned ? "<color=#73FF8C>OWNED</color>"
-                : row.item.price > 0 ? $"<color=#FFCC4D>{row.item.price}</color>" : "<color=#73FF8C>FREE</color>";
+            row.status.text = owned ? CodeScreenStyle.Paint("OWNED", style.good) : Price(row.item, style);
         }
     }
+
+    private static string Price(ItemCatalog.ItemInfo item, CodeScreenStyle style) =>
+        item.price > 0 ? CodeScreenStyle.Paint(item.price.ToString(), style.value) : CodeScreenStyle.Paint("FREE", style.good);
 
     private void Message(string text, Color color)
     {
@@ -196,18 +240,23 @@ public sealed class ShopUI : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         gameObject.AddComponent<GraphicRaycaster>();
 
-        Image dim = NewImage("Dim", transform, new Color(0f, 0f, 0f, 0.7f));
+        CodeScreenStyle style = Style;
+        Image dim = NewImage("Dim", transform, style.dim);
         Stretch(dim.rectTransform);
         dim.raycastTarget = true;
 
         // 8 Oct: fixed-size card; the item list scrolls (mouse wheel / drag / scrollbar).
-        RectTransform card = NewImage("Card", transform, Panel).rectTransform;
+        Image cardImage = NewImage("Card", transform, style.panel);
+        style.StyleCard(cardImage);
+        RectTransform card = cardImage.rectTransform;
         card.anchorMin = card.anchorMax = card.pivot = new Vector2(0.5f, 0.5f);
         card.sizeDelta = new Vector2(1100f, 1000f);
 
         float y = 30f;
-        Place(NewText("Title", card, "SHOP", 64f, Gold, FontStyles.Bold, TextAlignmentOptions.Center), card, 40f, ref y, 80f);
-        currencyText = NewText("Currency", card, "", 34f, TextColor, FontStyles.Normal, TextAlignmentOptions.Center);
+        TMP_Text title = NewText("Title", card, "SHOP", 64f, style.title, FontStyles.Bold, TextAlignmentOptions.Center);
+        style.StyleText(title, style.title, true);
+        Place(title, card, 40f, ref y, 80f);
+        currencyText = NewText("Currency", card, "", 34f, style.text, FontStyles.Normal, TextAlignmentOptions.Center);
         Place(currencyText, card, 40f, ref y, 50f);
         y += 10f;
 
@@ -215,7 +264,8 @@ public sealed class ShopUI : MonoBehaviour
         const float FooterHeight = 160f; // message + close button
 
         // Viewport: clips the rows and catches the mouse wheel.
-        Image viewportImage = NewImage("Viewport", card, new Color(0f, 0f, 0f, 0f));
+        Image viewportImage = NewImage("Viewport", card, style.listBack);
+        CodeScreenStyle.PaintImage(viewportImage, style.listBack, style.listSprite);
         viewportImage.raycastTarget = true;
         viewportImage.gameObject.AddComponent<RectMask2D>();
         RectTransform viewport = viewportImage.rectTransform;
@@ -236,7 +286,9 @@ public sealed class ShopUI : MonoBehaviour
         {
             if (!item.inShop) continue; // not for sale (5 Oct: price 0 + inShop = FREE)
 
-            RectTransform rowRt = NewImage("Item " + item.id, content, RowColor).rectTransform;
+            Image rowImage = NewImage("Item " + item.id, content, style.row);
+            CodeScreenStyle.PaintImage(rowImage, style.row, style.rowSprite);
+            RectTransform rowRt = rowImage.rectTransform;
             rowRt.anchorMin = new Vector2(0f, 1f);
             rowRt.anchorMax = new Vector2(1f, 1f);
             rowRt.pivot = new Vector2(0.5f, 1f);
@@ -244,16 +296,16 @@ public sealed class ShopUI : MonoBehaviour
             rowRt.offsetMax = new Vector2(0f, -rowY);
             rowY += RowStep;
 
-            TMP_Text name = NewText("Name", rowRt, item.displayName + (item.permanent ? "  <size=70%><color=#A6A09A>(permanent, lost if you die)</color></size>"
-                    : "  <size=70%><color=#A6A09A>(max " + item.maxStack + ", lost if you die)</color></size>"),
-                34f, TextColor, FontStyles.Bold, TextAlignmentOptions.TopLeft);
+            string note = item.permanent ? "(permanent, lost if you die)" : "(max " + item.maxStack + ", lost if you die)";
+            TMP_Text name = NewText("Name", rowRt, item.displayName + "  <size=70%>" + CodeScreenStyle.Paint(note, style.faint) + "</size>",
+                34f, style.text, FontStyles.Bold, TextAlignmentOptions.TopLeft);
             Anchor(name.rectTransform, new Vector2(0f, 0.5f), new Vector2(0.72f, 1f), new Vector2(20f, 0f), new Vector2(0f, -10f));
 
             TMP_Text desc = NewText("Description", rowRt, Keybinds.Fix(item.description ?? ""), 22f, Muted, FontStyles.Normal, TextAlignmentOptions.TopLeft);
             desc.textWrappingMode = TextWrappingModes.Normal;
             Anchor(desc.rectTransform, new Vector2(0f, 0f), new Vector2(0.72f, 0.5f), new Vector2(20f, 8f), new Vector2(0f, 0f));
 
-            TMP_Text status = NewText("Status", rowRt, "", 34f, TextColor, FontStyles.Bold, TextAlignmentOptions.Center);
+            TMP_Text status = NewText("Status", rowRt, "", 34f, style.text, FontStyles.Bold, TextAlignmentOptions.Center);
             Anchor(status.rectTransform, new Vector2(0.72f, 0.5f), new Vector2(1f, 1f), Vector2.zero, new Vector2(-20f, -8f));
 
             Button buy = NewButton("Buy", rowRt, item.price > 0 ? "Buy" : "Claim");
@@ -266,7 +318,7 @@ public sealed class ShopUI : MonoBehaviour
         content.sizeDelta = new Vector2(0f, Mathf.Max(0f, rowY - (RowStep - 115f)));
 
         // Scrollbar on the right of the list.
-        RectTransform barRt = NewImage("Scrollbar", card, new Color(0f, 0f, 0f, 0.35f)).rectTransform;
+        RectTransform barRt = NewImage("Scrollbar", card, style.scrollbarBack).rectTransform;
         barRt.GetComponent<Image>().raycastTarget = true;
         barRt.anchorMin = new Vector2(1f, 0f);
         barRt.anchorMax = new Vector2(1f, 1f);
@@ -276,7 +328,7 @@ public sealed class ShopUI : MonoBehaviour
         var slidingArea = new GameObject("Sliding Area", typeof(RectTransform));
         slidingArea.transform.SetParent(barRt, false);
         Stretch((RectTransform)slidingArea.transform);
-        Image handle = NewImage("Handle", slidingArea.transform, Gold);
+        Image handle = NewImage("Handle", slidingArea.transform, style.scrollbarHandle);
         handle.raycastTarget = true;
         Stretch(handle.rectTransform);
         Scrollbar scrollbar = barRt.gameObject.AddComponent<Scrollbar>();
@@ -339,7 +391,7 @@ public sealed class ShopUI : MonoBehaviour
         var tmp = go.GetComponent<TextMeshProUGUI>();
         tmp.text = text;
         tmp.fontSize = size;
-        tmp.color = color;
+        Style.StyleText(tmp, color); // 24 Nov: font + colour from Shop Style
         tmp.fontStyle = style;
         tmp.alignment = alignment;
         tmp.textWrappingMode = TextWrappingModes.NoWrap;
@@ -359,16 +411,14 @@ public sealed class ShopUI : MonoBehaviour
 
     private static Button NewButton(string name, Transform parent, string label)
     {
-        Image bg = NewImage(name, parent, new Color(0.3f, 0.22f, 0.12f, 1f));
+        Image bg = NewImage(name, parent, Style.button);
         bg.raycastTarget = true;
         var button = bg.gameObject.AddComponent<Button>();
-        ColorBlock colors = button.colors;
-        colors.highlightedColor = new Color(1.4f, 1.3f, 1.1f);
-        colors.disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.6f);
-        button.colors = colors;
+        button.targetGraphic = bg;
 
-        TMP_Text text = NewText("Label", bg.transform, label, 30f, TextColor, FontStyles.Bold, TextAlignmentOptions.Center);
+        TMP_Text text = NewText("Label", bg.transform, label, 30f, Style.buttonText, FontStyles.Bold, TextAlignmentOptions.Center);
         Stretch(text.rectTransform);
+        Style.StyleButton(button, text); // 24 Nov: colours, picture, hover words from Shop Style
         return button;
     }
 

@@ -13051,6 +13051,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1023102390, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 2.0000038
+      objectReference: {fileID: 0}
+    - target: {fileID: 1651720624, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 2.0000038
+      objectReference: {fileID: 0}
     - target: {fileID: 86930455121995213, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
       propertyPath: m_fontColor32.rgba
       value: 4293783797
@@ -13151,6 +13159,14 @@ PrefabInstance:
       propertyPath: m_AnchorMax.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 610000000000000032, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 610000000000000032, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 970647451094447752, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
@@ -13198,6 +13214,18 @@ PrefabInstance:
     - target: {fileID: 3247885532158471663, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 3735905582765279347, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3735905582765279347, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3735905582765279347, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3765411219583467648, guid: 8cc89734ff083c245abb1a8ebb708302, type: 3}
       propertyPath: m_fontColor32.rgba
@@ -14940,6 +14968,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StorageTerminal
   prompt: '[E] Storage (your items)'
+  addColliderIfMissing: 1
 --- !u!4 &1402025539
 Transform:
   m_ObjectHideFlags: 0
@@ -18820,6 +18849,7 @@ MonoBehaviour:
   localColor: {r: 0.85, g: 0.64, b: 0.25, a: 0.18}
   readyTextColor: {r: 0.45, g: 0.85, b: 0.5, a: 1}
   waitingTextColor: {r: 0.75, g: 0.75, b: 0.75, a: 1}
+  hostTextColor: {r: 0.45, g: 0.85, b: 0.5, a: 1}
 --- !u!114 &1788920484
 MonoBehaviour:
   m_ObjectHideFlags: 0

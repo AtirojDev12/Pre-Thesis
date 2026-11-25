@@ -50,10 +50,10 @@ MonoBehaviour:
       anchorMin: {x: 0, y: 0}
       anchorMax: {x: 1, y: 1}
       pivot: {x: 0.5, y: 0.5}
-      position: {x: 0, y: 0}
+      position: {x: 1.800003, y: 0}
       size: {x: 8, y: 0}
       rotation: {x: -0, y: 0, z: 0}
-      scale: {x: 1, y: 1, z: 1}
+      scale: {x: 1.176663, y: 1.8156976, z: 1}
       color: 0
       colorValue: {r: 1, g: 1, b: 1, a: 1}
       sprite: 0
@@ -92,10 +92,10 @@ MonoBehaviour:
       anchorMin: {x: 0, y: 0}
       anchorMax: {x: 1, y: 1}
       pivot: {x: 0.5, y: 0.5}
-      position: {x: 0, y: 0}
+      position: {x: 5.3, y: 0.5}
       size: {x: 8, y: 0}
       rotation: {x: -0, y: 0, z: 0}
-      scale: {x: 1, y: 1, z: 1}
+      scale: {x: 1.1833216, y: 2.14906, z: 1}
       color: 0
       colorValue: {r: 1, g: 1, b: 1, a: 1}
       sprite: 0
@@ -211,4 +211,224 @@ MonoBehaviour:
       minHeight: -1
       preferredWidth: -1
       preferredHeight: -1
+    - path: Hotbar/Slot 1/Key
+      fromSkin: 0
+      hide: 0
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 1
+      font: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
+      fontSize: 18
+      fontStyle: 0
+      alignment: 257
+      autoSize: 0
+      fontSizeMin: 18
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 1
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Hotbar/Slot 2/Key
+      fromSkin: 0
+      hide: 0
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 1
+      font: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
+      fontSize: 18
+      fontStyle: 0
+      alignment: 257
+      autoSize: 0
+      fontSizeMin: 18
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 1
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Hotbar/Slot 3/Key
+      fromSkin: 0
+      hide: 0
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 1
+      font: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
+      fontSize: 18
+      fontStyle: 0
+      alignment: 257
+      autoSize: 0
+      fontSizeMin: 18
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 1
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Hotbar/Slot 4/Key
+      fromSkin: 0
+      hide: 0
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 1
+      font: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
+      fontSize: 18
+      fontStyle: 0
+      alignment: 257
+      autoSize: 0
+      fontSizeMin: 18
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 1
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Hotbar/Voice Status
+      fromSkin: 0
+      hide: 0
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 1
+      font: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
+      fontSize: 20
+      fontStyle: 0
+      alignment: 1025
+      autoSize: 0
+      fontSizeMin: 18
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    added: []
+  - screenName: Main Menu UI
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 0}
+    design: {fileID: 0}
+    elements: []
     added: []

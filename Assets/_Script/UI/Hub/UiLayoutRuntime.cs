@@ -64,6 +64,15 @@ public sealed partial class UiLayoutRuntime : MonoBehaviour
     private int boundVersion = -1;
     private float nextScan;
 
+    /// <summary>
+    /// 25 Nov: look for new screens in the next LateUpdate instead of up to 0.5 s later, so a screen
+    /// that has a GAME HUD copy shows the copy from its first frame (UiMonitorLift calls this on open).
+    /// </summary>
+    public static void ScanSoon()
+    {
+        if (instance != null) instance.nextScan = 0f;
+    }
+
     /// <summary>Screens on screen right now (the UI Hub lists these).</summary>
     public static IReadOnlyList<LiveScreen> Live => live;
 

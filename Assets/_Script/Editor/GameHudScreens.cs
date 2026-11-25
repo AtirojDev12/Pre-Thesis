@@ -125,6 +125,7 @@ public static class GameHudScreens
         foreach (MonoBehaviour m in liveRoot.GetComponentsInChildren<MonoBehaviour>(true))
         {
             if (m == null || !(m is IEventSystemHandler)) continue;
+            if (m is UiButtonTextColor) continue; // 24 Nov: only colours a button's words on hover (added again to the copy by hand)
             string ns = m.GetType().Namespace ?? "";
             if (ns.StartsWith("UnityEngine") || ns.StartsWith("TMPro")) continue; // standard buttons, sliders ...
             return $"it has its own pointer script ({m.GetType().Name})";
