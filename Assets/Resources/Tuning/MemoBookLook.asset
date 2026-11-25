@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc4dc1282e4d4868ab3400ec300055c7, type: 3}
+  m_Name: MemoBookLook
+  m_EditorClassIdentifier: Assembly-CSharp::MemoBookLook
+  selectedTabOut: 0
+  idleTabTint: {r: 0.78, g: 0.78, b: 0.78, a: 1}
+  pageColors:
+  - {r: 0.72, g: 0.52, b: 0.05, a: 1}
+  - {r: 0.78, g: 0.24, b: 0.3, a: 1}
+  - {r: 0.2, g: 0.45, b: 0.78, a: 1}
+  - {r: 0.3, g: 0.3, b: 0.32, a: 1}
+  - {r: 0.22, g: 0.58, b: 0.3, a: 1}
+  - {r: 0.85, g: 0.42, b: 0.2, a: 1}
+  ink: {r: 0.2, g: 0.13, b: 0.1, a: 1}
