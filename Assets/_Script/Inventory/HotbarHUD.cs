@@ -28,6 +28,7 @@ public sealed class HotbarHUD : MonoBehaviour
     private bool dirty = true;
     private HotbarView view;    // 16 Nov: the hotbar inside the GAME HUD (null = code-made hotbar)
     private string shownHint = string.Empty;
+    private float nextFontCheck;
 
     public static HotbarHUD Create(PlayerInventory owner)
     {
@@ -192,6 +193,13 @@ public sealed class HotbarHUD : MonoBehaviour
 
         // 25 Nov: battery bars under the slots (charge drains every frame, so poll it).
         if (view != null) UpdateChargeBars();
+        // 25 Nov: the hotbar uses the game's theme font (lobby and match). Checked once a second.
+        if (view != null && Time.unscaledTime >= nextFontCheck)
+        {
+            nextFontCheck = Time.unscaledTime + 1f;
+            TMP_FontAsset theme = MemoBookLook.ThemeFont;
+            if (theme != TMP_Settings.defaultFontAsset || MemoBookLook.Current.themeFont != null) view.UseFont(theme, MemoBookLook.ThemeMaterial);
+        }
 
         // Voice status changes without events (menu, connection), so poll it.
         string mic;

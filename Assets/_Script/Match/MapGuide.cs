@@ -71,25 +71,14 @@ public sealed class MapGuide : ScriptableObject
     /// <summary>23 Nov: the Cinema's three Map Rules (Zone Quest Detail, 'Map Rules').</summary>
     public static List<RuleText> CinemaMapRules() => new List<RuleText>
     {
-        new RuleText
-        {
-            title = "3 AM: the VIP guest",
-            whatToDo = "A VIP guest comes in at the front door and the clock stops. Press E on it and lead it to its seat in the ghost screen room. Put the VIP film (gold reel, ghost room film shelf) in the crank projector, then crank it (press E fast) until the film is done.",
-            ifYouBreakIt = "Not done in time: everyone gets a jumpscare and loses half of their sanity.",
-        },
-        new RuleText
-        {
-            title = "Lights out: the flashlight",
-            whatToDo = "After the VIP, all lights go out for 1 hour. Something walks the cinema with a flashlight. Stay out of its beam; if it sees you, run and break its line of sight.",
-            ifYouBreakIt = "If it catches you: jumpscare and instant death.",
-        },
-        new RuleText
-        {
-            title = "Hidden things",
-            whatToDo = "From 3 AM, things hide against the walls. Find them and hit them out with a Bat (lobby shop) or the mop.",
-            ifYouBreakIt = "One you miss gets in until morning: it blocks work spots, and seeing it costs sanity.",
-        },
+        new RuleText { title = "3 AM: VIP guest", whatToDo = "Lead it to its seat. Gold film in. Crank fast.", ifYouBreakIt = "Everyone loses half sanity." },
+        new RuleText { title = "Lights out", whatToDo = "Stay out of the flashlight. Seen? Run.", ifYouBreakIt = "Caught = dead." },
+        new RuleText { title = "Hidden things", whatToDo = "Find them by the walls. Hit them (bat or mop).", ifYouBreakIt = "They get in and block work." },
     };
+
+    // 25 Nov: assets older than this get the short Cinema text once (then designers can edit again).
+    private const int GuideVersion = 2;
+    [SerializeField, HideInInspector] private int guideVersion;
 
     private static readonly Dictionary<string, MapGuide> cache = new Dictionary<string, MapGuide>();
 
@@ -102,7 +91,20 @@ public sealed class MapGuide : ScriptableObject
         if (string.IsNullOrEmpty(map)) map = RoomConfig.DemoMapID;
         if (cache.TryGetValue(map, out MapGuide g) && g != null) return g;
         g = Resources.Load<MapGuide>("MapGuides/" + map);
-        if (g != null) cache[map] = g;
+        if (g != null)
+        {
+            cache[map] = g;
+            // 25 Nov: the Cinema guide with the old long text gets the short text once (pictures kept).
+            if (g.guideVersion < GuideVersion && g.mapID == RoomConfig.DemoMapID)
+            {
+                g.ResetCinemaText();
+                g.guideVersion = GuideVersion;
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.SetDirty(g); // saved with the project: commit demo_map_01.asset
+#endif
+                Debug.Log("[MapGuide] Short Memo Book text applied to " + map + ".");
+            }
+        }
         return g;
     }
 
@@ -117,6 +119,7 @@ public sealed class MapGuide : ScriptableObject
             {
                 d = CreateInstance<MapGuide>();
                 d.FillCinemaDefaults();
+                d.guideVersion = GuideVersion;
                 d.hideFlags = HideFlags.DontSave;
                 cache["__default"] = d;
             }
@@ -196,69 +199,63 @@ public sealed class MapGuide : ScriptableObject
         extraZonesPerPlayer = 1;
         maxZonesToFinish = 6;
 
+        // 25 Nov (Mr.k): short and plain. Every page must fit the paper without scrolling.
         howToWin =
-            "• The night runs from 00:00 to 06:00. The exits stay locked during the night.\n" +
-            "• Finish the zones you need (goal above). Each zone's TASK BOARD shows its lines; take a map from the map box to find your way.\n" +
-            "• Zones done by 06:00 = the EXITS OPEN for one in-game hour. Walk out through an exit. Each exit lets only 2 people out, so split up.\n" +
-            "• Not done by 06:00: if 2 or more players are dead, the night goes on (overtime) and the ghosts get angrier until you finish. " +
-            "If fewer than 2 are dead, you are LOCKED IN for one hour.\n" +
-            "• Downed players can be revived by a teammate (hold E). A downed player with a switched-on walkie can still call for help on it.\n" +
-            "• Money = the tasks YOU finished. Dying loses the items you brought in.";
+            "Night: 00:00 to 06:00. Exits are locked.\n" +
+            "Finish your zones. Each zone has a task board.\n" +
+            "06:00: exits open. 2 people per exit.\n" +
+            "Friend down? Hold E on them.\n" +
+            "Money = your tasks. Die = lose your items.";
 
         zones = new List<ZoneText>
         {
-            // 5 Nov (Mr.k): Tickets + Popcorn & Water are ONE zone (Zone Quest Detail: "Ticket Zone").
-            // Its 5 rules are all on for every difficulty until the team rewrites them.
             new ZoneText
             {
                 name = "Ticket Zone",
-                where = "The front of the cinema: the ticket counter and the popcorn & drinks counter next to it.",
-                tasks = "Sell tickets: HUMAN ticket for people, GHOST ticket for ghosts. Look at the customer before you sell.\n" +
-                        "Make each customer's order (popcorn flavour + drink). Ghost customers need the SPECIAL INGREDIENT in their food.\n" +
-                        "Keep selling until every line on the Ticket Zone board is done.",
+                where = "Front of the cinema.",
+                tasks = "Sell the right ticket.\nMake food and drinks to order.",
                 allRulesOn = true,
                 rules = new List<RuleText>
                 {
-                    new RuleText { title = "Sell tickets", whatToDo = "Give the right ticket: a ghost ticket to a ghost, a human ticket to a person.", ifYouBreakIt = "sanity loss and no money for that sale; too many wrong tickets call a punishing ghost" },
-                    new RuleText { title = "Sell food", whatToDo = "All food looks the same, but a ghost's food must have the special ingredient in it.", ifYouBreakIt = "HP and sanity loss" },
-                    new RuleText { title = "The missing bucket", whatToDo = "Every 2 minutes the lights flicker; 10 seconds later the Ticket Zone lights cut out and the special ingredient bucket vanishes (if the returning ghost is around tonight, it vanishes when that ghost walks in instead). Switching the lights off also makes it vanish. Follow its trail, carry it back to its place, then switch the lights back on.", ifYouBreakIt = "no special ingredient: you cannot make ghost food, so ghost customers cannot be served" },
-                    new RuleText { title = "The one who returns", whatToDo = "When the lights flicker, two RESTROOM BREAK signs appear. You have 10 seconds: pick each one up (E) and put it on its spot at the popcorn and the ticket counter (R), then switch the lights OFF and stay quiet. The ghost checks the popcorn sign, then the ticket sign, then walks around the Ticket Zone. In the light it sees anyone near it; in the dark it only hears you.", ifYouBreakIt = "a sign not on its spot: the ghost attacks the player at that counter. Seen or heard: it chases you; caught = jumpscare and damage" },
-                    new RuleText { title = "The one looking for its parts", whatToDo = "Once a night (00:00-03:00) a ghost missing an arm, its head or its body blocks the ticket or popcorn counter. Press E on it and it follows you. Find its parts in the building, hold a part and hold E on the ghost for 3 s. You have 1 in-game hour (countdown above its head).", ifYouBreakIt = "-25 HP and -25% sanity for everyone near it" },
+                    new RuleText { title = "Tickets", whatToDo = "Human ticket for people, ghost ticket for ghosts.", ifYouBreakIt = "Lose sanity." },
+                    new RuleText { title = "Ghost food", whatToDo = "Ghosts need Ghost Flavor in their food.", ifYouBreakIt = "Lose HP and sanity." },
+                    new RuleText { title = "Missing flavor", whatToDo = "Lights cut out, Ghost Flavor vanishes. Follow the trail, bring it back.", ifYouBreakIt = "No ghost food." },
+                    new RuleText { title = "The one who returns", whatToDo = "Signs on their spots. Lights off. Be quiet.", ifYouBreakIt = "It attacks." },
+                    new RuleText { title = "Missing parts", whatToDo = "Find the ghost's lost part within 1 hour.", ifYouBreakIt = "Lose HP and sanity." },
                 },
             },
             new ZoneText
             {
                 name = "Screen Rooms",
-                where = "The two screen rooms in the theatre wing: the normal (human) room and the GHOST room.",
-                tasks = "Change the film in the GHOST room at 02:00 and 04:00 (hold E 5 s at the projector). Clean the 3 dirt marks in the ghost room after 01:00 (hold E 3 s).\n" +
-                        "Bonus (money only, not needed for the zone): clean the normal room and change its film at 00:30 and 02:30.",
+                where = "Theatre wing: normal room and GHOST room.",
+                tasks = "Ghost room: change film at 02:00 and 04:00.\nGhost room: mop 3 stains after 01:00.",
                 rules = new List<RuleText>
                 {
-                    new RuleText { title = "No noise", whatToDo = "Inside the ghost room, keep quiet: walk slowly, do not sprint, do not shout into your mic.", ifYouBreakIt = "big sanity loss" },
-                    new RuleText { title = "Don't look at the audience", whatToDo = "Never look at the ghost customers sitting in the seats.", ifYouBreakIt = "you lose HP every second you look" },
-                    new RuleText { title = "The audience stands", whatToDo = "If every customer stands up and stares at you: stand still. When they sit down again, leave the room at once.", ifYouBreakIt = "they chase you inside the room" },
-                    new RuleText { title = "Staff time (static screen)", whatToDo = "If the screen turns to TV static and the ghosts vanish: stand on the black shadow in the seats within 13 s and stay until the static stops (3–6 s). One player is enough.", ifYouBreakIt = "a ghost comes out of the screen and roams the whole building until 06:00" },
+                    new RuleText { title = "No noise", whatToDo = "Walk slowly. Don't shout.", ifYouBreakIt = "Lose sanity." },
+                    new RuleText { title = "Audience", whatToDo = "Don't look at the ghosts in the seats.", ifYouBreakIt = "Lose HP." },
+                    new RuleText { title = "They stand up", whatToDo = "Freeze. When they sit, leave.", ifYouBreakIt = "They chase you." },
+                    new RuleText { title = "Static screen", whatToDo = "Sit on the black shadow seat. Stay.", ifYouBreakIt = "A ghost roams till 06:00." },
                 },
             },
             new ZoneText
             {
                 name = "Toilets",
-                where = "The men's and women's toilets.",
-                tasks = "After 03:00 clean both toilets: 3 dirt marks in each (hold E 3 s).",
+                where = "Men's and women's toilets.",
+                tasks = "After 03:00: mop 3 stains in each.",
                 rules = new List<RuleText>
                 {
-                    new RuleText { title = "Cracked mirror", whatToDo = "If a mirror has a crack, look at the crack for a few seconds.", ifYouBreakIt = "it shatters: jumpscare, HP and sanity loss for everyone inside" },
-                    new RuleText { title = "The last stall (women's)", whatToDo = "If the last stall is closed and you hear crying: switch the light OFF at once and stand still.", ifYouBreakIt = "a ghost comes out and chases you" },
-                    new RuleText { title = "Cigarette smoke (men's)", whatToDo = "If smoke comes out of a stall: knock on that stall (E), then switch the light OFF.", ifYouBreakIt = "HP loss for a while and the toilet's tasks are locked" },
-                    new RuleText { title = "Ghost food", whatToDo = "When the toilet is fully cleaned: light OFF, throw the black box into the last stall, then everyone out fast.", ifYouBreakIt = "ghosts swarm the toilet" },
+                    new RuleText { title = "Cracked mirror", whatToDo = "Look at the crack.", ifYouBreakIt = "It shatters on you." },
+                    new RuleText { title = "Crying stall", whatToDo = "Light off. Stand still.", ifYouBreakIt = "It chases you." },
+                    new RuleText { title = "Smoke", whatToDo = "Knock on the stall. Light off.", ifYouBreakIt = "Lose HP. Tasks locked." },
+                    new RuleText { title = "Feed it", whatToDo = "When clean: light off, box in, get out.", ifYouBreakIt = "Ghosts swarm." },
                 },
             },
         };
 
         generalTips =
-            "• Talk to your team: share which rules you saw tonight.\n" +
-            "• Keep your flashlight charged; dark rooms hide ghosts.\n" +
-            "• Low sanity? Hold C to chant, or eat a snack.\n" +
-            "• Carry a walkie: it reaches every teammate with a switched-on walkie, and it still works when you are downed.";
+            "Tell your team which rules you saw.\n" +
+            "Keep your flashlight charged.\n" +
+            "Low sanity? Hold C or eat a snack.\n" +
+            "Carry a walkie. It works when you're down.";
     }
 }

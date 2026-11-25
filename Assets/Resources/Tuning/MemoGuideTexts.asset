@@ -13,62 +13,60 @@ MonoBehaviour:
   m_Name: MemoGuideTexts
   m_EditorClassIdentifier: Assembly-CSharp::MemoGuideTexts
   liveTitle: What to do now
-  dangerTitle: DANGER - do this now
-  noZone: Walk into a work zone. This page tells you what to do there.
-  nothingHere: Nothing to do in this zone right now. Try another zone.
-  costNote: Each new step you read costs a little sanity.
-  ticketSell: 'Stand behind the ticket counter. Sell each customer the right ticket:
-    a ghost ticket for a ghost, a human ticket for a human.'
-  foodPick: Pick up a popcorn bucket (or a cup for a drink) at the station.
-  popcornFill: Fill the bucket at the popcorn machine.
-  drinkFill: Fill the cup at the drink machine with the drink the customer asked
-    for.
-  popcornFlavor: Add the flavour the customer asked for. A ghost customer also needs
-    the Ghost Flavor.
-  foodServe: Give it to the customer at the counter.
-  filmWait: No film change yet. The projector glows yellow before the next one. Do
-    other work meanwhile.
-  filmTake: Take the film "{film}" from the film shelf next to the projector.
-  filmInsert: Hold E at the projector to put the film "{film}" in.
-  cleanWait: Nothing to clean here yet. The mops glow before cleaning time.
-  cleanGetMop: Get a mop from the Staff Room.
-  cleanStains: Follow the red arrows and hold E on each stain.
-  audienceStill: The audience is standing and staring. Do NOT move.
-  audienceLeave: Leave the Ghost Screen Room now.
-  staffFindShadow: The screen shows static. Find the black shadow on a seat, look
-    at that seat and press E to sit on it.
-  staffStay: Stay seated until the screen comes back (SPACE = stand up).
-  mirrorLook: A mirror is cracked. Look at the crack until it stops.
-  cryingLightOff: Someone is crying in the last stall. Turn the toilet light OFF
-    (switch by the door).
-  cryingStill: Stay still in the dark until the crying stops.
-  smokeKnock: Smoke comes from a stall. Knock on that stall door (E).
-  smokeLightOff: Now turn the toilet light OFF.
-  smokeLeave: The smoke hurts. Get out of this toilet.
-  foodLightOff: 'Feed the ghost: turn the toilet light OFF first.'
-  foodThrowBox: Throw the black box in at the last stall (E on the drop spot).
-  foodLeave: Everyone out of the toilet now.
-  ticketGhostSigns: A ghost is coming back. Put each RESTROOM BREAK sign on its blue
-    spot.
-  ticketGhostQuiet: Turn the Ticket Zone lights OFF and stay quiet until the ghost
-    leaves.
-  partsHelp: A ghost at the counter lost a body part. Press E on it to help.
-  partsFind: Find its {part} (it cries louder when you are close) and bring it back
-    to the ghost.
-  flavorFind: The Ghost Flavor is gone. Lights off, find it (follow the trail) and
-    bring it back to the popcorn station.
-  filmLate: The ghost room film is LATE. Put the film "{film}" in the projector before
-    the next film, or everyone gets hurt.
-  vipBring: A VIP guest is at the front door and the clock is stopped. Press E on
-    the VIP and lead it to its seat in the ghost screen room. Someone bring the VIP
-    film (gold reel, top of the ghost room film shelf) to the crank projector.
-  vipCrank: The VIP is seated. Put the VIP film (gold reel) in the crank projector
-    if it is not in yet, then press E fast until the film is done.
-  hunterHide: Lights out. Stay out of the flashlight beam. If it sees you, RUN and
-    break its line of sight.
-  foreignFind: Things are hiding against the walls. Find them and hit them (Left
-    Click) with a Bat or a mop before they get in.
-  foreignPest: Something got in. Don't look at it, and work at another spot while
-    it blocks one.
-  filmGhostAvoid: A ghost from the ghost room walks the halls. Don't look at it.
-    Change the ghost room film to send it back.
+  dangerTitle: DANGER
+  goTo: GO TO {zone}
+  ticketZoneName: TICKET SELLING
+  allDone: ALL ZONES DONE
+  noZone: FIND A ZONE
+  nothingHere: NOTHING HERE
+  costNote: 
+  waitCustomer: WAIT FOR A CUSTOMER
+  ticketPressMovie: PRESS {movie}
+  ticketPressHuman: '{ticket}'
+  ticketPressGhost: '{ticket}'
+  ticketSell: SELL A TICKET
+  foodTakeBucket: TAKE {bucket}
+  popcornFill: FILL AT {tank}
+  popcornAddFlavor: ADD {flavor}
+  addGhostFlavor: ADD {ghost}
+  foodServe: GIVE TO {customer}
+  foodWrong: WRONG ONE. PRESS R
+  drinkTakeCup: TAKE {cup}
+  drinkPlaceCup: PUT {cup} AT {dispenser}
+  drinkPress: PRESS {dispenser}
+  drinkTakeBack: TAKE {cup}
+  foodPick: TAKE A BUCKET
+  drinkFill: PRESS {drink}
+  popcornFlavor: ADD FLAVOR
+  filmWait: WAIT UNTIL {time}
+  filmTake: TAKE FILM {film}
+  filmInsert: PUT FILM IN
+  cleanWait: WAIT UNTIL {time}
+  cleanGetMop: GET A MOP
+  cleanStains: MOP THE STAINS
+  audienceStill: DON'T MOVE
+  audienceLeave: LEAVE THE ROOM
+  staffFindShadow: SIT ON THE SHADOW
+  staffStay: STAY SEATED
+  mirrorLook: LOOK AT THE CRACK
+  cryingLightOff: LIGHT OFF
+  cryingStill: STAND STILL
+  smokeKnock: KNOCK ON THE STALL
+  smokeLightOff: LIGHT OFF
+  smokeLeave: GET OUT
+  foodLightOff: LIGHT OFF
+  foodThrowBox: THROW THE BOX IN
+  foodLeave: EVERYONE OUT
+  ticketGhostSigns: PLACE THE SIGNS
+  ticketGhostQuiet: LIGHTS OFF. BE QUIET
+  partsHelp: PRESS E ON THE GHOST
+  partsFind: FIND ITS {part}
+  flavorFind: FIND THE GHOST FLAVOR
+  filmLate: FILM {film} NOW
+  vipBring: LEAD THE VIP TO ITS SEAT
+  vipCrank: GOLD FILM IN. CRANK FAST
+  hunterHide: HIDE FROM THE LIGHT
+  foreignFind: FIND THEM. HIT THEM
+  foreignPest: DON'T LOOK AT IT
+  filmGhostAvoid: DON'T LOOK. CHANGE THE FILM
+  textsVersion: 3

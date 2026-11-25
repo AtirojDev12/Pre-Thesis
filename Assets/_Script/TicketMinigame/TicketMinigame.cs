@@ -89,6 +89,9 @@ public sealed class TicketMinigame : MonoBehaviour
     private string TimerKey => ZoneID + "/tickets";
     public TicketCustomerState VisibleState => !NetworkMode.IsOffline && networkSync != null
         && networkSync.IsClientReady ? networkSync.State : state;
+    /// <summary>25 Nov (Memo Book): the name of a movie on the selection panel.</summary>
+    public string MovieName(int index) => movies != null && index >= 0 && index < movies.Length && !string.IsNullOrEmpty(movies[index])
+        ? movies[index] : "Movie " + (index + 1);
     public bool CanChooseMovie => isActiveAndEnabled && VisibleState.stage == TicketCustomerStage.Waiting;
     public bool CanServe => CanChooseMovie && VisibleState.hasMovie;
 

@@ -242,6 +242,27 @@ public sealed class HotbarView : MonoBehaviour
         to.pixelsPerUnitMultiplier = from.pixelsPerUnitMultiplier;
     }
 
+    /// <summary>25 Nov: every hotbar text in this font (the game's theme font). Null = keep the prefab's.</summary>
+    public void UseFont(TMP_FontAsset font, Material material = null)
+    {
+        if (font == null) return;
+        foreach (Slot s in slots)
+        {
+            if (s == null) continue;
+            Set(s.key, font, material);
+            Set(s.item, font, material);
+        }
+        Set(hint, font, material);
+        Set(voiceStatus, font, material);
+    }
+
+    private static void Set(TMP_Text t, TMP_FontAsset font, Material material)
+    {
+        if (t == null) return;
+        if (t.font != font) t.font = font;
+        if (material != null && t.fontSharedMaterial != material) t.fontSharedMaterial = material;
+    }
+
     public void SetHint(string text)
     {
         if (hint != null && hint.text != text) hint.text = text;

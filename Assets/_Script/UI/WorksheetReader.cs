@@ -57,6 +57,8 @@ public sealed class WorksheetReader : MonoBehaviour
     // ---- 17 Nov (Task 8): the LIVE guide (own Memo Book, its map, from 00:00) ----
     private bool live;
     private string liveKey = "";
+    private MemoLiveWords liveWords; // 25 Nov: big blood words, wiped / written word by word
+    private bool liveFresh;          // the book just opened: write the words in from nothing
 
     private struct Topic
     {
@@ -174,6 +176,7 @@ public sealed class WorksheetReader : MonoBehaviour
         EnsureUi();
         EnsureEventSystem();
         signature = "";
+        liveFresh = true;
         live = MemoGuide.LocalLive();
         RefreshData();
         Rebuild();
@@ -303,6 +306,10 @@ public sealed class WorksheetReader : MonoBehaviour
         foreach (Image p in view.postIts) if (p != null) p.gameObject.SetActive(false);
         if (!live)
             for (int i = 0; i < topics.Count; i++) UseTab(i);
+        // 25 Nov: the post-its and the page number use the theme font too.
+        foreach (Image tab in tabs)
+            if (tab != null) foreach (TMP_Text words in tab.GetComponentsInChildren<TMP_Text>(true)) UseTheme(words);
+        if (view.pageNumber != null) UseTheme(view.pageNumber);
 
         current = Mathf.Clamp(current, 0, Mathf.Max(0, topics.Count - 1));
         if (IsReading) ShowPage(current);
@@ -337,6 +344,11 @@ public sealed class WorksheetReader : MonoBehaviour
             Destroy(old);
         }
         if (view.pageNumber != null) view.pageNumber.text = topics.Count > 0 ? (index + 1) + " / " + topics.Count : "";
+        if (liveWords != null && liveWords.gameObject.activeSelf != live)
+        {
+            liveWords.gameObject.SetActive(live);
+            if (!live) liveWords.Clear();
+        }
         if (live)
         {
             LivePage();
@@ -369,122 +381,85 @@ public sealed class WorksheetReader : MonoBehaviour
     /// </summary>
     private void LivePage()
     {
-        MemoGuideTexts t = MemoGuideTexts.Current;
+        // 25 Nov (Mr.k): only the step, in big blood letters (no title, no zone list, no note).
         MemoGuide.LocalStep(out string key, out string text, out bool danger);
         liveKey = key;
-        Heading(danger ? t.dangerTitle : t.liveTitle, danger ? Danger : GoalColor);
-        Body(pageContent, text, 32f, danger ? Danger : Ink);
-        Body(pageContent, t.costNote, 20f, Muted);
-        List<string> zones = MemoGuide.ZoneLines(guide);
-        if (zones.Count > 0)
+        if (liveWords != null)
         {
-            Section("Zones", Ink);
-            Bullets(pageContent, zones, 24f, Ink);
+            if (liveFresh) liveWords.Clear();
+            liveWords.Show(StripTags(text), false);
         }
+        liveFresh = false;
         MemoGuide.LocalStepShown(key); // a NEW step costs sanity once (only while the book is open)
     }
 
+    private static string StripTags(string text) =>
+        string.IsNullOrEmpty(text) ? "" : System.Text.RegularExpressions.Regex.Replace(text, "<.*?>", "").Replace("\n", " ").Trim();
+
+    // 25 Nov (Mr.k): every page is short and fits the paper (no scrolling).
     private void GoalPage(Color color)
     {
-        Heading("Your goal tonight", color);
-        Picture(guide.mapPicture, "MAP", guide.mapName, color);
+        Heading("Your goal", color);
 
         RectTransform goal = Card(Highlight, new Color(1f, 0.93f, 0.72f));
-        Body(goal, "Finish <b><color=#A00000>" + required + (required == 1 ? " zone" : " zones") + "</color></b>", 46f, Ink, TextAlignmentOptions.Center);
-        Body(goal, "Any " + required + " of the " + guide.zones.Count + " zones in this book.", 24f, Muted, TextAlignmentOptions.Center);
+        Body(goal, "Finish <b><color=#A00000>" + required + (required == 1 ? " zone" : " zones") + "</color></b>", 42f, Ink, TextAlignmentOptions.Center);
+        Body(goal, "Any " + required + " of " + guide.zones.Count + ". More players = more zones.", 22f, Muted, TextAlignmentOptions.Center);
 
-        Section("More players = more zones", color);
-        PlayerTable();
+        Section("Zone done", color);
+        Body(pageContent, "Its task board is full.", 26f, Ink);
 
-        Section("When is a zone done?", color);
-        Body(pageContent, "When every line on its <b>task board</b> is done. The board is inside the zone.", 27f, Ink);
-
-        Section("Rules tonight", color);
-        Body(pageContent, MapGuide.RulesTonight(difficulty), 27f, Ink);
-
-        // 23 Nov (Mr.k): the Map Rules (whole map, every player, from 3 AM).
         if (guide.mapRules != null && guide.mapRules.Count > 0)
         {
-            Section("Map Rules (from 3 AM)", Danger);
+            Section("Map rules (3 AM)", Danger);
             foreach (MapGuide.RuleText r in guide.mapRules)
-            {
-                if (r == null) continue;
-                RectTransform card = Card(Danger, CardBg);
-                Body(card, "<b>" + r.title + "</b>", 22f, Danger);
-                if (!string.IsNullOrWhiteSpace(r.whatToDo)) Body(card, "<b>DO:</b> " + r.whatToDo.Trim(), 25f, Ink);
-                if (!string.IsNullOrWhiteSpace(r.ifYouBreakIt)) Body(card, "<i>" + r.ifYouBreakIt.Trim() + "</i>", 22f, Muted);
-            }
+                if (r != null) Body(pageContent, "<b>" + r.title + ":</b> " + r.whatToDo.Trim(), 22f, Ink);
         }
-
-        Body(pageContent, "<i>Pick a zone's post-it on the right to see where it is, what to do there and its rules.</i>", 24f, Muted);
     }
 
     private void WinPage(Color color)
     {
-        Heading("How to win", color);
+        Heading("How to play", color);
         List<string> steps = MapGuide.Lines(guide.howToWin);
         for (int i = 0; i < steps.Count; i++)
-        {
-            RectTransform card = Card(color, CardBg);
-            Body(card, "<b>STEP " + (i + 1) + "</b>", 20f, color);
-            Body(card, steps[i], 27f, Ink);
-        }
+            Body(pageContent, "<b><color=#" + ColorUtility.ToHtmlStringRGB(Readable(color)) + ">" + (i + 1) + ".</color></b> " + steps[i], 26f, Ink);
     }
 
     private void ZonePage(int zoneIndex, Color color)
     {
         MapGuide.ZoneText z = guide.zones[zoneIndex];
-        Heading((zoneIndex + 1) + ". " + z.name, color);
-        Picture(z.picture, (zoneIndex + 1).ToString(), z.name, color);
-
-        if (!string.IsNullOrWhiteSpace(z.where))
-        {
-            Section("Where", color);
-            Body(pageContent, z.where.Trim(), 27f, Ink);
-        }
+        Heading(z.name, color);
+        if (!string.IsNullOrWhiteSpace(z.where)) Body(pageContent, z.where.Trim(), 22f, Muted);
 
         List<string> tasks = MapGuide.Lines(z.tasks);
         if (tasks.Count > 0)
         {
-            Section("What to do", color);
-            Bullets(pageContent, tasks, 27f, Ink);
+            Section("Do", color);
+            Bullets(pageContent, tasks, 24f, Ink);
         }
 
-        int ruleCount = z.rules != null ? z.rules.Count : 0;
-        if (ruleCount > 0)
-        {
-            Section("Rules: " + MapGuide.ActiveRulesText(z, difficulty), color);
-            if (z.ActiveRules(difficulty) < ruleCount)
-                Body(pageContent, "<i>You will not know which ones are on. Learn them all.</i>", 23f, Muted);
-            foreach (MapGuide.RuleText r in z.rules)
-            {
-                RectTransform card = Card(color, CardBg);
-                Body(card, "<b>" + r.title + "</b>", 28f, Ink);
-                if (!string.IsNullOrWhiteSpace(r.whatToDo))
-                    Body(card, "<color=#146B2E><b>DO:</b></color>  " + r.whatToDo.Trim(), 26f, Ink);
-                if (!string.IsNullOrWhiteSpace(r.ifYouBreakIt))
-                    Body(card, "<b>IF YOU BREAK IT:</b>  " + r.ifYouBreakIt.Trim(), 24f, Danger);
-            }
-        }
-        else
+        if (z.rules != null && z.rules.Count > 0)
         {
             Section("Rules", color);
-            Body(pageContent, "No rules in this zone.", 26f, Muted);
+            foreach (MapGuide.RuleText r in z.rules)
+            {
+                if (r == null) continue;
+                string broke = string.IsNullOrWhiteSpace(r.ifYouBreakIt) ? "" : "  <color=#9A0000><i>" + r.ifYouBreakIt.Trim() + "</i></color>";
+                Body(pageContent, "<b>" + r.title + ":</b> " + r.whatToDo.Trim() + broke, 20f, Ink);
+            }
         }
 
         List<string> danger = MapGuide.Lines(z.otherDangers);
         if (danger.Count > 0)
         {
             Section("Watch out", Danger);
-            RectTransform card = Card(Danger, new Color(1f, 0.88f, 0.86f, 0.75f));
-            Bullets(card, danger, 25f, Ink);
+            Bullets(pageContent, danger, 20f, Ink);
         }
     }
 
     private void TipsPage(Color color)
     {
-        Heading("Staff tips", color);
-        Bullets(pageContent, MapGuide.Lines(guide.generalTips), 28f, Ink);
+        Heading("Tips", color);
+        Bullets(pageContent, MapGuide.Lines(guide.generalTips), 26f, Ink);
     }
 
     /// <summary>1..6 players and their zone goal. The room's player count is highlighted.</summary>
@@ -515,7 +490,7 @@ public sealed class WorksheetReader : MonoBehaviour
 
     private void Heading(string text, Color color)
     {
-        Body(pageContent, "<b>" + text + "</b>", 44f, Ink);
+        Body(pageContent, "<b>" + text + "</b>", 40f, Ink);
         var bar = new GameObject("Underline", typeof(RectTransform), typeof(LayoutElement));
         bar.transform.SetParent(pageContent, false);
         bar.GetComponent<LayoutElement>().preferredHeight = 6f;
@@ -529,7 +504,7 @@ public sealed class WorksheetReader : MonoBehaviour
 
     private void Section(string text, Color color)
     {
-        TextMeshProUGUI t = Body(pageContent, text.ToUpperInvariant(), 22f, color);
+        TextMeshProUGUI t = Body(pageContent, text.ToUpperInvariant(), 22f, Readable(color));
         t.fontStyle = FontStyles.Bold;
         t.characterSpacing = 4f;
         t.margin = new Vector4(0f, 10f, 0f, 0f);
@@ -669,6 +644,8 @@ public sealed class WorksheetReader : MonoBehaviour
         viewPivot = viewport.pivot;
         viewPosition = viewport.anchoredPosition;
         viewSize = viewport.sizeDelta;
+        liveWords = MemoLiveWords.Create(viewport);
+        liveWords.gameObject.SetActive(false);
 
         foreach (Image p in view.postIts)
         {
@@ -794,6 +771,7 @@ public sealed class WorksheetReader : MonoBehaviour
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
         TextMeshProUGUI t = go.AddComponent<TextMeshProUGUI>();
+        UseTheme(t); // 25 Nov: the game's theme font before the shift
         t.text = text;
         t.fontSize = size;
         t.color = color;
@@ -801,6 +779,25 @@ public sealed class WorksheetReader : MonoBehaviour
         t.richText = true;
         t.raycastTarget = false;
         return t;
+    }
+
+    /// <summary>25 Nov: the theme font with the HUD's own material (no boxes behind the letters).</summary>
+    private static void UseTheme(TMP_Text t)
+    {
+        TMP_FontAsset theme = MemoBookLook.ThemeFont;
+        if (t == null || theme == null) return;
+        if (t.font != theme) t.font = theme;
+        Material m = MemoBookLook.ThemeMaterial;
+        if (m != null && t.fontSharedMaterial != m) t.fontSharedMaterial = m;
+    }
+
+    /// <summary>25 Nov: a page colour dark enough to read on the paper (light ones blended in).</summary>
+    private static Color Readable(Color c)
+    {
+        float lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+        if (lum <= 0.32f) return c;
+        float k = 0.32f / Mathf.Max(0.001f, lum);
+        return new Color(c.r * k, c.g * k, c.b * k, 1f);
     }
 
     private static void Stretch(RectTransform r, float inset)

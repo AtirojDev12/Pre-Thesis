@@ -9,7 +9,7 @@ using UnityEngine;
 ///   2. Change the words in the Inspector. Works live in Play mode.
 ///   3. Commit the file: Assets/Resources/Tuning/MemoGuideTexts.asset
 /// Words in {curly brackets} are filled by the game: {film} = film name, {part} = body part.
-/// One step = one short sentence. The book shows ONE step at a time.
+/// One step = a few words (big blood letters). The book shows ONE step at a time.
 /// </summary>
 [CreateAssetMenu(fileName = "MemoGuideTexts", menuName = "Pre-Thesis/Memo Book Texts")]
 public sealed class MemoGuideTexts : ScriptableObject
@@ -17,66 +17,104 @@ public sealed class MemoGuideTexts : ScriptableObject
     public const string ResourcePath = "Tuning/MemoGuideTexts";
     public const string AssetPath = "Assets/Resources/Tuning/MemoGuideTexts.asset";
 
+    // 25 Nov 2026 (Mr.k): the live book shows ONE short command in big blood letters.
+    // Keep every line a few words (it fills the page). Old long texts are replaced once (TextsVersion).
+
     [Header("Page")]
     public string liveTitle = "What to do now";
-    public string dangerTitle = "DANGER - do this now";
-    public string noZone = "Walk into a work zone. This page tells you what to do there.";
-    public string nothingHere = "Nothing to do in this zone right now. Try another zone.";
-    [Tooltip("Shown under the step: what reading costs.")]
-    public string costNote = "Each new step you read costs a little sanity.";
+    public string dangerTitle = "DANGER";
+    [Tooltip("Not in any zone: {zone} = the nearest zone you can walk to. Costs sanity like every new step.")]
+    public string goTo = "GO TO {zone}";
+    [Tooltip("The name used for the Ticket Zone in \"GO TO\".")]
+    public string ticketZoneName = "TICKET SELLING";
+    public string allDone = "ALL ZONES DONE";
+    public string noZone = "FIND A ZONE";
+    public string nothingHere = "NOTHING HERE";
+    [Tooltip("Not shown any more (kept for old files).")]
+    public string costNote = "";
 
     [Header("Tasks: tickets")]
-    [TextArea(1, 3)] public string ticketSell = "Stand behind the ticket counter. Sell each customer the right ticket: a ghost ticket for a ghost, a human ticket for a human.";
+    public string waitCustomer = "WAIT FOR A CUSTOMER";
+    [Tooltip("{movie} = the movie the customer wants (its name on the movie panel).")]
+    public string ticketPressMovie = "PRESS {movie}";
+    [Tooltip("{ticket} = the name on the human ticket counter in the game (\"[E]To Give Normal Ticket\" -> GIVE NORMAL TICKET).")]
+    public string ticketPressHuman = "{ticket}";
+    [Tooltip("{ticket} = the name on the ghost ticket counter in the game.")]
+    public string ticketPressGhost = "{ticket}";
+    public string ticketSell = "SELL A TICKET";
 
-    [Header("Tasks: popcorn / drinks (one step at a time)")]
-    [TextArea(1, 3)] public string foodPick = "Pick up a popcorn bucket (or a cup for a drink) at the station.";
-    [TextArea(1, 3)] public string popcornFill = "Fill the bucket at the popcorn machine.";
-    [TextArea(1, 3)] public string drinkFill = "Fill the cup at the drink machine with the drink the customer asked for.";
-    [TextArea(1, 3)] public string popcornFlavor = "Add the flavour the customer asked for. A ghost customer also needs the Ghost Flavor.";
-    [TextArea(1, 3)] public string foodServe = "Give it to the customer at the counter.";
+    [Header("Tasks: popcorn (one step at a time)")]
+    [Tooltip("Names in {brackets} are the in-game names (Popcorn Minigame Systems > Focus Names).")]
+    public string foodTakeBucket = "TAKE {bucket}";
+    public string popcornFill = "FILL AT {tank}";
+    [Tooltip("{flavor} = the flavour station's in-game name, e.g. Cheese Flavor.")]
+    public string popcornAddFlavor = "ADD {flavor}";
+    public string addGhostFlavor = "ADD {ghost}";
+    public string foodServe = "GIVE TO {customer}";
+    public string foodWrong = "WRONG ONE. PRESS R";
+
+    [Header("Tasks: drinks (one step at a time)")]
+    public string drinkTakeCup = "TAKE {cup}";
+    [Tooltip("{dispenser} = the in-game name of the drink's dispenser, e.g. Pepsi Dispenser.")]
+    public string drinkPlaceCup = "PUT {cup} AT {dispenser}";
+    public string drinkPress = "PRESS {dispenser}";
+    public string drinkTakeBack = "TAKE {cup}";
+
+    [Header("Old (kept for old files, not used)")]
+    public string foodPick = "TAKE A BUCKET";
+    public string drinkFill = "PRESS {drink}";
+    public string popcornFlavor = "ADD FLAVOR";
 
     [Header("Tasks: film change")]
-    [TextArea(1, 3)] public string filmWait = "No film change yet. The projector glows yellow before the next one. Do other work meanwhile.";
-    [TextArea(1, 3)] public string filmTake = "Take the film \"{film}\" from the film shelf next to the projector.";
-    [TextArea(1, 3)] public string filmInsert = "Hold E at the projector to put the film \"{film}\" in.";
+    [Tooltip("{time} = when the next film change is.")]
+    public string filmWait = "WAIT UNTIL {time}";
+    public string filmTake = "TAKE FILM {film}";
+    public string filmInsert = "PUT FILM IN";
 
     [Header("Tasks: cleaning")]
-    [TextArea(1, 3)] public string cleanWait = "Nothing to clean here yet. The mops glow before cleaning time.";
-    [TextArea(1, 3)] public string cleanGetMop = "Get a mop from the Staff Room.";
-    [TextArea(1, 3)] public string cleanStains = "Follow the red arrows and hold E on each stain.";
+    [Tooltip("{time} = when the stains come.")]
+    public string cleanWait = "WAIT UNTIL {time}";
+    public string cleanGetMop = "GET A MOP";
+    public string cleanStains = "MOP THE STAINS";
 
     [Header("Rules: Ghost Screen Room")]
-    [TextArea(1, 3)] public string audienceStill = "The audience is standing and staring. Do NOT move.";
-    [TextArea(1, 3)] public string audienceLeave = "Leave the Ghost Screen Room now.";
-    [TextArea(1, 3)] public string staffFindShadow = "The screen shows static. Find the black shadow on a seat, look at that seat and press E to sit on it.";
-    [TextArea(1, 3)] public string staffStay = "Stay seated until the screen comes back (SPACE = stand up).";
+    public string audienceStill = "DON'T MOVE";
+    public string audienceLeave = "LEAVE THE ROOM";
+    public string staffFindShadow = "SIT ON THE SHADOW";
+    public string staffStay = "STAY SEATED";
 
     [Header("Rules: toilets")]
-    [TextArea(1, 3)] public string mirrorLook = "A mirror is cracked. Look at the crack until it stops.";
-    [TextArea(1, 3)] public string cryingLightOff = "Someone is crying in the last stall. Turn the toilet light OFF (switch by the door).";
-    [TextArea(1, 3)] public string cryingStill = "Stay still in the dark until the crying stops.";
-    [TextArea(1, 3)] public string smokeKnock = "Smoke comes from a stall. Knock on that stall door (E).";
-    [TextArea(1, 3)] public string smokeLightOff = "Now turn the toilet light OFF.";
-    [TextArea(1, 3)] public string smokeLeave = "The smoke hurts. Get out of this toilet.";
-    [TextArea(1, 3)] public string foodLightOff = "Feed the ghost: turn the toilet light OFF first.";
-    [TextArea(1, 3)] public string foodThrowBox = "Throw the black box in at the last stall (E on the drop spot).";
-    [TextArea(1, 3)] public string foodLeave = "Everyone out of the toilet now.";
+    public string mirrorLook = "LOOK AT THE CRACK";
+    public string cryingLightOff = "LIGHT OFF";
+    public string cryingStill = "STAND STILL";
+    public string smokeKnock = "KNOCK ON THE STALL";
+    public string smokeLightOff = "LIGHT OFF";
+    public string smokeLeave = "GET OUT";
+    public string foodLightOff = "LIGHT OFF";
+    public string foodThrowBox = "THROW THE BOX IN";
+    public string foodLeave = "EVERYONE OUT";
 
     [Header("Rules: Ticket Zone")]
-    [TextArea(1, 3)] public string ticketGhostSigns = "A ghost is coming back. Put each RESTROOM BREAK sign on its blue spot.";
-    [TextArea(1, 3)] public string ticketGhostQuiet = "Turn the Ticket Zone lights OFF and stay quiet until the ghost leaves.";
-    [TextArea(1, 3)] public string partsHelp = "A ghost at the counter lost a body part. Press E on it to help.";
-    [TextArea(1, 3)] public string partsFind = "Find its {part} (it cries louder when you are close) and bring it back to the ghost.";
-    [TextArea(1, 3)] public string flavorFind = "The Ghost Flavor is gone. Lights off, find it (follow the trail) and bring it back to the popcorn station.";
-    [TextArea(1, 3)] public string filmLate = "The ghost room film is LATE. Put the film \"{film}\" in the projector before the next film, or everyone gets hurt.";
+    public string ticketGhostSigns = "PLACE THE SIGNS";
+    public string ticketGhostQuiet = "LIGHTS OFF. BE QUIET";
+    public string partsHelp = "PRESS E ON THE GHOST";
+    [Tooltip("{part} = the body part.")]
+    public string partsFind = "FIND ITS {part}";
+    public string flavorFind = "FIND THE GHOST FLAVOR";
+    [Tooltip("{film} = the film.")]
+    public string filmLate = "FILM {film} NOW";
 
     [Header("Map Rules + map events (23 Nov)")]
-    [TextArea(1, 3)] public string vipBring = "A VIP guest is at the front door and the clock is stopped. Press E on the VIP and lead it to its seat in the ghost screen room. Someone bring the VIP film (gold reel, top of the ghost room film shelf) to the crank projector.";
-    [TextArea(1, 3)] public string vipCrank = "The VIP is seated. Put the VIP film (gold reel) in the crank projector if it is not in yet, then press E fast until the film is done.";
-    [TextArea(1, 3)] public string hunterHide = "Lights out. Stay out of the flashlight beam. If it sees you, RUN and break its line of sight.";
-    [TextArea(1, 3)] public string foreignFind = "Things are hiding against the walls. Find them and hit them (Left Click) with a Bat or a mop before they get in.";
-    [TextArea(1, 3)] public string foreignPest = "Something got in. Don't look at it, and work at another spot while it blocks one.";
-    [TextArea(1, 3)] public string filmGhostAvoid = "A ghost from the ghost room walks the halls. Don't look at it. Change the ghost room film to send it back.";
+    public string vipBring = "LEAD THE VIP TO ITS SEAT";
+    public string vipCrank = "GOLD FILM IN. CRANK FAST";
+    public string hunterHide = "HIDE FROM THE LIGHT";
+    public string foreignFind = "FIND THEM. HIT THEM";
+    public string foreignPest = "DON'T LOOK AT IT";
+    public string filmGhostAvoid = "DON'T LOOK. CHANGE THE FILM";
+
+    // 25 Nov: files older than this get the short texts once (then designers can edit again).
+    private const int TextsVersion = 3;
+    [SerializeField, HideInInspector] private int textsVersion;
 
     // ---- Runtime ----------------------------------------------------------------
 
@@ -92,7 +130,9 @@ public sealed class MemoGuideTexts : ScriptableObject
             {
                 current = CreateInstance<MemoGuideTexts>();
                 current.hideFlags = HideFlags.HideAndDontSave;
+                current.textsVersion = TextsVersion;
             }
+            else if (current.textsVersion < TextsVersion) current.UseShortTexts();
             return current;
         }
     }
@@ -102,6 +142,19 @@ public sealed class MemoGuideTexts : ScriptableObject
     {
         if (current != null && (current.hideFlags & HideFlags.DontSave) != 0) DestroyImmediate(current);
         current = null;
+    }
+
+    /// <summary>25 Nov: an old file (long sentences) gets every short default text once.</summary>
+    private void UseShortTexts()
+    {
+        MemoGuideTexts fresh = CreateInstance<MemoGuideTexts>();
+        JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(fresh), this);
+        DestroyImmediate(fresh);
+        textsVersion = TextsVersion;
+#if UNITY_EDITOR
+        UnityEditor.EditorUtility.SetDirty(this); // saved with the project: commit MemoGuideTexts.asset
+#endif
+        Debug.Log("[MemoGuideTexts] Short live-book texts applied (old long texts replaced).");
     }
 
     public static void Use(MemoGuideTexts asset)
