@@ -73,6 +73,9 @@ public sealed class FlashlightHUD : MonoBehaviour
     /// <param name="usesBatteries">Paid flashlight: hint says R + how many Batteries you carry.</param>
     public void Show(string itemName, float charge, bool switchedOn, bool usesBatteries, int batteries)
     {
+        // 25 Nov (Mr.k): the battery bar is under the flashlight's hotbar slot now (HotbarHUD).
+        // The hotbar already shows ON / OFF / % and the key hint, so the big panel stays hidden.
+        if (UnderSlot()) { Hide(); return; }
         if (bar != null) bar.Show(true);
         else if (!gameObject.activeSelf) gameObject.SetActive(true);
         charge = Mathf.Clamp01(charge);
@@ -107,6 +110,20 @@ public sealed class FlashlightHUD : MonoBehaviour
         fill.rectTransform.sizeDelta = new Vector2(BarWidth * charge, 14);
         fill.color = low ? Low : Full;
         hint.alpha = hintAlpha;
+    }
+
+    private float nextCheck;
+    private bool underSlot;
+
+    /// <summary>25 Nov: the GAME HUD hotbar shows the bar (checked twice a second, not every frame).</summary>
+    private bool UnderSlot()
+    {
+        if (Time.unscaledTime >= nextCheck)
+        {
+            nextCheck = Time.unscaledTime + 0.5f;
+            underSlot = HotbarHUD.ShowsBatteryUnderSlots;
+        }
+        return underSlot;
     }
 
     public void Hide()

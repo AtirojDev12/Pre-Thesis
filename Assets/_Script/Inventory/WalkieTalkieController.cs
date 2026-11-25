@@ -32,6 +32,18 @@ public class WalkieTalkieController : MonoBehaviour
     private WalkieTalkieVisual visual;
     private HudBar batteryBar;    // 17 Nov: the free walkie's battery (GAME HUD bar "walkie_battery")
     private bool batteryShown;
+    private float nextSlotCheck;  // 25 Nov
+    private bool underSlot;
+
+    private bool UnderSlot()
+    {
+        if (Time.unscaledTime >= nextSlotCheck)
+        {
+            nextSlotCheck = Time.unscaledTime + 0.5f;
+            underSlot = HotbarHUD.ShowsBatteryUnderSlots;
+        }
+        return underSlot;
+    }
 
     private void Awake()
     {
@@ -68,8 +80,9 @@ public class WalkieTalkieController : MonoBehaviour
     /// <summary>17 Nov: while the free walkie is in your hand, its battery shows in the GAME HUD.</summary>
     private void UpdateBatteryBar()
     {
+        // 25 Nov: the hotbar shows this battery under the walkie's slot, so the big panel stays hidden.
         bool show = inventory.IsHoldingRadio && ItemCatalog.UsesWalkieBattery(inventory.HeldSlot.itemId)
-            && (health == null || !health.IsDead);
+            && (health == null || !health.IsDead) && !UnderSlot();
         if (batteryBar == null) batteryBar = HudBar.Find(HudBar.WalkieBattery);
         if (batteryBar == null) return; // no bar in the GAME HUD: the hotbar still shows the %
         if (show != batteryShown) { batteryShown = show; batteryBar.Show(show); }

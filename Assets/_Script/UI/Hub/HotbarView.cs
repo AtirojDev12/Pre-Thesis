@@ -15,6 +15,9 @@ using UnityEngine.UI;
 ///   - Item Icons list: drag one picture per item. An item with a picture shows its icon.
 ///     "Hide Name When Icon Shown" removes the name under an icon (ON / OFF / x3 words stay).
 ///   - Hint (the line above the hotbar) and Voice Status (mic line) are optional slots.
+///   - 25 Nov: Battery bar under a slot (flashlights, the free walkie). Optional per slot:
+///     drag your own "Charge Frame" + "Charge Fill" Images in. Empty = the game makes a thin bar
+///     right under the slot, styled like the "Flashlight Battery" HUD bar (its Frame / Fill pictures).
 ///
 /// FOR PROGRAMMERS
 ///   HotbarHUD (the logic) finds this view and only writes values into it.
@@ -36,6 +39,12 @@ public sealed class HotbarView : MonoBehaviour
         public TMP_Text item;
         [Tooltip("Optional item picture. Hidden when the item has no picture.")]
         public Image icon;
+        [Tooltip("25 Nov. Optional: the box of the battery bar under this slot. Empty = made by the game.")]
+        public Image chargeFrame;
+        [Tooltip("25 Nov. Optional: the part of the battery bar that grows. Image Type Filled = cut, other = squeezed.")]
+        public Image chargeFill;
+        [NonSerialized] public float chargeFullMax = -1f; // the fill's full right edge (anchor), remembered once
+        [NonSerialized] public float chargeShown = -1f;
     }
 
     [Serializable]
@@ -154,6 +163,83 @@ public sealed class HotbarView : MonoBehaviour
             if (show && s.icon.sprite != icon) s.icon.sprite = icon;
             if (s.icon.enabled != show) s.icon.enabled = show;
         }
+    }
+
+    /// <summary>25 Nov: the battery bar under a slot. Hidden when <paramref name="show"/> is false.</summary>
+    public void SetCharge(int index, bool show, float value, Color colour)
+    {
+        if (index < 0 || index >= SlotCount || slots[index] == null) return;
+        Slot s = slots[index];
+        if (show && (s.chargeFrame == null || s.chargeFill == null)) MakeCharge(s);
+        if (s.chargeFrame == null || s.chargeFill == null) return;
+        GameObject box = s.chargeFrame.gameObject;
+        if (box.activeSelf != show) box.SetActive(show);
+        if (!s.chargeFill.transform.IsChildOf(box.transform) && s.chargeFill.gameObject.activeSelf != show)
+            s.chargeFill.gameObject.SetActive(show);
+        if (!show) return;
+        if (s.chargeFill.color != colour) s.chargeFill.color = colour;
+        value = Mathf.Clamp01(value);
+        if (Mathf.Approximately(value, s.chargeShown)) return;
+        s.chargeShown = value;
+        if (s.chargeFill.type == Image.Type.Filled && s.chargeFill.sprite != null) { s.chargeFill.fillAmount = value; return; }
+        RectTransform rt = s.chargeFill.rectTransform;
+        if (s.chargeFullMax < 0f) s.chargeFullMax = rt.anchorMax.x;
+        Vector2 max = rt.anchorMax;
+        max.x = Mathf.Lerp(rt.anchorMin.x, s.chargeFullMax, value);
+        rt.anchorMax = max;
+    }
+
+    /// <summary>25 Nov: a thin bar right under the slot box, styled like the Flashlight Battery bar.</summary>
+    private static void MakeCharge(Slot s)
+    {
+        RectTransform under = s.frame != null ? s.frame.rectTransform : s.item != null ? s.item.rectTransform.parent as RectTransform : null;
+        if (under == null) return;
+        HudBar style = HudBar.Find(HudBar.Flashlight);
+
+        var boxGo = new GameObject("Battery Bar", typeof(RectTransform));
+        boxGo.transform.SetParent(under, false);
+        var box = (RectTransform)boxGo.transform;
+        box.anchorMin = new Vector2(0f, 0f);
+        box.anchorMax = new Vector2(1f, 0f);
+        box.pivot = new Vector2(0.5f, 1f);
+        box.anchoredPosition = new Vector2(0f, -4f);
+        box.sizeDelta = new Vector2(0f, 10f);
+        Image frame = boxGo.AddComponent<Image>();
+        frame.raycastTarget = false;
+        Copy(style != null ? style.Frame : null, frame, new Color(0.2f, 0.2f, 0.2f, 0.9f));
+        if (frame.type == Image.Type.Filled) frame.type = Image.Type.Simple;
+
+        var fillGo = new GameObject("Fill", typeof(RectTransform));
+        fillGo.transform.SetParent(box, false);
+        var fill = (RectTransform)fillGo.transform;
+        fill.anchorMin = Vector2.zero;
+        fill.anchorMax = Vector2.one;
+        fill.offsetMin = new Vector2(2f, 2f);
+        fill.offsetMax = new Vector2(-2f, -2f);
+        Image fillImage = fillGo.AddComponent<Image>();
+        fillImage.raycastTarget = false;
+        Copy(style != null ? style.Fill : null, fillImage, new Color(0.95f, 0.85f, 0.45f));
+        if (fillImage.type == Image.Type.Filled && fillImage.sprite != null)
+        {
+            fillImage.fillMethod = Image.FillMethod.Horizontal;
+            fillImage.fillOrigin = 0;
+        }
+        else fillImage.type = Image.Type.Simple;
+
+        s.chargeFrame = frame;
+        s.chargeFill = fillImage;
+        s.chargeFullMax = -1f;
+        s.chargeShown = -1f;
+    }
+
+    private static void Copy(Image from, Image to, Color fallback)
+    {
+        if (from == null) { to.color = fallback; return; }
+        to.sprite = from.sprite;
+        to.type = from.type;
+        to.color = from.color;
+        to.material = from.material;
+        to.pixelsPerUnitMultiplier = from.pixelsPerUnitMultiplier;
     }
 
     public void SetHint(string text)

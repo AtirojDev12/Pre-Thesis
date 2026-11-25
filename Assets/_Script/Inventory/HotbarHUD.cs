@@ -190,20 +190,47 @@ public sealed class HotbarHUD : MonoBehaviour
             dirty = true; // put the item hint back next frame
         }
 
+        // 25 Nov: battery bars under the slots (charge drains every frame, so poll it).
+        if (view != null) UpdateChargeBars();
+
         // Voice status changes without events (menu, connection), so poll it.
         string mic;
         switch (VoiceChatManager.CurrentStatus)
         {
-            case VoiceChatManager.Status.Live: mic = Colour("Mic ON", OnColor); break;
+            case VoiceChatManager.Status.Live: mic = string.Empty; break; // 25 Nov: no "Mic ON" line (only problems show)
             case VoiceChatManager.Status.MutedByMenu: mic = Colour("Mic OFF (menu open)", OffColor); break;
             case VoiceChatManager.Status.Connecting: mic = "Voice: connecting..."; break;
             default: mic = Colour("Voice: offline", OffColor); break;
         }
         bool talking = PlayerVoice.Local != null && PlayerVoice.Local.RadioTransmitting;
-        string status = talking ? mic + "\n" + Colour("RADIO: TALKING", SelectedColor) : mic;
+        string radio = Colour("RADIO: TALKING", SelectedColor);
+        string status = talking ? (mic.Length == 0 ? radio : mic + "\n" + radio) : mic;
         if (view != null) view.SetVoiceStatus(status);
         else if (statusText.text != status) statusText.text = status;
     }
+
+    /// <summary>
+    /// 25 Nov (Mr.k): each item with a battery (flashlights, the free walkie) shows its battery bar
+    /// right under its own hotbar slot. The big bottom-right battery panels are not used then.
+    /// </summary>
+    private void UpdateChargeBars()
+    {
+        for (int i = 0; i < PlayerInventory.SlotCount; i++)
+        {
+            InventorySlot slot = inventory.GetSlot(i);
+            bool show = !slot.IsEmpty && !slot.spare && ItemCatalog.UsesCharge(slot.itemId);
+            float low = ItemCatalog.IsFlashlight(slot.itemId) ? 0.25f : 0.2f;
+            Color full = ItemCatalog.IsFlashlight(slot.itemId) ? FlashFull : WalkieFull;
+            view.SetCharge(i, show, slot.charge, show && slot.charge < low ? BatteryLow : full);
+        }
+    }
+
+    private static readonly Color FlashFull = new Color(0.95f, 0.85f, 0.45f);
+    private static readonly Color WalkieFull = new Color(0.45f, 0.85f, 0.45f);
+    private static readonly Color BatteryLow = new Color(1f, 0.35f, 0.3f);
+
+    /// <summary>25 Nov: the hotbar in the GAME HUD shows the battery bars under the slots (so skip the big panels).</summary>
+    public static bool ShowsBatteryUnderSlots => HotbarView.Find(PlayerInventory.SlotCount) != null;
 
     private void SetHint(string text)
     {
