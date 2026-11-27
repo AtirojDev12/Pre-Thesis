@@ -193,6 +193,7 @@ MonoBehaviour:
   canDetectMic: 1
   jumpscareUI: {fileID: 0}
   jumpscareDuration: 3
+  jumpscareAnimation: {fileID: 11400000, guid: 7b38dcc3e5ce4235b98de89c69a4e836, type: 2}
   jumpscareDamage: 25
   killsOutright: 0
   hearThreshold: 0.15

@@ -37,6 +37,9 @@ public sealed class RuleGhost : NetworkBehaviour
     [SerializeField, Min(0.2f)] private float touchCooldown = 1.5f;
     [Tooltip("Show the jumpscare overlay to the player it touches.")]
     [SerializeField] private bool jumpscareOnTouch;
+    [Tooltip("27 Nov 2026: optional frame-by-frame jumpscare for THIS ghost (Create > Pre-Thesis > Jumpscare Animation). " +
+             "Needs Jumpscare On Touch ticked. Empty = the old JumpUi picture.")]
+    [SerializeField] private JumpscareAnimation jumpscareAnimation;
 
     // Server writes, everyone reads.
     [SyncVar(hook = nameof(OnOutChanged))] private bool isOut;
@@ -298,9 +301,9 @@ public sealed class RuleGhost : NetworkBehaviour
     [TargetRpc]
     private void TargetTouch(NetworkConnectionToClient conn, bool jumpscare, string message) => LocalTouchFx(jumpscare, message);
 
-    private static void LocalTouchFx(bool jumpscare, string message)
+    private void LocalTouchFx(bool jumpscare, string message)
     {
-        if (jumpscare) RuleFx.ShowJumpscare(2f);
+        if (jumpscare) RuleFx.ShowJumpscare(jumpscareAnimation, 2f);
         if (!string.IsNullOrEmpty(message)) RuleFx.Toast(message, 2.5f);
     }
 

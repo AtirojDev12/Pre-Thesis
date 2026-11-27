@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Animations;
+using UnityEngine.Playables;
 using UnityEngine.UI;
 
 /// <summary>
@@ -59,6 +61,21 @@ public sealed class RuleFx : MonoBehaviour
         fx.jumpscareUI.SetActive(true);
         if (fx.hideJumpscare != null) fx.StopCoroutine(fx.hideJumpscare);
         fx.hideJumpscare = fx.StartCoroutine(fx.HideJumpscareLater(seconds));
+    }
+
+    /// <summary>
+    /// LOCAL. 27 Nov 2026: plays a frame-by-frame jumpscare (JumpscareAnimation) on this
+    /// screen. No animation (or no clip / frames in it) = the old JumpUi picture for
+    /// <paramref name="fallbackSeconds"/>.
+    /// </summary>
+    public static void ShowJumpscare(JumpscareAnimation animation, float fallbackSeconds)
+    {
+        if (animation == null || !animation.CanPlay)
+        {
+            ShowJumpscare(fallbackSeconds);
+            return;
+        }
+        Instance.PlayAnimation(animation);
     }
 
     private IEnumerator HideJumpscareLater(float seconds)
@@ -125,8 +142,170 @@ public sealed class RuleFx : MonoBehaviour
         toastText.textWrappingMode = TextWrappingModes.Normal;
     }
 
+    // ---- Animated jumpscare (27 Nov 2026) -----------------------------------------
+    //
+    // Its own full-screen canvas (built on first use), so it does not depend on the
+    // GAME HUD being loaded and never changes the shared JumpUi picture.
+    // A Clip is played through a PlayableGraph on an Animator on the "Frame" Image,
+    // stepped by hand with unscaled time (so pause / time scale never freeze it).
+
+    private const int AnimationSortingOrder = 400; // above the HUD (its highest canvas is 300)
+    private GameObject animRoot;
+    private CanvasGroup animGroup;
+    private Image animBackground;
+    private RectTransform animFrameRect;
+    private Image animFrame;
+    private AspectRatioFitter animFitter;
+    private Animator animAnimator;
+    private PlayableGraph animGraph;
+    private AnimationClipPlayable animClipPlayable;
+    private JumpscareAnimation playing;
+    private float playStart;
+    private Sprite fittedSprite;
+    private bool soundPlayed;
+
+    private void PlayAnimation(JumpscareAnimation animation)
+    {
+        if (animRoot == null) BuildAnimation();
+        PlayerGhostWarningController.SuppressLocal(animation.TotalSeconds);
+        DestroyGraph();
+        playing = animation;
+        playStart = Time.unscaledTime;
+        fittedSprite = null;
+        soundPlayed = false;
+
+        animFrame.sprite = null;
+        animBackground.color = animation.backgroundColor;
+        animGroup.alpha = 1f;
+        animRoot.SetActive(true);
+
+        if (animation.clip != null)
+        {
+            animGraph = PlayableGraph.Create("Jumpscare Animation");
+            animGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
+            animClipPlayable = AnimationClipPlayable.Create(animGraph, animation.clip);
+            AnimationPlayableOutput output = AnimationPlayableOutput.Create(animGraph, "Jumpscare", animAnimator);
+            output.SetSourcePlayable(animClipPlayable);
+            animGraph.Play();
+        }
+        UpdateAnimation();
+    }
+
+    private void UpdateAnimation()
+    {
+        JumpscareAnimation a = playing;
+        float t = Time.unscaledTime - playStart;
+        if (a == null || t >= a.TotalSeconds) { StopAnimation(); return; }
+        float animTime = Mathf.Min(t, a.PlaySeconds); // during the fade: stay on the last frame
+
+        if (animGraph.IsValid())
+        {
+            animClipPlayable.SetTime(animTime);
+            animGraph.Evaluate(); // the clip writes animFrame.sprite
+        }
+        else
+        {
+            Sprite sprite = a.SpriteAt(a.FrameIndexAt(animTime));
+            if (sprite != null) animFrame.sprite = sprite;
+        }
+
+        if (animFrame.sprite != fittedSprite)
+        {
+            fittedSprite = animFrame.sprite;
+            if (fittedSprite != null) ApplyFit(a.fit, fittedSprite);
+        }
+        animFrame.enabled = animFrame.sprite != null; // an empty Image would be a white box
+
+        if (!soundPlayed && t >= a.soundAtSeconds)
+        {
+            soundPlayed = true;
+            if (a.sound != null && AudioManager.Instance != null)
+                AudioManager.Instance.PlayClip(a.sound, SoundCategory.Sfx, a.volume, Vector3.zero, false, 1f, 2f, default);
+        }
+
+        bool shake = a.shakePixels > 0f && t >= a.shakeFromSeconds;
+        animFrameRect.anchoredPosition = shake ? Random.insideUnitCircle * a.shakePixels : Vector2.zero;
+        // A little bigger while shaking so the moving picture never shows its edges.
+        float grow = shake && a.fit == JumpscareAnimation.Fit.FillScreen ? 1f + a.shakePixels * 2f / 1080f : 1f;
+        animFrameRect.localScale = new Vector3(grow, grow, 1f);
+
+        float fadeStart = a.TotalSeconds - a.fadeOutSeconds;
+        animGroup.alpha = a.fadeOutSeconds > 0f && t > fadeStart
+            ? Mathf.Clamp01((a.TotalSeconds - t) / a.fadeOutSeconds)
+            : 1f;
+    }
+
+    private void StopAnimation()
+    {
+        playing = null;
+        DestroyGraph();
+        if (animRoot != null) animRoot.SetActive(false);
+        if (animFrame != null) animFrame.sprite = null;
+    }
+
+    private void DestroyGraph()
+    {
+        if (animGraph.IsValid()) animGraph.Destroy();
+    }
+
+    private void OnDestroy() => DestroyGraph();
+
+    private void ApplyFit(JumpscareAnimation.Fit fit, Sprite sprite)
+    {
+        if (fit == JumpscareAnimation.Fit.Stretch)
+        {
+            animFitter.enabled = false;
+            animFrameRect.anchorMin = Vector2.zero;
+            animFrameRect.anchorMax = Vector2.one;
+            animFrameRect.sizeDelta = Vector2.zero;
+            return;
+        }
+        animFitter.aspectRatio = sprite.rect.width / Mathf.Max(1f, sprite.rect.height);
+        animFitter.aspectMode = fit == JumpscareAnimation.Fit.FitInside
+            ? AspectRatioFitter.AspectMode.FitInParent
+            : AspectRatioFitter.AspectMode.EnvelopeParent;
+        animFitter.enabled = true;
+    }
+
+    private void BuildAnimation()
+    {
+        animRoot = new GameObject("Jumpscare Animation", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(CanvasGroup));
+        animRoot.transform.SetParent(transform, false);
+        Canvas canvas = animRoot.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = AnimationSortingOrder;
+        CanvasScaler scaler = animRoot.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0.5f;
+        animGroup = animRoot.GetComponent<CanvasGroup>();
+        animGroup.blocksRaycasts = false;
+        animGroup.interactable = false;
+
+        var bg = new GameObject("Background", typeof(RectTransform), typeof(Image));
+        bg.transform.SetParent(animRoot.transform, false);
+        RectTransform bgRect = (RectTransform)bg.transform;
+        bgRect.anchorMin = Vector2.zero;
+        bgRect.anchorMax = Vector2.one;
+        bgRect.sizeDelta = Vector2.zero;
+        animBackground = bg.GetComponent<Image>();
+        animBackground.raycastTarget = false;
+
+        var frame = new GameObject("Frame", typeof(RectTransform), typeof(Image), typeof(AspectRatioFitter), typeof(Animator));
+        frame.transform.SetParent(animRoot.transform, false);
+        animFrameRect = (RectTransform)frame.transform;
+        animFrame = frame.GetComponent<Image>();
+        animFrame.raycastTarget = false;
+        animFitter = frame.GetComponent<AspectRatioFitter>();
+        animAnimator = frame.GetComponent<Animator>();
+        animAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+
+        animRoot.SetActive(false);
+    }
+
     private void Update()
     {
+        if (playing != null) UpdateAnimation();
         if (toastGroup == null || toastGroup.alpha <= 0f) return;
         float left = toastUntil - Time.unscaledTime;
         toastGroup.alpha = Mathf.Clamp01(left / 0.6f);

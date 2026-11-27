@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4a8fb8feffc6488c8c43f2af43bb71cd, type: 3}
+  m_Name: PopcornGhostJumpscare
+  m_EditorClassIdentifier: Assembly-CSharp::JumpscareAnimation
+  clip: {fileID: 7400000, guid: acf3cd8496d843b3829fdf9f6fd1782e, type: 2}
+  frames:
+  - sprite: {fileID: 21300000, guid: fc851c0178f3326478e8a4a1aff06c7b, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: f59c76895680c7d4d998ee52e75dd8f8, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 771a7386de5988c4a8b3c54b49e742a9, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: f98d6a30a13be444586700a51fa7a6b7, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: b0c54058e2176664f973d159770d1284, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 7016e056ef0d81447867382e0c637558, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 0745c039855bab645b3ce1d99b164d5d, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 9948b4e6c76210a43a6233e69a088eb0, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 05fedfea8e82405478f7bab13ca4df50, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 7b90a0ffe6f4a87419dd34015ddb13d9, type: 3}
+    seconds: 0.06666667
+  - sprite: {fileID: 21300000, guid: 3cf86f5ece0220c4183400c2b358859d, type: 3}
+    seconds: 0.06666667
+  - sprite: {fileID: 21300000, guid: 55d7c84c9b118644fa86c21782623434, type: 3}
+    seconds: 0.06666667
+  framesPerSecond: 12
+  holdLastFrameSeconds: 0.6
+  fadeOutSeconds: 0.15
+  fit: 0
+  backgroundColor: {r: 0, g: 0, b: 0, a: 1}
+  shakePixels: 14
+  shakeFromSeconds: 0.75
+  sound: {fileID: 0}
+  volume: 1
+  soundAtSeconds: 0.75

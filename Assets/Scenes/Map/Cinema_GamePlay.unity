@@ -46103,6 +46103,7 @@ MonoBehaviour:
   touchSanity: 10
   touchCooldown: 1.5
   jumpscareOnTouch: 1
+  jumpscareAnimation: {fileID: 11400000, guid: 7b38dcc3e5ce4235b98de89c69a4e836, type: 2}
 --- !u!114 &376308262
 MonoBehaviour:
   m_ObjectHideFlags: 0

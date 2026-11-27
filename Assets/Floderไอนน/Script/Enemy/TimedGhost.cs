@@ -9,6 +9,10 @@ public class TimedGhost : Enemy_Abstract_Class
     [Tooltip("Jumpscare overlay INSIDE this ghost's prefab, or left empty to find one tagged 'JumpscareUI' in the scene. It is shown only on the victim's screen.")]
     [SerializeField] private GameObject jumpscareUI;
     [SerializeField] private float jumpscareDuration = 3.0f;
+    [Tooltip("27 Nov 2026 (Atiroj): optional frame-by-frame jumpscare (Create > Pre-Thesis > Jumpscare Animation). " +
+             "Set = it plays instead of the Jumpscare UI picture. Empty = the picture, as before. " +
+             "Damage and despawn still use Jumpscare Duration.")]
+    [SerializeField] private JumpscareAnimation jumpscareAnimation;
 
     [Header("Damage")]
     [Tooltip("Damage dealt to the victim. The GDD makes a Jump Scare instant death — tick killsOutright for that instead of raising this.")]
@@ -310,6 +314,12 @@ public class TimedGhost : Enemy_Abstract_Class
     private void ShowJumpscare()
     {
         PlayerGhostWarningController.SuppressLocal(jumpscareDuration);
+        // 27 Nov 2026 (Atiroj): the animated jumpscare, on its own full-screen canvas (RuleFx).
+        if (jumpscareAnimation != null && jumpscareAnimation.CanPlay)
+        {
+            RuleFx.ShowJumpscare(jumpscareAnimation, jumpscareDuration);
+            return;
+        }
         if (jumpscareUI != null) jumpscareUI.SetActive(true);
         Invoke(nameof(HideJumpscare), jumpscareDuration);
     }

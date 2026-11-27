@@ -27,6 +27,7 @@ public static class ScreenToiletRulesSetup
     private const int AudienceCount = 10;
     private const int ShadowSpotCount = 3;
     private const int LampsPerToilet = 5;
+    private const string PopcornGhostJumpscarePath = "Assets/Sprite2D/JumpScre/PopcornGhostJumpscare.asset";
 
     private static Dictionary<string, GameObject> prefabs;
     private static readonly List<string> notes = new List<string>();
@@ -122,6 +123,8 @@ public static class ScreenToiletRulesSetup
         for (int i = 0; i < chasers.Length; i++) chasers[i] = Ghost(parent, $"Rule Ghost - Audience {i + 1}", center, 10f, 5f, false);
         RuleGhost roamer = Ghost(parent, "Rule Ghost - Roams All Night", center, 20f, 10f, true);
         Set(roamer, "speed", 2.2f);
+        // 27 Nov 2026: popcorn ghost frame-by-frame jumpscare (empty if the asset is missing).
+        Set(roamer, "jumpscareAnimation", AssetDatabase.LoadAssetAtPath<JumpscareAnimation>(PopcornGhostJumpscarePath));
 
         // 1. No noise
         RuleNoNoise noNoise = Rule<RuleNoNoise>(parent, "Rule 1 - No Noise", center, zone, "No noise",
