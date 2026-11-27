@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4a8fb8feffc6488c8c43f2af43bb71cd, type: 3}
+  m_Name: CinemaCorridorJumpscare
+  m_EditorClassIdentifier: Assembly-CSharp::JumpscareAnimation
+  clip: {fileID: 0}
+  frames:
+  - sprite: {fileID: 21300000, guid: 4689a007868cab44aa4775c47e7d49a1, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 1e6b435a3d0fb4d4f92f5879c4ba2d05, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 257c0c1fda3009d4ab5a6eef0ba64711, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 0a0cec46d7333c64dbdb4b5bb397e3f4, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 46292514e62cbf64e8d8f000828e88c4, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 7a086444a5589904ba013eb6ee3e6562, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 65e2172cdf04f704f9fc319c4e33580b, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 1293988510666784db1596785fe7ac7e, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: e4c51b1fef8f6334d8a07dd164acfdae, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 3852f11cb4f4cf6408b057dc251d564b, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: 6192e5a314568dc4993434462c032afd, type: 3}
+    seconds: 0
+  - sprite: {fileID: 21300000, guid: b0a4058df62ebab4b9845d48680b59ca, type: 3}
+    seconds: 0
+  framesPerSecond: 10
+  holdLastFrameSeconds: 0.4
+  fadeOutSeconds: 0.2
+  fit: 0
+  backgroundColor: {r: 0, g: 0, b: 0, a: 1}
+  shakePixels: 10
+  shakeFromSeconds: 0.5
+  sound: {fileID: 0}
+  volume: 1
+  soundAtSeconds: 0.5
