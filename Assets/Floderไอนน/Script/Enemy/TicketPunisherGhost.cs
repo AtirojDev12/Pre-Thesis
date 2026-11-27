@@ -13,6 +13,10 @@ public class TicketPunisherGhost : Enemy_Abstract_Class
     [Header("Jumpscare")]
     [SerializeField] private GameObject jumpscareUI;
     [SerializeField, Min(0.1f)] private float jumpscareDuration = 3f;
+    [Tooltip("27 Nov 2026 (Atiroj): optional frame-by-frame jumpscare (Create > Pre-Thesis > Jumpscare Animation), " +
+             "e.g. Sprite2D/JumpScre/CinemaCorridorJumpscare. Set = it plays instead of the Jumpscare UI picture. " +
+             "Empty = the picture, as before. Damage and despawn still use Jumpscare Duration.")]
+    [SerializeField] private JumpscareAnimation jumpscareAnimation;
     [SerializeField] private bool killsOutright;
     [SerializeField] private string attackTriggerName = "Attack";
 
@@ -139,6 +143,13 @@ public class TicketPunisherGhost : Enemy_Abstract_Class
     private void ShowJumpscare()
     {
         PlayerGhostWarningController.SuppressLocal(jumpscareDuration);
+        // 27 Nov 2026 (Atiroj): the animated jumpscare, on its own full-screen canvas (RuleFx),
+        // same as TimedGhost and the "Roams All Night" Rule Ghost.
+        if (jumpscareAnimation != null && jumpscareAnimation.CanPlay)
+        {
+            RuleFx.ShowJumpscare(jumpscareAnimation, jumpscareDuration);
+            return;
+        }
         // Resolve again for late-created HUDs and RPCs arriving before Start.
         ResolveJumpscareUI();
         if (jumpscareUI != null)

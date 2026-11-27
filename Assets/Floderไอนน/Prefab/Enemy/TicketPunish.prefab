@@ -170,6 +170,7 @@ MonoBehaviour:
   attackDamage: 40
   jumpscareUI: {fileID: 0}
   jumpscareDuration: 3
+  jumpscareAnimation: {fileID: 11400000, guid: 5516f568e0cf4fbca22b1b9613d19588, type: 2}
   killsOutright: 0
   attackTriggerName: Attack
 --- !u!114 &4027776634746782674

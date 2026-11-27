@@ -535,4 +535,46 @@ MonoBehaviour:
       minHeight: -1
       preferredWidth: -1
       preferredHeight: -1
+    - path: Content/Settings Panel
+      fromSkin: 0
+      hide: 0
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 1
+      colorValue: {r: 0, g: 0, b: 0, a: 0.92}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
     added: []
