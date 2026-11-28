@@ -233,7 +233,7 @@ MonoBehaviour:
     clips:
     - {fileID: 8300000, guid: 94b17b1168ceeb543abe30c1b0589959, type: 3}
     category: 1
-    volume: 0.8
+    volume: 0.25
     spatial: 1
     minDistance: 1
     maxDistance: 1
