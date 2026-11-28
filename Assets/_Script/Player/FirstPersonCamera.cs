@@ -18,8 +18,10 @@ public class FirstPersonCamera : MonoBehaviour
     public Transform playerBody;
 
     [Header("Stable Camera Mount")]
-    [Tooltip("Camera-pivot position relative to the non-animated player controller.")]
-    [SerializeField] private Vector3 cameraLocalPosition = new Vector3(0f, 0.9f, 0.05f);
+    // 28 Nov (Atiroj): no Inspector field for the camera position any more. The eyes are where
+    // CameraPivot + Main Camera are placed in the Player prefab: move them there to change the view.
+    // Filled in Awake (ReadPrefabCameraPlacement). Relative to the non-animated player controller.
+    private Vector3 cameraLocalPosition = new Vector3(0f, 0.9f, 0.05f);
     [SerializeField] private float crouchCameraDrop = 0.65f;
     [SerializeField] private float crouchCameraLerpSpeed = 9f;
 
@@ -153,6 +155,7 @@ public class FirstPersonCamera : MonoBehaviour
         playerMovement = GetComponentInParent<PlayerMovement>();
         viewCamera = GetComponent<Camera>();
         if (viewCamera == null) viewCamera = GetComponentInChildren<Camera>(true);
+        ReadPrefabCameraPlacement();
         ghostWarning = GetComponent<PlayerGhostWarningController>();
         locomotionFov = defaultFOV;
         fallStateHash = Animator.StringToHash(fallStateName);
@@ -183,6 +186,24 @@ public class FirstPersonCamera : MonoBehaviour
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+    }
+
+    /// <summary>
+    /// 28 Nov (Atiroj): the eye point = where the Main Camera sits in the Player prefab
+    /// (CameraPivot position + the Main Camera's offset under it), measured from the Player Body.
+    /// Runs in Awake on every machine, before the rig moves anything, so EyePosition()
+    /// on remote players uses the same point.
+    /// </summary>
+    private void ReadPrefabCameraPlacement()
+    {
+        if (playerBody == null || !transform.IsChildOf(playerBody))
+        {
+            Debug.LogWarning($"{nameof(FirstPersonCamera)} on {name}: CameraPivot is not under the Player Body, " +
+                             "so the prefab camera position cannot be read. Using the default eye height.", this);
+            return;
+        }
+        Transform eye = viewCamera != null ? viewCamera.transform : transform;
+        cameraLocalPosition = playerBody.InverseTransformPoint(eye.position);
     }
 
     private void ConfigureStableRig()
