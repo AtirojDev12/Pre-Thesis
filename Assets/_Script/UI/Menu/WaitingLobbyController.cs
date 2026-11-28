@@ -70,6 +70,7 @@ public class WaitingLobbyController : MonoBehaviour
     // Same look as the Tab player list: colours and font come from
     // Assets/Resources/UI/Styles/Player List Style (edit it in the Inspector, both screens change).
     // Applied when the game starts (Play), so the Scene view still shows the old colours.
+    // (28 Nov: except the card background: that uses the scene's own "Lobby Card" colour.)
     // No asset = the scene's own look, exactly like before.
     private const string VcrStyleName = "Player List Style";
     private CodeScreenStyle vcr;
@@ -110,8 +111,12 @@ public class WaitingLobbyController : MonoBehaviour
             VerticalLayoutGroup layout = card.GetComponent<VerticalLayoutGroup>();
             if (layout != null) layout.padding = new RectOffset(48, 48, 100, 40);
 
+            // 28 Nov (Atiroj): the card keeps the colour set on "Lobby Card" in the scene (Image > Color),
+            // not the style's Panel colour, so changing it in the Hierarchy/Inspector shows in the game.
+            Color sceneCardColour = cardImage.color;
             cardImage.sprite = s.panelSprite; // the old one was rounded
             s.StyleCard(cardImage);
+            cardImage.color = sceneCardColour;
             Transform frame = card.childCount > 0 ? card.GetChild(0) : null;
             if (frame != null && frame.name == "Frame") IgnoreLayout(frame); // the card is a layout group
 
