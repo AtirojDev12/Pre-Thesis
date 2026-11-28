@@ -14,7 +14,13 @@ public struct GhostFavorState
 }
 
 /// <summary>
-/// Observes the existing light state; the popcorn network object owns replication.
+/// The popcorn network object owns replication.
+///
+/// 28 Nov 2026 (Atiroj, agreed with Mr.k): the Ghost Flavor vanishes ONLY when a rule says so
+/// (Ticket Zone rule 3 GhostFavorTimer, or the timed ghost of rule 4 arriving in GhostManager),
+/// through ServerOnGhostAppeared. Switching the lights off is just a light switch: it no longer
+/// makes it vanish (it used to, which also punished players who turned the lights off during
+/// the rule 4 warning as the rule tells them to).
 ///
 /// 17 Nov 2026 (Mr.k, Task 6 #46): the displaced Ghost Flavor is a HOTBAR item now. Picking it
 /// up needs a free hotbar slot and puts the "Ghost Flavor" token there (ItemCatalog.GhostFlavor).
@@ -35,13 +41,31 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     private Rigidbody favorBody;
     private bool falling;
     private bool wasCarried;
-    private float darkSeconds;
-    private bool blackoutHandled;
     private int dropFrame = -1;
     private GhostFavorTrail trail;
     private GhostFavorDisappearVfx disappearVfx;
     private uint disappearanceId;
     private Renderer[] favorRenderers;   // 17 Nov: hidden while it is in the carrier's hotbar but not the hand
+    // 28 Nov (Atiroj): carried at the same spot as a held cup / popcorn bucket.
+    private PopcornItemHoldingSystem handSource;
+    private Vector3 favorCentreLocal;      // bounds centre in the prop's own space (pivot may be at its base)
+    private Transform chestOwner;
+    // 28 Nov: the jar sits under "PopcornTasteSelect", which is squashed (scale y 0.226; the jar
+    // makes up for it with scale y 60). Turning it under that parent shears it (looks stretched),
+    // so while it is away from home it has no parent. At home it goes back exactly as authored.
+    private Transform homeParent;
+    private Vector3 homeLocalPosition;
+    private Quaternion homeLocalRotation;
+    private Vector3 homeLocalScale;
+    private bool detached;
+    private Transform chestBone;
+    private static readonly Vector3 FallbackHandPosition = new Vector3(-0.3f, -0.24f, 0.65f);
+    private static readonly Vector3 FallbackHandRotation = new Vector3(-10f, 0f, -8f);
+    private static readonly Vector3 FallbackChestOffset = new Vector3(-.18f, -.1f, .3f);
+    // Cups / buckets are in the LEFT hand and can be held at the same time as the Ghost Flavor
+    // (separate systems), so it uses the same height and distance on the RIGHT side.
+    // false = exactly the cup spot (left side).
+    private const bool MirrorToRightHand = true;
     private bool favorShown = true;
     private bool HasAuthority => !NetworkMode.SessionEnding && (NetworkMode.IsOffline ||
         (PopcornNetSync.Instance != null && PopcornNetSync.Instance.isServer));
@@ -67,9 +91,22 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         destinations = relocationPoints;
         homePosition = target.position;
         homeRotation = target.rotation;
+        homeParent = target.parent;
+        homeLocalPosition = target.localPosition;
+        homeLocalRotation = target.localRotation;
+        homeLocalScale = target.localScale;
+        detached = false;
         state = new GhostFavorState { position = homePosition, rotation = homeRotation };
         colliders = target.GetComponentsInChildren<Collider>();
         favorRenderers = target.GetComponentsInChildren<Renderer>(true);
+        handSource = GetComponent<PopcornItemHoldingSystem>();
+        favorCentreLocal = Vector3.zero;
+        if (favorRenderers.Length > 0)
+        {
+            Bounds bounds = favorRenderers[0].bounds;
+            foreach (Renderer r in favorRenderers) if (r != null) bounds.Encapsulate(r.bounds);
+            favorCentreLocal = target.InverseTransformPoint(bounds.center);
+        }
         colliderEnabled = new bool[colliders.Length];
         for (int i = 0; i < colliders.Length; i++) colliderEnabled[i] = colliders[i].enabled;
         favorBody = target.GetComponent<Rigidbody>();
@@ -90,23 +127,19 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         if (favor == null || NetworkMode.SessionEnding) return;
         if (HasAuthority)
         {
-            // 7 Nov (Mr.k): also when a player switches the Ticket Zone lights OFF (zone switch), not only a power cut.
-            bool dark = BuildingLightManager.Instance != null && !BuildingLightManager.Instance.LightsOnAt(homePosition);
-            darkSeconds = dark ? darkSeconds + Time.deltaTime : 0f;
-            if (!dark) blackoutHandled = false;
-            // Warning flickers last at most 0.2s; a sustained outage is a blackout.
-            if (darkSeconds >= 0.5f && !blackoutHandled)
-            {
-                blackoutHandled = true;
-                Relocate();
-            }
+            // 28 Nov: no light watching here any more. Only rules make it vanish (ServerOnGhostAppeared).
             // 17 Nov: the carry ends when the token left the hotbar (thrown away, lost on death ...).
             if (carrier != null && carrier.TryGetComponent(out PlayerInventory carrierInventory) && !carrierInventory.Has(ItemCatalog.GhostFlavor))
                 Drop();
             if (carrier != null && !carrier.IsDead && !carrier.IsDowned)
             {
-                state.position = carrier.transform.TransformPoint(new Vector3(0.45f, 1f, 0.8f));
-                state.rotation = carrier.transform.rotation;
+                // 28 Nov: same spot as a held cup / bucket (first person for the host's own carry).
+                Vector3 carryPosition;
+                Quaternion carryRotation;
+                if (carrier != PlayerHealth.LocalInstance || !TryFirstPersonPose(carrier, out carryPosition, out carryRotation))
+                    ThirdPersonPose(carrier.transform, out carryPosition, out carryRotation);
+                state.position = carryPosition;
+                state.rotation = carryRotation;
                 if (Vector3.Distance(carrier.transform.position, homePosition) <= 1.8f)
                 {
                     TakeToken(carrier);
@@ -141,6 +174,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
     {
         if (favor == null) return;
         GhostFavorState visible = VisibleState;
+        SetDetached(visible.displaced); // 28 Nov: before it is turned (no stretching)
         // Observe the replicated event before moving the prop. The smoke stays at home.
         if (!NetworkMode.SessionEnding && disappearVfx != null) disappearVfx.Observe(visible);
         // Only the authority simulates gravity. Clients follow the replicated pose.
@@ -148,15 +182,14 @@ public sealed class GhostFavorRecovery : MonoBehaviour
             favor.SetPositionAndRotation(visible.displaced ? visible.position : homePosition,
                 visible.displaced ? visible.rotation : homeRotation);
         bool carried = NetworkMode.IsOffline ? carrier != null : visible.carrierId != 0;
-        // Keep the owner's recovery view; observers see the existing prop beside the chest.
-        if (carried && !IsLocalCarrier && NetworkClient.spawned.TryGetValue(visible.carrierId, out NetworkIdentity remote))
+        // 28 Nov (Atiroj): held at the same spot as a cup / popcorn bucket.
+        // The carrier sees it in front of the camera; others see it at the chest.
+        if (carried && IsLocalCarrier && TryFirstPersonPose(PlayerHealth.LocalInstance, out Vector3 handPos, out Quaternion handRot))
+            favor.SetPositionAndRotation(handPos, handRot);
+        else if (carried && !IsLocalCarrier && NetworkClient.spawned.TryGetValue(visible.carrierId, out NetworkIdentity remote))
         {
-            Animator animator = remote.GetComponentInChildren<Animator>();
-            Transform chest = animator != null && animator.isHuman
-                ? animator.GetBoneTransform(HumanBodyBones.UpperChest) ?? animator.GetBoneTransform(HumanBodyBones.Chest) : null;
-            Vector3 centre = chest != null ? chest.position : remote.transform.position + Vector3.up * 1.3f;
-            favor.SetPositionAndRotation(centre + remote.transform.right * .42f + remote.transform.forward * .3f,
-                remote.transform.rotation);
+            ThirdPersonPose(remote.transform, out Vector3 chestPos, out Quaternion chestRot);
+            favor.SetPositionAndRotation(chestPos, chestRot);
         }
         for (int i = 0; i < colliders.Length; i++)
             if (colliders[i] != null) colliders[i].enabled = colliderEnabled[i] && !carried;
@@ -169,6 +202,62 @@ public sealed class GhostFavorRecovery : MonoBehaviour
             foreach (Renderer r in favorRenderers) if (r != null) r.enabled = show;
         }
     }
+
+    // ---- 28 Nov (Atiroj): carry pose = the held cup / popcorn bucket pose ----------------
+
+    /// <summary>First person: in front of the carrier's own camera, where a cup / bucket is held.</summary>
+    private bool TryFirstPersonPose(PlayerHealth body, out Vector3 position, out Quaternion rotation)
+    {
+        position = default;
+        rotation = default;
+        Camera view = body != null ? body.GetComponentInChildren<Camera>() : null;
+        if (view == null) return false;
+        Vector3 hand = handSource != null ? handSource.HandPosition : FallbackHandPosition;
+        Vector3 turn = handSource != null ? handSource.HandRotation : FallbackHandRotation;
+        if (MirrorToRightHand) { hand.x = Mathf.Abs(hand.x); turn.y = -turn.y; turn.z = -turn.z; }
+        rotation = view.transform.rotation * Quaternion.Euler(turn);
+        position = Centred(view.transform.TransformPoint(hand), rotation);
+        return true;
+    }
+
+    /// <summary>What other players see: at the chest, same offset as a held cup / bucket (PlayerHeldItems).</summary>
+    private void ThirdPersonPose(Transform body, out Vector3 position, out Quaternion rotation)
+    {
+        PlayerHeldItems held = body.GetComponent<PlayerHeldItems>();
+        Vector3 offset = held != null ? held.TaskOffset : FallbackChestOffset;
+        if (MirrorToRightHand) offset.x = Mathf.Abs(offset.x);
+        if (chestOwner != body)
+        {
+            chestOwner = body;
+            Animator animator = body.GetComponentInChildren<Animator>();
+            chestBone = animator != null && animator.isHuman
+                ? animator.GetBoneTransform(HumanBodyBones.UpperChest) ?? animator.GetBoneTransform(HumanBodyBones.Chest) : null;
+        }
+        Vector3 centre = chestBone != null ? chestBone.position : body.position + Vector3.up * 1.3f;
+        rotation = Quaternion.LookRotation(body.forward, Vector3.up);
+        position = Centred(centre + body.right * offset.x + Vector3.up * offset.y + body.forward * offset.z, rotation);
+    }
+
+    /// <summary>28 Nov: away from home = no parent (no shear from the squashed parent); home = as authored.</summary>
+    private void SetDetached(bool on)
+    {
+        if (favor == null || detached == on) return;
+        detached = on;
+        if (on)
+        {
+            // Only ever detached from the home pose, where the world scale is still exact.
+            favor.SetParent(null, true);
+            return;
+        }
+        favor.SetParent(homeParent, false);
+        favor.localPosition = homeLocalPosition;
+        favor.localRotation = homeLocalRotation;
+        favor.localScale = homeLocalScale;
+    }
+
+    /// <summary>Puts the prop's visual centre (not its pivot) on the grip point, like the cups.</summary>
+    private Vector3 Centred(Vector3 grip, Quaternion rotation) =>
+        grip - rotation * Vector3.Scale(favorCentreLocal, favor.lossyScale);
 
     /// <summary>17 Nov: the local player carries it AND has its hotbar slot in the hand.</summary>
     public bool IsLocalHolding => IsLocalCarrier && PlayerInventory.Local != null && PlayerInventory.Local.IsHolding(ItemCatalog.GhostFlavor);
@@ -204,7 +293,10 @@ public sealed class GhostFavorRecovery : MonoBehaviour
         PublishState();
     }
 
-    /// <summary>Server/offline arrival trigger, independent of warning flickers and light switches.</summary>
+    /// <summary>
+    /// Server/offline. The ONLY way the Ghost Flavor vanishes: called by the rules
+    /// (GhostFavorTimer = rule 3, GhostManager.SpawnGhost = rule 4). Light switches never call it.
+    /// </summary>
     public void ServerOnGhostAppeared()
     {
         if (favor == null || !HasAuthority) return;
@@ -220,7 +312,7 @@ public sealed class GhostFavorRecovery : MonoBehaviour
 
     private void Relocate()
     {
-        // Leave a recovery already in progress alone, including on later blackouts.
+        // Leave a recovery already in progress alone, including on later rule triggers.
         if (state.displaced) return;
         var candidates = new List<Transform>();
         if (destinations != null)

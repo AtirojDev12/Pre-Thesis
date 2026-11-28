@@ -179,6 +179,11 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
         if (HasItem && player != itemOwner) Consume();
     }
 
+    /// <summary>28 Nov (Atiroj): where a held cup / bucket sits in front of the local camera
+    /// (camera space). The carried Ghost Flavor uses the same spot.</summary>
+    public Vector3 HandPosition => heldPosition;
+    public Vector3 HandRotation => heldRotation;
+
     public void Configure(GameObject prefab, Vector3 position, Vector3 rotation)
     {
         heldPrefab = prefab;

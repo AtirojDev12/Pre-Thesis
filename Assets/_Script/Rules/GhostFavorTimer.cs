@@ -12,7 +12,8 @@ using UnityEngine;
 ///     bucket vanishes. Players follow its trail, bring it back, and switch the lights on.
 ///   Timed ghost in this match (GhostManager active): this timer does nothing. The bucket
 ///     vanishes each time the ghost arrives (GhostManager: short 0.3 s cut, lights stay as left).
-///   Always: switching the Ticket Zone lights off also makes it vanish (GhostFavorRecovery).
+///   28 Nov (Atiroj): switching the Ticket Zone lights off by hand does NOT make it vanish any
+///     more. Only this timer (rule 3) or the timed ghost (rule 4) does.
 ///
 /// Server / offline only. Builds itself at start-up; no scene setup. Light zone = the
 /// BuildingLightManager zone around the bucket's home (TicketAndPopcorn in Cinema).

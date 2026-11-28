@@ -148,8 +148,8 @@ public class GhostManager : NetworkBehaviour, IDevGhostSource
         // is already the whole story.
         if (NetworkServer.active) NetworkServer.Spawn(currentGhostInstance);
 
-        // Arrival flickers are too short to count as a sustained blackout.
-        // Relocate seasoning on the authority when the ghost actually appears.
+        // Rule 4: the Ghost Flavor vanishes when the ghost actually appears (authority only).
+        // 28 Nov: this is the trigger; light switches / flickers never make it vanish.
         GhostFavorRecovery.Instance?.ServerOnGhostAppeared();
 
         StartDespawnTimer();
