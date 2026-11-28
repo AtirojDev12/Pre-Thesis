@@ -37,6 +37,7 @@ public sealed class DevCheatPanel : MonoBehaviour
         // 23 Nov: Map Rules + map events (added at the END so older numbers keep their meaning)
         AudienceRoamOn, AudienceRoamOff, ToiletGhostsOn, ToiletGhostsOff,
         VipStart, VipFilmIn, VipServe, VipFail, HunterStart, HunterEnd, ForeignStart, ForeignAllIn, ForeignClear,
+        ReviveSelf, // 28 Nov (Atiroj): added at the END so older numbers keep their meaning
     }
 
     private static bool serverHandlerReady;
@@ -120,6 +121,8 @@ public sealed class DevCheatPanel : MonoBehaviour
                 else health.Heal(health.MaxHealth);
                 break;
             case Cheat.GoDown: if (health != null) health.ServerDevGoDown(); break;
+            // 28 Nov: stand back up like a normal revive (same health a teammate's revive gives).
+            case Cheat.ReviveSelf: if (health != null && health.IsDowned && !health.IsDead) health.Revive(); break;
             case Cheat.Die: if (health != null) health.ServerKill("dev cheat", true); break;
             case Cheat.ClockPlusHour: if (match != null) match.ServerDevSkipSeconds(match.SecondsPerInGameHour); break;
             case Cheat.ClockMinusHour: if (match != null) match.ServerDevSkipSeconds(-match.SecondsPerInGameHour); break;
@@ -381,8 +384,9 @@ public sealed class DevCheatPanel : MonoBehaviour
                 (untargetable ? "Untargetable: ON" : "Untargetable: OFF",
                     () => { if (Do(untargetable ? Cheat.UntargetableOff : Cheat.UntargetableOn, untargetable ? "Ghosts can target you" : "Ghosts ignore you")) untargetable = !untargetable; }));
             Row(("Go down", () => Do(Cheat.GoDown, "Downed")),
-                ("Die", () => Do(Cheat.Die, "Dead")));
-            Row((noclip ? "Noclip / fly: ON" : "Noclip / fly: OFF", ToggleNoclip), ("", null));
+                ("Revive myself", () => Do(Cheat.ReviveSelf, "Revived (only works while downed)")));
+            Row(("Die", () => Do(Cheat.Die, "Dead")),
+                (noclip ? "Noclip / fly: ON" : "Noclip / fly: OFF", ToggleNoclip));
             Row(("Sanity full", () => Do(Cheat.SanityFull, "Sanity 100")),
                 ("Sanity -25", () => Do(Cheat.SanityMinus25, "Sanity -25")));
             Row(("Sanity 0", () => Do(Cheat.SanityZero, "Sanity 0 (jumpscare soon)")),

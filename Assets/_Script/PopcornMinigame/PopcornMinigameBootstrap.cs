@@ -576,12 +576,15 @@ public sealed class PopcornGameManager : MonoBehaviour
     {
         cashierDisplayPlacement = placement;
         cashierDisplayRoot = new GameObject("Cashier Display Placement").transform;
-        cashierDisplayRoot.SetParent(cashier, false);
+        // 28 Nov (Atiroj): the cashier prop can be squashed (non-uniform scale) and tilted.
+        // A child turned under it gets sheared, so hang the display on the nearest parent
+        // that is not squashed.
+        cashierDisplayRoot.SetParent(UnsquashedParent(cashier), false);
         // Start at unit world scale so the factory keeps its usual pixel size.
         // Scale the shared parent afterwards: UI Hub skins and replacement designs
         // then inherit the anchor size without overwriting their own transforms.
         cashierDisplayRoot.SetPositionAndRotation(placement.position, placement.rotation);
-        Vector3 parentScale = cashier.lossyScale;
+        Vector3 parentScale = cashierDisplayRoot.parent != null ? cashierDisplayRoot.parent.lossyScale : Vector3.one;
         cashierDisplayRoot.localScale = new Vector3(
             1f / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
             1f / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
@@ -614,9 +617,17 @@ public sealed class PopcornGameManager : MonoBehaviour
         {
             Rect bounds = placementRect.rect;
             Vector3 center = placementRect.TransformPoint(bounds.center);
-            cashierDisplayRoot.SetPositionAndRotation(center, placementRect.rotation);
-            float width = placementRect.TransformVector(Vector3.right * bounds.width).magnitude;
-            float height = placementRect.TransformVector(Vector3.up * bounds.height).magnitude;
+            Vector3 across = placementRect.TransformVector(Vector3.right * bounds.width);
+            Vector3 upward = placementRect.TransformVector(Vector3.up * bounds.height);
+            // 28 Nov (Atiroj): use the plane the anchor's gizmo really shows. Under a squashed,
+            // tilted parent the gizmo is skewed and .rotation alone faces another way (the
+            // second, white frame seen in Play mode).
+            Vector3 facing = Vector3.Cross(across, upward);
+            Quaternion rotation = facing.sqrMagnitude > 1e-12f && upward.sqrMagnitude > 1e-12f
+                ? Quaternion.LookRotation(facing, upward) : placementRect.rotation;
+            cashierDisplayRoot.SetPositionAndRotation(center, rotation);
+            float width = across.magnitude;
+            float height = upward.magnitude;
             var displayRect = (RectTransform)cashierCanvas.transform;
             Vector2 size = new Vector2(width, height) / UiFactory.WorldUnitsPerPixel;
             if (displayRect.sizeDelta != size) displayRect.sizeDelta = size;
@@ -631,6 +642,19 @@ public sealed class PopcornGameManager : MonoBehaviour
             scale.x / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
             scale.y / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
             scale.z / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
+    }
+
+    /// <summary>28 Nov: the nearest of this transform and its parents with an even scale (or none).</summary>
+    private static Transform UnsquashedParent(Transform from)
+    {
+        for (Transform t = from; t != null; t = t.parent)
+        {
+            Vector3 s = t.lossyScale;
+            float min = Mathf.Min(Mathf.Abs(s.x), Mathf.Abs(s.y), Mathf.Abs(s.z));
+            float max = Mathf.Max(Mathf.Abs(s.x), Mathf.Abs(s.y), Mathf.Abs(s.z));
+            if (min > 0.0001f && max / min < 1.001f) return t;
+        }
+        return null;
     }
 
     private void BindWorldUiCamera(PlayerHealth player)

@@ -193,6 +193,10 @@ public sealed class PlayerHeldItems : NetworkBehaviour
 
     private string radioVisualId; // 17 Nov: which walkie the remote model shows
 
+    /// <summary>28 Nov (Atiroj): chest offset other players see for a held cup / bucket.
+    /// The carried Ghost Flavor uses the same offset.</summary>
+    public Vector3 TaskOffset => taskOffset;
+
     private Transform Chest()
     {
         if (chest != null) return chest;

@@ -54,6 +54,31 @@ public class FirstPersonCamera : MonoBehaviour
     [Min(1f)] [SerializeField] private float sprintFOV = 75f;
     [Min(0f)] [SerializeField] private float fovLerpSpeed = 8f;
 
+    [Header("Downed Fall Camera (28 Nov, Atiroj)")]
+    [Tooltip("Animator state played when the player goes down / dies. The camera follows the head until this state ends.")]
+    [SerializeField] private string fallStateName = "Dying";
+
+    [Tooltip("How tightly the camera follows the head while falling (higher = tighter, lower = smoother).")]
+    [Min(0f)] [SerializeField] private float fallFollowSharpness = 18f;
+
+    [Tooltip("Eye position from the head bone, in the view's own space (x right, y up, z forward), metres.")]
+    [SerializeField] private Vector3 fallEyeOffset = new Vector3(0f, 0.08f, 0.08f);
+
+    [Tooltip("The camera never goes lower than this above the floor, so it cannot see through it.")]
+    [Min(0f)] [SerializeField] private float fallMinFloorClearance = 0.2f;
+
+    [Tooltip("Safety: lock the view on the floor after this many seconds even if the fall state never ends.")]
+    [Min(0.5f)] [SerializeField] private float fallMaxSeconds = 8f;
+
+    [Tooltip("Mouse look on the floor, around the view the fall ended on (degrees left/right).")]
+    [Range(0f, 90f)] [SerializeField] private float floorLookYawLimit = 70f;
+
+    [Tooltip("Mouse look on the floor, around the view the fall ended on (degrees up/down).")]
+    [Range(0f, 90f)] [SerializeField] private float floorLookPitchLimit = 50f;
+
+    [Tooltip("Seconds to rise back to eye height after a revive.")]
+    [Min(0f)] [SerializeField] private float reviveRiseSeconds = 0.45f;
+
     [Header("First-Person Visibility")]
     [Tooltip("Renderers assigned here are shown only by this first-person camera. Leave empty when the character has no separate arms mesh.")]
     [SerializeField] private Renderer[] firstPersonArmRenderers;
@@ -90,6 +115,31 @@ public class FirstPersonCamera : MonoBehaviour
     private PlayerGhostWarningController ghostWarning;
     private float locomotionFov;
 
+    // ---- Downed fall camera (28 Nov) -----------------------------------------
+    // Standing: normal stable rig. Falling: follows the head bone through the fall
+    // animation. OnFloor: the fall ended, the view stays still where it landed
+    // (mouse can look around a little). Rising: smooth way back up after a revive.
+    private enum DownView { Standing, Falling, OnFloor, Rising }
+    private DownView downView = DownView.Standing;
+    private Animator bodyAnimator;
+    private Transform headBone;
+    private int fallStateHash;
+    private bool cullingOverridden;
+    private AnimatorCullingMode savedCulling;
+    private Quaternion fallHeadStart;
+    private Quaternion fallViewStart;
+    private float fallStartedAt;
+    private Vector3 floorLocalPosition;
+    private Quaternion floorLocalRotation;
+    private float floorYaw;
+    private float floorPitch;
+    private Vector3 riseFromLocalPosition;
+    private Quaternion riseFromLocalRotation;
+    private float riseStartedAt;
+    private bool warnedNoHead;
+    private bool noHeadThisFall; // do not search the body again every frame
+    private readonly RaycastHit[] floorHits = new RaycastHit[8];
+
     // A rig without a NetworkIdentity is a standalone test rig and therefore
     // belongs to this machine.
     private bool IsLocal =>
@@ -105,6 +155,7 @@ public class FirstPersonCamera : MonoBehaviour
         if (viewCamera == null) viewCamera = GetComponentInChildren<Camera>(true);
         ghostWarning = GetComponent<PlayerGhostWarningController>();
         locomotionFov = defaultFOV;
+        fallStateHash = Animator.StringToHash(fallStateName);
     }
 
     private void Start()
@@ -250,12 +301,27 @@ public class FirstPersonCamera : MonoBehaviour
             float mouseX = mouseDelta.x * sensitivity;
             float mouseY = mouseDelta.y * sensitivity;
 
-            verticalRotation = Mathf.Clamp(
-                verticalRotation - mouseY,
-                minLookAngle,
-                maxLookAngle);
+            // 28 Nov: on the floor the mouse moves the floor view instead (below), so the
+            // standing pitch is kept for after the revive.
+            if (!isIncapacitated || downView == DownView.Standing || downView == DownView.Rising)
+                verticalRotation = Mathf.Clamp(
+                    verticalRotation - mouseY,
+                    minLookAngle,
+                    maxLookAngle);
 
-            if (isIncapacitated)
+            if (isIncapacitated && downView == DownView.Falling)
+            {
+                // 28 Nov: the fall animation owns the view until it ends.
+                wasIncapacitated = true;
+            }
+            else if (isIncapacitated && downView == DownView.OnFloor)
+            {
+                // 28 Nov: look around a little from where the head landed.
+                floorYaw = Mathf.Clamp(floorYaw + mouseX, -floorLookYawLimit, floorLookYawLimit);
+                floorPitch = Mathf.Clamp(floorPitch - mouseY, -floorLookPitchLimit, floorLookPitchLimit);
+                wasIncapacitated = true;
+            }
+            else if (isIncapacitated)
             {
                 downedHorizontalRotation = Mathf.Clamp(
                     downedHorizontalRotation + mouseX,
@@ -327,16 +393,182 @@ public class FirstPersonCamera : MonoBehaviour
     {
         if (!initialised || !IsLocal) return;
 
+        bool incapacitated = playerHealth != null && (playerHealth.IsDowned || playerHealth.IsDead);
+        UpdateDownView(incapacitated);
+        if (downView == DownView.Falling) { FollowFall(); return; }
+        if (downView == DownView.OnFloor)
+        {
+            transform.localPosition = floorLocalPosition;
+            transform.localRotation = floorLocalRotation * Quaternion.Euler(floorPitch, floorYaw, 0f);
+            return;
+        }
+
         // The neutral local rotation is exactly forward. Only explicit look
         // input changes pitch/yaw; animation can no longer tilt or roll it.
         float targetDrop = playerMovement != null && playerMovement.IsCrouching ? crouchCameraDrop : 0f;
         crouchCameraOffset = Mathf.Lerp(crouchCameraOffset, targetDrop,
             1f - Mathf.Exp(-crouchCameraLerpSpeed * Time.deltaTime));
-        transform.localPosition = cameraLocalPosition + currentMotionOffset + Vector3.down * crouchCameraOffset;
-        transform.localRotation = Quaternion.Euler(
+        Vector3 standPosition = cameraLocalPosition + currentMotionOffset + Vector3.down * crouchCameraOffset;
+        Quaternion standRotation = Quaternion.Euler(
             verticalRotation,
             downedHorizontalRotation,
             0f);
+
+        if (downView == DownView.Rising)
+        {
+            // 28 Nov: smooth way back up to eye height after a revive.
+            float t = reviveRiseSeconds <= 0f ? 1f : Mathf.Clamp01((Time.time - riseStartedAt) / reviveRiseSeconds);
+            float s = Mathf.SmoothStep(0f, 1f, t);
+            transform.localPosition = Vector3.Lerp(riseFromLocalPosition, standPosition, s);
+            transform.localRotation = Quaternion.Slerp(riseFromLocalRotation, standRotation, s);
+            if (t >= 1f) downView = DownView.Standing;
+            return;
+        }
+
+        transform.localPosition = standPosition;
+        transform.localRotation = standRotation;
+    }
+
+    // ---- Downed fall camera (28 Nov) -----------------------------------------
+
+    private void UpdateDownView(bool incapacitated)
+    {
+        if (!incapacitated) noHeadThisFall = false;
+        if (incapacitated)
+        {
+            if (downView == DownView.Standing || downView == DownView.Rising)
+            {
+                // No humanoid head found: keep the old still camera at eye height.
+                if (noHeadThisFall) return;
+                if (!FindHead()) { noHeadThisFall = true; return; }
+                BeginFall();
+            }
+            if (downView == DownView.Falling && FallFinished()) LandOnFloor();
+        }
+        else if (downView == DownView.Falling || downView == DownView.OnFloor)
+        {
+            BeginRise();
+        }
+    }
+
+    private bool FindHead()
+    {
+        // Looked up at every fall: the body model can be swapped during the game.
+        bodyAnimator = null;
+        headBone = null;
+        Transform root = ownerIdentity != null
+            ? ownerIdentity.transform
+            : (playerBody != null ? playerBody : transform.root);
+        foreach (Animator animator in root.GetComponentsInChildren<Animator>(true))
+        {
+            if (animator == null || !animator.isHuman || animator.avatar == null) continue;
+            Transform head = animator.GetBoneTransform(HumanBodyBones.Head);
+            if (head == null) continue;
+            bodyAnimator = animator;
+            headBone = head;
+            return true;
+        }
+        if (!warnedNoHead)
+        {
+            warnedNoHead = true;
+            Debug.LogWarning($"{nameof(FirstPersonCamera)}: no humanoid head bone on {root.name}; the downed camera stays at eye height.", this);
+        }
+        return false;
+    }
+
+    private void BeginFall()
+    {
+        downView = DownView.Falling;
+        fallStartedAt = Time.time;
+        fallHeadStart = headBone.rotation;
+        fallViewStart = transform.rotation;
+        downedHorizontalRotation = 0f; // no body turn to apply after the revive
+        floorYaw = 0f;
+        floorPitch = 0f;
+        // The local body is hidden from this camera, so a culling Animator could stop
+        // moving the bones. Keep it animating while we follow the head.
+        if (bodyAnimator.cullingMode != AnimatorCullingMode.AlwaysAnimate)
+        {
+            savedCulling = bodyAnimator.cullingMode;
+            bodyAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            cullingOverridden = true;
+        }
+    }
+
+    private bool FallFinished()
+    {
+        if (bodyAnimator == null || headBone == null) return true;
+        if (Time.time - fallStartedAt >= fallMaxSeconds) return true;
+        if (bodyAnimator.IsInTransition(0)) return false;
+        AnimatorStateInfo state = bodyAnimator.GetCurrentAnimatorStateInfo(0);
+        return state.shortNameHash == fallStateHash && state.normalizedTime >= 1f;
+    }
+
+    /// <summary>The view follows how the head turns and moves during the fall animation.</summary>
+    private void FollowFall()
+    {
+        if (headBone == null) { LandOnFloor(); return; }
+        // Only the head's change since the fall began is applied, so the bone's own axes do not matter.
+        Quaternion headTurn = headBone.rotation * Quaternion.Inverse(fallHeadStart);
+        Quaternion wantedRotation = headTurn * fallViewStart;
+        Vector3 wantedPosition = KeepAboveFloor(headBone.position + wantedRotation * fallEyeOffset);
+        float blend = 1f - Mathf.Exp(-fallFollowSharpness * Time.deltaTime);
+        transform.SetPositionAndRotation(
+            Vector3.Lerp(transform.position, wantedPosition, blend),
+            Quaternion.Slerp(transform.rotation, wantedRotation, blend));
+    }
+
+    /// <summary>The fall animation ended: the view stays still where it landed.</summary>
+    private void LandOnFloor()
+    {
+        downView = DownView.OnFloor;
+        floorLocalPosition = transform.localPosition;
+        floorLocalRotation = transform.localRotation;
+        floorYaw = 0f;
+        floorPitch = 0f;
+        RestoreAnimatorCulling();
+    }
+
+    private void BeginRise()
+    {
+        downView = DownView.Rising;
+        riseFromLocalPosition = transform.localPosition;
+        riseFromLocalRotation = transform.localRotation;
+        riseStartedAt = Time.time;
+        floorYaw = 0f;
+        floorPitch = 0f;
+        RestoreAnimatorCulling();
+    }
+
+    private void RestoreAnimatorCulling()
+    {
+        if (cullingOverridden && bodyAnimator != null) bodyAnimator.cullingMode = savedCulling;
+        cullingOverridden = false;
+    }
+
+    private Vector3 KeepAboveFloor(Vector3 point)
+    {
+        Transform root = ownerIdentity != null
+            ? ownerIdentity.transform
+            : (playerBody != null ? playerBody : transform.root);
+        Vector3 origin = point + Vector3.up * 0.4f;
+        int count = Physics.RaycastNonAlloc(origin, Vector3.down, floorHits, 2f,
+            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        float floor = float.NegativeInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            Collider hit = floorHits[i].collider;
+            if (hit == null || hit.transform.IsChildOf(root)) continue; // own body / capsule
+            floor = Mathf.Max(floor, floorHits[i].point.y);
+        }
+        if (!float.IsNegativeInfinity(floor) && point.y < floor + fallMinFloorClearance)
+            point.y = floor + fallMinFloorClearance;
+        return point;
+    }
+
+    private void OnDisable()
+    {
+        RestoreAnimatorCulling();
     }
 
     private void OnValidate()
@@ -350,5 +582,6 @@ public class FirstPersonCamera : MonoBehaviour
         walkBobSpeed = Mathf.Max(0f, walkBobSpeed);
         sprintSwaySpeed = Mathf.Max(0f, sprintSwaySpeed);
         motionLerpSpeed = Mathf.Max(0f, motionLerpSpeed);
+        fallStateHash = Animator.StringToHash(fallStateName);
     }
 }
