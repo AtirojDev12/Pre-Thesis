@@ -231,10 +231,25 @@ public class TimedGhost : Enemy_Abstract_Class
     {
         if (isJumpscareTriggered || !AgentReady || !isPlayerDetected) return;
         agent.SetDestination(lastKnownPosition);
-        if (PlayerRegistry.IsHuntable(targetPlayer) &&
-            Vector3.Distance(transform.position, lastKnownPosition) <= jumpscareRange)
+        if (PlayerRegistry.IsHuntable(targetPlayer) && WithinJumpscareRange(lastKnownPosition))
             TriggerJumpscare(targetPlayer);
     }
+
+    /// <summary>
+    /// 28 Nov 2026 (Atiroj): measured FLAT (no height). The player's position is the middle of its
+    /// capsule, the ghost's is its feet. Since the player was scaled up (Player Model Scale, 28 Nov)
+    /// that point is about 1.4 m above the floor, so a 3D distance could never get under 1.5 m and
+    /// the jumpscare never fired. The height limit keeps a player on another floor safe.
+    /// </summary>
+    private bool WithinJumpscareRange(Vector3 playerPoint)
+    {
+        Vector3 offset = playerPoint - transform.position;
+        if (Mathf.Abs(offset.y) > JumpscareMaxHeightDifference) return false;
+        offset.y = 0f;
+        return offset.sqrMagnitude <= jumpscareRange * jumpscareRange;
+    }
+
+    private const float JumpscareMaxHeightDifference = 2.5f;
 
     protected override void SearchBehavior()
     {
