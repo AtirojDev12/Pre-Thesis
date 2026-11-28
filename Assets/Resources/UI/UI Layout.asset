@@ -421,6 +421,343 @@ MonoBehaviour:
       minHeight: -1
       preferredWidth: -1
       preferredHeight: -1
+    - path: Screens (made by the game)/Popcorn/Preparation HUD/Preparation Feedback
+      fromSkin: 0
+      hide: 0
+      layout: 1
+      anchorMin: {x: 0.5, y: 0.1}
+      anchorMax: {x: 0.5, y: 0.1}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: -294}
+      size: {x: 820, y: 65}
+      rotation: {x: -0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Screens (made by the game)/Popcorn/Preparation HUD
+      fromSkin: 0
+      hide: 1
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Screens (made by the game)/Popcorn/Preparation HUD/Preparation Feedback/Status
+      fromSkin: 0
+      hide: 0
+      layout: 1
+      anchorMin: {x: 0.02, y: 0.05}
+      anchorMax: {x: 0.98, y: 0.95}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: -171}
+      size: {x: 0, y: 0}
+      rotation: {x: -0, y: 0, z: 0}
+      scale: {x: 0.3371, y: 0.3371, z: 0.3371}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: HUD Bars/Task Progress
+      fromSkin: 0
+      hide: 1
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Screens (made by the game)/Popcorn/Customer Submit Prompt
+      fromSkin: 0
+      hide: 1
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Screens (made by the game)/Popcorn/Held Popcorn HUD
+      fromSkin: 0
+      hide: 1
+      layout: 1
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 1, y: 1}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: -612}
+      size: {x: 0, y: 0}
+      rotation: {x: -0, y: 0, z: 0}
+      scale: {x: 0.70835, y: 0.70835, z: 0.70835}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Screens (made by the game)/Popcorn/Order Screen (World Space)
+      fromSkin: 0
+      hide: 1
+      layout: 0
+      anchorMin: {x: 0.5, y: 0.5}
+      anchorMax: {x: 0.5, y: 0.5}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: 0}
+      size: {x: 100, y: 100}
+      rotation: {x: 0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
+    - path: Screens (made by the game)/Popcorn/Order Screen (World Space)/Cashier
+        Display/Feedback Text
+      fromSkin: 0
+      hide: 0
+      layout: 1
+      anchorMin: {x: 0.05, y: 0.03}
+      anchorMax: {x: 0.95, y: 0.23}
+      pivot: {x: 0.5, y: 0.5}
+      position: {x: 0, y: -135}
+      size: {x: 0, y: 0}
+      rotation: {x: -0, y: 0, z: 0}
+      scale: {x: 1, y: 1, z: 1}
+      color: 0
+      colorValue: {r: 1, g: 1, b: 1, a: 1}
+      sprite: 0
+      spriteValue: {fileID: 0}
+      textStyle: 0
+      font: {fileID: 0}
+      fontSize: 24
+      fontStyle: 0
+      alignment: 514
+      autoSize: 0
+      fontSizeMin: 10
+      fontSizeMax: 72
+      characterSpacing: 0
+      lineSpacing: 0
+      wrapping: 1
+      legacyFont: {fileID: 0}
+      legacyFontStyle: 0
+      legacyAlignment: 4
+      text: 0
+      textValue: 
+      spacing: 0
+      spacingValue: 0
+      paddingLeft: 0
+      paddingRight: 0
+      paddingTop: 0
+      paddingBottom: 0
+      layoutSize: 0
+      minWidth: -1
+      minHeight: -1
+      preferredWidth: -1
+      preferredHeight: -1
     added: []
   - screenName: Main Menu UI
     note: 
