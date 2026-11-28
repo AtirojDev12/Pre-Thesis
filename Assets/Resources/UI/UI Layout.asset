@@ -967,3 +967,13 @@ MonoBehaviour:
       preferredWidth: -1
       preferredHeight: -1
     added: []
+  - screenName: Held Popcorn HUD
+    note: 
+    hide: 0
+    overrideSortOrder: 0
+    sortOrder: 0
+    font: {fileID: 0}
+    skin: {fileID: 572226085072744537, guid: f0db1ef18fd33dc46b943a7111f02d84, type: 3}
+    design: {fileID: 0}
+    elements: []
+    added: []

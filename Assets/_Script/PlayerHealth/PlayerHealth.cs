@@ -333,6 +333,20 @@ public class PlayerHealth : NetworkBehaviour
         ServerDowned();
     }
 
+    /// <summary>
+    /// SERVER. 28 Nov (Atiroj) dev cheat: lose this much health right now. Ignores the hit
+    /// cooldown, god mode and infinite health (you asked for it). At 0 you go down, like a normal hit.
+    /// </summary>
+    public void ServerDevLoseHealth(float amount)
+    {
+        if (!NetworkMode.HasServerAuthority(this) || isDead || isDowned || amount <= 0f) return;
+        currentHealth = Mathf.Clamp(currentHealth - amount, 0f, maxHealth);
+        RaiseHealthChanged(currentHealth);
+        if (NetworkMode.IsOffline) RaiseDamaged();
+        else RpcDamaged();
+        if (currentHealth <= 0f) ServerDowned();
+    }
+
     /// <param name="ignoreDevCheats">True = kill even with the dev cheat "infinite health" on
     /// (round end, the F1 "Die" button). Ghosts leave it false.</param>
     public void ServerKill(string reason = null, bool ignoreDevCheats = false)

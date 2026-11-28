@@ -140,7 +140,10 @@ public sealed partial class UiLayoutRuntime
         state.gameGroup = s.root.GetComponent<CanvasGroup>();
         if (state.gameGroup != null) state.group = wrapper.AddComponent<CanvasGroup>();
 
-        GameObject copy = Instantiate(prefab, wrapper.transform, false);
+        // 28 Nov (Atiroj): screen-space screens also keep what their folders in the GAME HUD do
+        // (e.g. "Popcorn" moved down or scaled): those folders are rebuilt above the copy.
+        Transform copyParent = world ? wrapper.transform : MirrorHudFolders(prefab.transform, wrapper.transform);
+        GameObject copy = Instantiate(prefab, copyParent, false);
         copy.name = prefab.name;
         if (!copy.activeSelf) copy.SetActive(true); // 16 Nov: the GAME HUD keeps its screens switched off
         foreach (UiLink l in copy.GetComponentsInChildren<UiLink>(true))
@@ -163,6 +166,52 @@ public sealed partial class UiLayoutRuntime
         if (!d.hidGame || s.canvas == null) return;
         if (s.canvas.renderMode == RenderMode.WorldSpace) s.root.localScale = d.savedScale;
         else s.canvas.targetDisplay = d.savedDisplay;
+    }
+
+    /// <summary>
+    /// 28 Nov (Atiroj): only the UiHubScreen object is copied into the game, so moving / scaling a
+    /// folder above it in the GAME HUD prefab (Screens (made by the game), Popcorn ...) did nothing
+    /// in the game. This makes an empty stand-in for every folder between the GAME HUD canvas and the
+    /// screen (same anchors, place, size, rotation and scale) and returns the lowest one.
+    /// </summary>
+    private static Transform MirrorHudFolders(Transform screen, Transform wrapper)
+    {
+        var folders = new List<Transform>();
+        for (Transform p = screen.parent; p != null; p = p.parent)
+        {
+            Canvas c = p.GetComponent<Canvas>();
+            if (c != null && c.isRootCanvas) break; // the GAME HUD canvas = the wrapper itself
+            if (p.parent == null) break;
+            folders.Add(p);
+        }
+        Transform parent = wrapper;
+        for (int i = folders.Count - 1; i >= 0; i--)
+        {
+            Transform from = folders[i];
+            var go = new GameObject(from.name + " (layout)", typeof(RectTransform));
+            go.layer = wrapper.gameObject.layer;
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(parent, false);
+            if (from is RectTransform f)
+            {
+                rect.anchorMin = f.anchorMin;
+                rect.anchorMax = f.anchorMax;
+                rect.pivot = f.pivot;
+                rect.sizeDelta = f.sizeDelta;
+                rect.anchoredPosition3D = f.anchoredPosition3D;
+            }
+            else
+            {
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.sizeDelta = Vector2.zero;
+                rect.localPosition = from.localPosition;
+            }
+            rect.localRotation = from.localRotation;
+            rect.localScale = from.localScale;
+            parent = rect;
+        }
+        return parent;
     }
 
     /// <summary>Is <paramref name="t"/> inside a Repeat row template (below <paramref name="stopAt"/>)?</summary>
