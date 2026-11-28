@@ -28,7 +28,7 @@ Transform:
   m_GameObject: {fileID: 459192558290352221}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.022, z: 0.05}
+  m_LocalPosition: {x: 0, y: 0.678, z: 0.101}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -63,6 +63,14 @@ MonoBehaviour:
   defaultFOV: 60
   sprintFOV: 75
   fovLerpSpeed: 8
+  fallStateName: Dying
+  fallFollowSharpness: 18
+  fallEyeOffset: {x: 0, y: 0.08, z: 0.08}
+  fallMinFloorClearance: 0.2
+  fallMaxSeconds: 8
+  floorLookYawLimit: 70
+  floorLookPitchLimit: 50
+  reviveRiseSeconds: 0.45
   firstPersonArmRenderers: []
 --- !u!114 &710010000000000003
 MonoBehaviour:
@@ -124,7 +132,7 @@ Transform:
   m_GameObject: {fileID: 2808686165840420855}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -0.068, z: 0.052}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -277,7 +285,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -5.26333, y: 1.608, z: -4.21812}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.4596, y: 1.4596, z: 1.4596}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 949416023753372381}
@@ -797,6 +805,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 6826038590600976497}
     m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1.0265
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1.0265
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1.0265
+      objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a70fef4b6da8eb04f8eac2d157db43b5, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0.026
