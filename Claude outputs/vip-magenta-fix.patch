@@ -1,0 +1,72 @@
+From 221dab25cdab548df6d379143917b50af2ba6283 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 28 Nov 2026 18:46:31 +0700
+Subject: [PATCH] Fix VIP ghost and VIP floor ring showing magenta in builds
+
+CreatePrimitive's material is URP Lit only in the Editor; in a player build it is
+the built-in Default-Material (Standard shader), which URP renders magenta.
+Use Resources/CustomerBody.mat (URP Lit, always in the build) as the base instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01NAWLTTQaFYRbXroQTVzipa
+---
+ Assets/_Script/MapRules/MapMockups.cs    | 18 +++++++++++++++---
+ Assets/_Script/MapRules/VipSeatMarker.cs |  3 ++-
+ 2 files changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/Assets/_Script/MapRules/MapMockups.cs b/Assets/_Script/MapRules/MapMockups.cs
+index a85404a..b1bcc3b 100644
+--- a/Assets/_Script/MapRules/MapMockups.cs
++++ b/Assets/_Script/MapRules/MapMockups.cs
+@@ -273,19 +273,31 @@ public static class MapMockups
+         if (meshes.TryGetValue(type, out Mesh mesh) && mesh != null) return mesh;
+         GameObject temp = GameObject.CreatePrimitive(type);
+         mesh = temp.GetComponent<MeshFilter>().sharedMesh;
+-        if (baseMaterial == null) baseMaterial = temp.GetComponent<MeshRenderer>().sharedMaterial;
+         Object.DestroyImmediate(temp);
+         meshes[type] = mesh;
+         return mesh;
+     }
+ 
++    /// <summary>
++    /// 28 Nov 2026: a URP Lit material that also works in a BUILD.
++    /// Do NOT take the material of a CreatePrimitive object: in the Editor it is URP Lit, but in a
++    /// build it is the old built-in "Default-Material" (Standard shader), which URP draws magenta.
++    /// Resources/CustomerBody.mat is URP Lit and always ships with the build (it is in Resources).
++    /// </summary>
++    public static Material NewLitMaterial()
++    {
++        if (baseMaterial == null) baseMaterial = Resources.Load<Material>("CustomerBody");
++        if (baseMaterial != null) return new Material(baseMaterial);
++        Debug.LogError("[MapMockups] Missing Resources/CustomerBody material; the mockups may be magenta in a build.");
++        return new Material(Shader.Find("Universal Render Pipeline/Lit"));
++    }
++
+     private static Material MaterialOf(Color color, bool glow)
+     {
+         Color32 c = color;
+         long key = ((long)c.r << 24) | ((long)c.g << 16) | ((long)c.b << 8) | (glow ? 1L : 0L);
+         if (materials.TryGetValue(key, out Material m) && m != null) return m;
+-        if (baseMaterial == null) MeshOf(PrimitiveType.Cube);
+-        m = baseMaterial != null ? new Material(baseMaterial) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
++        m = NewLitMaterial();
+         m.name = "Mockup " + ColorUtility.ToHtmlStringRGB(color) + (glow ? " Glow" : "");
+         m.color = color;
+         if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", glow ? 0f : 0.35f);
+diff --git a/Assets/_Script/MapRules/VipSeatMarker.cs b/Assets/_Script/MapRules/VipSeatMarker.cs
+index 7260b40..2a95449 100644
+--- a/Assets/_Script/MapRules/VipSeatMarker.cs
++++ b/Assets/_Script/MapRules/VipSeatMarker.cs
+@@ -93,7 +93,8 @@ public sealed class VipSeatMarker : MonoBehaviour
+         Renderer r = ring.GetComponent<Renderer>();
+         if (r != null)
+         {
+-            Material m = r.material;
++            Material m = MapMockups.NewLitMaterial(); // 28 Nov: the primitive's own material is magenta in a build
++            r.sharedMaterial = m;
+             m.color = GoldTint;
+             m.EnableKeyword("_EMISSION");
+             if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", GoldLight * 2f);
+-- 
+2.43.0
+

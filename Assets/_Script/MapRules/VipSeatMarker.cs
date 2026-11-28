@@ -93,7 +93,8 @@ public sealed class VipSeatMarker : MonoBehaviour
         Renderer r = ring.GetComponent<Renderer>();
         if (r != null)
         {
-            Material m = r.material;
+            Material m = MapMockups.NewLitMaterial(); // 28 Nov: the primitive's own material is magenta in a build
+            r.sharedMaterial = m;
             m.color = GoldTint;
             m.EnableKeyword("_EMISSION");
             if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", GoldLight * 2f);

@@ -273,10 +273,23 @@ public static class MapMockups
         if (meshes.TryGetValue(type, out Mesh mesh) && mesh != null) return mesh;
         GameObject temp = GameObject.CreatePrimitive(type);
         mesh = temp.GetComponent<MeshFilter>().sharedMesh;
-        if (baseMaterial == null) baseMaterial = temp.GetComponent<MeshRenderer>().sharedMaterial;
         Object.DestroyImmediate(temp);
         meshes[type] = mesh;
         return mesh;
+    }
+
+    /// <summary>
+    /// 28 Nov 2026: a URP Lit material that also works in a BUILD.
+    /// Do NOT take the material of a CreatePrimitive object: in the Editor it is URP Lit, but in a
+    /// build it is the old built-in "Default-Material" (Standard shader), which URP draws magenta.
+    /// Resources/CustomerBody.mat is URP Lit and always ships with the build (it is in Resources).
+    /// </summary>
+    public static Material NewLitMaterial()
+    {
+        if (baseMaterial == null) baseMaterial = Resources.Load<Material>("CustomerBody");
+        if (baseMaterial != null) return new Material(baseMaterial);
+        Debug.LogError("[MapMockups] Missing Resources/CustomerBody material; the mockups may be magenta in a build.");
+        return new Material(Shader.Find("Universal Render Pipeline/Lit"));
     }
 
     private static Material MaterialOf(Color color, bool glow)
@@ -284,8 +297,7 @@ public static class MapMockups
         Color32 c = color;
         long key = ((long)c.r << 24) | ((long)c.g << 16) | ((long)c.b << 8) | (glow ? 1L : 0L);
         if (materials.TryGetValue(key, out Material m) && m != null) return m;
-        if (baseMaterial == null) MeshOf(PrimitiveType.Cube);
-        m = baseMaterial != null ? new Material(baseMaterial) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        m = NewLitMaterial();
         m.name = "Mockup " + ColorUtility.ToHtmlStringRGB(color) + (glow ? " Glow" : "");
         m.color = color;
         if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", glow ? 0f : 0.35f);

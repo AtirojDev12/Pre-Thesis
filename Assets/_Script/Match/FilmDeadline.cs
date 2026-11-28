@@ -5,7 +5,11 @@ using UnityEngine;
 /// 17 Nov 2026 (Mr.k, Task 5): the film change timers. Sits on a film-change ZoneChoreSpot.
 ///
 ///   GLOW (both screen rooms): 75 s (30 in-game min) before a film change is due, the projector
-///   glows pale yellow for 5 s. Every player sees it, through walls (DBD generator style).
+///   glows pale yellow for 5 s. 28 Nov (Atiroj): the glow is soft and walls hide it; every player
+///   sees an ICON (FilmProjectorIcon) on screen instead, from anywhere in the map.
+///   28 Nov: glow + icon show WHILE THE FILM NEEDS CHANGING (yellow) and after a miss (red).
+///   The warning before is off (FilmMopTuning.projectorWarnBefore). Players close to the
+///   projector who can see it get no icon (projectorIconHideDistance).
 ///
 ///   DEADLINE (ghost room only, "Missed Penalties" on): after it is due, players have 37.5 s
 ///   (15 in-game min).
@@ -40,6 +44,7 @@ public sealed class FilmDeadline : NetworkBehaviour
 
     // Local only.
     private SeeThroughGlow glow;
+    private FilmProjectorIcon icon; // 28 Nov: seen from anywhere
     private bool glowBuilt;
     private static AudioClip placeholderScream;
 
@@ -214,25 +219,49 @@ public sealed class FilmDeadline : NetworkBehaviour
 
     private void LocalGlow()
     {
-        bool warning = glowUntil > 0 && Now < glowUntil;
-        bool show = warning || missedGlow;
+        // 28 Nov (Atiroj): shown while the film needs changing (synced), not only before it.
+        bool due = chore != null && chore.Needed;
+        bool warning = Tuning.projectorWarnBefore && glowUntil > 0 && Now < glowUntil;
+        bool show = warning || due || missedGlow;
         if (show && !glowBuilt)
         {
             glowBuilt = true;
-            Transform[] parts = glowParts != null && glowParts.Length > 0 ? glowParts : new[] { transform };
-            glow = SeeThroughGlow.Build(parts, Tuning.glowColor);
+            // 28 Nov (Atiroj): empty slots in Glow Parts were used as-is -> no glow, and the icon sat at
+            // the world origin. Skip empty slots; none left = this chore spot itself (+ a warning).
+            var list = new System.Collections.Generic.List<Transform>();
+            if (glowParts != null) foreach (Transform p in glowParts) if (p != null) list.Add(p);
+            if (list.Count == 0)
+            {
+                Debug.LogWarning($"[FilmDeadline] '{name}': Glow Parts is empty. Drag the projector (GhostProjecter / Projecter) " +
+                                 "into Glow Parts on this component, or the glow + icon use this chore spot instead.", this);
+                list.Add(transform);
+            }
+            Transform[] parts = list.ToArray();
+            // 28 Nov: walls hide the glow now; the icon is what shows through the map.
+            glow = SeeThroughGlow.Build(parts, Tuning.glowColor, false);
+            // 28 Nov: the human room (no penalties, bonus) gets no icon unless the tuning says so.
+            if (missedPenalties || !Tuning.projectorIconGhostRoomOnly)
+                icon = FilmProjectorIcon.Build(parts, Tuning.projectorIcon, Tuning.projectorIconSize, Tuning.projectorIconHeight, transform);
         }
-        if (glow == null) return;
-        // The warning (yellow) wins for its 5 s; otherwise a missed film glows red.
-        Color color = warning ? Tuning.glowColor : Tuning.missedGlowColor;
-        float pulse = warning ? 0.7f + 0.3f * Mathf.Sin(Time.time * 6f) : 0.6f + 0.4f * Mathf.Sin(Time.time * 3f);
-        glow.SetVisible(show, color, pulse);
+        if (glow == null && icon == null) return;
+        // A missed film glows red; otherwise yellow (due now, or the warning before if that is on).
+        Color color = missedGlow ? Tuning.missedGlowColor : Tuning.glowColor;
+        float pulse = missedGlow ? 0.6f + 0.4f * Mathf.Sin(Time.time * 3f)
+            : warning && !due ? 0.7f + 0.3f * Mathf.Sin(Time.time * 6f)
+            : 0.75f + 0.25f * Mathf.Sin(Time.time * 2.5f);
+        glow?.SetVisible(show, color, pulse * Tuning.projectorGlowStrength); // 28 Nov: soft, just a hint
+        icon?.SetVisible(show, color, pulse);
     }
+
+    // 28 Nov: after the cameras moved, so the icon does not lag behind when turning.
+    private void LateUpdate() => icon?.Place(Tuning.projectorIconHideDistance);
 
     private void OnDestroy()
     {
         glow?.Destroy();
         glow = null;
+        icon?.Destroy();
+        icon = null;
     }
 
     /// <summary>Editor tool.</summary>

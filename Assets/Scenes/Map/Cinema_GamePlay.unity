@@ -3765,7 +3765,7 @@ MonoBehaviour:
   interactionPrompt: '[E] Read paper'
   pages:
   - {fileID: 2800000, guid: 8195b919c8f466946b4a4ea3d6147028, type: 3}
-  openSound: {fileID: 0}
+  openSound: {fileID: 8300000, guid: f9cbcc28cf1c46a488d24ea06ac825e9, type: 3}
   maximumSize: {x: 1500, y: 1000}
   screenMargin: {x: 60, y: 90}
   centerOffset: {x: 0, y: 0}
@@ -165294,8 +165294,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   interactionPrompt: '[E] Read the Guide'
   pages:
-  - {fileID: 2800000, guid: 7fdb7d45fab09344196cb44364b436c4, type: 3}
-  openSound: {fileID: 0}
+  - {fileID: 2800000, guid: 1d9bad1f7fa515846a71c020f66cf4e0, type: 3}
+  openSound: {fileID: 8300000, guid: f9cbcc28cf1c46a488d24ea06ac825e9, type: 3}
   maximumSize: {x: 1500, y: 1000}
   screenMargin: {x: 60, y: 90}
   centerOffset: {x: 0, y: 0}
@@ -165384,7 +165384,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: d51e83d1adb886a4383667fce0c207af, type: 2}
+  - {fileID: 2100000, guid: db2316f1d380543418b4221323fb9d52, type: 2}
   - {fileID: 2100000, guid: 89235653d69d8df49ac3326f2e9d7015, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
@@ -188442,7 +188442,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   interactionPrompt: '[E] Read the Guide'
   pages:
-  - {fileID: 2800000, guid: c4476b44dafb75f4ea20411998a5a03f, type: 3}
+  - {fileID: 2800000, guid: c1f39b8b7e46b7d4cafe40783a14e183, type: 3}
   openSound: {fileID: 8300000, guid: f9cbcc28cf1c46a488d24ea06ac825e9, type: 3}
   maximumSize: {x: 1400, y: 900}
   screenMargin: {x: 60, y: 90}
@@ -188532,7 +188532,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: cdb92fd6cd69f464a9a06ee9b1b80d6b, type: 2}
+  - {fileID: 2100000, guid: d51e83d1adb886a4383667fce0c207af, type: 2}
   - {fileID: 2100000, guid: 89235653d69d8df49ac3326f2e9d7015, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
@@ -226984,7 +226984,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 6cea515b912a47a46bf482b26214fdac, type: 2}
+  - {fileID: 2100000, guid: c1f382dede8275448a37c6487b7b8f57, type: 2}
   - {fileID: 2100000, guid: 89235653d69d8df49ac3326f2e9d7015, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
@@ -227031,7 +227031,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   interactionPrompt: '[E] Read the Guide'
   pages:
-  - {fileID: 2800000, guid: 2563cd0f4eb73534ba38242de0d1bb3e, type: 3}
+  - {fileID: 2800000, guid: 75293e7c1ba49cb4081b8140195d0953, type: 3}
   openSound: {fileID: 8300000, guid: f9cbcc28cf1c46a488d24ea06ac825e9, type: 3}
   maximumSize: {x: 1400, y: 900}
   screenMargin: {x: 70, y: 100}
@@ -233564,7 +233564,7 @@ MonoBehaviour:
   interactionPrompt: '[E] Read paper'
   pages:
   - {fileID: 2800000, guid: d2f7ef4b42806f14db4703e8e7339598, type: 3}
-  openSound: {fileID: 0}
+  openSound: {fileID: 8300000, guid: f9cbcc28cf1c46a488d24ea06ac825e9, type: 3}
   maximumSize: {x: 2000, y: 3000}
   screenMargin: {x: 80, y: 120}
   centerOffset: {x: 0, y: 0}
@@ -306660,7 +306660,7 @@ MonoBehaviour:
   interactionPrompt: '[E] Read paper'
   pages:
   - {fileID: 2800000, guid: 09d898da11ba38547952beccbcd26025, type: 3}
-  openSound: {fileID: 0}
+  openSound: {fileID: 8300000, guid: f9cbcc28cf1c46a488d24ea06ac825e9, type: 3}
   maximumSize: {x: 1500, y: 1000}
   screenMargin: {x: 60, y: 90}
   centerOffset: {x: 0, y: 0}

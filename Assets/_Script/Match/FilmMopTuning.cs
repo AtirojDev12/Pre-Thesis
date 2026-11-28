@@ -22,11 +22,27 @@ public sealed class FilmMopTuning : ScriptableObject
     public float glowSecondsBefore = 75f;
     [Range(0.5f, 30f), Tooltip("How long the glow stays (real seconds).")]
     public float glowSeconds = 5f;
-    [Tooltip("Glow colour. Seen through walls by every player. Alpha = strength.")]
+    [Tooltip("Glow colour. Alpha = strength. Mops: seen through walls. Projector: walls hide it (28 Nov), see the icon below.")]
     public Color glowColor = new Color(1f, 0.95f, 0.62f, 0.55f);
 
     [Tooltip("The mops glow too before each cleaning time (same timing and colour).")]
     public bool mopsGlow = true;
+
+    [Header("Projector: soft glow + icon seen from anywhere (28 Nov, Atiroj)")]
+    [Tooltip("28 Nov: Off = the projector glow + icon show ONLY while the film needs changing (yellow), and red after a miss. On = also the short warning before (Glow Seconds Before / Glow Seconds above). The mops always warn before.")]
+    public bool projectorWarnBefore = false;
+    [Range(0f, 1f), Tooltip("How bright the projector's own glow is (x the colour's alpha). Low = just a hint. Walls hide it.")]
+    public float projectorGlowStrength = 0.35f;
+    [Tooltip("Icon every player sees on screen while the projector glows, from anywhere in the map (through walls; at the screen edge when it is off screen or behind you).")]
+    public Texture2D projectorIcon;
+    [Tooltip("28 Nov: On = only the GHOST room projector gets the icon (the human room film is a bonus: soft glow only). Off = both rooms.")]
+    public bool projectorIconGhostRoomOnly = true;
+    [Range(16f, 160f), Tooltip("Icon size on screen (pixels at 1920x1080).")]
+    public float projectorIconSize = 56f;
+    [Range(0f, 3f), Tooltip("How high above the top of the projector the icon sits (metres).")]
+    public float projectorIconHeight = 0.35f;
+    [Range(0f, 30f), Tooltip("28 Nov: a player this close (metres) who can SEE the projector (no wall in between) does not get the icon; the soft glow is enough. Each player on their own screen. 0 = always show.")]
+    public float projectorIconHideDistance = 6f;
 
     [Header("Ghost room film: deadline + penalties")]
     [Range(5f, 300f), Tooltip("Real seconds to change the film after it is due (37.5 s = 15 in-game minutes). Missed = penalty 1: red glow, scream, sanity loss.")]

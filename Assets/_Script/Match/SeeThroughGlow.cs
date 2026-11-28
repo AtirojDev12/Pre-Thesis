@@ -12,13 +12,17 @@ public sealed class SeeThroughGlow
 {
     private const string ShaderResource = "Shaders/SeeThroughGlow";
     private static readonly int ColorId = Shader.PropertyToID("_Color");
+    private static readonly int ZTestId = Shader.PropertyToID("_ZTest");
 
     private readonly List<GameObject> parts = new List<GameObject>();
     private Material material;
     private bool visible;
 
-    /// <summary>Copies every mesh under each source. Null when there is nothing to copy.</summary>
-    public static SeeThroughGlow Build(Transform[] sources, Color color)
+    /// <summary>
+    /// Copies every mesh under each source. Null when there is nothing to copy.
+    /// 28 Nov (Atiroj): <paramref name="throughWalls"/> false = walls hide the glow (projector).
+    /// </summary>
+    public static SeeThroughGlow Build(Transform[] sources, Color color, bool throughWalls = true)
     {
         if (sources == null || sources.Length == 0) return null;
         Shader shader = Resources.Load<Shader>(ShaderResource);
@@ -30,6 +34,9 @@ public sealed class SeeThroughGlow
             material = new Material(shader) { name = "See-Through Glow (runtime)", renderQueue = 4000 },
         };
         glow.material.SetColor(ColorId, color);
+        glow.material.SetFloat(ZTestId, (float)(throughWalls
+            ? UnityEngine.Rendering.CompareFunction.Always
+            : UnityEngine.Rendering.CompareFunction.LessEqual));
 
         // Collect first: the copies are added under the same parts.
         var filters = new List<MeshFilter>();

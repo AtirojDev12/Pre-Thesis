@@ -1,0 +1,153 @@
+From 221dab25cdab548df6d379143917b50af2ba6283 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 28 Nov 2026 18:46:31 +0700
+Subject: [PATCH 1/2] Fix VIP ghost and VIP floor ring showing magenta in
+ builds
+
+CreatePrimitive's material is URP Lit only in the Editor; in a player build it is
+the built-in Default-Material (Standard shader), which URP renders magenta.
+Use Resources/CustomerBody.mat (URP Lit, always in the build) as the base instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01NAWLTTQaFYRbXroQTVzipa
+---
+ Assets/_Script/MapRules/MapMockups.cs    | 18 +++++++++++++++---
+ Assets/_Script/MapRules/VipSeatMarker.cs |  3 ++-
+ 2 files changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/Assets/_Script/MapRules/MapMockups.cs b/Assets/_Script/MapRules/MapMockups.cs
+index a85404a..b1bcc3b 100644
+--- a/Assets/_Script/MapRules/MapMockups.cs
++++ b/Assets/_Script/MapRules/MapMockups.cs
+@@ -273,19 +273,31 @@ public static class MapMockups
+         if (meshes.TryGetValue(type, out Mesh mesh) && mesh != null) return mesh;
+         GameObject temp = GameObject.CreatePrimitive(type);
+         mesh = temp.GetComponent<MeshFilter>().sharedMesh;
+-        if (baseMaterial == null) baseMaterial = temp.GetComponent<MeshRenderer>().sharedMaterial;
+         Object.DestroyImmediate(temp);
+         meshes[type] = mesh;
+         return mesh;
+     }
+ 
++    /// <summary>
++    /// 28 Nov 2026: a URP Lit material that also works in a BUILD.
++    /// Do NOT take the material of a CreatePrimitive object: in the Editor it is URP Lit, but in a
++    /// build it is the old built-in "Default-Material" (Standard shader), which URP draws magenta.
++    /// Resources/CustomerBody.mat is URP Lit and always ships with the build (it is in Resources).
++    /// </summary>
++    public static Material NewLitMaterial()
++    {
++        if (baseMaterial == null) baseMaterial = Resources.Load<Material>("CustomerBody");
++        if (baseMaterial != null) return new Material(baseMaterial);
++        Debug.LogError("[MapMockups] Missing Resources/CustomerBody material; the mockups may be magenta in a build.");
++        return new Material(Shader.Find("Universal Render Pipeline/Lit"));
++    }
++
+     private static Material MaterialOf(Color color, bool glow)
+     {
+         Color32 c = color;
+         long key = ((long)c.r << 24) | ((long)c.g << 16) | ((long)c.b << 8) | (glow ? 1L : 0L);
+         if (materials.TryGetValue(key, out Material m) && m != null) return m;
+-        if (baseMaterial == null) MeshOf(PrimitiveType.Cube);
+-        m = baseMaterial != null ? new Material(baseMaterial) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
++        m = NewLitMaterial();
+         m.name = "Mockup " + ColorUtility.ToHtmlStringRGB(color) + (glow ? " Glow" : "");
+         m.color = color;
+         if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", glow ? 0f : 0.35f);
+diff --git a/Assets/_Script/MapRules/VipSeatMarker.cs b/Assets/_Script/MapRules/VipSeatMarker.cs
+index 7260b40..2a95449 100644
+--- a/Assets/_Script/MapRules/VipSeatMarker.cs
++++ b/Assets/_Script/MapRules/VipSeatMarker.cs
+@@ -93,7 +93,8 @@ public sealed class VipSeatMarker : MonoBehaviour
+         Renderer r = ring.GetComponent<Renderer>();
+         if (r != null)
+         {
+-            Material m = r.material;
++            Material m = MapMockups.NewLitMaterial(); // 28 Nov: the primitive's own material is magenta in a build
++            r.sharedMaterial = m;
+             m.color = GoldTint;
+             m.EnableKeyword("_EMISSION");
+             if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", GoldLight * 2f);
+-- 
+2.43.0
+
+
+From 7cf4f5d345f83217157f631fb1b0052cb1e92e8e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 28 Nov 2026 18:50:15 +0700
+Subject: [PATCH 2/2] Add F1 cheat: VIP comes to me now
+
+Spawns the VIP guest right in front of the player, facing them (starts the VIP rule
+if needed; night only), so the VIP model can be checked quickly in a build.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01NAWLTTQaFYRbXroQTVzipa
+---
+ Assets/_Script/Dev/DevCheatPanel.cs   |  3 +++
+ Assets/_Script/MapRules/MapRuleVip.cs | 22 ++++++++++++++++++++++
+ 2 files changed, 25 insertions(+)
+
+diff --git a/Assets/_Script/Dev/DevCheatPanel.cs b/Assets/_Script/Dev/DevCheatPanel.cs
+index 9c5317c..bdad1bd 100644
+--- a/Assets/_Script/Dev/DevCheatPanel.cs
++++ b/Assets/_Script/Dev/DevCheatPanel.cs
+@@ -38,6 +38,7 @@ public sealed class DevCheatPanel : MonoBehaviour
+         AudienceRoamOn, AudienceRoamOff, ToiletGhostsOn, ToiletGhostsOff,
+         VipStart, VipFilmIn, VipServe, VipFail, HunterStart, HunterEnd, ForeignStart, ForeignAllIn, ForeignClear,
+         ReviveSelf, // 28 Nov (Atiroj): added at the END so older numbers keep their meaning
++        VipToMe, // 28 Nov (Atiroj): the VIP appears right in front of me (to look at its model)
+     }
+ 
+     private static bool serverHandlerReady;
+@@ -160,6 +161,7 @@ public sealed class DevCheatPanel : MonoBehaviour
+             case Cheat.VipFilmIn: if (MapRuleVip.Instance != null) MapRuleVip.Instance.ServerDevFilmIn(); break;
+             case Cheat.VipServe: if (MapRuleVip.Instance != null) MapRuleVip.Instance.ServerDevServe(); break;
+             case Cheat.VipFail: if (MapRuleVip.Instance != null) MapRuleVip.Instance.ServerDevFail(); break;
++            case Cheat.VipToMe: if (MapRuleVip.Instance != null) MapRuleVip.Instance.ServerDevComeTo(player); break;
+             case Cheat.HunterStart:
+             case Cheat.HunterEnd:
+                 MapRuleHunter hunter = FindAnyObjectByType<MapRuleHunter>();
+@@ -413,6 +415,7 @@ public sealed class DevCheatPanel : MonoBehaviour
+             Row(("Toilet ghosts: START", () => Do(Cheat.ToiletGhostsOn, "Toilet ghosts walk (forced)")),
+                 ("Toilet ghosts: STOP", () => Do(Cheat.ToiletGhostsOff, "Toilet ghosts leave (unless toilets are dirty)")));
+             GUILayout.Label("  Map Rule 3: VIP guest (clock stops)");
++            Button("VIP: come to me NOW", () => Do(Cheat.VipToMe, "VIP appears in front of you (night only)"));
+             Row(("VIP arrives now", () => Do(Cheat.VipStart, "VIP arrives (front door)")),
+                 ("VIP film is in", () => Do(Cheat.VipFilmIn, "VIP film put in the crank projector")));
+             Row(("VIP served (skip)", () => Do(Cheat.VipServe, "VIP served: Map Rules 2 + 1 start")),
+diff --git a/Assets/_Script/MapRules/MapRuleVip.cs b/Assets/_Script/MapRules/MapRuleVip.cs
+index 213cb89..a8f66e7 100644
+--- a/Assets/_Script/MapRules/MapRuleVip.cs
++++ b/Assets/_Script/MapRules/MapRuleVip.cs
+@@ -197,6 +197,28 @@ public sealed class MapRuleVip : MapEventBase
+         Arrive();
+     }
+ 
++    /// <summary>
++    /// SERVER. 28 Nov (Atiroj): the VIP appears right in front of <paramref name="player"/>, facing them
++    /// (to test its model quickly). Starts the VIP rule if it is not running yet (night only, like
++    /// "VIP arrives now"). Does nothing while the VIP is already seated.
++    /// </summary>
++    public void ServerDevComeTo(GameObject player)
++    {
++        if (!IsServerSide || !NightRunning || player == null) return;
++        if (!Running) ServerDevStart();
++        if (vip == null || stage != Stage.Arrived) return;
++
++        Vector3 forward = player.transform.forward;
++        forward.y = 0f;
++        if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
++        forward.Normalize();
++        Vector3 at = player.transform.position + forward * 2f;
++        if (UnityEngine.AI.NavMesh.SamplePosition(at, out UnityEngine.AI.NavMeshHit hit, 2f, UnityEngine.AI.NavMesh.AllAreas)) at = hit.position;
++
++        if (escort != null) DropEscort(); // stands still in front of you (press E on it to be followed again)
++        vip.ServerPlaceAt(at, Quaternion.LookRotation(-forward).eulerAngles.y);
++    }
++
+     /// <summary>SERVER. The VIP film is in the crank projector.</summary>
+     public void ServerDevFilmIn() { if (IsServerSide && Running) filmIn = true; }
+ 
+-- 
+2.43.0
+

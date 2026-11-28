@@ -1,11 +1,15 @@
 // 17 Nov 2026 (Mr.k, Task 5): a flat glowing colour drawn ON TOP of walls (ZTest Always).
 // Used by SeeThroughGlow for the projector glow before a film change.
+// 28 Nov 2026 (Atiroj): _ZTest picks it per material. Default Always (mops: through walls).
+// The projector now uses LessEqual: walls hide its glow, an icon (FilmProjectorIcon) shows
+// where it is instead. Offset pulls the copy a hair forward so it does not flicker on the mesh.
 // It lives in Resources so it is always in the build.
 Shader "Hidden/PreThesis/SeeThroughGlow"
 {
     Properties
     {
         _Color ("Color", Color) = (1, 0.95, 0.62, 0.55)
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Float) = 8
     }
     SubShader
     {
@@ -14,8 +18,9 @@ Shader "Hidden/PreThesis/SeeThroughGlow"
         {
             Name "SeeThroughGlow"
             Tags { "LightMode" = "SRPDefaultUnlit" }
-            ZTest Always
+            ZTest [_ZTest]
             ZWrite Off
+            Offset -1, -1
             Cull Back
             Blend SrcAlpha One
 
