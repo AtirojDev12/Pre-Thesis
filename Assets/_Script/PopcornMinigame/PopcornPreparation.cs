@@ -458,6 +458,9 @@ public sealed partial class PopcornPreparation : MonoBehaviour
         progressText = UiFactory.CreateText("Action", progressPanel.transform, string.Empty, 28f, Color.white);
         progressText.alignment = TextAlignmentOptions.Center;
         UiFactory.SetRect(progressText.rectTransform, new Vector2(0.03f, 0.33f), new Vector2(0.97f, 0.96f));
+        // 28 Nov (Atiroj): no words on the preparation bar ("FILLING FANTA 22% / Hold E ..."), only the bar.
+        // Switched off here, so the GAME HUD copy (UiLink Show / Hide) is hidden too. Delete this line to bring it back.
+        progressText.gameObject.SetActive(false);
         GameObject track = UiFactory.CreatePanel("Track", progressPanel.transform, new Color(0.2f, 0.23f, 0.28f));
         UiFactory.SetRect(track.GetComponent<RectTransform>(), new Vector2(0.04f, 0.12f), new Vector2(0.96f, 0.26f));
         GameObject fill = UiFactory.CreatePanel("Fill", track.transform, Color.white);

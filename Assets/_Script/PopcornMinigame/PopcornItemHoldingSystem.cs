@@ -191,8 +191,15 @@ public sealed class PopcornItemHoldingSystem : MonoBehaviour
         heldRotation = rotation;
     }
 
+    /// <summary>
+    /// 28 Nov (Atiroj): the "LEFT HAND" held-item panel is switched off (removed from the GAME HUD,
+    /// and without that copy the game showed its own code-made one again). True = show it again.
+    /// </summary>
+    private const bool ShowLeftHandPanel = false;
+
     public void BuildUi()
     {
+        if (!ShowLeftHandPanel) return; // heldItemPanel / heldItemText stay null: every use checks for null
         GameObject canvasObject = new GameObject("Held Popcorn HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasObject.transform.SetParent(transform, false);
         Canvas canvas = canvasObject.GetComponent<Canvas>();

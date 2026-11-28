@@ -38,6 +38,7 @@ public sealed class DevCheatPanel : MonoBehaviour
         AudienceRoamOn, AudienceRoamOff, ToiletGhostsOn, ToiletGhostsOff,
         VipStart, VipFilmIn, VipServe, VipFail, HunterStart, HunterEnd, ForeignStart, ForeignAllIn, ForeignClear,
         ReviveSelf, // 28 Nov (Atiroj): added at the END so older numbers keep their meaning
+        HealthMinus10, HealthMinus50, // 28 Nov (Atiroj): lose health (added at the END)
     }
 
     private static bool serverHandlerReady;
@@ -124,6 +125,9 @@ public sealed class DevCheatPanel : MonoBehaviour
             // 28 Nov: stand back up like a normal revive (same health a teammate's revive gives).
             case Cheat.ReviveSelf: if (health != null && health.IsDowned && !health.IsDead) health.Revive(); break;
             case Cheat.Die: if (health != null) health.ServerKill("dev cheat", true); break;
+            // 28 Nov (Atiroj): lose health right away (no hit cooldown). At 0 you go down like a normal hit.
+            case Cheat.HealthMinus10: if (health != null) health.ServerDevLoseHealth(10f); break;
+            case Cheat.HealthMinus50: if (health != null) health.ServerDevLoseHealth(50f); break;
             case Cheat.ClockPlusHour: if (match != null) match.ServerDevSkipSeconds(match.SecondsPerInGameHour); break;
             case Cheat.ClockMinusHour: if (match != null) match.ServerDevSkipSeconds(-match.SecondsPerInGameHour); break;
             case Cheat.GhostSummonNow:
@@ -385,6 +389,8 @@ public sealed class DevCheatPanel : MonoBehaviour
                     () => { if (Do(untargetable ? Cheat.UntargetableOff : Cheat.UntargetableOn, untargetable ? "Ghosts can target you" : "Ghosts ignore you")) untargetable = !untargetable; }));
             Row(("Go down", () => Do(Cheat.GoDown, "Downed")),
                 ("Revive myself", () => Do(Cheat.ReviveSelf, "Revived (only works while downed)")));
+            Row(("Health -10", () => Do(Cheat.HealthMinus10, "Health -10")),
+                ("Health -50", () => Do(Cheat.HealthMinus50, "Health -50")));
             Row(("Die", () => Do(Cheat.Die, "Dead")),
                 (noclip ? "Noclip / fly: ON" : "Noclip / fly: OFF", ToggleNoclip));
             Row(("Sanity full", () => Do(Cheat.SanityFull, "Sanity 100")),

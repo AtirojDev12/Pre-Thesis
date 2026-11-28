@@ -85,6 +85,16 @@ public class HealthBarUI : MonoBehaviour
             barRoot = null;
         }
 
+        // 28 Nov (Atiroj): the Fill slot was empty in the GAME HUD, so HP went down but the bar
+        // did not. If it is empty again, use the child picture named "Fill" (Image Type Filled).
+        if (fillImage == null)
+        {
+            foreach (Image image in GetComponentsInChildren<Image>(true))
+                if (image.name == "Fill" && HudFill.IsCut(image)) { fillImage = image; break; }
+            if (fillImage == null && healthSlider == null)
+                Debug.LogWarning("[HealthBarUI] No Fill picture set: the HP bar will not move.", this);
+        }
+
         HudFill.DetachSlider(healthSlider, fillImage);
 
         if (sortingOrder != 0)
